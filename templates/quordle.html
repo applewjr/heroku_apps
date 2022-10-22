@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordle Solver{% endblock %}
+
+{% block content %}
+<form action="#" method="post">
+    <center>
+    <h1 style="text-align: center;color:black">Wordle Solver</h1>
+    <br>
+
+
+
+
+    <h4 style="text-align: center;color:black">Puzzle 1 (top-left)</h4>
+    <p style="text-align: center; color:#6aaa64">Correct: letters with a known position (1 letter per box)</p>
+    <input type="text" name="present1_1" style="text-align: center;width: 55px;" value={{present1_1_val}}>
+    <input type="text" name="present1_2" style="text-align: center;width: 55px;" value={{present1_2_val}}>
+    <input type="text" name="present1_3" style="text-align: center;width: 55px;" value={{present1_3_val}}>
+    <input type="text" name="present1_4" style="text-align: center;width: 55px;" value={{present1_4_val}}>
+    <input type="text" name="present1_5" style="text-align: center;width: 55px;" value={{present1_5_val}}>
+    
+    <p style="text-align: center; color:#c9b448">Present: letters with an unknown position (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="not_present1_1" style="text-align: center;width: 75px;" value={{not_present1_1_val}}>
+    <input type="text" name="not_present1_2" style="text-align: center;width: 75px;" value={{not_present1_2_val}}>
+    <input type="text" name="not_present1_3" style="text-align: center;width: 75px;" value={{not_present1_3_val}}>
+    <input type="text" name="not_present1_4" style="text-align: center;width: 75px;" value={{not_present1_4_val}}>
+    <input type="text" name="not_present1_5" style="text-align: center;width: 75px;" value={{not_present1_5_val}}>
+
+    <p style="text-align: center; color:#787c7e">Absent: letters that are not present (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="must_not_be_present1" style="text-align: center;width: 200px;" value={{must_not_be_present1_val}}>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+
+
+
+    <h4 style="text-align: center;color:black">Puzzle 2 (top-right)</h4>
+    <p style="text-align: center; color:#6aaa64">Correct: letters with a known position (1 letter per box)</p>
+    <input type="text" name="present2_1" style="text-align: center;width: 55px;" value={{present2_1_val}}>
+    <input type="text" name="present2_2" style="text-align: center;width: 55px;" value={{present2_2_val}}>
+    <input type="text" name="present2_3" style="text-align: center;width: 55px;" value={{present2_3_val}}>
+    <input type="text" name="present2_4" style="text-align: center;width: 55px;" value={{present2_4_val}}>
+    <input type="text" name="present2_5" style="text-align: center;width: 55px;" value={{present2_5_val}}>
+    
+    <p style="text-align: center; color:#c9b448">Present: letters with an unknown position (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="not_present2_1" style="text-align: center;width: 75px;" value={{not_present2_1_val}}>
+    <input type="text" name="not_present2_2" style="text-align: center;width: 75px;" value={{not_present2_2_val}}>
+    <input type="text" name="not_present2_3" style="text-align: center;width: 75px;" value={{not_present2_3_val}}>
+    <input type="text" name="not_present2_4" style="text-align: center;width: 75px;" value={{not_present2_4_val}}>
+    <input type="text" name="not_present2_5" style="text-align: center;width: 75px;" value={{not_present2_5_val}}>
+
+    <p style="text-align: center; color:#787c7e">Absent: letters that are not present2_ (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="must_not_be_present2" style="text-align: center;width: 200px;" value={{must_not_be_present2_val}}>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+
+
+
+    <h4 style="text-align: center;color:black">Puzzle 3 (bottom-left)</h4>
+    <p style="text-align: center; color:#6aaa64">Correct: letters with a known position (1 letter per box)</p>
+    <input type="text" name="present3_1" style="text-align: center;width: 55px;" value={{present3_1_val}}>
+    <input type="text" name="present3_2" style="text-align: center;width: 55px;" value={{present3_2_val}}>
+    <input type="text" name="present3_3" style="text-align: center;width: 55px;" value={{present3_3_val}}>
+    <input type="text" name="present3_4" style="text-align: center;width: 55px;" value={{present3_4_val}}>
+    <input type="text" name="present3_5" style="text-align: center;width: 55px;" value={{present3_5_val}}>
+    
+    <p style="text-align: center; color:#c9b448">Present: letters with an unknown position (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="not_present3_1" style="text-align: center;width: 75px;" value={{not_present3_1_val}}>
+    <input type="text" name="not_present3_2" style="text-align: center;width: 75px;" value={{not_present3_2_val}}>
+    <input type="text" name="not_present3_3" style="text-align: center;width: 75px;" value={{not_present3_3_val}}>
+    <input type="text" name="not_present3_4" style="text-align: center;width: 75px;" value={{not_present3_4_val}}>
+    <input type="text" name="not_present3_5" style="text-align: center;width: 75px;" value={{not_present3_5_val}}>
+
+    <p style="text-align: center; color:#787c7e">Absent: letters that are not present3_ (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="must_not_be_present3" style="text-align: center;width: 200px;" value={{must_not_be_present3_val}}>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+
+
+
+    <h4 style="text-align: center;color:black">Puzzle 4 (bottom-right)</h4>
+    <p style="text-align: center; color:#6aaa64">Correct: letters with a known position (1 letter per box)</p>
+    <input type="text" name="present4_1" style="text-align: center;width: 55px;" value={{present4_1_val}}>
+    <input type="text" name="present4_2" style="text-align: center;width: 55px;" value={{present4_2_val}}>
+    <input type="text" name="present4_3" style="text-align: center;width: 55px;" value={{present4_3_val}}>
+    <input type="text" name="present4_4" style="text-align: center;width: 55px;" value={{present4_4_val}}>
+    <input type="text" name="present4_5" style="text-align: center;width: 55px;" value={{present4_5_val}}>
+    
+    <p style="text-align: center; color:#c9b448">Present: letters with an unknown position (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="not_present4_1" style="text-align: center;width: 75px;" value={{not_present4_1_val}}>
+    <input type="text" name="not_present4_2" style="text-align: center;width: 75px;" value={{not_present4_2_val}}>
+    <input type="text" name="not_present4_3" style="text-align: center;width: 75px;" value={{not_present4_3_val}}>
+    <input type="text" name="not_present4_4" style="text-align: center;width: 75px;" value={{not_present4_4_val}}>
+    <input type="text" name="not_present4_5" style="text-align: center;width: 75px;" value={{not_present4_5_val}}>
+
+    <p style="text-align: center; color:#787c7e">Absent: letters that are not present4_ (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="must_not_be_present4" style="text-align: center;width: 200px;" value={{must_not_be_present4_val}}>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+
+
+
+    <br>
+    <br>
+
+    <p style="text-align: center; color:#787c7e">Update values and click Calcuate between each round for more accurate guesses</p>
+    <p style="text-align: center; color:#787c7e">As a general strategy</p>
+    <input type="submit" value="Calculate">
+    <br>
+    <br>
+    <p style="text-align: center; color:black">Suggested word(s):</p>
+
+    <p style="text-align: center; color:black">All Puzzle:</p>
+    <p style="text-align: center; color:black">{{final_out_all_1}}</p>
+    <p style="text-align: center; color:black">{{final_out_all_2}}</p>
+    <p style="text-align: center; color:black">{{final_out_all_3}}</p>
+    <p style="text-align: center; color:black">{{final_out_all_4}}</p>
+    <p style="text-align: center; color:black">{{final_out_all_5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end_all}}</p>
+
+    <p style="text-align: center; color:black">Puzzle 1:</p>
+    <p style="text-align: center; color:black">{{final_out1_1}}</p>
+    <p style="text-align: center; color:black">{{final_out1_2}}</p>
+    <p style="text-align: center; color:black">{{final_out1_3}}</p>
+    <p style="text-align: center; color:black">{{final_out1_4}}</p>
+    <p style="text-align: center; color:black">{{final_out1_5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end1}}</p>
+
+    <p style="text-align: center; color:black">Puzzle 2:</p>
+    <p style="text-align: center; color:black">{{final_out2_1}}</p>
+    <p style="text-align: center; color:black">{{final_out2_2}}</p>
+    <p style="text-align: center; color:black">{{final_out2_3}}</p>
+    <p style="text-align: center; color:black">{{final_out2_4}}</p>
+    <p style="text-align: center; color:black">{{final_out2_5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end2}}</p>
+
+    <p style="text-align: center; color:black">Puzzle 3:</p>
+    <p style="text-align: center; color:black">{{final_out3_1}}</p>
+    <p style="text-align: center; color:black">{{final_out3_2}}</p>
+    <p style="text-align: center; color:black">{{final_out3_3}}</p>
+    <p style="text-align: center; color:black">{{final_out3_4}}</p>
+    <p style="text-align: center; color:black">{{final_out3_5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end3}}</p>
+
+    <p style="text-align: center; color:black">Puzzle 4:</p>
+    <p style="text-align: center; color:black">{{final_out4_1}}</p>
+    <p style="text-align: center; color:black">{{final_out4_2}}</p>
+    <p style="text-align: center; color:black">{{final_out4_3}}</p>
+    <p style="text-align: center; color:black">{{final_out4_4}}</p>
+    <p style="text-align: center; color:black">{{final_out4_5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end4}}</p>
+
+    <br>
+    <br>
+    <a href="/quordle">Reset</a>
+    <br>
+    <br>
+    <a href="/fixer">Go to "last letter" solver (In Progress)</a>
+    <br>
+    <br>
+    <a href="https://github.com/applewjr/wordle_app2">Link to source function</a>
+    </center>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
