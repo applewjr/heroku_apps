@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordle Solver{% endblock %}
+
+{% block content %}
+<form action="#" method="post">
+    <center>
+    <h1 style="text-align: center;color:black">Wordle Solver</h1>
+    <br>
+
+    <p style="text-align: center; color:#6aaa64">Correct: letters with a known position (1 letter per box)</p>
+    <input type="text" name="present1" style="text-align: center;width: 55px;" value={{present1_val}}>
+    <input type="text" name="present2" style="text-align: center;width: 55px;" value={{present2_val}}>
+    <input type="text" name="present3" style="text-align: center;width: 55px;" value={{present3_val}}>
+    <input type="text" name="present4" style="text-align: center;width: 55px;" value={{present4_val}}>
+    <input type="text" name="present5" style="text-align: center;width: 55px;" value={{present5_val}}>
+    
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p style="text-align: center; color:#c9b448">Present: letters with an unknown position (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="not_present1" style="text-align: center;width: 75px;" value={{not_present1_val}}>
+    <input type="text" name="not_present2" style="text-align: center;width: 75px;" value={{not_present2_val}}>
+    <input type="text" name="not_present3" style="text-align: center;width: 75px;" value={{not_present3_val}}>
+    <input type="text" name="not_present4" style="text-align: center;width: 75px;" value={{not_present4_val}}>
+    <input type="text" name="not_present5" style="text-align: center;width: 75px;" value={{not_present5_val}}>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p style="text-align: center; color:#787c7e">Absent: letters that are not present (multiple letters per box, no commas or spaces)</p>
+    <input type="text" name="must_not_be_present" style="text-align: center;width: 200px;" value={{must_not_be_present_val}}>
+    <br>
+    <br>
+
+    <p style="text-align: center">Update values and click Calcuate between each round for more accurate guesses</p>
+    <input type="submit" value="Calculate">
+    <br>
+    <br>
+    <p style="text-align: center; color:black">Suggested word(s):</p>
+    <p style="text-align: center; color:black">{{final_out1}}</p>
+    <p style="text-align: center; color:black">{{final_out2}}</p>
+    <p style="text-align: center; color:black">{{final_out3}}</p>
+    <p style="text-align: center; color:black">{{final_out4}}</p>
+    <p style="text-align: center; color:black">{{final_out5}}</p>
+    <p style="text-align: center; color:black">{{final_out_end}}</p>
+    <br>
+    <br>
+    <a href="/wordle">Reset</a>
+    <br>
+    <br>
+    <a href="/fixer">Go to "last letter" solver (In Progress)</a>
+    <br>
+    <br>
+    <a href="https://github.com/applewjr/wordle_app2">Link to source function</a>
+    </center>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

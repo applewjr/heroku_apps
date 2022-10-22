@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordle Solver{% endblock %}
+
+{% block content %}
+<form action="#" method="post">
+    <h1 style="text-align: center;color:black">Wordle Solver</h1>
+    <br>
+    <p style="text-align: center; color:#787c7e">Enter all possible letters</p>
+    <center><input type="text" name="must_be_present" style="text-align: center;width: 200px;"></center>
+
+    <br>
+    <br>
+    <center><input type="submit" value="Calculate"></center>
+    <br>
+    <br>
+    
+    <p style="text-align: center; color:black">Suggested word(s) for {{must_be_present}}:</p>
+    <p style="text-align: center; color:black">{{final_out1}}</p>
+    <p style="text-align: center; color:black">{{final_out2}}</p>
+    <p style="text-align: center; color:black">{{final_out3}}</p>
+    <p style="text-align: center; color:black">{{final_out4}}</p>
+    <p style="text-align: center; color:black">{{final_out5}}</p>
+
+    <br>
+    <br>
+    <center><a href="/wordle">Back to Wordle Solver</a></center>
+    <br>
+    <center><a href="/quordle">Back to Quordle Solver</a></center>
+    <br>
+    <center><a href="https://github.com/applewjr/wordle_app2">Link to source function</a></center>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
