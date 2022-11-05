@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Common Denominator{% endblock %}
+
+{% block content %}
+<form action="#" method="post">
+    <center>
+    <h1 style="text-align: center;color:black">Common Denominator</h1>
+    <br>
+
+    <p style="text-align: center; color:black">List all words here to determine the most common word parts</p>
+    <textarea name="user_match_entry" cols="70" rows="4">{{user_match_entry_val}}</textarea>
+    <br>
+    <br>
+    <!-- <p style="text-align: center; color:black">user_nope_match_entry (add description here)</p>
+    <input type="text" name="user_nope_match_entry" style="text-align: center;width: 500px;height: 100px" value={{user_nope_match_entry_val}}>
+    <br>
+    <br> -->
+    <p style="text-align: center; color:black">Minimum desired length of matches</p>
+    <input type="text" name="min_match_len" style="text-align: center;width: 55px;" value={{min_match_len_val}}>
+    <br>
+    <br>
+    <p style="text-align: center; color:black">Minimum match rate among words (0-1)</p>
+    <input type="text" name="min_match_rate" style="text-align: center;width: 55px;" value={{min_match_rate_val}}>
+    <br>
+    <br>
+    <p style="text-align: center; color:black">Specify a unique character to serve as proxy for word beginning and end</p>
+    <input type="text" name="beg_end_str_char" style="text-align: center;width: 55px;" value={{beg_end_str_char_val}}>
+    <br>
+    <br>
+    <p style="text-align: center; color:black">Specify which value to separate words</p>
+    <input type="text" name="value_split_char" style="text-align: center;width: 55px;" value={{value_split_char_val}}>
+    <br>
+    <br>
+    <br>
+    <br>
+    <input type="submit" value="Calculate">
+    <!-- <input type="submit" value="Example"> -->
+    <br>
+    <br>
+    <!-- <p style="text-align: center; color:black">result</p> -->
+    <p style="text-align: center; color:black">{{num_word_count}}{{num_words_entered}}</p>
+    <p style="text-align: center; color:black">{{final_match_list}}</p>
+    <p style="text-align: center; color:black">{{final_out}}</p>
+    <br>
+    <br>
+    <a href="/common_denominator">Reset</a>
+    <br>
+    <br>
+    <a href="/">Home</a>
+    <br>
+    <br>
+    <a href="https://github.com/applewjr/heroku_apps">Link to source function</a>
+    </center>
+</form>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
