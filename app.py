@@ -702,7 +702,7 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
                                 final_match_dict[first] += 1
                             except:
                                 pass
-
+    comparisons = f'{x:,}'
 
     final_match_list = []
     for key, value in final_match_dict.items():
@@ -774,7 +774,7 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
 
     num_words_entered = int(len(var_list))
 
-    return final_match_list, final_out, num_words_entered
+    return final_match_list, final_out, num_words_entered, comparisons
     # return final_match_list, final_out, num_words_entered, user_match_entry
 
 
@@ -811,7 +811,8 @@ def run_wordle():
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
-            not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5)
+            not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5, \
+            suggested="Suggested word(s):")
     else:
         return render_template("wordle.html")
 
@@ -890,7 +891,8 @@ def run_quordle():
             ,must_not_be_present3_val=must_not_be_present3, present3_1_val=present3_1, present3_2_val=present3_2, present3_3_val=present3_3, present3_4_val=present3_4, present3_5_val=present3_5 \
             ,not_present3_1_val=not_present3_1, not_present3_2_val=not_present3_2, not_present3_3_val=not_present3_3, not_present3_4_val=not_present3_4, not_present3_5_val=not_present3_5 \
             ,must_not_be_present4_val=must_not_be_present4, present4_1_val=present4_1, present4_2_val=present4_2, present4_3_val=present4_3, present4_4_val=present4_4, present4_5_val=present4_5 \
-            ,not_present4_1_val=not_present4_1, not_present4_2_val=not_present4_2, not_present4_3_val=not_present4_3, not_present4_4_val=not_present4_4, not_present4_5_val=not_present4_5)
+            ,not_present4_1_val=not_present4_1, not_present4_2_val=not_present4_2, not_present4_3_val=not_present4_3, not_present4_4_val=not_present4_4, not_present4_5_val=not_present4_5 \
+            ,suggested="Suggested word(s):", all_puzzle="All Puzzle:", puzzle_1="Puzzle 1:", puzzle_2="Puzzle 2:", puzzle_3="Puzzle 3:", puzzle_4="Puzzle 4:")
     else:
         return render_template("quordle.html")
 
@@ -914,14 +916,14 @@ def run_common_denominator():
         value_split_char = request.form["value_split_char"]
         user_match_entry = request.form["user_match_entry"]
         # user_nope_match_entry = request.form["user_nope_match_entry"]
-        final_match_list, final_out, num_words_entered = common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, "")
+        final_match_list, final_out, num_words_entered, comparisons = common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, "")
         return render_template("common_denominator.html", min_match_len_val=min_match_len, min_match_rate_val=min_match_rate, beg_end_str_char_val=beg_end_str_char, value_split_char_val=value_split_char, \
             user_match_entry_val=user_match_entry, \
-            final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, \
-            num_word_count="Number of words submitted: ")
+            final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
+            num_word_count="Number of words submitted: ", num_run_count="Number of comparisons run: ", top="Top words: ", all="All words meeting min match rate: ")
     else:
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
-            user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation")
+            user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 
 
