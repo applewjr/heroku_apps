@@ -928,6 +928,14 @@ def run_common_denominator():
 
 
 
+@app.route("/stock", methods=["POST", "GET"])
+def run_stock():
+    if request.method == "POST":
+        return render_template("stock.html")
+    else:
+        return render_template("stock.html")
+
+
 
 
 if __name__ == "__main__":

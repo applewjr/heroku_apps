@@ -4,33 +4,40 @@
 
 {% block content %}
 <form action="#" method="post">
+    <center>
     <h1 style="text-align: center;color:black">Wordle/Quordle Fixer</h1>
     <br>
     <p style="text-align: center; color:#787c7e">Enter all possible letters</p>
-    <center><input type="text" name="must_be_present" style="text-align: center;width: 200px;"></center>
-
+    <input type="text" name="must_be_present" style="text-align: center;width: 200px;">
     <br>
     <br>
-    <center><input type="submit" value="Calculate"></center>
+    <input type="submit" value="Calculate">
     <br>
     <br>
-    
     <p style="text-align: center; color:black">Suggested word(s) for {{must_be_present}}:</p>
     <p style="text-align: center; color:black">{{final_out1}}</p>
     <p style="text-align: center; color:black">{{final_out2}}</p>
     <p style="text-align: center; color:black">{{final_out3}}</p>
     <p style="text-align: center; color:black">{{final_out4}}</p>
     <p style="text-align: center; color:black">{{final_out5}}</p>
-
     <br>
     <br>
-    <center><a href="/wordle">Back to Wordle Solver</a></center>
+    <a href="/wordle">Back to Wordle Solver</a>
     <br>
-    <center><a href="/quordle">Back to Quordle Solver</a></center>
     <br>
-    <center><a href="/">Home</a></center>
+    <a href="/quordle">Back to Quordle Solver</a>
     <br>
-    <center><a href="https://github.com/applewjr/heroku_apps">Link to source function</a></center>
+    <br>
+    <a href="/">
+        <img alt="Home" src="/static/home_logo.jpg" width=50 height=50>
+    </a>
+    <a href="https://github.com/applewjr/heroku_apps" target="_blank">
+        <img alt="GitHub" src="/static/github_logo.jpg" width=55 height=55>
+    </a>
+    <br>
+    <br>
+    <br>
+    </center>
 </form>
 {% endblock %}
 
