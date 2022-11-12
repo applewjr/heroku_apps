@@ -937,6 +937,14 @@ def run_stock():
 
 
 
+@app.route("/wordle_example", methods=["POST", "GET"])
+def run_wordle_example():
+    if request.method == "POST":
+        return render_template("wordle_example.html")
+    else:
+        return render_template("wordle_example.html")
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
