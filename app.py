@@ -974,7 +974,7 @@ def export_graph_test(xy_val, text_ymdt):
         plt.plot(x, y)
         plt.title('test graph export')
         plt.xlabel(f"{text_ymdt}")
-        plt.savefig(f'C:/static/test.jpg', bbox_inches='tight')
+        plt.savefig(f'/static/test.jpg', bbox_inches='tight')
         plt.cla()
         return 1
 
