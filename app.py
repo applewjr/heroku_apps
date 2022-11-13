@@ -962,6 +962,9 @@ def run_wordle_example():
 
 
 ##### in progress #####
+# will probably need to introduce a new requirements file for the new packages
+    # maybe need to dl then in the environment as well
+
 
 def export_graph_test(xy_val, text_ymdt):
         xy_val = int(xy_val)
@@ -969,15 +972,15 @@ def export_graph_test(xy_val, text_ymdt):
         plt.xticks(rotation=90)
         y = range(1, xy_val)
         plt.plot(x, y)
-        plt.title('test title')
+        plt.title('test graph export')
         plt.xlabel(f"{text_ymdt}")
         plt.savefig(f'C:/Users/james/OneDrive/Desktop/Projects/heroku_apps/static/test.jpg', bbox_inches='tight')
-        # plt.show()
-        # plt.clf()
-        return "done"
+        plt.cla()
+        return 1
 
 @app.route("/stock_graph_test", methods=["POST", "GET"])
 def run_stock_test():
+    return_val = 0
     if request.method == "POST":
         xy_val = request.form["xy_val"]
         text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
