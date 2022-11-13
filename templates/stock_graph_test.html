@@ -12,11 +12,15 @@
     <input type="submit" value="Calculate">
     <br>
     <br>
-    <!-- <p style="text-align: center; color:black">{{return_val}}</p> -->
-    <br>
-    <br>
+
+    {% if return_val == 1 %}
     <img src="/static/test.jpg" alt="test graph">
-    <!-- <img src={{img}} alt="test graph"> -->
+    {% endif %}
+    <br>
+    <br>
+    <a href="/stock_graph_test">
+        <img alt="Reset" src="/static/reset_logo.png" width=45 height=45>
+    </a>
     <br>
     <br>
     <br>
