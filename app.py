@@ -3,8 +3,12 @@ import pandas as pd
 import os
 import math
 
-app = Flask(__name__)
+import matplotlib.pyplot as plt
+import datetime
+from datetime import date
+from datetime import datetime
 
+app = Flask(__name__)
 
 # Current directory for Flask app
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -943,6 +947,48 @@ def run_wordle_example():
         return render_template("wordle_example.html")
     else:
         return render_template("wordle_example.html")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### in progress #####
+
+def export_graph_test(xy_val, text_ymdt):
+        xy_val = int(xy_val)
+        x = range(1, xy_val)
+        plt.xticks(rotation=90)
+        y = range(1, xy_val)
+        plt.plot(x, y)
+        plt.title('test title')
+        plt.xlabel(f"{text_ymdt}")
+        plt.savefig(f'C:/Users/james/OneDrive/Desktop/Projects/heroku_apps/static/test.jpg', bbox_inches='tight')
+        # plt.show()
+        # plt.clf()
+        return "done"
+
+@app.route("/stock_graph_test", methods=["POST", "GET"])
+def run_stock_test():
+    if request.method == "POST":
+        xy_val = request.form["xy_val"]
+        text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
+        text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M')
+        return_val = export_graph_test(xy_val, text_ymdt)
+        return render_template("stock_graph_test.html", return_val=return_val, xy_val=xy_val)
+    else:
+        return render_template("stock_graph_test.html", xy_val=10)
+
+
+
 
 
 
