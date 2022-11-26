@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import datetime
 from datetime import date
 from datetime import datetime
+import io
+from PIL import Image
+import base64
 
 app = Flask(__name__)
 
@@ -974,9 +977,29 @@ def export_graph_test(xy_val, text_ymdt):
         plt.plot(x, y)
         plt.title('test graph export')
         plt.xlabel(f"{text_ymdt}")
-        plt.savefig(f'/static/test.jpg', bbox_inches='tight')
-        plt.cla()
-        return 1
+
+        # buf = io.BytesIO()
+        # plt.savefig(buf, format='jpg')
+        # buf.seek(0)
+        # im = Image.open(buf)
+        # im.show()
+        # buf.close()
+
+        # buf = io.BytesIO()
+        # plt.savefig(buf)
+        # buf.seek(0)
+        # img = Image.open(buf)
+        # return img, 1
+
+        # plt.savefig(f'/static/test.jpg', bbox_inches='tight')
+        # plt.cla()
+        # return buf, 1
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        # Embed the result in the html output.
+        data = base64.b64encode(buf.getbuffer()).decode("ascii")
+        return f"<img src='data:image/png;base64,{data}'/>", 1
 
 @app.route("/stock_graph_test", methods=["POST", "GET"])
 def run_stock_test():
@@ -985,12 +1008,42 @@ def run_stock_test():
         xy_val = request.form["xy_val"]
         text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
         text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M')
-        return_val = export_graph_test(xy_val, text_ymdt)
-        return render_template("stock_graph_test.html", return_val=return_val, xy_val=xy_val)
+
+        graph, return_val = export_graph_test(xy_val, text_ymdt)
+        return render_template("stock_graph_test.html", return_val=return_val, xy_val=xy_val, graph=graph)
+
     else:
         return render_template("stock_graph_test.html", xy_val=10)
 
+@app.route("/stock_graph_test2")
+def home():
+    # data = [
+    #     ("01-01-2020", 1597),
+    #     ("02-01-2020", 1456),
+    #     ("03-01-2020", 1908),        
+    #     ("04-01-2020", 896),
+    #     ("05-01-2020", 755),
+    #     ("06-01-2020", 453),  
+    #     ("07-01-2020", 1100),
+    #     ("08-01-2020", 1235),
+    #     ("09-01-2020", 1478),
+    # ]
+    data = [
+        ("01-01-2020", 1597, 800),
+        ("02-01-2020", 1456, 850),
+        ("03-01-2020", 1908, 900),        
+        ("04-01-2020", 896, 950),
+        ("05-01-2020", 755, 1000),
+        ("06-01-2020", 453, 1050),  
+        ("07-01-2020", 1100, 1100),
+        ("08-01-2020", 1235, 1150),
+        ("09-01-2020", 1478, 1200),
+    ]    
+    labels = [row[0] for row in data]
+    stock = [row[1] for row in data]
+    pred = [row[2] for row in data]
 
+    return render_template("stock_graph_test2.html", labels=labels, stock=stock, pred=pred)
 
 
 
