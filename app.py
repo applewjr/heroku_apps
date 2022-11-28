@@ -942,15 +942,6 @@ def run_common_denominator():
 
 
 
-# @app.route("/stock", methods=["POST", "GET"])
-# def run_stock():
-#     if request.method == "POST":
-#         return render_template("stock.html")
-#     else:
-#         return render_template("stock.html")
-
-
-
 @app.route("/wordle_example", methods=["POST", "GET"])
 def run_wordle_example():
     if request.method == "POST":
@@ -967,61 +958,9 @@ def run_wordle_example():
 
 
 
-
-
-
-
-##### in progress #####
-# will probably need to introduce a new requirements file for the new packages
-    # maybe need to dl then in the environment as well
-
-
-# def export_graph_test(xy_val, text_ymdt):
-#         xy_val = int(xy_val)
-#         x = range(1, xy_val)
-#         plt.xticks(rotation=90)
-#         y = range(1, xy_val)
-#         plt.plot(x, y)
-#         plt.title('test graph export')
-#         plt.xlabel(f"{text_ymdt}")
-
-        # buf = io.BytesIO()
-        # plt.savefig(buf, format='jpg')
-        # buf.seek(0)
-        # im = Image.open(buf)
-        # im.show()
-        # buf.close()
-
-        # buf = io.BytesIO()
-        # plt.savefig(buf)
-        # buf.seek(0)
-        # img = Image.open(buf)
-        # return img, 1
-
-        # plt.savefig(f'/static/test.jpg', bbox_inches='tight')
-        # plt.cla()
-        # return buf, 1
-
-        # buf = io.BytesIO()
-        # plt.savefig(buf, format="png")
-        # # Embed the result in the html output.
-        # data = base64.b64encode(buf.getbuffer()).decode("ascii")
-        # return f"<img src='data:image/png;base64,{data}'/>", 1
-
-# @app.route("/stock_graph_test", methods=["POST", "GET"])
-# def run_stock_test():
-#     return_val = 0
-#     if request.method == "POST":
-#         xy_val = request.form["xy_val"]
-#         text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
-#         text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M')
-
-#         graph, return_val = export_graph_test(xy_val, text_ymdt)
-#         return render_template("stock_graph_test.html", return_val=return_val, xy_val=xy_val, graph=graph)
-
-#     else:
-#         return render_template("stock_graph_test.html", xy_val=10)
-
+##################################
+##### stock analysis section #####
+##################################
 
 def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, total_weeks: int, buyvalue: float, multiplier: float, nth_week: int, roll_days: str, trade_dow: str):
 
@@ -1434,33 +1373,8 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
         else:
             final_buy_list.append(round(contrib_amt[i]*pred_open_list[i]*multiplier, 2))
 
-    # final_df = pd.DataFrame()
-    # final_df['stock'] = stock_list
-    # final_df['buy_in_amt'] = final_buy_list
-    # final_df['pred_open'] = pred_open_list
-
-    # trade_day_date = df.tail(1)['date'].item().strftime('%Y.%m.%d')
-
-    # stocks = []
-    # for i, j, k, m in zip(stock_list, final_buy_list, pred_open_list, contrib_amt):
-    #     if j == m:
-    #         stocks.append(f'\n{i} ({round(k, 2)}): {j}')
-    #     else:
-    #         stocks.append(f'\n{i} ({round(k, 2)}): *{j}*')
-
-    # text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M:%S')
-
-    # print(f"{text_ymdt} ({today.strftime('%a')})")
-    # print(f"Roll Hist Days = {roll_days}")
-    # print(f"Pred/Open^2 Threshold = {buyvalue}")
-    # print(f"Multiplier = {multiplier}")
-    # print(f"Stk (Pred/Open^2): Buy Value{(''.join(str(a) for a in stocks))}")
-
-
-    # print(stock_list[0])
     pred_open_out = f"Current Pred/Open^2 Value: {round(pred_open_list[0],4)}"
     final_buy_out = f"Ideal Investing Amount: {final_buy_list[0]}"
-    # print(contrib_amt[0])
 
     # this call to the dict df is not dynamic for multiple stock tickers
     data_out = graph_data[stock_list[0]]
@@ -1473,11 +1387,15 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
 
 
 
-@app.route("/stock", methods=["POST", "GET"])
+@app.route("/stock_analysis", methods=["POST", "GET"])
 def home():
     if request.method == "POST":
         stock_list_init = request.form["stock_list_init"]
+
         trade_type = request.form["trade_type"]
+        # trade_type = ['stock', 'crypto', 'index']
+        # colour_return = request.form["colour_return"]
+
         contrib_amt_init = request.form["contrib_amt_init"]
         total_weeks = request.form["total_weeks"]
         buyvalue = request.form["buyvalue"]
@@ -1486,21 +1404,19 @@ def home():
         roll_days = request.form["roll_days"]
         trade_dow = request.form["trade_dow"]
         pred_open_out, final_buy_out, data_out, valid_graph = stock_pred(stock_list_init, trade_type, contrib_amt_init, total_weeks, buyvalue, multiplier, nth_week, roll_days, trade_dow)
-
-        # date = [row[0] for row in data_out]
-        # val = [row[1] for row in data_out]
-        # pred = [row[2] for row in data_out]
         date = list(str(data_out['date']))
         date = list(range(1, len(data_out)+1))
         val = list(round(data_out['val'],2))
         pred = list(round(data_out['pred'],2))
 
-        return render_template("stock.html", pred_open_out=pred_open_out, final_buy_out=final_buy_out, date=date, val=val, pred=pred, valid_graph=valid_graph, data_out=data_out, \
+        return render_template("stock_analysis.html", pred_open_out=pred_open_out, final_buy_out=final_buy_out, date=date, val=val, pred=pred, valid_graph=valid_graph, data_out=data_out, \
             stock_list_init_val=stock_list_init, trade_type_val=trade_type, contrib_amt_init_val=contrib_amt_init, \
+            # stock_list_init_val=stock_list_init, contrib_amt_init_val=contrib_amt_init, \
             total_weeks_val=total_weeks, buyvalue_val=buyvalue, multiplier_val=multiplier, nth_week_val=nth_week, roll_days_val=roll_days, trade_dow_val=trade_dow)
     else:
-        return render_template("stock.html", \
+        return render_template("stock_analysis.html", \
             stock_list_init_val='AAPL', trade_type_val='stock', contrib_amt_init_val=100, \
+            # stock_list_init_val='AAPL', contrib_amt_init_val=100, \
             total_weeks_val=104, buyvalue_val=1.2, multiplier_val=5, nth_week_val=1, roll_days_val='quarter', trade_dow_val='Monday')
 
 
