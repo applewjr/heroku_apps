@@ -16,8 +16,8 @@
     <h1 style="text-align: center;color:black">Stock Analysis</h1>
     {% if valid_graph == 1 %}
     <br>
-    <p style="text-align: center; color:black">{{pred_open_out}} (>1: value performs worse than prediction,  &lt;1: value performs better than prediction)</p>
-    <p style="text-align: center; color:black">{{final_buy_out}}</p>
+    <p style="text-align: center; color:black">Recommended Investing Amount: {{final_buy_out}}</p>
+    <p style="text-align: center; color:black">Current Pred/Open^2 Value: {{pred_open_out}} (>1: value performs worse than prediction,  &lt;1: value performs better than prediction)</p>
     <canvas id="lineChart" width="900" height="400"></canvas>
     <script>
         var ctx = document.getElementById("lineChart").getContext("2d");

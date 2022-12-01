@@ -1373,8 +1373,8 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
         else:
             final_buy_list.append(round(contrib_amt[i]*pred_open_list[i]*multiplier, 2))
 
-    pred_open_out = f"Current Pred/Open^2 Value: {round(pred_open_list[0],4)}"
-    final_buy_out = f"Ideal Investing Amount: {final_buy_list[0]}"
+    pred_open_out = f"{round(pred_open_list[0],4)}"
+    final_buy_out = f"{final_buy_list[0]}"
 
     # this call to the dict df is not dynamic for multiple stock tickers
     data_out = graph_data[stock_list[0]]
