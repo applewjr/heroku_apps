@@ -42,7 +42,7 @@ class Todo(db.Model):
     def __repr__(self):
         return '<Task %r>' % self.id
 
-@app.route('/db', methods=['POST', 'GET'])
+@app.route('/task_db', methods=['POST', 'GET'])
 def index():
     if request.method == 'POST':
         task_content = request.form['content']
@@ -51,12 +51,12 @@ def index():
         try:
             db.session.add(new_task)
             db.session.commit()
-            return redirect('/db')
+            return redirect('/task_db')
         except:
             return 'There was an issue adding your task'
     else:
         tasks = Todo.query.order_by(Todo.date_created).all()
-        return render_template('db.html', tasks=tasks)
+        return render_template('task_db.html', tasks=tasks)
 
 @app.route('/delete/<int:id>')
 def delete(id):
@@ -65,7 +65,7 @@ def delete(id):
     try:
         db.session.delete(task_to_delete)
         db.session.commit()
-        return redirect('/db')
+        return redirect('/task_db')
     except:
         return 'There was a problem deleting that task'
 
@@ -78,7 +78,7 @@ def update(id):
         
         try:
             db.session.commit()
-            return redirect('/db')
+            return redirect('/task_db')
         except:
             return 'There was an issue updating your task'
     else:
