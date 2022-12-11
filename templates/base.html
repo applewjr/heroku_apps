@@ -16,9 +16,9 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav mr-auto">
-            <li class="nav-item active">
+            <!-- <li class="nav-item active">
               <a class="nav-link" href="/">Home <span class="sr-only">(current)</span></a>
-            </li>
+            </li> -->
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 Pages
@@ -32,7 +32,7 @@
                 <a class="dropdown-item" href="/stock_analysis">Stock Analysis</a>
                 <a class="dropdown-item" href="/common_denominator">Common Denominator</a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/db">Task Manager</a>
+                <a class="dropdown-item" href="/task_db">Task Manager</a>
               </div>
             </li>
             <li class="nav-item">
@@ -40,7 +40,12 @@
                 <img alt="GitHub" src="/static/github_logo4.png" width=25 height=25>
               </a>
             </li>
-        </div>
+            <li class="nav-item">
+              <a class="nav-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank">
+                <img alt="LinkedIn" src="/static/linkedin_logo.jpg" width=27 height=27>
+              </a>
+            </li>
+          </div>
       </nav>
       {% block content %}
       {% endblock %}
