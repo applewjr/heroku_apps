@@ -1,27 +1,97 @@
-from flask import Flask, redirect, render_template, url_for, request, redirect, jsonify
+# from flask import Flask, redirect, render_template, url_for, request, redirect, jsonify
+from flask import Flask, redirect, render_template, request, redirect
 import pandas as pd
 import os
 import math
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import datetime
 from datetime import date
 from datetime import datetime
-import io
-from PIL import Image
-import base64
+# import io
+# from PIL import Image
+# import base64
 
 import yfinance as yf
 import numpy as np
 import time
 pd.options.mode.chained_assignment = None  # default='warn'
 
+from flask_sqlalchemy import SQLAlchemy
+
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 # Current directory for Flask app
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(APP_ROOT, 'word_data_created.csv')
 df = pd.read_csv(file_path)
+
+
+
+
+
+class Todo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(200), nullable=False)
+    # completed = db.Column(db.Integer, default=0)
+    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return '<Task %r>' % self.id
+
+@app.route('/db', methods=['POST', 'GET'])
+def index():
+    if request.method == 'POST':
+        task_content = request.form['content']
+        new_task = Todo(content=task_content)
+
+        try:
+            db.session.add(new_task)
+            db.session.commit()
+            return redirect('/db')
+        except:
+            return 'There was an issue adding your task'
+    else:
+        tasks = Todo.query.order_by(Todo.date_created).all()
+        return render_template('db.html', tasks=tasks)
+
+@app.route('/delete/<int:id>')
+def delete(id):
+    task_to_delete = Todo.query.get_or_404(id)
+
+    try:
+        db.session.delete(task_to_delete)
+        db.session.commit()
+        return redirect('/db')
+    except:
+        return 'There was a problem deleting that task'
+
+@app.route('/update/<int:id>', methods=['GET', 'POST'])
+def update(id):
+    task = Todo.query.get_or_404(id)
+
+    if request.method == 'POST':
+        task.content = request.form['content']
+        
+        try:
+            db.session.commit()
+            return redirect('/db')
+        except:
+            return 'There was an issue updating your task'
+    else:
+        return render_template('update.html', task=task)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1422,5 +1492,51 @@ def home():
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
