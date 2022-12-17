@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewpoint" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+
 </head>
 
 {% extends 'base.html' %}
@@ -16,8 +17,8 @@
     <h1 style="text-align: center;color:black">Stock Analysis</h1>
     {% if valid_graph == 1 %}
     <br>
-    <p style="text-align: center; color:black">Recommended Investing Amount: {{final_buy_out}}</p>
-    <p style="text-align: center; color:black">Current Pred/Open^2 Value: {{pred_open_out}} (>1: value performs worse than prediction,  &lt;1: value performs better than prediction)</p>
+    <p class="pad_lr_30" style="text-align: center; color:black">Recommended Investing Amount: {{final_buy_out}}</p>
+    <p class="pad_lr_30" style="text-align: center; color:black">Current Pred/Open^2 Value: {{pred_open_out}} (>1: value performs worse than prediction,  &lt;1: value performs better than prediction)</p>
     <canvas id="lineChart" width="900" height="400"></canvas>
     <script>
         var ctx = document.getElementById("lineChart").getContext("2d");
@@ -48,50 +49,92 @@
         });
     </script>
     {% endif %}
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Pick your ticker symbol of choice</p>
-    <input type="text" name="stock_list_init" style="text-align: center;width: 120px;" value={{stock_list_init_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">What type of ticker is being chosen (the main difference is that crypto has no weekends or holidays off)</p>
-    <p style="text-align: center; color:black">Options: 'stock', 'crypto', 'index'</p>
-    <input type="text" name="trade_type" style="text-align: center;width: 120px;" value={{trade_type_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Your investment amount</p>
-    <input type="text" name="contrib_amt_init" style="text-align: center;width: 120px;" value={{contrib_amt_init_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">How far to look back in weeks (Can't extend further than the stock's history)</p>
-    <input type="text" name="total_weeks" style="text-align: center;width: 120px;" value={{total_weeks_val}}>     
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Pred/open^2 value which should trigger increased investing</p>
-    <input type="text" name="buyvalue" style="text-align: center;width: 120px;" value={{buyvalue_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Pick the multiplier for the increased investing</p>
-    <input type="text" name="multiplier" style="text-align: center;width: 120px;" value={{multiplier_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Pick granularity of weeks (1: every week, 2: every other week, etc)</p>
-    <input type="text" name="nth_week" style="text-align: center;width: 120px;" value={{nth_week_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">How far to look back to make each value prediction</p>
-    <p style="text-align: center; color:black">Options: 'month', 'quarter', '2_quarter', 'year'</p>
-    <input type="text" name="roll_days" style="text-align: center;width: 120px;" value={{roll_days_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Which day of the week to key in on. 'Today' will only work if the stock is open today</p>
-    <p style="text-align: center; color:black">Options: 'Today', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'</p>
-    <input type="text" name="trade_dow" style="text-align: center;width: 120px;" value={{trade_dow_val}}>
-    <br>
-    <br>
-    <br>
+    </center>
+
+    <div class="row3">
+        <div class="column3">
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Pick your ticker symbol of choice</p>
+            <input type="text" name="stock_list_init" style="text-align: center;width: 120px;" value="{{stock_list_init_val}}">
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">What type of ticker is being chosen (the main difference is that crypto has no weekends or holidays off)</p>
+            <!-- <p style="text-align: center; color:black">Options: 'stock', 'crypto', 'index'</p> -->
+            <!-- <input type="text" name="trade_type" style="text-align: center;width: 120px;" value="{{trade_type_val}}"> -->
+            <select name="trade_type">
+                <option value="{{trade_type_val}}">{{trade_type_val.capitalize()}}</option>
+                <option disabled>______</option>
+                <option value="stock">Stock</option>
+                <option value="crypto">Crypto</option>
+                <option value="index">Index</option>
+            </select>
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Your investment amount</p>
+            <input type="text" name="contrib_amt_init" style="text-align: center;width: 120px;" value="{{contrib_amt_init_val}}">
+        </div>
+        <div class="column3">
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">How far to look back in weeks (Can't extend further than the stock's history)</p>
+            <input type="text" name="total_weeks" style="text-align: center;width: 120px;" value="{{total_weeks_val}}">
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Pred/open^2 value which should trigger increased investing</p>
+            <input type="text" name="buyvalue" style="text-align: center;width: 120px;" value="{{buyvalue_val}}">
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Pick the multiplier for the increased investing</p>
+            <input type="text" name="multiplier" style="text-align: center;width: 120px;" value="{{multiplier_val}}">
+        </div>
+        <div class="column3">
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Pick granularity of weeks (1: every week, 2: every other week, etc)</p>
+            <input type="text" name="nth_week" style="text-align: center;width: 120px;" value="{{nth_week_val}}">
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">How far to look back to make each value prediction</p>
+            <!-- <p style="text-align: center; color:black">Options: 'month', 'quarter', '2_quarter', 'year'</p>
+            <input type="text" name="roll_days" style="text-align: center;width: 120px;" value="{{roll_days_val}}"> -->
+            <select name="roll_days">
+                <option value="{{roll_days_val}}">{{roll_days_val.capitalize()}}</option>
+                <option disabled>______</option>
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+                <option value="2_quarter">2 Quarter</option>
+                <option value="year">Year</option>
+            </select>
+
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Which day of the week to key in on. 'Today' will only work if the stock is open today</p>
+            <!-- <p style="text-align: center; color:black">Options: 'Today', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'</p>
+            <input type="text" name="trade_dow" style="text-align: center;width: 120px;" value="{{trade_dow_val}}"> -->
+            <select name="trade_dow">
+                <option value="{{trade_dow_val}}">{{trade_dow_val}}</option>
+                <option disabled>______</option>
+                <option value="Today">Today</option>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+            </select>
+        </div>
+    </div>
+
+    <center>
     <input type="submit" value="Calculate">
-    <br>
     <br>
     <br>
     <br>
@@ -103,9 +146,10 @@
         <img alt="Twitter" src="/static/twitter_logo.png" width=40 height=40>
     </a>
     <br>
-    <p style="text-align: center; color:black">Description: This strategy loosely follows the concept of mean reversion or regression to the mean. There is variance in the ups and downs, but the trend should generally follow the mean. If this is the case, why not algorithmically determine when the current price is well below the current trendline and capitalize on the dip by buying in at a higher amount.</p>
-    <p style="text-align: center; color:black">Note: This strategy only takes into account long-term buying. No shorting or selling. You would only use this on stocks you believe will increase in value in the long term.</p>
-    <p style="text-align: center; color:black">Beta: The values entered are very finicky and I have not yet developed dropdown menus of the allowed values or a mechanism of reporting which value entered is the problem point.</p>
+    <br>
+    <p class="pad_lr_100" style="text-align: center; color:black">Description: This strategy loosely follows the concept of mean reversion or regression to the mean. There is variance in the ups and downs, but the trend should generally follow the mean. If this is the case, why not algorithmically determine when the current price is well below the current trendline and capitalize on the dip by buying in at a higher amount.</p>
+    <!-- <p style="text-align: center; color:black">Note: This strategy only takes into account long-term buying. No shorting or selling. You would only use this on stocks you believe will increase in value in the long term.</p> -->
+    <!-- <p style="text-align: center; color:black">Beta: The values entered are very finicky and I have not yet developed dropdown menus of the allowed values or a mechanism of reporting which value entered is the problem point.</p> -->
     <br>
     <br>
     <br>

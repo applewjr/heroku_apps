@@ -1035,7 +1035,7 @@ def run_wordle_example():
 def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, total_weeks: int, buyvalue: float, multiplier: float, nth_week: int, roll_days: str, trade_dow: str):
 
     stock_list_init = str(stock_list_init)
-    trade_type = str(trade_type)
+    trade_type = str(trade_type).lower()
     contrib_amt_init = float(contrib_amt_init)
     total_weeks = int(total_weeks)
     buyvalue = float(buyvalue)

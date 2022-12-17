@@ -3,44 +3,52 @@
 {% block title %}Common Denominator{% endblock %}
 
 {% block content %}
+<head>
+</head>
 <form action="#" method="post">
     <center>
     <h1 style="text-align: center;color:black">Common Denominator</h1>
     <br>
 
-    <p style="text-align: center; color:black">List all words here to determine the most common word parts{{example}}</p>
+    <p class="pad_lr_30" class="pad_lr_30" style="text-align: center; color:black">List all words here to determine the most common word parts{{example}}</p>
     <textarea name="user_match_entry" cols="70" rows="4">{{user_match_entry_val}}</textarea>
-    <br>
-    <br>
     <!-- <p style="text-align: center; color:black">user_nope_match_entry (add description here)</p>
     <input type="text" name="user_nope_match_entry" style="text-align: center;width: 500px;height: 100px" value={{user_nope_match_entry_val}}>
     <br>
     <br> -->
-    <p style="text-align: center; color:black">Minimum desired length of matches</p>
-    <input type="text" name="min_match_len" style="text-align: center;width: 55px;" value={{min_match_len_val}}>
     <br>
     <br>
-    <p style="text-align: center; color:black">Minimum match rate among words (0.01-1)</p>
-    <input type="text" name="min_match_rate" style="text-align: center;width: 55px;" value={{min_match_rate_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Specify a unique character to serve as proxy for word beginning and end (or leave blank)</p>
-    <input type="text" name="beg_end_str_char" style="text-align: center;width: 55px;" value={{beg_end_str_char_val}}>
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Specify which value to separate words</p>
-    <input type="text" name="value_split_char" style="text-align: center;width: 55px;" value={{value_split_char_val}}>
-    <br>
-    <br>
+    </center>
+
+    <div class="row">
+        <div class="column">
+            <p class="pad_lr_30" style="text-align: center; color:black">Minimum desired length of matches</p>
+            <input type="text" name="min_match_len" style="text-align: center;width: 80px;" value={{min_match_len_val}}>
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Minimum match rate among words (0.01-1)</p>
+            <input type="text" name="min_match_rate" style="text-align: center;width: 80px;" value={{min_match_rate_val}}>
+        </div>
+        <div class="column">
+            <p class="pad_lr_30" style="text-align: center; color:black">Specify a unique character to serve as proxy for word beginning and end (or leave blank)</p>
+            <input type="text" name="beg_end_str_char" style="text-align: center;width: 80px;" value={{beg_end_str_char_val}}>
+            <br>
+            <br>
+            <p class="pad_lr_30" style="text-align: center; color:black">Specify which value to separate words</p>
+            <input type="text" name="value_split_char" style="text-align: center;width: 80px;" value={{value_split_char_val}}>
+        </div>
+    </div>
+
+    <center>
     <br>
     <br>
     <input type="submit" value="Calculate">
     <br>
     <br>
-    <p style="text-align: center; color:black">{{num_word_count}}{{num_words_entered}}</p>
-    <p style="text-align: center; color:black">{{num_run_count}}{{comparisons}}</p>
-    <p style="text-align: center; color:black">{{top}}{{final_match_list}}</p>
-    <p style="text-align: center; color:black">{{all}}{{final_out}}</p>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{num_word_count}}{{num_words_entered}}</p>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{num_run_count}}{{comparisons}}</p>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{top}}{{final_match_list}}</p>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{all}}{{final_out}}</p>
     <br>
     <br>
     <!-- <a href="/">
