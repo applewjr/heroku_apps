@@ -181,3 +181,48 @@ input[type=submit]:hover {
   cursor: pointer;
   color:gray;
 }
+
+
+
+
+.column {
+  float: left;
+  width: 50%;
+}
+
+/* Clear floats after the columns */
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+
+
+.column3 {
+  float: left;
+  width: 33.33%;
+}
+
+/* Clear floats after the columns */
+.row3:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+
+
+
+/* .middle75 {
+  width: 75%;
+} */
+
+
+.pad_lr_30 {
+  padding: 0px 30px 0px 30px;
+  }
+
+.pad_lr_100 {
+  padding: 0px 100px 0px 100px;
+  }
