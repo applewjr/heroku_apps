@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Wordle Solver{% endblock %}
+{% block title %}Dog Counter{% endblock %}
 
 {% block content %}
 <head>
@@ -53,19 +53,44 @@
         }
 
         .btn-container {
-            margin-top: 10px; /* Add margin-top for spacing */
+            margin-top: 20px; /* Add margin-top for spacing */
         }
         .btn-container button {
-            margin-right: 10px; /* Add margin-right for spacing between buttons */
+            margin-right: 20px; /* Add margin-right for spacing between buttons */
         }
-    </style>
+        .btn-container button {
+            margin-left: 20px; /* Add margin-right for spacing between buttons */
+        }
+</style>
     <script>
         // Function to set the base value of the counter
         function setBaseValue() {
-            var baseValue = prompt("Enter base value for the counter:");
+            var baseValue = prompt("Enter base value for the counter. It must be a number:");
+            if (baseValue === " ") {
+                return;
+            }
+            if (baseValue === "") {
+                return;
+            }
+            if (baseValue === null) {
+                return;
+            }
+            while (isNaN(baseValue)) {
+                baseValue = prompt("Invalid input. Please enter a valid number for the base value:");
+                if (baseValue === " ") {
+                return;
+                }
+                if (baseValue === "") {
+                    return;
+                }
+                if (baseValue === null) {
+                    return;
+                }
+            }
             localStorage.setItem('counter', baseValue);
             document.getElementById('counter-display').innerHTML = baseValue;
         }
+
 
         // Function to increment the counter and update the display
         function incrementCounter() {
@@ -96,12 +121,13 @@
 </head>
 <body>
     <h1>Dog Counter</h1>
+    <p class="pad_lr_100" style="text-align: center">Live fast, count dogs</p>
     <div class="counter-container">
-        <p>Counter: <span id="counter-display">0</span></p>
+        <p>Dogs: <span id="counter-display">0</span></p>
     </div>
     <div class="btn-container">
-        <button onclick="incrementCounter()">+</button>
         <button onclick="decrementCounter()">-</button>
+        <button onclick="incrementCounter()">+</button>
     </div>
     <br>
     <div class="btn-container">
@@ -109,11 +135,6 @@
     </div>
     <br>
     <br>
-    <a href="/dogs">
-        <img alt="Reset" src="/static/reset_logo.png" width=45 height=45>
-    </a>
-    <br>
-    <br>
-    <p class="pad_lr_100" style="text-align: center; color:black">HTML Coded by ChatGPT</p>    
+    <p class="pad_lr_100" style="text-align: center">HTML Coded by ChatGPT</p>
 </body>
 {% endblock %}
