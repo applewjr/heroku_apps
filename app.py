@@ -1492,13 +1492,9 @@ def home():
 
 
 
-
-
-
-
-
-
-
+@app.route('/dogs')
+def dogs():
+    return render_template('dog_count.html')
 
 
 
