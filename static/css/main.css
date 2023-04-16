@@ -1,3 +1,4 @@
+
 body {
     margin: 0;
     font-family: sans-serif;
@@ -226,3 +227,126 @@ input[type=submit]:hover {
 .pad_lr_100 {
   padding: 0px 100px 0px 100px;
   }
+
+
+/* Define the spinning image styles */
+.spinning-image {
+  width: 45px;
+  height: 45px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.5s ease;
+}
+
+.spinning-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Apply the hover animation */
+.spinning-image:hover img {
+  animation-name: spinning-image-rotate;
+  animation-duration: 2s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Define the hover animation */
+@keyframes spinning-image-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+
+
+/* .pulsing-image {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.5s ease;
+}
+
+.pulsing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1);
+  transition: transform 0.5s ease;
+}
+
+.pulsing-image:hover img {
+  transform: scale(1.2);
+} */
+
+/* Define the pulsing image styles */
+.pulsing-image {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.5s ease;
+}
+
+.pulsing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1);
+  transition: transform 0.5s ease;
+}
+
+/* Apply the hover animation */
+.pulsing-image:hover img {
+  transform: scale(1.1);
+}
+
+
+
+/* Define the pulsing image styles */
+.pulsing-image25 {
+  width: 25px;
+  height: 25px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.5s ease;
+}
+
+.pulsing-image25 img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1);
+  transition: transform 0.5s ease;
+}
+
+/* Apply the hover animation */
+.pulsing-image25:hover img {
+  transform: scale(1.1);
+}
+
+
+/* Define the pulsing image styles */
+.pulsing-image27 {
+  width: 27px;
+  height: 27px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.5s ease;
+}
+
+.pulsing-image27 img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1);
+  transition: transform 0.5s ease;
+}
+
+/* Apply the hover animation */
+.pulsing-image27:hover img {
+  transform: scale(1.1);
+}
+
+
