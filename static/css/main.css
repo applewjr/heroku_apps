@@ -350,3 +350,26 @@ input[type=submit]:hover {
 }
 
 
+
+
+a {
+  color: black;
+  text-decoration: none; /* Optional: removes underline */
+}
+
+a:hover {
+  color: #008892; /* Change the color to blue on hover */
+  transform: scale(1.03); /* Add scale effect on hover */
+}
+
+
+
+/* Define the styles for the horizontal line */
+.hr_index {
+  border: none; /* Remove the default border of the hr element */
+  height: 1.3px; /* Set the height of the hr element to 1px */
+  background-color: gray; /* Set the color of the hr element to black */
+  width: 70%; /* Set the width of the hr element to 70% of the container */
+  margin: 0 auto; /* Center the hr element horizontally */
+}
+
