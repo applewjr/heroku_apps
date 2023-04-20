@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Any Word Finder{% endblock %}
+
+{% block content %}
+<head>
+
+</head>
+
+<body>
+  <form name="form1" action="#" method="post">
+    <center>
+    <br>
+    <h1 style="text-align: center">Any Word Finder</h1>
+    <br>
+
+    <p class="pad_lr_30" style="text-align: center">Letters that must be contained in the word</p>
+    <input type="text" pattern="[A-Za-z]+" name="must_have" style="text-align: center;width: 200px;" value="{{must_have_val}}">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Letters that must not be contained in the word</p>
+    <input type="text" pattern="[A-Za-z]+" name="must_not_have" style="text-align: center;width: 200px;" value="{{must_not_have_val}}">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">First letter in the word (single letter or leave blank)</p>
+    <input type="text" pattern="[A-Za-z]+" name="first_letter" style="text-align: center;width: 55px;" value="{{first_letter_val}}" maxlength="1">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30">Sort Order</p>
+    <select class="centered-select" name="sort_order">
+      <option value="{{sort_order_val}}">{{sort_order_val}}</option>
+      <option disabled>______</option>
+      <option value="Max-Min">Max-Min</option>
+      <option value="Min-Max">Min-Max</option>
+      <option value="A-Z">A-Z</option>
+      <option value="Z-A">Z-A</option>
+      <option value="Random">Random</option>
+    </select>
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Count of words to produce (number)</p>
+    <input type="text" pattern="[0-9]*" name="list_len" style="text-align: center;width: 95px;" value="{{list_len_val}}">
+    <br>
+    <br>
+
+    <input type="submit" value="Calculate">
+    <br>
+    <br>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p>
+    <br>
+    <br>
+    <br>
+    <a href="/any_word">
+      <div class="spinning-image">
+        <img alt="Reset" src="/static/reset_logo.png">
+      </div>
+      <br>
+    </a>
+    <p><a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package used for source word list</p>
+    <p class="pad_lr_100" style="text-align: center">Core functions coded in part by ChatGPT</p>
+    <br>
+    <br>
+    <br>
+
+    </center>
+  </form>
+</body>
+{% endblock %}

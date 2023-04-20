@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}B/S Solver{% endblock %}
+
+{% block content %}
+<head>
+
+</head>
+
+<body>
+  <form name="form1" action="#" method="post">
+    <center>
+    <br>
+    <h1 style="text-align: center">Blossom/Spelling Bee Solver</h1>
+    <br>
+
+    <p class="pad_lr_30" style="text-align: center">Must Have Letter (Single Letter)</p>
+    <input type="text" pattern="[A-Za-z]+" required name="must_have" style="text-align: center;width: 55px;" value="{{must_have_val}}" maxlength="1">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">May Have Letters (Generally 6 Letters)</p>
+    <input type="text" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Count of words to produce (number)</p>
+    <input type="text" pattern="[0-9]*" name="list_len" style="text-align: center;width: 75px;" value="{{list_len_val}}">
+    <br>
+    <br>
+
+    <input type="submit" value="Calculate">
+    <br>
+    <br>
+    <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p>
+    <br>
+    <br>
+    <br>
+    <a href="/blossom">
+      <div class="spinning-image">
+        <img alt="Reset" src="/static/reset_logo.png">
+      </div>
+    </a>
+    <br>
+    <p>Note: I have no idea what body of words these games are working with. The list of words used comes from the <a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package and does not always align with the valid words in the games.</p>
+    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank">Blossom Game Here</a>
+    <br>
+    <a href="https://www.nytimes.com/puzzles/spelling-bee" target="_blank">Spelling Bee Game Here</a>
+    <br>
+    <br>
+    <p class="pad_lr_100" style="text-align: center">Core functions coded in part by ChatGPT</p>
+    <br>
+    <br>
+    <br>
+
+    </center>
+  </form>
+</body>
+{% endblock %}

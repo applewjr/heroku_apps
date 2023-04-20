@@ -360,7 +360,7 @@ a {
 }
 
 a:hover {
-  color: #008892; /* Change the color to blue on hover */
+  color: #6aaa64; /* Change the color to blue on hover */
   transform: scale(1.03); /* Add scale effect on hover */
 }
 
@@ -374,4 +374,5 @@ a:hover {
   width: 70%; /* Set the width of the hr element to 70% of the container */
   margin: 0 auto; /* Center the hr element horizontally */
 }
+
 
