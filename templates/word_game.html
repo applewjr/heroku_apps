@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Word Guessing Game</title>
+</head>
+<body>
+    <h1>Word Guessing Game</h1>
+    <p>{{ " ".join(display) }}</p>
+    <p>Incorrect guesses: {{ incorrect_guesses }}/6</p>
+    {% if message %}
+    <p>{{ message }}</p>
+    {% endif %}
+    <form method="POST">
+        <input type="text" name="guess" maxlength="1" required>
+        <button type="submit">Guess</button>
+    </form>
+    </body>
+</html>
