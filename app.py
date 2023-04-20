@@ -20,8 +20,8 @@ pd.options.mode.chained_assignment = None  # default='warn'
 from flask_sqlalchemy import SQLAlchemy
 
 import random
-import string
-from english_words import get_english_words_set
+# import string
+# from english_words import get_english_words_set
 
 
 app = Flask(__name__)
@@ -1550,113 +1550,113 @@ def dogs():
 
 
 
-def unused_letters(must_have, may_have):
-    """
-    Coded in part by ChatGPT on 4/20/2023
+# def unused_letters(must_have, may_have):
+#     """
+#     Coded in part by ChatGPT on 4/20/2023
 
-    Returns a list of letters that were not called out.
+#     Returns a list of letters that were not called out.
     
-    Args:
-    called_out (list): A list of letters that were called out.
+#     Args:
+#     called_out (list): A list of letters that were called out.
     
-    Returns:
-    unused (list): A list of letters that were not called out.
-    """
-    called_out = must_have + may_have
+#     Returns:
+#     unused (list): A list of letters that were not called out.
+#     """
+#     called_out = must_have + may_have
 
-    letters = list('abcdefghijklmnopqrstuvwxyz')
-    unused = []
-    for letter in letters:
-        if letter not in called_out:
-            unused.append(letter)
+#     letters = list('abcdefghijklmnopqrstuvwxyz')
+#     unused = []
+#     for letter in letters:
+#         if letter not in called_out:
+#             unused.append(letter)
 
-    return [''.join(unused)]
+#     return [''.join(unused)]
 
 
-def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort_order, list_len):
-    """
-    Coded in part by ChatGPT on 4/18/2023
+# def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort_order, list_len):
+#     """
+#     Coded in part by ChatGPT on 4/18/2023
     
-    Filter a list of words by required and forbidden letters, and an optional first letter.
+#     Filter a list of words by required and forbidden letters, and an optional first letter.
 
-    Args:
-        words (list): A list of words to filter.
-        required_letters (list): A list of letters that must be present in the words.
-        forbidden_letters (list): A list of letters that must not be present in the words.
-        first_letter (str): An optional letter that must be the first letter of the words.
-        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
+#     Args:
+#         words (list): A list of words to filter.
+#         required_letters (list): A list of letters that must be present in the words.
+#         forbidden_letters (list): A list of letters that must not be present in the words.
+#         first_letter (str): An optional letter that must be the first letter of the words.
+#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
 
-    Returns:
-        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
-    """
-    words = get_english_words_set(['web2'], lower=True)
-    required_letters = list(required_letters[0])
-    forbidden_letters = list(forbidden_letters[0])
-    list_len = int(list_len)
+#     Returns:
+#         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+#     """
+#     words = get_english_words_set(['web2'], lower=True)
+#     required_letters = list(required_letters[0])
+#     forbidden_letters = list(forbidden_letters[0])
+#     list_len = int(list_len)
 
-    valid_words = []
-    for word in words:
-        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if first_letter is None or word.startswith(first_letter):
-                valid_words.append(word)
+#     valid_words = []
+#     for word in words:
+#         if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
+#             if first_letter is None or word.startswith(first_letter):
+#                 valid_words.append(word)
 
-    if sort_order == 'A-Z':
-        valid_words.sort()
-    elif sort_order == 'Z-A':
-        valid_words.sort(reverse=True)
-    elif sort_order == 'Min-Max':
-        valid_words.sort(key=len)
-    elif sort_order == 'Max-Min':
-        valid_words.sort(key=len, reverse=True)
-    elif sort_order == 'Random':
-        random.shuffle(valid_words)
+#     if sort_order == 'A-Z':
+#         valid_words.sort()
+#     elif sort_order == 'Z-A':
+#         valid_words.sort(reverse=True)
+#     elif sort_order == 'Min-Max':
+#         valid_words.sort(key=len)
+#     elif sort_order == 'Max-Min':
+#         valid_words.sort(key=len, reverse=True)
+#     elif sort_order == 'Random':
+#         random.shuffle(valid_words)
 
-    return valid_words[:list_len]
+#     return valid_words[:list_len]
 
 
 
-def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len):
-    """
-    Coded in part by ChatGPT on 4/18/2023
+# def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len):
+#     """
+#     Coded in part by ChatGPT on 4/18/2023
     
-    Filter a list of words by required and forbidden letters, and an optional first letter.
+#     Filter a list of words by required and forbidden letters, and an optional first letter.
 
-    Args:
-        words (list): A list of words to filter.
-        required_letters (list): A list of letters that must be present in the words.
-        forbidden_letters (list): A list of letters that must not be present in the words.
-        first_letter (str): An optional letter that must be the first letter of the words.
-        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
+#     Args:
+#         words (list): A list of words to filter.
+#         required_letters (list): A list of letters that must be present in the words.
+#         forbidden_letters (list): A list of letters that must not be present in the words.
+#         first_letter (str): An optional letter that must be the first letter of the words.
+#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
 
-    Returns:
-        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
-    """
-    words = get_english_words_set(['web2'], lower=True)
-    # required_letters = list(required_letters[0])
-    # try:
-    #     forbidden_letters = list(forbidden_letters[0])
-    # except:
-    #     forbidden_letters = forbidden_letters
-    list_len = int(list_len)
+#     Returns:
+#         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+#     """
+#     words = get_english_words_set(['web2'], lower=True)
+#     # required_letters = list(required_letters[0])
+#     # try:
+#     #     forbidden_letters = list(forbidden_letters[0])
+#     # except:
+#     #     forbidden_letters = forbidden_letters
+#     list_len = int(list_len)
 
-    valid_words = []
-    for word in words:
-        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if first_letter is None or word.startswith(first_letter):
-                valid_words.append(word)
+#     valid_words = []
+#     for word in words:
+#         if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
+#             if first_letter is None or word.startswith(first_letter):
+#                 valid_words.append(word)
 
-    if sort_order == 'A-Z':
-        valid_words.sort()
-    elif sort_order == 'Z-A':
-        valid_words.sort(reverse=True)
-    elif sort_order == 'Min-Max':
-        valid_words.sort(key=len)
-    elif sort_order == 'Max-Min':
-        valid_words.sort(key=len, reverse=True)
-    elif sort_order == 'Random':
-        random.shuffle(valid_words)
+#     if sort_order == 'A-Z':
+#         valid_words.sort()
+#     elif sort_order == 'Z-A':
+#         valid_words.sort(reverse=True)
+#     elif sort_order == 'Min-Max':
+#         valid_words.sort(key=len)
+#     elif sort_order == 'Max-Min':
+#         valid_words.sort(key=len, reverse=True)
+#     elif sort_order == 'Random':
+#         random.shuffle(valid_words)
 
-    return valid_words[:list_len]
+#     return valid_words[:list_len]
 
 
 
