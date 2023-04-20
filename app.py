@@ -1662,40 +1662,32 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
 
 
 
-@app.route("/blossom", methods=["POST", "GET"])
-def blossom():
-    if request.method == "POST":
-        must_have = request.form["must_have"]
-        may_have = request.form["may_have"]
-        list_len = request.form["list_len"]
-        list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), None, 'Max-Min', list_len)
-        return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
-    else:
-        return render_template("blossom.html", list_len_val=25)
+# @app.route("/blossom", methods=["POST", "GET"])
+# def blossom():
+#     if request.method == "POST":
+#         must_have = request.form["must_have"]
+#         may_have = request.form["may_have"]
+#         list_len = request.form["list_len"]
+#         list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), None, 'Max-Min', list_len)
+#         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
+#     else:
+#         return render_template("blossom.html", list_len_val=25)
 
 
-# any word finder
-# must_have = ['doggy']
-# must_not_have = ['']
-# first_letter = 'd' # empty string if no choice
-# sort_order = 'max-min' # 'a-z', 'z-a', 'min-max', 'max-min'
-# list_len = 10
 
-# filter_words(must_have, must_not_have, first_letter, sort_order, list_len)
-
-@app.route("/any_word", methods=["POST", "GET"])
-def any_word():
-    if request.method == "POST":
-        must_have = request.form["must_have"]
-        must_not_have = request.form["must_not_have"]
-        first_letter = request.form["first_letter"]
-        sort_order = request.form["sort_order"]
-        list_len = request.form["list_len"]
-        list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len)
-        return render_template("any_word.html", list_out=list_out, \
-            must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
-    else:
-        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=25)
+# @app.route("/any_word", methods=["POST", "GET"])
+# def any_word():
+#     if request.method == "POST":
+#         must_have = request.form["must_have"]
+#         must_not_have = request.form["must_not_have"]
+#         first_letter = request.form["first_letter"]
+#         sort_order = request.form["sort_order"]
+#         list_len = request.form["list_len"]
+#         list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len)
+#         return render_template("any_word.html", list_out=list_out, \
+#             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
+#     else:
+#         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=25)
 
 
 
