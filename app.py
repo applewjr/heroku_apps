@@ -1550,144 +1550,155 @@ def dogs():
 
 
 
-# def unused_letters(must_have, may_have):
-#     """
-#     Coded in part by ChatGPT on 4/20/2023
 
-#     Returns a list of letters that were not called out.
+# temp fix test
+words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
+df = pd.read_csv(words_file_path)
+words = df['0'].to_list()
+
+def unused_letters(must_have, may_have):
+    """
+    Coded in part by ChatGPT on 4/20/2023
+
+    Returns a list of letters that were not called out.
     
-#     Args:
-#     called_out (list): A list of letters that were called out.
+    Args:
+    called_out (list): A list of letters that were called out.
     
-#     Returns:
-#     unused (list): A list of letters that were not called out.
-#     """
-#     called_out = must_have + may_have
+    Returns:
+    unused (list): A list of letters that were not called out.
+    """
+    called_out = must_have + may_have
 
-#     letters = list('abcdefghijklmnopqrstuvwxyz')
-#     unused = []
-#     for letter in letters:
-#         if letter not in called_out:
-#             unused.append(letter)
+    letters = list('abcdefghijklmnopqrstuvwxyz')
+    unused = []
+    for letter in letters:
+        if letter not in called_out:
+            unused.append(letter)
 
-#     return [''.join(unused)]
+    return [''.join(unused)]
 
 
-# def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort_order, list_len):
-#     """
-#     Coded in part by ChatGPT on 4/18/2023
+def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort_order, list_len, words):
+    """
+    Coded in part by ChatGPT on 4/18/2023
     
-#     Filter a list of words by required and forbidden letters, and an optional first letter.
+    Filter a list of words by required and forbidden letters, and an optional first letter.
 
-#     Args:
-#         words (list): A list of words to filter.
-#         required_letters (list): A list of letters that must be present in the words.
-#         forbidden_letters (list): A list of letters that must not be present in the words.
-#         first_letter (str): An optional letter that must be the first letter of the words.
-#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
+    Args:
+        words (list): A list of words to filter.
+        required_letters (list): A list of letters that must be present in the words.
+        forbidden_letters (list): A list of letters that must not be present in the words.
+        first_letter (str): An optional letter that must be the first letter of the words.
+        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
 
-#     Returns:
-#         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
-#     """
-#     words = get_english_words_set(['web2'], lower=True)
-#     required_letters = list(required_letters[0])
-#     forbidden_letters = list(forbidden_letters[0])
-#     list_len = int(list_len)
+    Returns:
+        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+    """
+    # words = get_english_words_set(['web2'], lower=True)
 
-#     valid_words = []
-#     for word in words:
-#         if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-#             if first_letter is None or word.startswith(first_letter):
-#                 valid_words.append(word)
+    required_letters = list(required_letters[0])
+    forbidden_letters = list(forbidden_letters[0])
+    list_len = int(list_len)
 
-#     if sort_order == 'A-Z':
-#         valid_words.sort()
-#     elif sort_order == 'Z-A':
-#         valid_words.sort(reverse=True)
-#     elif sort_order == 'Min-Max':
-#         valid_words.sort(key=len)
-#     elif sort_order == 'Max-Min':
-#         valid_words.sort(key=len, reverse=True)
-#     elif sort_order == 'Random':
-#         random.shuffle(valid_words)
+    valid_words = []
+    for word in words:
+        word = str(word)
+        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
+            if first_letter is None or word.startswith(first_letter):
+                valid_words.append(word)
 
-#     return valid_words[:list_len]
+    if sort_order == 'A-Z':
+        valid_words.sort()
+    elif sort_order == 'Z-A':
+        valid_words.sort(reverse=True)
+    elif sort_order == 'Min-Max':
+        valid_words.sort(key=len)
+    elif sort_order == 'Max-Min':
+        valid_words.sort(key=len, reverse=True)
+    elif sort_order == 'Random':
+        random.shuffle(valid_words)
+
+    return valid_words[:list_len]
 
 
 
-# def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len):
-#     """
-#     Coded in part by ChatGPT on 4/18/2023
+def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words):
+    """
+    Coded in part by ChatGPT on 4/18/2023
     
-#     Filter a list of words by required and forbidden letters, and an optional first letter.
+    Filter a list of words by required and forbidden letters, and an optional first letter.
 
-#     Args:
-#         words (list): A list of words to filter.
-#         required_letters (list): A list of letters that must be present in the words.
-#         forbidden_letters (list): A list of letters that must not be present in the words.
-#         first_letter (str): An optional letter that must be the first letter of the words.
-#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
+    Args:
+        words (list): A list of words to filter.
+        required_letters (list): A list of letters that must be present in the words.
+        forbidden_letters (list): A list of letters that must not be present in the words.
+        first_letter (str): An optional letter that must be the first letter of the words.
+        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
 
-#     Returns:
-#         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
-#     """
-#     words = get_english_words_set(['web2'], lower=True)
-#     # required_letters = list(required_letters[0])
-#     # try:
-#     #     forbidden_letters = list(forbidden_letters[0])
-#     # except:
-#     #     forbidden_letters = forbidden_letters
-#     list_len = int(list_len)
+    Returns:
+        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+    """
 
-#     valid_words = []
-#     for word in words:
-#         if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-#             if first_letter is None or word.startswith(first_letter):
-#                 valid_words.append(word)
+    # words = get_english_words_set(['web2'], lower=True)
+    # words = words
+    # required_letters = list(required_letters[0])
+    # try:
+    #     forbidden_letters = list(forbidden_letters[0])
+    # except:
+    #     forbidden_letters = forbidden_letters
+    list_len = int(list_len)
 
-#     if sort_order == 'A-Z':
-#         valid_words.sort()
-#     elif sort_order == 'Z-A':
-#         valid_words.sort(reverse=True)
-#     elif sort_order == 'Min-Max':
-#         valid_words.sort(key=len)
-#     elif sort_order == 'Max-Min':
-#         valid_words.sort(key=len, reverse=True)
-#     elif sort_order == 'Random':
-#         random.shuffle(valid_words)
+    valid_words = []
+    for word in words:
+        word = str(word)
+        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
+            if first_letter is None or word.startswith(first_letter):
+                valid_words.append(word)
 
-#     return valid_words[:list_len]
+    if sort_order == 'A-Z':
+        valid_words.sort()
+    elif sort_order == 'Z-A':
+        valid_words.sort(reverse=True)
+    elif sort_order == 'Min-Max':
+        valid_words.sort(key=len)
+    elif sort_order == 'Max-Min':
+        valid_words.sort(key=len, reverse=True)
+    elif sort_order == 'Random':
+        random.shuffle(valid_words)
 
-
-
-
-
-# @app.route("/blossom", methods=["POST", "GET"])
-# def blossom():
-#     if request.method == "POST":
-#         must_have = request.form["must_have"]
-#         may_have = request.form["may_have"]
-#         list_len = request.form["list_len"]
-#         list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), None, 'Max-Min', list_len)
-#         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
-#     else:
-#         return render_template("blossom.html", list_len_val=25)
+    return valid_words[:list_len]
 
 
 
-# @app.route("/any_word", methods=["POST", "GET"])
-# def any_word():
-#     if request.method == "POST":
-#         must_have = request.form["must_have"]
-#         must_not_have = request.form["must_not_have"]
-#         first_letter = request.form["first_letter"]
-#         sort_order = request.form["sort_order"]
-#         list_len = request.form["list_len"]
-#         list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len)
-#         return render_template("any_word.html", list_out=list_out, \
-#             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
-#     else:
-#         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=25)
+
+
+@app.route("/blossom", methods=["POST", "GET"])
+def blossom():
+    if request.method == "POST":
+        must_have = request.form["must_have"]
+        may_have = request.form["may_have"]
+        list_len = request.form["list_len"]
+        list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), None, 'Max-Min', list_len, words)
+        return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
+    else:
+        return render_template("blossom.html", list_len_val=25)
+
+
+
+@app.route("/any_word", methods=["POST", "GET"])
+def any_word():
+    if request.method == "POST":
+        must_have = request.form["must_have"]
+        must_not_have = request.form["must_not_have"]
+        first_letter = request.form["first_letter"]
+        sort_order = request.form["sort_order"]
+        list_len = request.form["list_len"]
+        list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words)
+        return render_template("any_word.html", list_out=list_out, \
+            must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
+    else:
+        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=25)
 
 
 
