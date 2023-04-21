@@ -1544,6 +1544,12 @@ def dogs():
 
 
 
+@app.route('/quill')
+def quill():
+    return render_template('quill.html')
+
+
+
 
 
 
@@ -1555,6 +1561,7 @@ def dogs():
 words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
 df = pd.read_csv(words_file_path)
 words = df['0'].to_list()
+words = set(words)
 
 def unused_letters(must_have, may_have):
     """
@@ -1569,8 +1576,10 @@ def unused_letters(must_have, may_have):
     unused (list): A list of letters that were not called out.
     """
     called_out = must_have + may_have
+    called_out = [char.lower() for char in called_out]
 
-    letters = list('abcdefghijklmnopqrstuvwxyz')
+    # letters = list('abcdefghijklmnopqrstuvwxyz')
+    letters = 'abcdefghijklmnopqrstuvwxyz'
     unused = []
     for letter in letters:
         if letter not in called_out:
@@ -1579,7 +1588,7 @@ def unused_letters(must_have, may_have):
     return [''.join(unused)]
 
 
-def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort_order, list_len, words):
+def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
     """
     Coded in part by ChatGPT on 4/18/2023
     
@@ -1597,27 +1606,21 @@ def filter_words_blossom(required_letters, forbidden_letters, first_letter, sort
     """
     # words = get_english_words_set(['web2'], lower=True)
 
-    required_letters = list(required_letters[0])
-    forbidden_letters = list(forbidden_letters[0])
+    required_letters = [char.lower() for char in required_letters]
+    forbidden_letters = [char.lower() for char in forbidden_letters]
+    # required_letters = list(required_letters[0])
+    # forbidden_letters = list(forbidden_letters[0])
     list_len = int(list_len)
 
     valid_words = []
     for word in words:
         word = str(word)
-        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if first_letter is None or word.startswith(first_letter):
-                valid_words.append(word)
+        # word = word.lower()
+        if all(letter in word for letter in required_letters[0]) and all(letter not in word for letter in forbidden_letters[0]):
+            # if first_letter is None or word.startswith(first_letter):
+            valid_words.append(word)
 
-    if sort_order == 'A-Z':
-        valid_words.sort()
-    elif sort_order == 'Z-A':
-        valid_words.sort(reverse=True)
-    elif sort_order == 'Min-Max':
-        valid_words.sort(key=len)
-    elif sort_order == 'Max-Min':
-        valid_words.sort(key=len, reverse=True)
-    elif sort_order == 'Random':
-        random.shuffle(valid_words)
+    valid_words.sort(key=len, reverse=True)
 
     return valid_words[:list_len]
 
@@ -1640,6 +1643,9 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
     """
 
+    required_letters = [char.lower() for char in required_letters]
+    forbidden_letters = [char.lower() for char in forbidden_letters]
+    first_letter = first_letter.lower()
     # words = get_english_words_set(['web2'], lower=True)
     # words = words
     # required_letters = list(required_letters[0])
@@ -1679,7 +1685,7 @@ def blossom():
         must_have = request.form["must_have"]
         may_have = request.form["may_have"]
         list_len = request.form["list_len"]
-        list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), None, 'Max-Min', list_len, words)
+        list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), list_len, words)
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
     else:
         return render_template("blossom.html", list_len_val=25)
