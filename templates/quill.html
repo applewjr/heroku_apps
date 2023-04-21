@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Main{% endblock %}
+
+{% block content %}
+
+<!-- HTML written by ChatGPT on 4/20/2023 -->
+
+<head>
+    <meta charset="UTF-8">
+    <title>Quill.js Example</title>
+    <!-- Include the Quill.js stylesheet -->
+    <link href="//cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Create a container for the editor -->
+    <div id="editor"></div>
+    
+    <!-- Include the Quill.js library and initialize the editor -->
+    <script src="//cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <script>
+      var editor = new Quill('#editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['blockquote', 'code-block'],
+            [{'list': 'ordered'}, {'list': 'bullet'}],
+            [{'header': [1, 2, 3, 4, 5, 6, false]}],
+            [{'color': []}, {'background': []}],
+            [{'align': []}],
+            ['clean']
+          ]
+        }
+      });
+    </script>
+</body>
+
+{% endblock %}
