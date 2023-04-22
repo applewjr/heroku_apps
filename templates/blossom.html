@@ -32,7 +32,13 @@
     <input type="submit" value="Calculate">
     <br>
     <br>
-    <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p>
+    <br>
+    <!-- <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p> -->
+    <ul>
+      {% for item in list_out %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
     <br>
     <br>
     <br>

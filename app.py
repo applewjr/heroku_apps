@@ -186,7 +186,6 @@ def wordle_solver_split(import_df, must_not_be_present: str,
 
 
 
-
 # Quordle solver function
 # main solver function --- for web deploy
 def quordle_solver_split(import_df, 
@@ -926,6 +925,7 @@ def run_wordle():
             suggested="Suggested word(s):")
     else:
         return render_template("wordle.html")
+
 
 
 @app.route("/quordle", methods=["POST", "GET"])
@@ -1688,7 +1688,7 @@ def blossom():
         list_out = filter_words_blossom(must_have, unused_letters(must_have, may_have), list_len, words)
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
     else:
-        return render_template("blossom.html", list_len_val=25)
+        return render_template("blossom.html", list_len_val=10)
 
 
 
@@ -1704,7 +1704,7 @@ def any_word():
         return render_template("any_word.html", list_out=list_out, \
             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
     else:
-        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=25)
+        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10)
 
 
 
