@@ -20,7 +20,7 @@ pd.options.mode.chained_assignment = None  # default='warn'
 from flask_sqlalchemy import SQLAlchemy
 
 import random
-# import string
+import string
 # from english_words import get_english_words_set
 
 
@@ -1559,8 +1559,8 @@ def quill():
 
 # temp fix test
 words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
-df = pd.read_csv(words_file_path)
-words = df['0'].to_list()
+word_df = pd.read_csv(words_file_path)
+words = word_df['0'].to_list()
 words = set(words)
 
 def unused_letters(must_have, may_have):
