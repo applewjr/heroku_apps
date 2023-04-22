@@ -376,3 +376,11 @@ a:hover {
 }
 
 
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+li {
+  margin-bottom: 10px; /* adjust this value to change the spacing */
+}
