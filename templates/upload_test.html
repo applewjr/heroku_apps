@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload{% endblock %}
+
+{% block content %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload</title>
+</head>
+<body>
+    <h1>Upload two files</h1>
+    {% if error %}
+        <p style="color: red">{{ error }}</p>
+    {% endif %}
+    {% if concatenated_filenames %}
+        <p>Concatenated filenames: {{ concatenated_filenames }}</p>
+    {% endif %}
+    <form action="/upload_test" method="post" enctype="multipart/form-data">
+        <label for="file1">File 1 (.zip only):</label>
+        <input type="file" name="file1" id="file1" accept=".zip">
+        <br><br>
+        <label for="file2">File 2 (.json only):</label>
+        <input type="file" name="file2" id="file2" accept=".json">
+        <br><br>
+        <input type="submit" value="Upload">
+    </form>
+</body>
+</html>
+
+{% endblock %}

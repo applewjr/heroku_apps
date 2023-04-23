@@ -14,17 +14,17 @@
     <h1 style="text-align: center">Any Word Finder</h1>
     <br>
 
-    <p class="pad_lr_30" style="text-align: center">Letters that must be contained in the word</p>
+    <p class="pad_lr_30" style="text-align: center">Letters That Must Be Contained in the Word</p>
     <input type="text" pattern="[A-Za-z]+" name="must_have" style="text-align: center;width: 200px;" value="{{must_have_val}}">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
-    <p class="pad_lr_30" style="text-align: center">Letters that must not be contained in the word</p>
+    <p class="pad_lr_30" style="text-align: center">Letters That Must Not Be Contained in the Word</p>
     <input type="text" pattern="[A-Za-z]+" name="must_not_have" style="text-align: center;width: 200px;" value="{{must_not_have_val}}">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
-    <p class="pad_lr_30" style="text-align: center">First letter in the word (single letter or leave blank)</p>
+    <p class="pad_lr_30" style="text-align: center">First Letter in the Word (Single Letter or Leave Blank)</p>
     <input type="text" pattern="[A-Za-z]+" name="first_letter" style="text-align: center;width: 55px;" value="{{first_letter_val}}" maxlength="1">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
@@ -42,8 +42,19 @@
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
-    <p class="pad_lr_30" style="text-align: center">Count of words to produce (number)</p>
-    <input type="text" pattern="[0-9]*" name="list_len" style="text-align: center;width: 95px;" value="{{list_len_val}}">
+    <p class="pad_lr_30" style="text-align: center">Count of Words to Produce (Number)</p>
+    <input type="text" pattern="[0-9]*" required name="list_len" style="text-align: center;width: 95px;" value="{{list_len_val}}">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Min Word Length (Number)</p>
+    <input type="text" pattern="[0-9]*" required name="min_length" style="text-align: center;width: 95px;" value="{{min_length_val}}">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Max Word Length (Number)</p>
+    <input type="text" pattern="[0-9]*" required name="max_length" style="text-align: center;width: 95px;" value="{{max_length_val}}">
+
     <br>
     <br>
 

@@ -1626,7 +1626,7 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
 
 
 
-def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words):
+def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length):
     """
     Coded in part by ChatGPT on 4/18/2023
     
@@ -1638,7 +1638,9 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
         forbidden_letters (list): A list of letters that must not be present in the words.
         first_letter (str): An optional letter that must be the first letter of the words.
         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
-
+        min_length (int): The minimum length of the words to return.
+        max_length (int): The maximum length of the words to return.
+                
     Returns:
         list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
     """
@@ -1646,6 +1648,8 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
     required_letters = [char.lower() for char in required_letters]
     forbidden_letters = [char.lower() for char in forbidden_letters]
     first_letter = first_letter.lower()
+    min_length = int(min_length)
+    max_length= int(max_length)
     # words = get_english_words_set(['web2'], lower=True)
     # words = words
     # required_letters = list(required_letters[0])
@@ -1659,7 +1663,9 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
     for word in words:
         word = str(word)
         if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if first_letter is None or word.startswith(first_letter):
+            if (first_letter is None or word.startswith(first_letter)) and \
+                    (min_length is None or len(word) >= min_length) and \
+                    (max_length is None or len(word) <= max_length):
                 valid_words.append(word)
 
     if sort_order == 'A-Z':
@@ -1700,11 +1706,14 @@ def any_word():
         first_letter = request.form["first_letter"]
         sort_order = request.form["sort_order"]
         list_len = request.form["list_len"]
-        list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words)
+        min_length = request.form["min_length"]
+        max_length = request.form["max_length"]
+        list_out = filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words, min_length, max_length)
         return render_template("any_word.html", list_out=list_out, \
-            must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len)
+            must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len, \
+            min_length_val=min_length, max_length_val=max_length)
     else:
-        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10)
+        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
 
 
@@ -1712,6 +1721,33 @@ def any_word():
 
 
 
+
+
+def concat_test(filename1, filename2):
+    concatenated_filenames = filename1 + filename2
+    return concatenated_filenames
+
+@app.route('/upload_test', methods=['GET', 'POST'])
+def upload_files():
+    if request.method == 'POST':
+        file1 = request.files['file1']
+        file2 = request.files['file2']
+        filename1 = file1.filename
+        filename2 = file2.filename
+
+        # Ensure file1 is a zip file
+        if not filename1.endswith('.zip'):
+            return render_template('upload_test.html', error='File 1 must be a .zip file')
+
+        # Ensure file2 is a json file
+        if not filename2.endswith('.json'):
+            return render_template('upload_test.html', error='File 2 must be a .json file')
+
+        concatenated_filenames = concat_test(filename1, filename2)
+
+        return render_template('upload_test.html', concatenated_filenames=concatenated_filenames)
+    else:
+        return render_template('upload_test.html')
 
 
 
@@ -1724,27 +1760,6 @@ def any_word():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -384,3 +384,19 @@ ul {
 li {
   margin-bottom: 10px; /* adjust this value to change the spacing */
 }
+
+
+
+
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.title {
+  text-align: center;
+  font-size: 3rem;
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
