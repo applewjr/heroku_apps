@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}DB{% endblock %}
+
+{% block content %}
+
+<head>
+    <title>Game</title>
+</head>
+<body>
+    <h1>Game</h1>
+
+    <form action="/high_score" method="POST">
+        <label for="initials">Enter your initials:</label>
+        <input type="text" id="initials" name="initials" required><br><br>
+        <label for="score">Enter your score:</label>
+        <input type="number" id="score" name="score" required><br><br>
+        <input type="submit" value="Submit">
+    </form>
+
+    <h2>High Scores</h2>
+    <ul>
+        {% for row in scores %}
+        <li>{{ row[1] }}: {{ row[2] }}</li>
+        {% endfor %}
+    </ul>
+</body>
+
+{% endblock %}

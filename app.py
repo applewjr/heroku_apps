@@ -1,16 +1,10 @@
-# from flask import Flask, redirect, render_template, url_for, request, redirect, jsonify
-from flask import Flask, redirect, render_template, request, redirect
+from flask import Flask, redirect, render_template, request, redirect, g
 import pandas as pd
 import os
 import math
-
-# import matplotlib.pyplot as plt
 import datetime
 from datetime import date
 from datetime import datetime
-# import io
-# from PIL import Image
-# import base64
 
 import yfinance as yf
 import numpy as np
@@ -21,8 +15,6 @@ from flask_sqlalchemy import SQLAlchemy
 
 import random
 import string
-# from english_words import get_english_words_set
-
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
@@ -33,6 +25,89 @@ db = SQLAlchemy(app)
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(APP_ROOT, 'word_data_created.csv')
 df = pd.read_csv(file_path)
+
+
+
+
+
+from flaskext.mysql import MySQL
+import sqlite3
+
+mysql = MySQL()
+
+# MySQL configuration - Heroku Config Vars
+app.config['MYSQL_DATABASE_HOST'] = os.environ.get('jawsdb_host')
+app.config['MYSQL_DATABASE_PORT'] = os.environ.get('jawsdb_port')
+app.config['MYSQL_DATABASE_USER'] = os.environ.get('jawsdb_user')
+app.config['MYSQL_DATABASE_PASSWORD'] = os.environ.get('jawsdb_pass')
+app.config['MYSQL_DATABASE_DB'] = os.environ.get('jawsdb_db')
+
+# MySQL configuration - gitignore
+# TBD
+
+
+
+mysql.init_app(app)
+
+
+
+
+DATABASE = 'high_scores.db'
+
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+    return db
+
+def init_db():
+    with app.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS high_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                initials TEXT NOT NULL,
+                score INTEGER NOT NULL
+            )
+        """)
+        db.commit()
+
+init_db()
+
+@app.teardown_appcontext
+def close_db(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+
+@app.route('/high_score', methods=['GET', 'POST'])
+def game():
+    if request.method == 'POST':
+        initials = request.form['initials']
+        score = request.form['score']
+        cursor = mysql.get_db().cursor()
+        cursor.execute("INSERT INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
+        mysql.get_db().commit()
+
+    cursor = mysql.get_db().cursor()
+    cursor.execute("SELECT * FROM high_scores ORDER BY score DESC LIMIT 10")
+    scores = cursor.fetchall()
+
+    return render_template('high_score.html', scores=scores)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
