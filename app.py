@@ -97,7 +97,9 @@ def game():
         initials = request.form['initials']
         score = request.form['score']
         cursor = mysql.get_db().cursor()
-        cursor.execute("INSERT INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
+        # cursor.execute("INSERT INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
+        cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
+        # cursor.execute("INSERT IGNORE INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
         mysql.get_db().commit()
 
     cursor = mysql.get_db().cursor()
@@ -105,6 +107,7 @@ def game():
     scores = cursor.fetchall()
 
     return render_template('high_score.html', scores=scores)
+
 
 
 
