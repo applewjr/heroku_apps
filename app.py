@@ -101,7 +101,7 @@ def game():
         mysql.get_db().commit()
 
     cursor = mysql.get_db().cursor()
-    cursor.execute("SELECT DISTINCT * FROM high_scores ORDER BY score DESC LIMIT 5")
+    cursor.execute("SELECT DISTINCT hs.initials, hs.score FROM high_scores hs ORDER BY score DESC LIMIT 5")
     scores = cursor.fetchall()
 
     return render_template('high_score.html', scores=scores)
