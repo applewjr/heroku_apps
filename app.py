@@ -97,9 +97,7 @@ def game():
         initials = request.form['initials']
         score = request.form['score']
         cursor = mysql.get_db().cursor()
-        # cursor.execute("INSERT INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
         cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
-        # cursor.execute("INSERT IGNORE INTO high_scores (initials, score) VALUES (%s, %s)", (initials, score))
         mysql.get_db().commit()
 
     cursor = mysql.get_db().cursor()
@@ -107,6 +105,59 @@ def game():
     scores = cursor.fetchall()
 
     return render_template('high_score.html', scores=scores)
+
+
+
+
+
+
+
+
+
+
+@app.route('/task_mysql')
+def task():
+    cursor = mysql.get_db().cursor()
+    # Retrieve tasks from the database
+    cursor.execute('SELECT * FROM tasks')
+    tasks = cursor.fetchall()
+    return render_template('task.html', tasks=tasks)
+
+@app.route('/add_task', methods=['POST'])
+def add_task():
+    cursor = mysql.get_db().cursor()
+    task = request.form['task']
+    # Insert the new task into the database
+    cursor.execute('INSERT INTO tasks (task, og_timelog) VALUES (%s, NOW())', (task))
+    mysql.get_db().commit()
+    return redirect('/task_mysql')
+
+@app.route('/delete_task/<int:task_id>', methods=['POST'])
+def delete_task(task_id):
+    cursor = mysql.get_db().cursor()
+    # Delete the task from the database
+    cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
+    mysql.get_db().commit()
+    return redirect('/task_mysql')
+
+@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
+def edit_task(task_id):
+    cursor = mysql.get_db().cursor()
+    if request.method == 'POST':
+        new_task = request.form['task']
+        # Update the task in the database
+        cursor.execute('UPDATE tasks SET task = %s WHERE id = %s', (new_task, task_id))
+        mysql.get_db().commit()
+        return redirect('/task_mysql')
+    else:
+        # Retrieve the task from the database
+        cursor.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
+        task = cursor.fetchone()
+        return render_template('edit_task.html', task=task)
+
+
+
+
 
 
 

@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}To Do{% endblock %}
+
+{% block content %}
+
+<head>
+    <title>To Do List</title>
+    <style>
+        .task-item {
+            margin-bottom: 10px;
+        }
+
+        .edit-button,
+        .delete-button {
+            background: none;
+            border: none;
+            color: red;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 0;
+            margin-left: 10px;
+        }
+
+        .edit-button {
+            color: blue;
+        }
+
+        .add-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>To Do List</h1>
+    <form action="/add_task" method="POST">
+        <input type="text" name="task" placeholder="Enter a task">
+        <button class="add-button" type="submit">Add</button>
+    </form>
+    <br>
+    <ul>
+        {% for task in tasks %}
+        <li class="task-item">
+            {{ task[1] }}
+            <form action="/edit_task/{{ task[0] }}" method="GET" style="display: inline;">
+                <button class="edit-button" type="submit">Edit</button>
+            </form>
+            <form action="/delete_task/{{ task[0] }}" method="POST" style="display: inline;">
+                <button class="delete-button" type="submit">&#x2716;</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+</body>
+
+{% endblock %}
