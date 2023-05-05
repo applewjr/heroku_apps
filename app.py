@@ -33,17 +33,26 @@ df = pd.read_csv(file_path)
 from flaskext.mysql import MySQL
 import sqlite3
 
+
 mysql = MySQL()
 
-# MySQL configuration - Heroku Config Vars
-app.config['MYSQL_DATABASE_HOST'] = os.environ.get('jawsdb_host')
-app.config['MYSQL_DATABASE_PORT'] = os.environ.get('jawsdb_port')
-app.config['MYSQL_DATABASE_USER'] = os.environ.get('jawsdb_user')
-app.config['MYSQL_DATABASE_PASSWORD'] = os.environ.get('jawsdb_pass')
-app.config['MYSQL_DATABASE_DB'] = os.environ.get('jawsdb_db')
 
-# MySQL configuration - gitignore
-# TBD
+if 'IS_HEROKU' in os.environ:
+    # Running on Heroku, load values from Heroku Config Vars
+    app.config['MYSQL_DATABASE_HOST'] = os.environ.get('jawsdb_host')
+    app.config['MYSQL_DATABASE_PORT'] = int(os.environ.get('jawsdb_port'))
+    app.config['MYSQL_DATABASE_USER'] = os.environ.get('jawsdb_user')
+    app.config['MYSQL_DATABASE_PASSWORD'] = os.environ.get('jawsdb_pass')
+    app.config['MYSQL_DATABASE_DB'] = os.environ.get('jawsdb_db')
+else:
+    # Running locally, load values from secret_pass.py
+    import secret_pass
+    app.config['MYSQL_DATABASE_HOST'] = secret_pass.mysql_host
+    app.config['MYSQL_DATABASE_PORT'] = int(secret_pass.mysql_port)
+    app.config['MYSQL_DATABASE_USER'] = secret_pass.mysql_user
+    app.config['MYSQL_DATABASE_PASSWORD'] = secret_pass.mysql_pass
+    app.config['MYSQL_DATABASE_DB'] = secret_pass.mysql_bd
+
 
 
 
@@ -92,7 +101,8 @@ def game():
         mysql.get_db().commit()
 
     cursor = mysql.get_db().cursor()
-    cursor.execute("SELECT * FROM high_scores ORDER BY score DESC LIMIT 10")
+    cursor.execute("SELECT DISTINCT initials, score FROM high_scores ORDER BY score DESC LIMIT 10")
+    # cursor.execute("SELECT DISTINCT * FROM high_scores ORDER BY score DESC LIMIT 10")
     scores = cursor.fetchall()
 
     return render_template('high_score.html', scores=scores)
