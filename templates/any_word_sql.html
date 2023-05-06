@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}All Words SQL{% endblock %}
+
+{% block content %}
+
+<head>
+  <title>All Words SQL</title>
+</head>
+<body>
+  <br>
+  <h1>All Words SQL</h1>
+
+  <form method="POST">
+    <label for="query">Enter your SQL query:</label>
+    <br>
+    <br>
+    <p>SELECT words FROM all_words...</p>
+    <textarea name="query" id="query" rows="5" cols="50">{{ query }}</textarea>
+
+    <br>
+
+    <button type="submit">Run</button>
+  </form>
+  <br>
+  {% if results %}
+    <h2>Results:</h2>
+    {% for row in results %}
+      {% for column in row %}
+        <p>{{ column }}</p>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+</body> 
+
+{% endblock %}
