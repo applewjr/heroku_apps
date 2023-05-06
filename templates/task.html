@@ -15,7 +15,7 @@
         .delete-button {
             background: none;
             border: none;
-            color: red;
+            color: rgb(163, 74, 74);
             cursor: pointer;
             font-size: 12px;
             font-weight: bold;
@@ -24,28 +24,16 @@
         }
 
         .edit-button {
-            color: blue;
-        }
-
-        .add-button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .add-button:hover {
-            background-color: #45a049;
+            color: #011ea0;
         }
     </style>
 </head>
 <body>
+    <br>
     <h1>To Do List</h1>
     <form action="/add_task" method="POST">
-        <input type="text" name="task" placeholder="Enter a task">
-        <button class="add-button" type="submit">Add</button>
+        <input type="text" name="task" placeholder="Enter a Task">
+        <input type="submit" value="Add">
     </form>
     <br>
     <ul>
