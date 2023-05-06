@@ -400,3 +400,35 @@ li {
   margin-top: 3rem;
   margin-bottom: 3rem;
 }
+
+
+
+
+
+
+
+
+
+.box {
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  width: 90%;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+.box:hover {
+  background-color: #02484d;
+  border-color: #02484d;
+}
+
+.box:hover a {
+  color: white;
+}
+
+.box + .box {
+  margin-top: 10px;
+}
+
+
+
