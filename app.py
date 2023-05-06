@@ -13,9 +13,9 @@ import all_words
 ########## local data ##########
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 file_path = os.path.join(APP_ROOT, 'word_data_created.csv')
 df = pd.read_csv(file_path)
-
 
 words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
 word_df = pd.read_csv(words_file_path)
@@ -30,22 +30,22 @@ import mysql.connector
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
     config = {
-    'user': os.environ.get('jawsdb_user'),
-    'password': os.environ.get('jawsdb_pass'),
-    'host': os.environ.get('jawsdb_host'),
-    'database': os.environ.get('jawsdb_db'),
-    'raise_on_warnings': True
-    }
+        'user': os.environ.get('jawsdb_user'),
+        'password': os.environ.get('jawsdb_pass'),
+        'host': os.environ.get('jawsdb_host'),
+        'database': os.environ.get('jawsdb_db'),
+        'raise_on_warnings': True
+        }
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
     config = {
-    'user': secret_pass.mysql_user,
-    'password': secret_pass.mysql_pass,
-    'host': secret_pass.mysql_host,
-    'database': secret_pass.mysql_bd,
-    'raise_on_warnings': True
-    }
+        'user': secret_pass.mysql_user,
+        'password': secret_pass.mysql_pass,
+        'host': secret_pass.mysql_host,
+        'database': secret_pass.mysql_bd,
+        'raise_on_warnings': True
+        }
 
 
 ########## Other SQL stuff ##########
@@ -485,8 +485,15 @@ def any_word():
 
 
 
+######################################
+######################################
+##### resume
+######################################
+######################################
 
-
+@app.route('/resume')
+def resume():
+    return render_template('resume.html')
 
 
 
@@ -551,6 +558,9 @@ def upload_files():
 #         return render_template('any_word_sql.html', query=query, results=results)
 
 #     return render_template('any_word_sql.html', query="-- Example:\nWHERE words LIKE 'z%a'\nORDER BY LENGTH(words) DESC\nLIMIT 5;")
+
+
+
 
 
 
