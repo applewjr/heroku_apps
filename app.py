@@ -3,6 +3,9 @@ import pandas as pd
 import os
 import datetime
 from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from flask_sslify import SSLify
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 ########## local functions ##########
 import wordle
@@ -50,12 +53,18 @@ else:
 
 ########## Other SQL stuff ##########
 
-from flask_sqlalchemy import SQLAlchemy
-
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+
+##### SSL #####
+
+sslify = SSLify(app)
+app.config['SESSION_COOKIE_SECURE'] = True
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 
 
 
@@ -481,10 +490,6 @@ def any_word():
 
 
 
-
-
-
-
 ######################################
 ######################################
 ##### resume
@@ -497,37 +502,51 @@ def resume():
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ######################################
 ######################################
 ##### upload file - TESTING
 ######################################
 ######################################
 
-def concat_test(filename1, filename2):
-    concatenated_filenames = filename1 + filename2
-    return concatenated_filenames
+# def concat_test(filename1, filename2):
+#     concatenated_filenames = filename1 + filename2
+#     return concatenated_filenames
 
-@app.route('/upload_test', methods=['GET', 'POST'])
-def upload_files():
-    if request.method == 'POST':
-        file1 = request.files['file1']
-        file2 = request.files['file2']
-        filename1 = file1.filename
-        filename2 = file2.filename
+# @app.route('/upload_test', methods=['GET', 'POST'])
+# def upload_files():
+#     if request.method == 'POST':
+#         file1 = request.files['file1']
+#         file2 = request.files['file2']
+#         filename1 = file1.filename
+#         filename2 = file2.filename
 
-        # Ensure file1 is a zip file
-        if not filename1.endswith('.zip'):
-            return render_template('upload_test.html', error='File 1 must be a .zip file')
+#         # Ensure file1 is a zip file
+#         if not filename1.endswith('.zip'):
+#             return render_template('upload_test.html', error='File 1 must be a .zip file')
 
-        # Ensure file2 is a json file
-        if not filename2.endswith('.json'):
-            return render_template('upload_test.html', error='File 2 must be a .json file')
+#         # Ensure file2 is a json file
+#         if not filename2.endswith('.json'):
+#             return render_template('upload_test.html', error='File 2 must be a .json file')
 
-        concatenated_filenames = concat_test(filename1, filename2)
+#         concatenated_filenames = concat_test(filename1, filename2)
 
-        return render_template('upload_test.html', concatenated_filenames=concatenated_filenames)
-    else:
-        return render_template('upload_test.html')
+#         return render_template('upload_test.html', concatenated_filenames=concatenated_filenames)
+#     else:
+#         return render_template('upload_test.html')
 
 
 
