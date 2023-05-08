@@ -2,8 +2,6 @@ import random
 
 def unused_letters(must_have, may_have):
     """
-    Coded in part by ChatGPT on 4/20/2023
-
     Returns a list of letters that were not called out.
     
     Args:
@@ -27,8 +25,6 @@ def unused_letters(must_have, may_have):
 
 def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
     """
-    Coded in part by ChatGPT on 4/18/2023
-    
     Filter a list of words by required and forbidden letters, and an optional first letter.
 
     Args:
@@ -65,8 +61,6 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
 
 def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length):
     """
-    Coded in part by ChatGPT on 4/18/2023
-    
     Filter a list of words by required and forbidden letters, and an optional first letter.
 
     Args:
