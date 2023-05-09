@@ -580,6 +580,66 @@ def resume():
 
 
 
+######################################
+######################################
+##### CSV summary
+######################################
+######################################
+
+def summarize_df(df):
+    summary = {}
+    
+    # DataFrame shape
+    summary['shape'] = df.shape
+    
+    # Column names
+    summary['column_names'] = df.columns.tolist()
+    
+    # Data types
+    summary['data_types'] = df.dtypes.to_dict()
+    
+    # Missing values
+    summary['missing_values'] = df.isna().sum().sum()
+    
+    # Summary statistics
+    summary['summary_statistics'] = df.describe().to_html()
+    
+    # Unique values
+    summary['unique_values'] = {}
+    for col in df.columns:
+        summary['unique_values'][col] = df[col].value_counts().to_dict()
+    
+    # Pairwise correlations
+    numeric_cols = df.select_dtypes(include=['float', 'int']).columns.tolist()
+    num_pairs = [(numeric_cols[i], numeric_cols[j]) for i in range(len(numeric_cols)) for j in range(i+1, len(numeric_cols))]
+    corr_dict = {}
+    for pair in num_pairs:
+        corr = df[pair[0]].corr(df[pair[1]])
+        corr_dict[f'{pair[0]} vs {pair[1]}'] = corr
+    summary['pairwise_correlations'] = corr_dict
+    
+    return summary
+
+
+@app.route('/data_summary')
+def data_summ():
+    # Create a sample DataFrame
+    data = {'Name': ['John', 'Mary', 'Peter', 'Sarah', 'David'],
+            'Age': [50, 50, 20, 35, 40],
+            'Height': [50, 60, 65, 75, 50],
+            'Weight': [50, 60, 65, 75, 50],
+            'Gender': ['Male', 'Female', 'Male', 'Female', 'Male'],
+            'Salary': [50000, 60000, 40000, 70000, 80000]}
+    df = pd.DataFrame(data)
+    
+    # Call the summarize_df function
+    summary = summarize_df(df)
+    
+    # Pass the summary to the HTML template
+    return render_template('data_summary.html', summary=summary)
+
+
+
 
 
 

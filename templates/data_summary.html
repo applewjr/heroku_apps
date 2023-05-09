@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordle Example{% endblock %}
+
+{% block content %}
+
+<html>
+  <head>
+    <title>My Data Summary</title>
+  </head>
+  <body>
+    <h1>My Data Summary</h1>
+    <h2>Shape</h2>
+    <p>{{ summary['shape'][0] }} rows x {{ summary['shape'][1] }} columns</p>
+    
+    <h2>Column Names</h2>
+    <ul>
+      {% for col in summary['column_names'] %}
+        <li>{{ col }}</li>
+      {% endfor %}
+    </ul>
+    
+    <h2>Data Types</h2>
+    <ul>
+      {% for col, dtype in summary['data_types'].items() %}
+        <li>{{ col }}: {{ dtype }}</li>
+      {% endfor %}
+    </ul>
+    
+    <h2>Missing Values</h2>
+    <p>{{ summary['missing_values'] }} missing values</p>
+    
+    <h2>Summary Statistics</h2>
+    {{ summary['summary_statistics']|safe }}
+    
+    <h2>Unique Values</h2>
+    {% for col, values in summary['unique_values'].items() %}
+      <h3>{{ col }}</h3>
+      <ul>
+        {% for val, count in values.items() %}
+          <li>{{ val }}: {{ count }}</li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    
+    <h2>Pairwise Correlations</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Column Pair</th>
+          <th>Pearson Correlation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pair, corr in summary['pairwise_correlations'].items() %}
+          <tr>
+            <td>{{ pair }}</td>
+            <td>{{ corr }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+  </body>
+</html>
+
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
