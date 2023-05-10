@@ -639,16 +639,15 @@ def summarize_df(df):
     return summary
 
 
-@app.route('/data_summary')
+@app.route('/data_summary', methods=['GET', 'POST'])
 def data_summ():
     if request.method == 'POST':
         file = request.files['file']
         df = pd.read_csv(file)
         summary = summarize_df(df)
         return render_template('data_summary.html', summary=summary)
-    else:
-        summary = summarize_df(df_demo)
-        return render_template('data_summary.html', summary=summary)
+
+    return render_template('data_summary.html', summary=summarize_df(df_demo))
 
 
 
