@@ -1,67 +1,81 @@
 {% extends 'base.html' %}
 
-{% block title %}Wordle Example{% endblock %}
+{% block title %}Data Summary{% endblock %}
 
 {% block content %}
 
 <html>
   <head>
-    <title>My Data Summary</title>
-  </head>
-  <body>
-    <h1>My Data Summary</h1>
-    <h2>Shape</h2>
-    <p>{{ summary['shape'][0] }} rows x {{ summary['shape'][1] }} columns</p>
-    
-    <h2>Column Names</h2>
-    <ul>
-      {% for col in summary['column_names'] %}
-        <li>{{ col }}</li>
-      {% endfor %}
-    </ul>
-    
-    <h2>Data Types</h2>
-    <ul>
-      {% for col, dtype in summary['data_types'].items() %}
-        <li>{{ col }}: {{ dtype }}</li>
-      {% endfor %}
-    </ul>
-    
-    <h2>Missing Values</h2>
-    <p>{{ summary['missing_values'] }} missing values</p>
-    
-    <h2>Summary Statistics</h2>
-    {{ summary['summary_statistics']|safe }}
-    
-    <h2>Unique Values</h2>
-    {% for col, values in summary['unique_values'].items() %}
-      <h3>{{ col }}</h3>
-      <ul>
-        {% for val, count in values.items() %}
-          <li>{{ val }}: {{ count }}</li>
-        {% endfor %}
-      </ul>
-    {% endfor %}
-    
-    <h2>Pairwise Correlations</h2>
-    <table>
-      <thead>
+    <title>Data Summary</title>
+    <style>
+      table {
+          border-collapse: collapse;
+          margin: 10px;
+      }
+      th, td {
+          border: 1px solid black;
+          padding: 5px;
+          text-align: center;
+      }
+      th {
+          background-color: lightgray;
+      }
+  </style>
+</head>
+<body>
+  <br>
+  <h1>Data Summary</h1>
+  <br>
+  <br>
+
+  <p>Upload is not yet used. Demo data are coming from here:</p>
+  <p>https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset?resource=download </p>
+
+  <form action="/data_summary" method="post" enctype="multipart/form-data">
+    <label for="file">File (.csv only):</label>
+    <input type="file" name="file" id="file" accept=".csv">
+    <br><br>
+    <input type="submit" value="Upload">
+  </form>
+
+<br>
+<br>
+<br>
+<p>{{ summary['shape'][1] }} columns, {{ summary['shape'][0] }} rows</p>
+
+<h2>Summary Statistics</h2>
+  {{ summary['df_summ']|safe }}
+  
+<br>
+  <h2>Pairwise Correlations</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Column Pair</th>
+        <th>Pearson Correlation</th>
+        <h6>Top 10 correlations, sorted by highest max absolute value</h6>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pair, corr in summary['pairwise_correlations'].items() %}
         <tr>
-          <th>Column Pair</th>
-          <th>Pearson Correlation</th>
+          <td>{{ pair }}</td>
+          <td>{{ corr }}</td>
         </tr>
-      </thead>
-      <tbody>
-        {% for pair, corr in summary['pairwise_correlations'].items() %}
-          <tr>
-            <td>{{ pair }}</td>
-            <td>{{ corr }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    
-  </body>
+      {% endfor %}
+    </tbody>
+  </table>
+
+<br>
+<br>
+<br>
+<h5>Upcoming:</h5>
+<h6>Imputation of missing data</h6>
+<h6>Lasso regression against all variables</h6>
+<br>
+<br>
+<br>  
+</body>
 </html>
 
 {% endblock %}
