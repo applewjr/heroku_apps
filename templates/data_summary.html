@@ -27,54 +27,65 @@
   <h1>Data Summary</h1>
   <br>
   <br>
-
-  <p>Upload is not yet used. Demo data are coming from here:</p>
-  <p>https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset?resource=download </p>
-
+  <p>Import CSVs here to be summarized</p>
   <form action="/data_summary" method="post" enctype="multipart/form-data">
-    <label for="file">File (.csv only):</label>
+    <label for="file">(.csv only):</label>
     <input type="file" name="file" id="file" accept=".csv">
     <br><br>
     <input type="submit" value="Upload">
   </form>
+  <br>
+  <p>Do NOT upload sensitive information</p>
 
-<br>
-<br>
-<br>
-<p>{{ summary['shape'][1] }} columns, {{ summary['shape'][0] }} rows</p>
+  <br>
+  <br>
+  <br>
+  <p>{{ summary['shape'][1] }} columns, {{ summary['shape'][0] }} rows</p>
 
-<h2>Summary Statistics</h2>
-  {{ summary['df_summ']|safe }}
-  
-<br>
-  <h2>Pairwise Correlations</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Column Pair</th>
-        <th>Pearson Correlation</th>
-        <h6>Top 10 correlations, sorted by highest max absolute value</h6>
-      </tr>
-    </thead>
-    <tbody>
-      {% for pair, corr in summary['pairwise_correlations'].items() %}
+  <h2>Summary Statistics</h2>
+    {{ summary['df_summ']|safe }}
+    
+  <br>
+    <h2>Pairwise Correlations</h2>
+    <table>
+      <thead>
         <tr>
-          <td>{{ pair }}</td>
-          <td>{{ corr }}</td>
+          <th>Column Pair</th>
+          <th>Pearson Correlation</th>
+          <h6>Top 10 correlations, sorted by highest max absolute value</h6>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for pair, corr in summary['pairwise_correlations'].items() %}
+          <tr>
+            <td>{{ pair }}</td>
+            <td>{{ corr }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
-<br>
-<br>
-<br>
-<h5>Upcoming:</h5>
-<h6>Imputation of missing data</h6>
-<h6>Lasso regression against all variables</h6>
-<br>
-<br>
-<br>  
+  <br>
+  <br>
+  <center>
+    <a href="/data_summary">
+    <div class="spinning-image">
+      <img alt="Reset" src="/static/reset_logo.png">
+    </div>
+  </a>
+  </center>
+  <br>
+  <p>Intial demo data come from here:</p>
+  <p>https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset?resource=download</p>
+  <br>
+  <br>
+  <br>
+  <h5>Upcoming Features:</h5>
+  <h6>Imputation of missing data</h6>
+  <h6>Lasso regression against all variables</h6>
+  <br>
+  <br>
+  <br>  
 </body>
 </html>
 
