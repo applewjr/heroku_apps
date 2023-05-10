@@ -1,5 +1,6 @@
 from flask import Flask, redirect, render_template, request, redirect
 import pandas as pd
+import numpy as np
 import os
 import datetime
 from datetime import datetime
@@ -25,6 +26,8 @@ word_df = pd.read_csv(words_file_path)
 words = word_df['0'].to_list()
 words = set(words)
 
+file_path = os.path.join(APP_ROOT, 'realtor_data.csv')
+df_demo = pd.read_csv(file_path)
 
 ########## MySQL stuff ##########
 
@@ -588,56 +591,64 @@ def resume():
 
 def summarize_df(df):
     summary = {}
-    
-    # DataFrame shape
+    df_summ = pd.DataFrame()
+
+    # summary['df'] = df
     summary['shape'] = df.shape
     
-    # Column names
-    summary['column_names'] = df.columns.tolist()
-    
-    # Data types
-    summary['data_types'] = df.dtypes.to_dict()
-    
-    # Missing values
-    summary['missing_values'] = df.isna().sum().sum()
-    
-    # Summary statistics
-    summary['summary_statistics'] = df.describe().to_html()
-    
-    # Unique values
-    summary['unique_values'] = {}
+    df_summ['Name'] = df.columns.tolist()
+    df_summ['Data Type'] = df.dtypes.tolist()
+    df_summ['Null Count'] = df.isna().sum().tolist()
+    df_summ['Null Percent'] = round((df.isna().sum()/df.shape[0]),4).tolist()
+    df_summ['Mode'] = df.mode().loc[0].tolist()
+
+    min, mean, median, max, std = [], [], [], [], []
     for col in df.columns:
-        summary['unique_values'][col] = df[col].value_counts().to_dict()
+        if np.issubdtype(df[col].dtype, np.number):
+            min.append(df[col].min())
+            mean.append(df[col].mean())
+            median.append(df[col].median())
+            max.append(df[col].max())
+            std.append(df[col].std())
+        else:
+            min.append('')
+            mean.append('')
+            median.append('')
+            max.append('')
+            std.append('')
+
+    df_summ['Min'] = min
+    df_summ['Mean'] = mean
+    df_summ['Median'] = median
+    df_summ['Max'] = max
+    df_summ['SD'] = std
+
+    summary['df_summ'] = df_summ.to_html()
     
     # Pairwise correlations
     numeric_cols = df.select_dtypes(include=['float', 'int']).columns.tolist()
     num_pairs = [(numeric_cols[i], numeric_cols[j]) for i in range(len(numeric_cols)) for j in range(i+1, len(numeric_cols))]
     corr_dict = {}
     for pair in num_pairs:
-        corr = df[pair[0]].corr(df[pair[1]])
+        corr = round(df[pair[0]].corr(df[pair[1]]),4)
         corr_dict[f'{pair[0]} vs {pair[1]}'] = corr
     summary['pairwise_correlations'] = corr_dict
+    summary['pairwise_correlations'] = dict(sorted(summary['pairwise_correlations'].items(), key=lambda x: abs(x[1]), reverse=True)[:10])
+        # top 10, highest absolute value
     
     return summary
 
 
 @app.route('/data_summary')
 def data_summ():
-    # Create a sample DataFrame
-    data = {'Name': ['John', 'Mary', 'Peter', 'Sarah', 'David'],
-            'Age': [50, 50, 20, 35, 40],
-            'Height': [50, 60, 65, 75, 50],
-            'Weight': [50, 60, 65, 75, 50],
-            'Gender': ['Male', 'Female', 'Male', 'Female', 'Male'],
-            'Salary': [50000, 60000, 40000, 70000, 80000]}
-    df = pd.DataFrame(data)
-    
-    # Call the summarize_df function
-    summary = summarize_df(df)
-    
-    # Pass the summary to the HTML template
-    return render_template('data_summary.html', summary=summary)
-
+    if request.method == 'POST':
+        file = request.files['file']
+        df = pd.read_csv(file)
+        summary = summarize_df(df)
+        return render_template('data_summary.html', summary=summary)
+    else:
+        summary = summarize_df(df_demo)
+        return render_template('data_summary.html', summary=summary)
 
 
 
