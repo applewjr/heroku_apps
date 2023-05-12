@@ -46,24 +46,28 @@
     {{ summary['df_summ']|safe }}
     
   <br>
-    <h2>Pairwise Correlations</h2>
-    <table>
-      <thead>
+  <h2>Pairwise Correlations</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Column Pair</th>
+        <th>Pearson Correlation</th>
+        <h6>Top 10 correlations, sorted by highest absolute value</h6>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pair, corr in summary['pairwise_correlations'].items() %}
         <tr>
-          <th>Column Pair</th>
-          <th>Pearson Correlation</th>
-          <h6>Top 10 correlations, sorted by highest max absolute value</h6>
+          <td>{{ pair }}</td>
+          <td>{{ corr }}</td>
         </tr>
-      </thead>
-      <tbody>
-        {% for pair, corr in summary['pairwise_correlations'].items() %}
-          <tr>
-            <td>{{ pair }}</td>
-            <td>{{ corr }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <br>
+  <h2>Correlation Heatmap</h2>
+  <img src="data:image/png;base64,{{ heatmap_data }}" alt="Correlation Heatmap">
 
   <br>
   <br>
