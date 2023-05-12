@@ -645,31 +645,31 @@ def summarize_df(df):
     return summary
 
 
-import seaborn as sns
-import matplotlib.pyplot as plt
-import io
-import base64
+# import seaborn as sns
+# import matplotlib.pyplot as plt
+# import io
+# import base64
 
-def generate_heatmap(df):
-    df = pd.DataFrame(df)
+# def generate_heatmap(df):
+#     df = pd.DataFrame(df)
 
-    # Calculate the correlation matrix
-    corr_matrix = df.corr()
+#     # Calculate the correlation matrix
+#     corr_matrix = df.corr()
 
-    # Create the heatmap
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm')
+#     # Create the heatmap
+#     plt.figure(figsize=(8, 6))
+#     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm')
     
-    # Save the plot to a buffer
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
+#     # Save the plot to a buffer
+#     buf = io.BytesIO()
+#     plt.savefig(buf, format='png')
+#     buf.seek(0)
 
-    # Convert the plot buffer to base64 encoding
-    plot_data = base64.b64encode(buf.getvalue()).decode('utf-8')
-    plt.close()
+#     # Convert the plot buffer to base64 encoding
+#     plot_data = base64.b64encode(buf.getvalue()).decode('utf-8')
+#     plt.close()
 
-    return plot_data
+#     return plot_data
 
 
 
@@ -680,12 +680,13 @@ def data_summ():
         df = pd.read_csv(file)
         summary = summarize_df(df)
 
-        heatmap_data = generate_heatmap(df)
+        # heatmap_data = generate_heatmap(df)
 
-        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
+        # return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
+        return render_template('data_summary.html', summary=summary)
 
-    return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
-
+    # return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
+    return render_template('data_summary.html', summary=summarize_df(df_demo))
 
 
 
