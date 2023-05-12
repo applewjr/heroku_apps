@@ -372,7 +372,7 @@ def run_common_denominator():
         value_split_char = request.form["value_split_char"]
         user_match_entry = request.form["user_match_entry"]
         user_nope_match_entry = request.form["user_nope_match_entry"]
-        final_match_list, final_out, num_words_entered, comparisons = wordle.common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, user_nope_match_entry)
+        final_match_list, final_out, num_words_entered, comparisons = all_words.common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, user_nope_match_entry)
         return render_template("common_denominator.html", min_match_len_val=min_match_len, min_match_rate_val=min_match_rate, beg_end_str_char_val=beg_end_str_char, value_split_char_val=value_split_char, \
             user_match_entry_val=user_match_entry, user_nope_match_entry_val=user_nope_match_entry, \
             final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
@@ -602,7 +602,7 @@ def summarize_df(df):
     df_summ['Null Percent'] = round((df.isna().sum()/df.shape[0]),4).tolist()
     df_summ['Mode'] = df.mode().loc[0].tolist()
 
-    min, mean, median, max, std = [], [], [], [], []
+    min, mean, median, max, std, skew, kurt = [], [], [], [], [], [], []
     for col in df.columns:
         if np.issubdtype(df[col].dtype, np.number):
             min.append(df[col].min())
@@ -610,18 +610,24 @@ def summarize_df(df):
             median.append(df[col].median())
             max.append(df[col].max())
             std.append(df[col].std())
+            skew.append(df[col].skew())
+            kurt.append(df[col].kurtosis())
         else:
             min.append('')
             mean.append('')
             median.append('')
             max.append('')
             std.append('')
+            skew.append('')
+            kurt.append('')
 
     df_summ['Min'] = min
     df_summ['Mean'] = mean
     df_summ['Median'] = median
     df_summ['Max'] = max
     df_summ['SD'] = std
+    df_summ['Skew'] = skew
+    df_summ['Kurtosis'] = kurt
 
     summary['df_summ'] = df_summ.to_html()
     
@@ -639,15 +645,46 @@ def summarize_df(df):
     return summary
 
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+import io
+import base64
+
+def generate_heatmap(df):
+    df = pd.DataFrame(df)
+
+    # Calculate the correlation matrix
+    corr_matrix = df.corr()
+
+    # Create the heatmap
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm')
+    
+    # Save the plot to a buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+
+    # Convert the plot buffer to base64 encoding
+    plot_data = base64.b64encode(buf.getvalue()).decode('utf-8')
+    plt.close()
+
+    return plot_data
+
+
+
 @app.route('/data_summary', methods=['GET', 'POST'])
 def data_summ():
     if request.method == 'POST':
         file = request.files['file']
         df = pd.read_csv(file)
         summary = summarize_df(df)
-        return render_template('data_summary.html', summary=summary)
 
-    return render_template('data_summary.html', summary=summarize_df(df_demo))
+        heatmap_data = generate_heatmap(df)
+
+        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
+
+    return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
 
 
 
