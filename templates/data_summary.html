@@ -67,14 +67,7 @@
   <br>
   <h2>Correlation Heatmap</h2>
   <img src="data:image/png;base64,{{ heatmap_data }}" alt="Correlation Heatmap">
-  <br>
-  <br>
-  <br>  
-  <h2>Regression Results</h2>
-  <h6>Multiple rounds of linear regression, treat each numeric column as the dependent variable</h6>
-  <h6>Create dummy variables for non-numeric values representing >=10% of the data</h6>
-  <h6>Impute missing values: MICE for numeric, Most frequent for non-numeric</h6>
-  {{ results_html|safe }}
+
   <br>
   <br>
   <center>

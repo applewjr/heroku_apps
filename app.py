@@ -676,72 +676,6 @@ def generate_heatmap(df):
 
 
 
-import pandas as pd
-import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
-from sklearn.impute import SimpleImputer
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer
-import statsmodels.api as sm
-
-def run_multiple_linear_regressions(df):
-    # Create a copy of the input DataFrame
-    df_copy = df.copy()
-    
-    # Identify numeric and non-numeric columns
-    numeric_columns = df_copy.select_dtypes(include=[np.number]).columns.tolist()
-    non_numeric_columns = df_copy.select_dtypes(exclude=[np.number]).columns.tolist()
-    
-    # Impute missing values in numeric columns using MICE imputation
-    numeric_imputer = IterativeImputer()
-    df_copy[numeric_columns] = numeric_imputer.fit_transform(df_copy[numeric_columns])
-    
-    # Impute missing values in non-numeric columns using most frequent value imputation
-    non_numeric_imputer = SimpleImputer(strategy='most_frequent')
-    df_copy[non_numeric_columns] = non_numeric_imputer.fit_transform(df_copy[non_numeric_columns])
-    
-    # Create dummy variables for non-numeric columns
-    for column in non_numeric_columns:
-        value_counts = df_copy[column].value_counts(normalize=True)
-        values_to_dummy = value_counts[value_counts >= 0.1].index.tolist()
-        
-        for value in values_to_dummy:
-            dummy_column_name = f"{column}_{value}"
-            df_copy[dummy_column_name] = (df_copy[column] == value).astype(int)
-        
-        df_copy.drop(columns=[column], inplace=True)
-    
-    # Run linear regression for each numeric column
-    regression_results = {}
-    for column in numeric_columns:
-        y = df_copy[column]
-        X = df_copy.drop(columns=[column])
-        
-        X = sm.add_constant(X)  # Add a constant column for intercept
-        model = sm.OLS(y, X)
-        results = model.fit()
-
-        p_values = results.pvalues[1:]  # Exclude the constant column
-        coefficients = results.params[1:]
-        
-        regression_results[column] = {
-            'model': model,
-            'r2_score': results.rsquared.round(4),
-            'p_values': dict(zip(p_values.index.tolist(), p_values.round(4))),
-            'intercept': results.params[0].round(4),
-            'coefficients': dict(zip(coefficients.index.tolist(), coefficients.round(4)))
-        }
-    
-    return regression_results
-
-
-
-
-
-
-
-
 
 @app.route('/data_summary', methods=['GET', 'POST'])
 def data_summ():
@@ -753,69 +687,9 @@ def data_summ():
 
         heatmap_data = generate_heatmap(df)
 
-        # Prepare the results for HTML display
-        regression_results = run_multiple_linear_regressions(df)
-        results_html = ""
-        for column, result in regression_results.items():
-            model = result['model']
-            intercept = result['intercept']
-            coefficients = result['coefficients']
-            r2_score = result['r2_score']
-            p_values = result['p_values']
+        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
 
-            coefficients_html = ""
-            for feature, coef in coefficients.items():
-                coefficients_html += f"<li>{feature}: {coef}</li>"
-
-            p_values_html = ""
-            for feature, val in p_values.items():
-                p_values_html += f"<li>{feature}: {val}</li>"
-
-            results_html += f"""
-                <h4>Dependent Variable: {column}</h4>
-                <p>R-squared: {r2_score}</p>
-                <p>P-values</p>
-                <ul>{p_values_html}</ul>
-                <p>Intercept: {intercept}</p>
-                <p>Coefficients</p>
-                <ul>{coefficients_html}</ul>
-                <hr>
-            """
-
-        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, results_html=results_html)
-        # return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
-
-    # Prepare the results for HTML display
-    regression_results = run_multiple_linear_regressions(df_demo)
-    results_html = ""
-    for column, result in regression_results.items():
-        model = result['model']
-        intercept = result['intercept']
-        coefficients = result['coefficients']
-        r2_score = result['r2_score']
-        p_values = result['p_values']
-
-        coefficients_html = ""
-        for feature, coef in coefficients.items():
-            coefficients_html += f"<li>{feature}: {coef}</li>"
-
-        p_values_html = ""
-        for feature, val in p_values.items():
-            p_values_html += f"<li>{feature}: {val}</li>"
-
-        results_html += f"""
-            <h4>Dependent Variable: {column}</h4>
-            <p>R-squared: {r2_score}</p>
-            <p>P-values</p>
-            <ul>{p_values_html}</ul>
-            <p>Intercept: {intercept}</p>
-            <p>Coefficients</p>
-            <ul>{coefficients_html}</ul>
-            <hr>
-        """
-
-    return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo), results_html=results_html)
-    # return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
+    return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
 
 
 
