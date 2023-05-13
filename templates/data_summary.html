@@ -6,7 +6,7 @@
 
 <html>
   <head>
-    <title>Data Summary</title>
+    <title>Data Summary of CSVs</title>
     <style>
       table {
           border-collapse: collapse;
@@ -24,10 +24,10 @@
 </head>
 <body>
   <br>
-  <h1>Data Summary</h1>
+  <h1>Data Summary of CSVs</h1>
   <br>
   <br>
-  <p>Import CSVs here to be summarized</p>
+  <p>Import CSV here to be summarized</p>
   <form action="/data_summary" method="post" enctype="multipart/form-data">
     <label for="file">(.csv only):</label>
     <input type="file" name="file" id="file" accept=".csv">
@@ -44,8 +44,7 @@
 
   <h2>Summary Statistics</h2>
     {{ summary['df_summ']|safe }}
-    
-  <br>
+    <br>
   <h2>Pairwise Correlations</h2>
   <table>
     <thead>
@@ -71,6 +70,14 @@
 
   <br>
   <br>
+  <br>  
+  <h2>Regression Results</h2>
+  <h6>Multiple rounds of linear regression, treat each numeric column as the dependent variable</h6>
+  <h6>Create dummy variables for non-numeric values representing >=10% of the data</h6>
+  <h6>Impute missing values: MICE for numeric, Most frequent for non-numeric</h6>
+  {{ results_html|safe }}
+  <br>
+  <br>
   <center>
     <a href="/data_summary">
     <div class="spinning-image">
@@ -79,14 +86,7 @@
   </a>
   </center>
   <br>
-  <p>Intial demo data come from here:</p>
-  <p>https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset?resource=download</p>
-  <br>
-  <br>
-  <br>
-  <h5>Upcoming Features:</h5>
-  <h6>Imputation of missing data</h6>
-  <h6>Lasso regression against all variables</h6>
+  <p>Intial demo data come from <a href="https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset" target="_blank">here</a></p>
   <br>
   <br>
   <br>  
