@@ -15,8 +15,6 @@ import os
 import pytz
 pd.options.mode.chained_assignment = None  # default='warn'
 
-file_ymd = str(date.today().year) + str(date.today().month).zfill(2) + str(date.today().day).zfill(2)
-text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
 
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
@@ -39,21 +37,21 @@ api = tweepy.API(auth, wait_on_rate_limit = True)
 
 
 
+# file_ymd = str(date.today().year) + str(date.today().month).zfill(2) + str(date.today().day).zfill(2)
+# text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
+# current_time_utc = datetime.utcnow()
+# pst = pytz.timezone('US/Pacific')
+# current_time_pst = current_time_utc.astimezone(pst)
+# text_ymdt = text_ymd + ' ' + current_time_pst.strftime('%H:%M:%S')
 
-# Get the current time in UTC
 current_time_utc = datetime.utcnow()
-
-# Define the time zone to convert to (PST)
 pst = pytz.timezone('US/Pacific')
+current_time_pst = current_time_utc.astimezone(pst).strftime('%Y-%m-%d %H:%M:%S')
 
-# Convert the current time from UTC to PST
-current_time_pst = current_time_utc.astimezone(pst)
 
-# Format the current time in PST
-text_ymdt = text_ymd + ' ' + current_time_pst.strftime('%H:%M:%S')
 
 # Print the output
-api.update_status(f"Testing: {text_ymdt}")
+api.update_status(f"test: {current_time_pst}")
 
 
 
