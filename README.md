@@ -50,7 +50,7 @@ This is my central hub where I practice:
   - Standard deviation, skewness, kurtosis
   - Dynamically arranged most significant Pearson correlations present
   - Heatmap correlation
- - Not shown because it demolished my web app's memory allowance
+- Not shown because it demolished my web app's memory allowance
   - Impute missing numeric values with MICE
   - Impute missing non-numeric values with a frequency approach
   - Run multiple linear regressions, treating each numeric column as the dependent variable. Display R-squared, P-values, intercept, coefficients
