@@ -36,10 +36,9 @@ api = tweepy.API(auth, wait_on_rate_limit = True)
 
 
 
-
 current_time_utc = datetime.utcnow()
 pst = pytz.timezone('US/Pacific')
-current_time_pst = current_time_utc.astimezone(pst)
+current_time_pst = current_time_utc.replace(tzinfo=pytz.utc).astimezone(pst)
 
 file_ymd = current_time_pst.strftime('%Y%m%d')
 text_ymd = current_time_pst.strftime('%Y-%m-%d')
