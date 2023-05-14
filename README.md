@@ -14,6 +14,10 @@ Web app development, UI
 
 
 [Wordle Solver](https://www.jamesapplewhite.com/wordle)
+
+
+[Wordle Solver](https://www.jamesapplewhite.com/wordle){:target="_blank"}
+
 - t1
   - t2
     - t3
