@@ -12,8 +12,10 @@ This is my central hub where I practice:
 - UI
 - Tools:
   - Python
+  - Flask
   - HTML
   - CSS
+  - MySQL/SQLite
   - Heroku
   - Git
 
@@ -21,14 +23,14 @@ This is my central hub where I practice:
 ### Notable sections
 
 [Wordle Solver](https://www.jamesapplewhite.com/wordle)
-- Python function used to input Wordle quesses and find the ideal next guess
+- Python function used to input Wordle guesses and find the ideal next guess
 
 [Quordle Solver](https://www.jamesapplewhite.com/quordle)
 - Python function which built on the Wordle logic to solve 4 Wordle puzzles at once
 - This involved a totally new strategy where you minimize the weights of used letters to ensure a wider variety of letter usage
 
 [Blossom/Spelling Bee Solver](https://www.jamesapplewhite.com/blossom)
-- Another Python function that ingests all englush words and find the largest length words based on inclusion criteria
+- Another Python function that ingests all english words and find the largest length words based on inclusion criteria
 
 [Any Word Finder](https://www.jamesapplewhite.com/any_word)
 - An expansion of the Blossom solver beyond a game. Find any word you are thinking of by entering a variety of criteria to describe the word
@@ -46,11 +48,11 @@ This is my central hub where I practice:
 - Includes:
   - Data type, nulls, min, max
   - Standard deviation, skewness, kurtosis
-  - Dyanamically arranged most significant pearson correlations present
+  - Dynamically arranged most significant Pearson correlations present
   - Heatmap correlation
 
 [Stock Analysis](https://www.jamesapplewhite.com/stock_analysis)
-- Derived from my first large personal Python project in 2021. Optimize stock/crypto buying by adhering to the priciples of mean reversion. Trendlines have short term variance but tend to run back to the mean. This function finds when a stock is trading notably lower than the projected value and provides triggers for when it may be advisable to buy in more aggresively (Not trading advice! *I went to healthcare school*)
+- Derived from my first large personal Python project in 2021. Optimize stock/crypto buying by adhering to the principles of mean reversion. Trendlines have short term variance but tend to run back to the mean. This function finds when a stock is trading notably lower than the projected value and provides triggers for when it may be advisable to buy in more aggressively (Not trading advice! *I went to healthcare school*)
 
 [Twitter Stock Bot](https://twitter.com/J_R_Applewhite)
 - Each morning, a series of .py scripts are automatically run
