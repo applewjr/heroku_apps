@@ -10,6 +10,9 @@ ETL
 Data analysis
 Web app development, UI
 
+<a href="https://www.jamesapplewhite.com/wordle" target="_blank">Wordle Solver</a>
+
+
 [Wordle Solver](https://www.jamesapplewhite.com/wordle)
 - t1
   - t2
