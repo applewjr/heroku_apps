@@ -12,6 +12,7 @@ import random
 import math
 import matplotlib.pyplot as plt
 import os
+import pytz
 pd.options.mode.chained_assignment = None  # default='warn'
 
 file_ymd = str(date.today().year) + str(date.today().month).zfill(2) + str(date.today().day).zfill(2)
@@ -31,23 +32,28 @@ else:
     access_token = secret_pass.access_token
     access_token_secret = secret_pass.access_token_secret
 
-
-
-
-
-
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 api = tweepy.API(auth, wait_on_rate_limit = True)
 
-today = pd.to_datetime(date.today())
-
-file_ymdt = file_ymd + '_' + datetime.now().strftime('%H%M%S')
-text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M:%S')
 
 
+
+
+# Get the current time in UTC
+current_time_utc = datetime.utcnow()
+
+# Define the time zone to convert to (PST)
+pst = pytz.timezone('US/Pacific')
+
+# Convert the current time from UTC to PST
+current_time_pst = current_time_utc.astimezone(pst)
+
+# Format the current time in PST
+text_ymdt = text_ymd + ' ' + current_time_pst.strftime('%H:%M:%S')
+
+# Print the output
 api.update_status(f"Testing: {text_ymdt}")
-
 
 
 
