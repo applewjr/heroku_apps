@@ -18,16 +18,16 @@ import all_words
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-file_path = os.path.join(APP_ROOT, 'word_data_created.csv')
-df = pd.read_csv(file_path)
+df = pd.read_csv(os.path.join(APP_ROOT, 'word_data_created.csv'))
 
 words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
 word_df = pd.read_csv(words_file_path)
 words = word_df['0'].to_list()
 words = set(words)
 
-file_path = os.path.join(APP_ROOT, 'realtor_data.csv')
-df_demo = pd.read_csv(file_path)
+df_demo_realtor = pd.read_csv(os.path.join(APP_ROOT, 'realtor_data.csv'))
+df_demo_titanic = pd.read_csv(os.path.join(APP_ROOT, 'titanic_dataset.csv'))
+df_demo_diabetes = pd.read_csv(os.path.join(APP_ROOT, 'diabetes.csv'))
 
 ########## MySQL stuff ##########
 
@@ -677,19 +677,35 @@ def generate_heatmap(df):
 
 
 
+
+
+
+
+
 @app.route('/data_summary', methods=['GET', 'POST'])
 def data_summ():
 
     if request.method == 'POST':
-        file = request.files['file']
-        df = pd.read_csv(file)
+
+        csv_pick = request.form["csv_pick"]
+
+        if csv_pick == 'Realtor':
+            df = df_demo_realtor
+        elif csv_pick == 'Titanic':
+            df = df_demo_titanic
+        else:
+            df = df_demo_diabetes
+
+        # file = request.files['file']
+        # df = pd.read_csv(file)
+
         summary = summarize_df(df)
 
         heatmap_data = generate_heatmap(df)
 
-        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data)
+        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, csv_pick_val=csv_pick)
 
-    return render_template('data_summary.html', summary=summarize_df(df_demo), heatmap_data=generate_heatmap(df_demo))
+    return render_template('data_summary.html', summary=summarize_df(df_demo_realtor), heatmap_data=generate_heatmap(df_demo_realtor), csv_pick_val='Realtor')
 
 
 
