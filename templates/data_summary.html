@@ -26,16 +26,26 @@
   <br>
   <h1>Data Summary of CSVs</h1>
   <br>
+  <p>Import CSV functionality has been disbaled. I don't want to have to run through all necessary security measures.</p>
+  <p>Choose instead a pre-loaded CSV in the dropdown.</p>
   <br>
-  <p>Import CSV here to be summarized</p>
   <form action="/data_summary" method="post" enctype="multipart/form-data">
-    <label for="file">(.csv only):</label>
+    <label for="file">*Disabled* (.csv only):</label>
     <input type="file" name="file" id="file" accept=".csv">
-    <br><br>
+    <br>
+    <br>
+    <select name="csv_pick">
+      <option value="{{csv_pick_val}}">{{csv_pick_val}}</option>
+      <option disabled>______</option>
+      <option value="Realtor">Realtor</option>
+      <option value="Titanic">Titanic</option>
+      <option value="Diabetes">Diabetes</option>
+    </select>
+    <br>
+    <br>
     <input type="submit" value="Upload">
   </form>
   <br>
-  <p>Do NOT upload sensitive information</p>
 
   <br>
   <br>
@@ -77,8 +87,6 @@
     </div>
   </a>
   </center>
-  <br>
-  <p>Intial demo data come from <a href="https://www.kaggle.com/datasets/ahmedshahriarsakib/usa-real-estate-dataset" target="_blank">here</a></p>
   <br>
   <br>
   <br>  
