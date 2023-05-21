@@ -8,27 +8,33 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+
 ########## local functions ##########
-import wordle
-import stocks
-import all_words
-import data_analysis
+
+import sys
+sys.path.append('/functions')
+
+from functions import wordle
+from functions import stocks
+from functions import all_words
+from functions import data_analysis
 
 
 ########## local data ##########
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+data_folder = os.path.join(APP_ROOT, 'datasets')
 
-df = pd.read_csv(os.path.join(APP_ROOT, 'word_data_created.csv'))
+df = pd.read_csv(os.path.join(data_folder, 'word_data_created.csv'))
 
-words_file_path = os.path.join(APP_ROOT, 'all_words.csv')
-word_df = pd.read_csv(words_file_path)
+word_df = pd.read_csv(os.path.join(data_folder, 'all_words.csv'))
 words = word_df['0'].to_list()
 words = set(words)
 
-df_demo_realtor = pd.read_csv(os.path.join(APP_ROOT, 'realtor_data.csv'))
-df_demo_titanic = pd.read_csv(os.path.join(APP_ROOT, 'titanic_dataset.csv'))
-df_demo_diabetes = pd.read_csv(os.path.join(APP_ROOT, 'diabetes.csv'))
+df_demo_realtor = pd.read_csv(os.path.join(data_folder, 'realtor_data.csv'))
+df_demo_titanic = pd.read_csv(os.path.join(data_folder, 'titanic_dataset.csv'))
+df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
+
 
 ########## MySQL stuff ##########
 
@@ -491,6 +497,43 @@ def any_word():
 
 
 
+
+
+######################################
+######################################
+##### CSV summary
+######################################
+######################################
+
+@app.route('/data_summary', methods=['GET', 'POST'])
+def data_summ():
+
+    if request.method == 'POST':
+
+        csv_pick = request.form["csv_pick"]
+
+        if csv_pick == 'Realtor':
+            df = df_demo_realtor
+        elif csv_pick == 'Titanic':
+            df = df_demo_titanic
+        else:
+            df = df_demo_diabetes
+
+        ### disable using CSV imports
+        # file = request.files['file']
+        # df = pd.read_csv(file)
+
+        summary = data_analysis.summarize_df(df)
+
+        heatmap_data = data_analysis.generate_heatmap(df)
+
+        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, csv_pick_val=csv_pick)
+
+    return render_template('data_summary.html', summary=data_analysis.summarize_df(df_demo_realtor), heatmap_data=data_analysis.generate_heatmap(df_demo_realtor), csv_pick_val='Realtor')
+
+
+
+
 ######################################
 ######################################
 ##### resume
@@ -500,11 +543,6 @@ def any_word():
 @app.route('/resume')
 def resume():
     return render_template('resume.html')
-
-
-
-
-
 
 
 
@@ -584,37 +622,6 @@ def resume():
 
 
 
-######################################
-######################################
-##### CSV summary
-######################################
-######################################
-
-@app.route('/data_summary', methods=['GET', 'POST'])
-def data_summ():
-
-    if request.method == 'POST':
-
-        csv_pick = request.form["csv_pick"]
-
-        if csv_pick == 'Realtor':
-            df = df_demo_realtor
-        elif csv_pick == 'Titanic':
-            df = df_demo_titanic
-        else:
-            df = df_demo_diabetes
-
-        ### disable using CSV imports
-        # file = request.files['file']
-        # df = pd.read_csv(file)
-
-        summary = data_analysis.summarize_df(df)
-
-        heatmap_data = data_analysis.generate_heatmap(df)
-
-        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, csv_pick_val=csv_pick)
-
-    return render_template('data_summary.html', summary=data_analysis.summarize_df(df_demo_realtor), heatmap_data=data_analysis.generate_heatmap(df_demo_realtor), csv_pick_val='Realtor')
 
 
 
