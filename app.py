@@ -15,6 +15,7 @@ import sys
 sys.path.append('/functions')
 
 from functions import wordle
+
 from functions import stocks
 from functions import all_words
 from functions import data_analysis
@@ -543,6 +544,20 @@ def data_summ():
 @app.route('/resume')
 def resume():
     return render_template('resume.html')
+
+
+
+
+
+
+
+
+######################################
+######################################
+##### youtube web scraping display
+######################################
+######################################
+
 
 
 
