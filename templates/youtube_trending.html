@@ -22,7 +22,15 @@
         td:first-child {
             width: 75%; /* Adjust the width to your desired value */
         }
+    
+        /* Media query for mobile devices */
+        @media (max-width: 600px) {
+            td:first-child {
+                width: 100%; /* Adjust the width for mobile devices */
+            }
+        }
     </style>
+    
     
 </head>
 <body>
@@ -52,7 +60,7 @@
     <br> 
 
     <div class="dashboard-section">
-        <h3>Top 10 Videos</h3>
+        <h3>Top 10 Videos (Last {{ day_count }} Days)</h3>
         <table class="data-table">
             <thead>
                 <tr>
@@ -73,7 +81,8 @@
     <br>
 
     <div class="dashboard-section">
-        <h3>Top 10 Channels</h3>
+        <h3>Top 10 Channels (Last {{ day_count }} Days)</h3>
+        <p>Count of video days can be higher than count of days if a channel has had multiple top 10 videos at one time</p>
         <table class="data-table">
             <thead>
                 <tr>
@@ -93,16 +102,12 @@
     </div>
     <br>
 
-    <div class="dashboard-section">
-        <h3>Oldest Date</h3>
-        <p>{{ oldest_date }}</p>
-    </div>
+    <p>Updates daily at 12 am PST</p>
+    <p>Date range availabe: {{ oldest_date }} - {{ newest_date }} ({{ day_count }} Days)</p>
+    <p>Data collection started on 2023-05-27. The data history are working up to 90 days</p>
     <br>
-
-    <div class="dashboard-section">
-        <h3>Day Count</h3>
-        <p>{{ day_count }}</p>
-    </div>
+    <br>
+    <br>
 
 </body>
 
