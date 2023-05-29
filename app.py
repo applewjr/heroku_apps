@@ -608,6 +608,16 @@ def youtube_trending():
     oldest_date = cursor.fetchone()
     oldest_date = oldest_date[0].strftime("%Y-%m-%d")
 
+    newest_date = """
+    SELECT date
+    FROM youtube_trending
+    ORDER BY date DESC
+    LIMIT 1
+    """
+    cursor.execute(newest_date)
+    newest_date = cursor.fetchone()
+    newest_date = newest_date[0].strftime("%Y-%m-%d")
+
     day_count = """
     SELECT COUNT(DISTINCT date) AS dist_date
     FROM youtube_trending
@@ -621,7 +631,7 @@ def youtube_trending():
     conn.close()
 
     return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel)
+        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date)
 
 
 
