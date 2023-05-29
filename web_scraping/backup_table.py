@@ -32,8 +32,15 @@ cursor = conn.cursor()
 
 query = """
 DROP TABLE IF EXISTS youtube_trending_backup;
-CREATE TABLE youtube_trending_backup AS
-SELECT * FROM youtube_trending;
+CREATE TABLE youtube_trending_backup (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100),
+    channel VARCHAR(30),
+    datetime DATETIME,
+    date DATE,
+    ranking TINYINT,
+    UNIQUE KEY unique_title_channel (date, ranking)
+) AS SELECT * FROM youtube_trending;
 """
 cursor.execute(query)
 
