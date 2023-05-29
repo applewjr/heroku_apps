@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}YouTube Trending{% endblock %}
+
+{% block content %}
+
+<head>
+    <title>YouTube Trending Dashboard</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            margin: 10px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+        }
+        th {
+            background-color: lightgray;
+        }
+        td:first-child {
+            width: 75%; /* Adjust the width to your desired value */
+        }
+    </style>
+    
+</head>
+<body>
+    <br>
+    <h1>YouTube Trending Dashboard</h1>
+    <br>
+    
+    <div class="dashboard-section">
+        <h3>Top 10 Today</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Video</th>
+                    <th>Channel</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in top_10_today.iterrows() %}
+                <tr>
+                    <td>{{ row['Video'] }}</td>
+                    <td>{{ row['Channel'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br> 
+
+    <div class="dashboard-section">
+        <h3>Top 10 Videos</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Video</th>
+                    <th>Count of Days</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in top_10_title.iterrows() %}
+                <tr>
+                    <td>{{ row['Video'] }}</td>
+                    <td>{{ row['Count of Days'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br>
+
+    <div class="dashboard-section">
+        <h3>Top 10 Channels</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th>Count of Video Days</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in top_10_channel.iterrows() %}
+                <tr>
+                    <td>{{ row['Channel'] }}</td>
+                    <td>{{ row['Count of Video Days'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br>
+
+    <div class="dashboard-section">
+        <h3>Oldest Date</h3>
+        <p>{{ oldest_date }}</p>
+    </div>
+    <br>
+
+    <div class="dashboard-section">
+        <h3>Day Count</h3>
+        <p>{{ day_count }}</p>
+    </div>
+
+</body>
+
+{% endblock %}
