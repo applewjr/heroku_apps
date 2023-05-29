@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import datetime
+from datetime import date
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
@@ -558,6 +559,69 @@ def resume():
 ######################################
 ######################################
 
+@app.route("/youtube_trending", methods=["POST", "GET"])
+def youtube_trending():
+
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    today = date.today().strftime("%Y-%m-%d")
+
+    top_10_today = """
+    SELECT title, channel
+    FROM youtube_trending
+    WHERE DATE_FORMAT(date, '%Y-%m-%d') = %s
+    ORDER BY ranking ASC
+    """
+    cursor.execute(top_10_today, (today,))
+    top_10_today = cursor.fetchall()
+    top_10_today = pd.DataFrame(top_10_today, columns=['Video', 'Channel'])
+
+    top_10_title = """
+    SELECT title, COUNT(*) as occurrences
+    FROM youtube_trending
+    GROUP BY title
+    ORDER BY occurrences DESC, AVG(ranking) ASC
+    LIMIT 10
+    """
+    cursor.execute(top_10_title)
+    top_10_title = cursor.fetchall()
+    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Count of Days'])
+
+    top_10_channel = """
+    SELECT channel, COUNT(*) as occurrences
+    FROM youtube_trending
+    GROUP BY channel
+    ORDER BY occurrences DESC, AVG(ranking) ASC
+    LIMIT 10
+    """
+    cursor.execute(top_10_channel)
+    top_10_channel = cursor.fetchall()
+    top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days'])
+
+    oldest_date = """
+    SELECT date
+    FROM youtube_trending
+    ORDER BY date ASC
+    LIMIT 1
+    """
+    cursor.execute(oldest_date)
+    oldest_date = cursor.fetchone()
+    oldest_date = oldest_date[0].strftime("%Y-%m-%d")
+
+    day_count = """
+    SELECT COUNT(DISTINCT date) AS dist_date
+    FROM youtube_trending
+    LIMIT 1
+    """
+    cursor.execute(day_count)
+    day_count = cursor.fetchone()
+    day_count = day_count[0]
+
+    cursor.close()
+    conn.close()
+
+    return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
+        top_10_title=top_10_title, top_10_channel=top_10_channel)
 
 
 
