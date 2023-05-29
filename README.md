@@ -9,6 +9,7 @@ This is my central hub where I practice:
 - ETL
 - Data analysis
 - Web app development
+- Web scraping
 - UI
 - Tools:
   - Python
