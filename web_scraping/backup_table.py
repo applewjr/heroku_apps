@@ -1,0 +1,43 @@
+import mysql.connector
+import os
+
+
+if 'IS_HEROKU' in os.environ:
+    # Running on Heroku, load values from Heroku Config Vars
+    config = {
+        'user': os.environ.get('jawsdb_user'),
+        'password': os.environ.get('jawsdb_pass'),
+        'host': os.environ.get('jawsdb_host'),
+        'database': os.environ.get('jawsdb_db'),
+        'raise_on_warnings': True
+        }
+else:
+    # Running locally, load values from secret_pass.py
+    import sys
+    script_directory = os.path.dirname(os.path.abspath(__file__))
+    root_directory = os.path.dirname(script_directory)
+    sys.path.append(root_directory)
+    import secret_pass
+    config = {
+        'user': secret_pass.mysql_user,
+        'password': secret_pass.mysql_pass,
+        'host': secret_pass.mysql_host,
+        'database': secret_pass.mysql_bd,
+        'raise_on_warnings': True
+        }
+
+
+conn = mysql.connector.connect(**config)
+cursor = conn.cursor()
+
+query = """
+DROP TABLE IF EXISTS youtube_trending_backup;
+CREATE TABLE youtube_trending_backup AS
+SELECT * FROM youtube_trending;
+"""
+cursor.execute(query)
+
+cursor.close()
+conn.close()
+
+print("complete: backup youtube_trending")
