@@ -36,6 +36,89 @@ else:
 
 
 
+# YOUTUBE_TRENDING_URL = 'https://www.youtube.com/feed/trending'
+
+# def get_driver():
+#     chrome_options = Options()
+#     chrome_options.add_argument('--no-sandbox')
+#     chrome_options.add_argument('--headless')
+#     chrome_options.add_argument('--disable-dev-shm-usage')
+#     # chrome_options.add_argument('--disable-gpu')
+#     # chrome_options.add_argument('--disable-features=Permissions-Policy')
+#     driver_service = Service(ChromeDriverManager().install())
+#     driver = webdriver.Chrome(service=driver_service, options=chrome_options)
+#     return driver
+
+# def get_videos(driver):
+#     driver.get(YOUTUBE_TRENDING_URL)
+#     VIDEO_DIV_TAG = "ytd-video-renderer"
+#     videos = driver.find_elements(By.TAG_NAME, VIDEO_DIV_TAG)
+#     return videos
+
+# def parse_video(video):
+#     title_tag = video.find_element(By.ID,'video-title')
+#     title = title_tag.text
+
+#     channel_tag = video.find_element(By.ID, 'channel-name')
+#     channel_name = channel_tag.text
+
+#     return {
+#         'title': title,
+#         'channel': channel_name
+#     }
+
+# driver = get_driver()
+# videos = get_videos(driver)
+# video_data = [parse_video(video) for video in videos[:10]]
+
+# videos_df = pd.DataFrame(video_data)
+
+# current_datetime = datetime.now()
+# formatted_datetime = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+# videos_df['datetime'] = formatted_datetime
+
+# videos_df['date'] = datetime.today().date()
+
+# videos_df['ranking'] = videos_df.reset_index().index + 1
+# # videos_df
+
+
+
+
+
+
+# conn = mysql.connector.connect(**config)
+
+# # Create a cursor object
+# cursor = conn.cursor()
+
+# # Define the table name
+# table_name = 'youtube_trending'
+
+# # Create the INSERT query
+# insert_query = """
+#     INSERT INTO {} (title, channel, datetime, date, ranking)
+#     VALUES (%s, %s, %s, %s, %s)
+#     """.format(table_name)
+
+# # Iterate over the rows of the DataFrame and insert the data
+# for row in videos_df.itertuples(index=False):
+#     values = (row.title, row.channel, row.datetime, row.date, row.ranking)
+#     try:
+#         cursor.execute(insert_query, values)
+#         conn.commit()
+#     except:
+#         print(f"Duplicate entry. Commit not run on: {row.title}")
+
+# # Close the cursor and the database connection
+# cursor.close()
+# conn.close()
+
+# print("youtube_trending data insert complete")
+
+
+
+
 YOUTUBE_TRENDING_URL = 'https://www.youtube.com/feed/trending'
 
 def get_driver():
