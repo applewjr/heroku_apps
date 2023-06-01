@@ -86,7 +86,8 @@ videos_df['datetime'] = formatted_datetime
 videos_df['date'] = datetime.today().date()
 
 videos_df['ranking'] = videos_df.reset_index().index + 1
-# videos_df
+
+print(f"Spot check: {len(videos_df) = }")
 
 
 
