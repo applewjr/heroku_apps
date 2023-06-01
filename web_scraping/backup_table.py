@@ -35,7 +35,7 @@ DROP TABLE IF EXISTS youtube_trending_backup;
 CREATE TABLE youtube_trending_backup (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(100),
-    channel VARCHAR(50),
+    channel VARCHAR(64),
     datetime DATETIME,
     date DATE,
     ranking TINYINT,
