@@ -566,37 +566,65 @@ def youtube_trending():
     cursor = conn.cursor()
     today = date.today().strftime("%Y-%m-%d")
 
+
     top_10_today = """
-    SELECT title, channel
+    WITH vid_rank AS (
+    SELECT channel, MIN(ranking) AS best_vid_rank
     FROM youtube_trending
-    WHERE DATE_FORMAT(date, '%Y-%m-%d') = %s
-    ORDER BY ranking ASC
+    GROUP BY channel)
+    ,rank_yesterday AS (
+    SELECT title, ranking AS rank_yesterday
+    FROM youtube_trending
+    WHERE date = CURDATE()-1)
+    SELECT
+    yt.ranking
+    ,yt.title
+    ,yt.channel
+    ,vid_rank.best_vid_rank
+    ,CASE WHEN rank_yesterday.rank_yesterday IS NULL THEN "New"
+        ELSE rank_yesterday.rank_yesterday
+        END AS vid_rank_yesterday
+    FROM youtube_trending AS yt
+    LEFT JOIN vid_rank ON yt.channel = vid_rank.channel
+    LEFT JOIN rank_yesterday ON yt.title = rank_yesterday.title
+    WHERE yt.date = curdate()
+    ORDER BY yt.ranking ASC;
     """
-    cursor.execute(top_10_today, (today,))
+    cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+    cursor.execute(top_10_today)
     top_10_today = cursor.fetchall()
-    top_10_today = pd.DataFrame(top_10_today, columns=['Video', 'Channel'])
+    top_10_today = pd.DataFrame(top_10_today, columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
+
 
     top_10_title = """
-    SELECT title, COUNT(*) as occurrences
+    SELECT
+    title
+    ,COUNT(*) AS occurrences
+    ,MIN(ranking) AS best_vid_rank
     FROM youtube_trending
     GROUP BY title
-    ORDER BY occurrences DESC, AVG(ranking) ASC
-    LIMIT 10
+    ORDER BY occurrences DESC, best_vid_rank ASC
+    LIMIT 10;
     """
     cursor.execute(top_10_title)
     top_10_title = cursor.fetchall()
-    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Count of Days'])
+    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Count of Days', 'Best Video Rank'])
+
 
     top_10_channel = """
-    SELECT channel, COUNT(*) as occurrences
+    SELECT
+    channel
+    ,COUNT(*) AS occurrences
+    ,MIN(ranking) AS best_channel_rank
     FROM youtube_trending
     GROUP BY channel
-    ORDER BY occurrences DESC, AVG(ranking) ASC
-    LIMIT 10
+    ORDER BY occurrences DESC, best_channel_rank ASC
+    LIMIT 10;
     """
     cursor.execute(top_10_channel)
     top_10_channel = cursor.fetchall()
-    top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days'])
+    top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
+
 
     oldest_date = """
     SELECT date
