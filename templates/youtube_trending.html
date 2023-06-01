@@ -19,16 +19,20 @@
         th {
             background-color: lightgray;
         }
-        td:first-child {
-            width: 75%; /* Adjust the width to your desired value */
-        }
-    
-        /* Media query for mobile devices */
-        @media (max-width: 600px) {
-            td:first-child {
-                width: 100%; /* Adjust the width for mobile devices */
-            }
-        }
+        /* .data-table {
+            width: 50%;
+            margin-left: 25%;
+            margin-right: 25%;
+        } */
+
+        .data-table th,
+        .data-table td {
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }        
     </style>
     
     
@@ -39,12 +43,15 @@
     <br>
     
     <div class="dashboard-section">
-        <h3>Top 10 Today</h3>
+        <h3>Top 10 Videos Today</h3>
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Video</th>
                     <th>Channel</th>
+                    <th>Rank</th>
+                    <th>Best Video Rank</th>
+                    <th>Video Rank Yesterday</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,6 +59,9 @@
                 <tr>
                     <td>{{ row['Video'] }}</td>
                     <td>{{ row['Channel'] }}</td>
+                    <td>{{ row['Rank'] }}</td>
+                    <td>{{ row['Best Video Rank'] }}</td>
+                    <td>{{ row['Video Rank Yesterday'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -66,6 +76,7 @@
                 <tr>
                     <th>Video</th>
                     <th>Count of Days</th>
+                    <th>Best Video Rank</th>
                 </tr>
             </thead>
             <tbody>
@@ -73,6 +84,7 @@
                 <tr>
                     <td>{{ row['Video'] }}</td>
                     <td>{{ row['Count of Days'] }}</td>
+                    <td>{{ row['Best Video Rank'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -88,6 +100,7 @@
                 <tr>
                     <th>Channel</th>
                     <th>Count of Video Days</th>
+                    <th>Best Channel Rank</th>
                 </tr>
             </thead>
             <tbody>
@@ -95,6 +108,7 @@
                 <tr>
                     <td>{{ row['Channel'] }}</td>
                     <td>{{ row['Count of Video Days'] }}</td>
+                    <td>{{ row['Best Channel Rank'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
