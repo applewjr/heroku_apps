@@ -372,24 +372,6 @@ def run_wordle_fixer():
         return render_template("fixer.html")
 
 
-@app.route("/common_denominator", methods=["POST", "GET"])
-def run_common_denominator():
-    if request.method == "POST":
-        min_match_len = request.form["min_match_len"]
-        min_match_rate = request.form["min_match_rate"]
-        beg_end_str_char = request.form["beg_end_str_char"]
-        value_split_char = request.form["value_split_char"]
-        user_match_entry = request.form["user_match_entry"]
-        user_nope_match_entry = request.form["user_nope_match_entry"]
-        final_match_list, final_out, num_words_entered, comparisons = all_words.common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, user_nope_match_entry)
-        return render_template("common_denominator.html", min_match_len_val=min_match_len, min_match_rate_val=min_match_rate, beg_end_str_char_val=beg_end_str_char, value_split_char_val=value_split_char, \
-            user_match_entry_val=user_match_entry, user_nope_match_entry_val=user_nope_match_entry, \
-            final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
-            num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
-    else:
-        return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
-            user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
-
 @app.route("/wordle_example", methods=["POST", "GET"])
 def run_wordle_example():
     if request.method == "POST":
@@ -468,6 +450,24 @@ def quill():
 ##### word solvers
 ######################################
 ######################################
+
+@app.route("/common_denominator", methods=["POST", "GET"])
+def run_common_denominator():
+    if request.method == "POST":
+        min_match_len = request.form["min_match_len"]
+        min_match_rate = request.form["min_match_rate"]
+        beg_end_str_char = request.form["beg_end_str_char"]
+        value_split_char = request.form["value_split_char"]
+        user_match_entry = request.form["user_match_entry"]
+        user_nope_match_entry = request.form["user_nope_match_entry"]
+        final_match_list, final_out, num_words_entered, comparisons = all_words.common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, user_nope_match_entry)
+        return render_template("common_denominator.html", min_match_len_val=min_match_len, min_match_rate_val=min_match_rate, beg_end_str_char_val=beg_end_str_char, value_split_char_val=value_split_char, \
+            user_match_entry_val=user_match_entry, user_nope_match_entry_val=user_nope_match_entry, \
+            final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
+            num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
+    else:
+        return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
+            user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 @app.route("/blossom", methods=["POST", "GET"])
 def blossom():
