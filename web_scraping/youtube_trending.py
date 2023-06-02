@@ -2,6 +2,8 @@ import pandas as pd
 from datetime import datetime
 import mysql.connector
 import os
+import logging
+import time
 
 from selenium.webdriver.chrome.service import Service
 from selenium import webdriver
@@ -61,14 +63,23 @@ def parse_video(video):
     channel_tag = video.find_element(By.ID, 'channel-name')
     channel_name = channel_tag.text
 
+    metadata_tag = video.find_element(By.ID, 'metadata-line').text
+    metadata_tag = metadata_tag.splitlines()
+
+    views = metadata_tag[0]
+    uploaded = metadata_tag[1]
     return {
         'title': title,
-        'channel': channel_name
+        'channel': channel_name,
+        'views': views,
+        'uploaded': uploaded
     }
 
 driver = get_driver()
+time.sleep(5)
 videos = get_videos(driver)
-video_data = [parse_video(video) for video in videos[:10]]
+time.sleep(5)
+video_data = [parse_video(video) for video in videos]
 
 videos_df = pd.DataFrame(video_data)
 
@@ -80,7 +91,7 @@ videos_df['date'] = datetime.today().date()
 
 videos_df['ranking'] = videos_df.reset_index().index + 1
 
-print(f"Spot check: {len(videos_df) = }")
+logging.info(f"Spot check: {len(videos_df) = }")
 
 
 
@@ -94,21 +105,21 @@ table_name = 'youtube_trending'
 
 # Create the INSERT query
 insert_query = """
-    INSERT INTO {} (title, channel, datetime, date, ranking)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO {} (title, channel, views, uploaded, datetime, date, ranking)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
     """.format(table_name)
 
 # Iterate over the rows of the DataFrame and insert the data
 for row in videos_df.itertuples(index=False):
-    values = (row.title, row.channel, row.datetime, row.date, row.ranking)
+    values = (row.title, row.channel, row.views, row.uploaded, row.datetime, row.date, row.ranking)
     try:
         cursor.execute(insert_query, values)
         conn.commit()
     except:
-        print(f"Duplicate entry. Commit not run on: {row.title}")
+        logging.info(f"Duplicate entry. Commit not run on: {row.title}")
 
 # Close the cursor and the database connection
 cursor.close()
 conn.close()
 
-print("youtube_trending data insert complete")
+logging.info("youtube_trending_exp_full data insert complete")
