@@ -571,24 +571,26 @@ def youtube_trending():
     WITH vid_rank AS (
     SELECT channel, MIN(ranking) AS best_vid_rank
     FROM youtube_trending
+    WHERE ranking <= 10
     GROUP BY channel)
     ,rank_yesterday AS (
-    SELECT title, ranking AS rank_yesterday
+    SELECT title, channel, ranking AS rank_yesterday
     FROM youtube_trending
-    WHERE date = CURDATE()-1)
+    WHERE date = CURDATE()-1
+    AND ranking <= 10)
     SELECT
     yt.ranking
     ,yt.title
     ,yt.channel
     ,vid_rank.best_vid_rank
     ,CASE WHEN rank_yesterday.rank_yesterday IS NULL THEN "New"
-        ELSE rank_yesterday.rank_yesterday
-        END AS vid_rank_yesterday
+    ELSE rank_yesterday.rank_yesterday
+    END AS vid_rank_yesterday
     FROM youtube_trending AS yt
     LEFT JOIN vid_rank ON yt.channel = vid_rank.channel
-    LEFT JOIN rank_yesterday ON yt.title = rank_yesterday.title
+    LEFT JOIN rank_yesterday ON yt.title = rank_yesterday.title AND yt.channel = rank_yesterday.channel
     WHERE yt.date = curdate()
-        AND ranking <= 10
+    AND ranking <= 10
     ORDER BY yt.ranking ASC;
     """
     cursor.execute(top_10_today)
