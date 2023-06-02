@@ -1,5 +1,6 @@
 import mysql.connector
 import os
+import logging
 
 
 if 'IS_HEROKU' in os.environ:
@@ -30,12 +31,14 @@ else:
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
 
+cursor.execute("""DROP TABLE IF EXISTS youtube_trending_backup;""")
 query = """
-DROP TABLE IF EXISTS youtube_trending_backup;
-CREATE TABLE youtube_trending_backup (
+CREATE TABLE IF NOT EXISTS youtube_trending_backup (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(100),
-    channel VARCHAR(64),
+    channel VARCHAR(50),
+    views VARCHAR(30),
+    uploaded VARCHAR(30),
     datetime DATETIME,
     date DATE,
     ranking TINYINT,
@@ -47,4 +50,4 @@ cursor.execute(query)
 cursor.close()
 conn.close()
 
-print("complete: backup youtube_trending")
+logging.info("complete: backup youtube_trending")

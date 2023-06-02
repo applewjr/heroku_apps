@@ -1,5 +1,6 @@
 import mysql.connector
 import os
+import logging
 
 
 if 'IS_HEROKU' in os.environ:
@@ -30,15 +31,15 @@ else:
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
 
+cursor.execute("""SET SQL_SAFE_UPDATES = 0;""")
 query = """
-SET SQL_SAFE_UPDATES = 0;
 DELETE FROM youtube_trending
 WHERE date < DATE_SUB(CURDATE(), INTERVAL 90 DAY);
-SET SQL_SAFE_UPDATES = 1;
 """
 cursor.execute(query)
+cursor.execute("""SET SQL_SAFE_UPDATES = 1;""")
 
 cursor.close()
 conn.close()
 
-print("complete: delete 90+ day old rows from youtube_trending")
+logging.info("complete: delete 90+ day old rows from youtube_trending")

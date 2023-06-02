@@ -566,7 +566,7 @@ def youtube_trending():
     cursor = conn.cursor()
     today = date.today().strftime("%Y-%m-%d")
 
-
+    cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
     top_10_today = """
     WITH vid_rank AS (
     SELECT channel, MIN(ranking) AS best_vid_rank
@@ -588,9 +588,9 @@ def youtube_trending():
     LEFT JOIN vid_rank ON yt.channel = vid_rank.channel
     LEFT JOIN rank_yesterday ON yt.title = rank_yesterday.title
     WHERE yt.date = curdate()
+        AND ranking <= 10
     ORDER BY yt.ranking ASC;
     """
-    cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
     cursor.execute(top_10_today)
     top_10_today = cursor.fetchall()
     top_10_today = pd.DataFrame(top_10_today, columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
@@ -602,6 +602,7 @@ def youtube_trending():
     ,COUNT(*) AS occurrences
     ,MIN(ranking) AS best_vid_rank
     FROM youtube_trending
+    WHERE ranking <= 10
     GROUP BY title
     ORDER BY occurrences DESC, best_vid_rank ASC
     LIMIT 10;
@@ -617,6 +618,7 @@ def youtube_trending():
     ,COUNT(*) AS occurrences
     ,MIN(ranking) AS best_channel_rank
     FROM youtube_trending
+    WHERE ranking <= 10
     GROUP BY channel
     ORDER BY occurrences DESC, best_channel_rank ASC
     LIMIT 10;
