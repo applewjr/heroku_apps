@@ -1,6 +1,6 @@
 import mysql.connector
 import os
-import logging
+# import logging
 
 
 if 'IS_HEROKU' in os.environ:
@@ -50,4 +50,4 @@ cursor.execute(query)
 cursor.close()
 conn.close()
 
-logging.info("complete: backup youtube_trending")
+print("complete: backup youtube_trending")

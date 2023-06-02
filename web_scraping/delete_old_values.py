@@ -1,6 +1,6 @@
 import mysql.connector
 import os
-import logging
+# import logging
 
 
 if 'IS_HEROKU' in os.environ:
@@ -42,4 +42,4 @@ cursor.execute("""SET SQL_SAFE_UPDATES = 1;""")
 cursor.close()
 conn.close()
 
-logging.info("complete: delete 90+ day old rows from youtube_trending")
+print("complete: delete 90+ day old rows from youtube_trending")
