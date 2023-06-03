@@ -10,6 +10,7 @@ This is my central hub where I practice:
 - Data analysis
 - Web app development
 - Web scraping
+- API usage
 - UI
 - Tools:
   - Python
