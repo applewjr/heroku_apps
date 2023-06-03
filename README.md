@@ -41,7 +41,7 @@ This is my central hub where I practice:
 
 [YouTube Trending Summary](https://www.jamesapplewhite.com/youtube_trending)
 - Automated web scraping of YouTube's trending page (top 10 videos) every day at 12 am PST
-  - Only the top 10 videos are stored so I don't max out my free tier of MySQL\
+  - Only the top 10 videos are stored so I don't max out my free tier of MySQL
   - I have since dropped the web scraping and switched to the official YouTube API for more complete data gathering
 - Additional automation to create a backup table and to drop rows that are >90 days old
   - I have implemented backups because I have no idea how to find which videos were historically trending
