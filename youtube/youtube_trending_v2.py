@@ -58,11 +58,19 @@ def get_trending_videos(YOUTUBE_API):
     for index, item in enumerate(response['items'], start=1):
         video_title = item['snippet']['title']
         channel_title = item['snippet']['channelTitle']
-        view_count = item['statistics']['viewCount']
+        try:
+            view_count = item['statistics']['viewCount']
+        except:
+            view_count = -1
         uploaded_date = item['snippet']['publishedAt']
-        # channel_subscribers = item['statistics']['subscriberCount']
-        like_count = item['statistics']['likeCount']
-        comment_count = item['statistics']['commentCount']
+        try:
+            like_count = item['statistics']['likeCount']
+        except:
+            like_count = -1
+        try:
+            comment_count = item['statistics']['commentCount']
+        except:
+            comment_count = -1
         cat_id = item['snippet']['categoryId']
         vid_id = item['id']
 
@@ -72,9 +80,18 @@ def get_trending_videos(YOUTUBE_API):
             id=channel_id
         )
         channel_response = channel_request.execute()
-        channel_subscribers = channel_response['items'][0]['statistics']['subscriberCount']
-        channel_views = channel_response['items'][0]['statistics']['viewCount']
-        channel_videos = channel_response['items'][0]['statistics']['videoCount']
+        try:
+            channel_subscribers = channel_response['items'][0]['statistics']['subscriberCount']
+        except:
+            channel_subscribers = -1
+        try:
+            channel_views = channel_response['items'][0]['statistics']['viewCount']
+        except:
+            channel_videos = -1
+        try:
+            channel_videos = channel_response['items'][0]['statistics']['videoCount']
+        except:
+            channel_videos = -1
 
         # Convert uploaded_date from UTC to PST
         uploaded_date = datetime.strptime(uploaded_date, "%Y-%m-%dT%H:%M:%SZ")
@@ -136,7 +153,7 @@ insert_query = """
 for r in videos_df.itertuples(index=False):
     values = (r.video, r.chnl, r.vid_rank, r.vid_views, r.vid_likes, r.vid_comments, r.vid_cat_id, \
         r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date, \
-        r.vid_id. r.chnl_id)
+        r.vid_id, r.chnl_id)
     try:
         cursor.execute(insert_query, values)
         conn.commit()
