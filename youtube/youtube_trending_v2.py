@@ -64,6 +64,7 @@ def get_trending_videos(YOUTUBE_API):
         like_count = item['statistics']['likeCount']
         comment_count = item['statistics']['commentCount']
         cat_id = item['snippet']['categoryId']
+        vid_id = item['id']
 
         channel_id = item['snippet']['channelId']
         channel_request = youtube.channels().list(
@@ -94,7 +95,9 @@ def get_trending_videos(YOUTUBE_API):
             'chnl_views': channel_views,
             'chnl_video_count': channel_videos,
             'collected_dt': now.strftime("%Y-%m-%d %H:%M:%S"),
-            'collected_date': now.strftime("%Y-%m-%d")
+            'collected_date': now.strftime("%Y-%m-%d"),
+            'vid_id': vid_id,
+            'chnl_id': channel_id
         })
 
     videos_df = pd.DataFrame(video_data)
@@ -124,14 +127,16 @@ table_name = 'youtube_trending'
 # Create the INSERT query
 insert_query = """
     INSERT INTO {} (video, chnl, vid_rank, vid_views, vid_likes, vid_comments, vid_cat_id, \
-        vid_uploaded_dt, chnl_subs, chnl_views, chnl_video_count, collected_dt, collected_date)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        vid_uploaded_dt, chnl_subs, chnl_views, chnl_video_count, collected_dt, collected_date, \
+        vid_id, chnl_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """.format(table_name)
 
 # Iterate over the rows of the DataFrame and insert the data
 for r in videos_df.itertuples(index=False):
     values = (r.video, r.chnl, r.vid_rank, r.vid_views, r.vid_likes, r.vid_comments, r.vid_cat_id, \
-        r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date)
+        r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date, \
+        r.vid_id. r.chnl_id)
     try:
         cursor.execute(insert_query, values)
         conn.commit()
