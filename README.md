@@ -10,6 +10,7 @@ This is my central hub where I practice:
 - Data analysis
 - Web app development
 - Web scraping
+- API usage
 - UI
 - Tools:
   - Python
@@ -40,11 +41,11 @@ This is my central hub where I practice:
 - The desire to create this function stemmed from writing fuzzy logic SQL. Sometimes you have a list of strings you would like to include, a list of strings you do not want to include, and you want to write the ideal matching string to perfectly capture the ideal population
 
 [YouTube Trending Summary](https://www.jamesapplewhite.com/youtube_trending)
-- Automated web scraping of YouTube's trending page (top 10 videos) every day at 12 am PST
-  - Only the top 10 videos are stored so I don't max out my free tier of MySQL
+- Automated web scraping of YouTube's trending page (top 50 videos) every day at 12 am PST
+  - I have since dropped the web scraping and switched to the official YouTube API for more complete data capture
 - Additional automation to create a backup table and to drop rows that are >90 days old
   - I have implemented backups because I have no idea how to find which videos were historically trending
-  - The 90 day limit is again to go easy on my MySQL instance
+  - The reason for the 90 day limit is to go easy on my free tier MySQL instance
 - Present the data in aggregate by running queries against my MySQL table
 
 [To Do List (MySQL)](https://www.jamesapplewhite.com/task_mysql)
