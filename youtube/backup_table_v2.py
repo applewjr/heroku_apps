@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS youtube_trending_backup (
     chnl_video_count INT,
     collected_dt DATETIME,
     collected_date DATE,
+	vid_id VARCHAR(15),
+	chnl_id VARCHAR(30),
     UNIQUE KEY unique_video_channel (collected_date, vid_rank)
 ) AS SELECT * FROM youtube_trending;
 """
