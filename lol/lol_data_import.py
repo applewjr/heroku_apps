@@ -16,7 +16,9 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
-    YOUTUBE_API = os.environ.get('YOUTUBE_API')
+    LOL_API_KEY = os.environ.get('LOL_API_KEY')
+    LOL_SUMMONER = os.environ.get('LOL_SUMMONER')
+    LOL_REGION = os.environ.get('LOL_REGION')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -34,7 +36,6 @@ else:
     LOL_API_KEY = secret_pass.LOL_API_KEY
     LOL_SUMMONER = secret_pass.LOL_SUMMONER
     LOL_REGION = secret_pass.LOL_REGION
-    LOL_PUUID = secret_pass.LOL_PUUID
 
 start_num = 0
 count_num = 20
@@ -52,6 +53,7 @@ def convert_epoch_to_datetime(df):
 
 lol_watcher = LolWatcher(LOL_API_KEY)
 summoner = lol_watcher.summoner.by_name(LOL_REGION, LOL_SUMMONER)
+puuid = summoner['puuid']
 
 
 summoner_export = lol_watcher.league.by_summoner(LOL_REGION, summoner['id'])
@@ -249,7 +251,7 @@ print("Complete: lol_champion")
 
 
 
-api_url = f"https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{LOL_PUUID}/ids?start={start_num}&count={count_num}"
+api_url = f"https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start={start_num}&count={count_num}"
 api_url = api_url + '&api_key=' + LOL_API_KEY
 resp = requests.get(api_url)
 match_ids = resp.json()
