@@ -61,42 +61,42 @@ print("complete: backup of lol_summoner")
 
 
 
-cursor.execute("""DROP TABLE IF EXISTS lol_champion_backup;""")
-query = """
-CREATE TABLE IF NOT EXISTS lol_champion_backup (
-id INT AUTO_INCREMENT PRIMARY KEY,
-Name VARCHAR(64),
-attack INT,
-defense INT,
-magic INT,
-difficulty INT,
-hp INT,
-hpperlevel INT,
-mp INT,
-mpperlevel DOUBLE,
-movespeed INT,
-armor INT,
-armorperlevel DOUBLE,
-spellblock INT,
-spellblockperlevel DOUBLE,
-attackrange INT,
-hpregen DOUBLE,
-hpregenperlevel DOUBLE,
-mpregen DOUBLE,
-mpregenperlevel DOUBLE,
-crit INT,
-critperlevel INT,
-attackdamage INT,
-attackdamageperlevel DOUBLE,
-attackspeedperlevel DOUBLE,
-attackspeed DOUBLE,
-pulled_dt DATETIME,
-pulled_date DATE,
-UNIQUE KEY unique_champion (Name, pulled_date)
-) AS SELECT * FROM lol_champion;
-"""
-cursor.execute(query)
-print("complete: backup of lol_champion")
+# cursor.execute("""DROP TABLE IF EXISTS lol_champion_backup;""")
+# query = """
+# CREATE TABLE IF NOT EXISTS lol_champion_backup (
+# id INT AUTO_INCREMENT PRIMARY KEY,
+# Name VARCHAR(64),
+# attack INT,
+# defense INT,
+# magic INT,
+# difficulty INT,
+# hp INT,
+# hpperlevel INT,
+# mp INT,
+# mpperlevel DOUBLE,
+# movespeed INT,
+# armor INT,
+# armorperlevel DOUBLE,
+# spellblock INT,
+# spellblockperlevel DOUBLE,
+# attackrange INT,
+# hpregen DOUBLE,
+# hpregenperlevel DOUBLE,
+# mpregen DOUBLE,
+# mpregenperlevel DOUBLE,
+# crit INT,
+# critperlevel INT,
+# attackdamage INT,
+# attackdamageperlevel DOUBLE,
+# attackspeedperlevel DOUBLE,
+# attackspeed DOUBLE,
+# pulled_dt DATETIME,
+# pulled_date DATE,
+# UNIQUE KEY unique_champion (Name)
+# ) AS SELECT * FROM lol_champion;
+# """
+# cursor.execute(query)
+# print("complete: backup of lol_champion")
 
 
 
