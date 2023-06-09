@@ -118,24 +118,30 @@ selected_columns = [
     ,'pulled_date'
     ]
 summoner_export = pd.DataFrame({col: summoner_export.get(col, np.nan) for col in selected_columns})
+summoner_export = summoner_export.reset_index(drop=True)
 
 table_name = 'lol_summoner'
 insert_or_replace = 'INSERT' # 'REPLACE'
 insert_script = generate_insert_script(summoner_export, table_name, insert_or_replace)
+print(f"{table_name}: {len(summoner_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
-for insert in insert_script:
+commit_count = 0
+fail_count = 0
+for key in insert_script.keys():
     try:
-        cursor.execute(insert_script[insert])
+        cursor.execute(insert_script[key])
         conn.commit()
-        print(f"Complete: {table_name}")
+        commit_count += 1
     except mysql.connector.Error as err:
-        print(f"Could not commit {table_name}: {err}")
-    time.sleep(0.25)
+        fail_count += 1
+    # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{len(insert_script) = }")
+print(f"{table_name}: {len(insert_script) = }")
+print(f"{table_name}: {commit_count = }")
+print(f"{table_name}: {fail_count = }")
 
 
 
@@ -220,24 +226,30 @@ print(f"{len(insert_script) = }")
 #     ,'pulled_date'
 #     ]
 # champion_export = pd.DataFrame({col: champion_export.get(col, np.nan) for col in selected_columns})
+# champion_export = champion_export.reset_index(drop=True)
 
 # table_name = 'lol_champion'
 # insert_or_replace = 'REPLACE' # 'INSERT'
 # insert_script = generate_insert_script(champion_export, table_name, insert_or_replace)
+# print(f"{table_name}: {len(champion_export) = }")
 
 # conn = mysql.connector.connect(**config)
 # cursor = conn.cursor()
-# for insert in insert_script:
+# commit_count = 0
+# fail_count = 0
+# for key in insert_script.keys():
 #     try:
-#         cursor.execute(insert_script[insert])
+#         cursor.execute(insert_script[key])
 #         conn.commit()
-#         print(f"Complete: {table_name}")
+#         commit_count += 1
 #     except mysql.connector.Error as err:
-#         print(f"Could not commit {table_name}: {err}")
-#     time.sleep(0.25)
+#         fail_count += 1
+#     # time.sleep(0.25)
 # cursor.close()
 # conn.close()
-# print(f"{len(insert_script) = }")
+# print(f"{table_name}: {len(insert_script) = }")
+# print(f"{table_name}: {commit_count = }")
+# print(f"{table_name}: {fail_count = }")
 
 
 
@@ -260,7 +272,7 @@ for match_id in all_match_ids:
     resp = requests.get(api_url)
     match_data = resp.json()
     master_match_data[match_id] = match_data
-    time.sleep(1.25)
+    # time.sleep(1.25)
 print(f"{len(master_match_data) = }")
 
 match_export = pd.DataFrame()  # Create an empty dataframe
@@ -289,24 +301,30 @@ selected_columns = [
     ,'matchId'
     ]
 match_export = pd.DataFrame({col: match_export.get(col, np.nan) for col in selected_columns})
+match_export = match_export.reset_index(drop=True)
 
 table_name = 'lol_match'
 insert_or_replace = 'INSERT' # 'REPLACE'
 insert_script = generate_insert_script(match_export, table_name, insert_or_replace)
+print(f"{table_name}: {len(match_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
-for insert in insert_script:
+commit_count = 0
+fail_count = 0
+for key in insert_script.keys():
     try:
-        cursor.execute(insert_script[insert])
+        cursor.execute(insert_script[key])
         conn.commit()
-        print(f"Complete: {table_name}")
+        commit_count += 1
     except mysql.connector.Error as err:
-        print(f"Could not commit {table_name}: {err}")
-    time.sleep(0.25)
+        fail_count += 1
+    # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{len(insert_script) = }")
+print(f"{table_name}: {len(insert_script) = }")
+print(f"{table_name}: {commit_count = }")
+print(f"{table_name}: {fail_count = }")
 
 
 
@@ -449,24 +467,30 @@ selected_columns = [
     ,'win'
     ]
 participants_info_export = pd.DataFrame({col: participants_info_export.get(col, np.nan) for col in selected_columns})
+participants_info_export = participants_info_export.reset_index(drop=True)
 
 table_name = 'lol_participants_info'
 insert_or_replace = 'INSERT' # 'REPLACE'
 insert_script = generate_insert_script(participants_info_export, table_name, insert_or_replace)
+print(f"{table_name}: {len(participants_info_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
-for insert in insert_script:
+commit_count = 0
+fail_count = 0
+for key in insert_script.keys():
     try:
-        cursor.execute(insert_script[insert])
+        cursor.execute(insert_script[key])
         conn.commit()
-        print(f"Complete: {table_name}")
+        commit_count += 1
     except mysql.connector.Error as err:
-        print(f"Could not commit {table_name}: {err}")
-    time.sleep(0.25)
+        fail_count += 1
+    # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{len(insert_script) = }")
+print(f"{table_name}: {len(insert_script) = }")
+print(f"{table_name}: {commit_count = }")
+print(f"{table_name}: {fail_count = }")
 
 
 
@@ -630,25 +654,33 @@ selected_columns = [
     ,'challengesChallenges'
     ]
 participants_challenges_export = pd.DataFrame({col: participants_challenges_export.get(col, np.nan) for col in selected_columns})
+participants_challenges_export = participants_challenges_export.reset_index(drop=True)
 
 table_name = 'lol_participants_challenges'
 insert_or_replace = 'INSERT' # 'REPLACE'
 insert_script = generate_insert_script(participants_challenges_export, table_name, insert_or_replace)
+print(f"{table_name}: {len(participants_challenges_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
-for insert in insert_script:
+commit_count = 0
+fail_count = 0
+for key in insert_script.keys():
     try:
-        cursor.execute(insert_script[insert])
+        cursor.execute(insert_script[key])
         conn.commit()
-        print(f"Complete: {table_name}")
+        commit_count += 1
     except mysql.connector.Error as err:
-        print(f"Could not commit {table_name}: {err}")
-    time.sleep(0.25)
+        fail_count += 1
+    # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{len(insert_script) = }")
+print(f"{table_name}: {len(insert_script) = }")
+print(f"{table_name}: {commit_count = }")
+print(f"{table_name}: {fail_count = }")
 
 
 
 print("^-^")
+
+
