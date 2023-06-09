@@ -39,7 +39,7 @@ else:
     LOL_REGION = secret_pass.LOL_REGION
 
 start_num = 0
-count_num = 1
+count_num = 20
 
 
 
