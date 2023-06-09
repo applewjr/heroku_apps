@@ -62,11 +62,6 @@ def generate_insert_script(df, table_name, insert_or_replace):
         statements[index] = insert_script
     return statements
 
-# table_name = 'lol_summoner'
-# insert_or_replace = 'INSERT' # 'REPLACE'
-# insert_script = generate_insert_script(df, table_name, insert_or_replace)
-
-
 def convert_epoch_to_datetime(df):
     for column in df.columns:
         if df[column].dtype == 'int64' and df[column].min() > 1000000000000:
@@ -139,117 +134,116 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{table_name}: {len(insert_script) = }")
+# print(f"{table_name}: {len(insert_script) = }")
+print(f"{table_name}: {commit_count = }, {fail_count = }")
+
+
+
+#########################
+#########################
+##### lol_champion
+#########################
+#########################
+
+versions = lol_watcher.data_dragon.versions_for_region(LOL_REGION)
+champions_version = versions['n']['champion']
+current_champ_list = lol_watcher.data_dragon.champions(champions_version)
+data = current_champ_list['data']
+rows = []
+for champion, details in data.items():
+    row = {
+        'Name': champion,
+        'attack': details['info']['attack'],
+        'defense': details['info']['defense'],
+        'magic': details['info']['magic'],
+        'difficulty': details['info']['difficulty']
+    }
+    rows.append(row)
+champion_info = pd.DataFrame(rows)
+rows = []
+for champion, details in data.items():
+    row = {
+        'Name': champion,
+        'hp': details['stats']['hp'],
+        'hpperlevel': details['stats']['hpperlevel'],
+        'mp': details['stats']['mp'],
+        'mpperlevel': details['stats']['mpperlevel'],
+        'movespeed': details['stats']['movespeed'],
+        'armor': details['stats']['armor'],
+        'armorperlevel': details['stats']['armorperlevel'],
+        'spellblock': details['stats']['spellblock'],
+        'spellblockperlevel': details['stats']['spellblockperlevel'],
+        'attackrange': details['stats']['attackrange'],
+        'hpregen': details['stats']['hpregen'],
+        'hpregenperlevel': details['stats']['hpregenperlevel'],
+        'mpregen': details['stats']['mpregen'],
+        'mpregenperlevel': details['stats']['mpregenperlevel'],
+        'crit': details['stats']['crit'],
+        'critperlevel': details['stats']['critperlevel'],
+        'attackdamage': details['stats']['attackdamage'],
+        'attackdamageperlevel': details['stats']['attackdamageperlevel'],
+        'attackspeedperlevel': details['stats']['attackspeedperlevel'],
+        'attackspeed': details['stats']['attackspeed']
+    }
+    rows.append(row)
+champion_stats = pd.DataFrame(rows)
+champion_export = pd.concat([champion_info, champion_stats.drop(columns='Name')], axis=1)
+champion_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+champion_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
+selected_columns = [
+     'Name'
+    ,'attack'
+    ,'defense'
+    ,'magic'
+    ,'difficulty'
+    ,'hp'
+    ,'hpperlevel'
+    ,'mp'
+    ,'mpperlevel'
+    ,'movespeed'
+    ,'armor'
+    ,'armorperlevel'
+    ,'spellblock'
+    ,'spellblockperlevel'
+    ,'attackrange'
+    ,'hpregen'
+    ,'hpregenperlevel'
+    ,'mpregen'
+    ,'mpregenperlevel'
+    ,'crit'
+    ,'critperlevel'
+    ,'attackdamage'
+    ,'attackdamageperlevel'
+    ,'attackspeedperlevel'
+    ,'attackspeed'
+    ,'pulled_dt'
+    ,'pulled_date'
+    ]
+champion_export = pd.DataFrame({col: champion_export.get(col, np.nan) for col in selected_columns})
+champion_export = champion_export.reset_index(drop=True)
+
+table_name = 'lol_champion'
+insert_or_replace = 'REPLACE' # 'INSERT'
+insert_script = generate_insert_script(champion_export, table_name, insert_or_replace)
+print(f"{table_name}: {len(champion_export) = }")
+
+conn = mysql.connector.connect(**config)
+cursor = conn.cursor()
+commit_count = 0
+fail_count = 0
+for key in insert_script.keys():
+    try:
+        cursor.execute(insert_script[key])
+        conn.commit()
+        commit_count += 1
+    except mysql.connector.Error as err:
+        fail_count += 1
+    # time.sleep(0.25)
+cursor.close()
+conn.close()
+# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }")
 print(f"{table_name}: {fail_count = }")
-
-
-
-# #########################
-# #########################
-# ##### lol_champion
-# #########################
-# #########################
-
-# versions = lol_watcher.data_dragon.versions_for_region(LOL_REGION)
-# champions_version = versions['n']['champion']
-# current_champ_list = lol_watcher.data_dragon.champions(champions_version)
-# data = current_champ_list['data']
-# rows = []
-# for champion, details in data.items():
-#     row = {
-#         'Name': champion,
-#         'attack': details['info']['attack'],
-#         'defense': details['info']['defense'],
-#         'magic': details['info']['magic'],
-#         'difficulty': details['info']['difficulty']
-#     }
-#     rows.append(row)
-# champion_info = pd.DataFrame(rows)
-# rows = []
-# for champion, details in data.items():
-#     row = {
-#         'Name': champion,
-#         'hp': details['stats']['hp'],
-#         'hpperlevel': details['stats']['hpperlevel'],
-#         'mp': details['stats']['mp'],
-#         'mpperlevel': details['stats']['mpperlevel'],
-#         'movespeed': details['stats']['movespeed'],
-#         'armor': details['stats']['armor'],
-#         'armorperlevel': details['stats']['armorperlevel'],
-#         'spellblock': details['stats']['spellblock'],
-#         'spellblockperlevel': details['stats']['spellblockperlevel'],
-#         'attackrange': details['stats']['attackrange'],
-#         'hpregen': details['stats']['hpregen'],
-#         'hpregenperlevel': details['stats']['hpregenperlevel'],
-#         'mpregen': details['stats']['mpregen'],
-#         'mpregenperlevel': details['stats']['mpregenperlevel'],
-#         'crit': details['stats']['crit'],
-#         'critperlevel': details['stats']['critperlevel'],
-#         'attackdamage': details['stats']['attackdamage'],
-#         'attackdamageperlevel': details['stats']['attackdamageperlevel'],
-#         'attackspeedperlevel': details['stats']['attackspeedperlevel'],
-#         'attackspeed': details['stats']['attackspeed']
-#     }
-#     rows.append(row)
-# champion_stats = pd.DataFrame(rows)
-# champion_export = pd.concat([champion_info, champion_stats.drop(columns='Name')], axis=1)
-# champion_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-# champion_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
-# selected_columns = [
-#      'Name'
-#     ,'attack'
-#     ,'defense'
-#     ,'magic'
-#     ,'difficulty'
-#     ,'hp'
-#     ,'hpperlevel'
-#     ,'mp'
-#     ,'mpperlevel'
-#     ,'movespeed'
-#     ,'armor'
-#     ,'armorperlevel'
-#     ,'spellblock'
-#     ,'spellblockperlevel'
-#     ,'attackrange'
-#     ,'hpregen'
-#     ,'hpregenperlevel'
-#     ,'mpregen'
-#     ,'mpregenperlevel'
-#     ,'crit'
-#     ,'critperlevel'
-#     ,'attackdamage'
-#     ,'attackdamageperlevel'
-#     ,'attackspeedperlevel'
-#     ,'attackspeed'
-#     ,'pulled_dt'
-#     ,'pulled_date'
-#     ]
-# champion_export = pd.DataFrame({col: champion_export.get(col, np.nan) for col in selected_columns})
-# champion_export = champion_export.reset_index(drop=True)
-
-# table_name = 'lol_champion'
-# insert_or_replace = 'REPLACE' # 'INSERT'
-# insert_script = generate_insert_script(champion_export, table_name, insert_or_replace)
-# print(f"{table_name}: {len(champion_export) = }")
-
-# conn = mysql.connector.connect(**config)
-# cursor = conn.cursor()
-# commit_count = 0
-# fail_count = 0
-# for key in insert_script.keys():
-#     try:
-#         cursor.execute(insert_script[key])
-#         conn.commit()
-#         commit_count += 1
-#     except mysql.connector.Error as err:
-#         fail_count += 1
-#     # time.sleep(0.25)
-# cursor.close()
-# conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
-# print(f"{table_name}: {commit_count = }")
-# print(f"{table_name}: {fail_count = }")
 
 
 
@@ -272,7 +266,7 @@ for match_id in all_match_ids:
     resp = requests.get(api_url)
     match_data = resp.json()
     master_match_data[match_id] = match_data
-    # time.sleep(1.25)
+    time.sleep(1.25)
 print(f"{len(master_match_data) = }")
 
 match_export = pd.DataFrame()  # Create an empty dataframe
@@ -322,7 +316,7 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{table_name}: {len(insert_script) = }")
+# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }")
 print(f"{table_name}: {fail_count = }")
 
@@ -488,7 +482,7 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{table_name}: {len(insert_script) = }")
+# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }")
 print(f"{table_name}: {fail_count = }")
 
@@ -675,7 +669,7 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-print(f"{table_name}: {len(insert_script) = }")
+# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }")
 print(f"{table_name}: {fail_count = }")
 
