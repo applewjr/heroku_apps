@@ -39,7 +39,7 @@ else:
     LOL_REGION = secret_pass.LOL_REGION
 
 start_num = 0
-count_num = 20
+count_num = 1
 
 
 
@@ -242,8 +242,7 @@ for key in insert_script.keys():
 cursor.close()
 conn.close()
 # print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }")
-print(f"{table_name}: {fail_count = }")
+print(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -317,8 +316,7 @@ for key in insert_script.keys():
 cursor.close()
 conn.close()
 # print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }")
-print(f"{table_name}: {fail_count = }")
+print(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -483,8 +481,7 @@ for key in insert_script.keys():
 cursor.close()
 conn.close()
 # print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }")
-print(f"{table_name}: {fail_count = }")
+print(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -670,8 +667,7 @@ for key in insert_script.keys():
 cursor.close()
 conn.close()
 # print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }")
-print(f"{table_name}: {fail_count = }")
+print(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
