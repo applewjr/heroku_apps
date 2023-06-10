@@ -1,0 +1,15 @@
+leagueId
+queueType
+tier
+ranking
+summonerId
+summonerName
+leaguePoints
+wins
+losses
+veteran
+inactive
+freshBlood
+hotStreak
+pulled_dt
+pulled_date

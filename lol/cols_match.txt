@@ -1,0 +1,14 @@
+gameCreation
+gameDuration
+gameEndTimestamp
+gameId
+gameMode
+gameName
+gameStartTimestamp
+gameType
+gameVersion
+mapId
+platformId
+queueId
+tournamentCode
+matchId
