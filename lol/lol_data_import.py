@@ -6,6 +6,7 @@ import os
 from riotwatcher import LolWatcher, ApiError
 import requests
 import time
+import json
 
 
 if 'IS_HEROKU' in os.environ:
@@ -113,7 +114,11 @@ summoner_export = pd.DataFrame(summoner_export)
 summoner_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 summoner_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
 summoner_export = summoner_export.rename(columns={'rank': 'ranking'})
-summoner_export = summoner_export[[cols_summoner]]
+
+# summoner_export = summoner_export[[cols_summoner]]
+# cols_existing = [col for col in cols_summoner if col in summoner_export.columns]
+# summoner_export = summoner_export[[cols_existing]]
+
 summoner_export = pd.DataFrame({col: summoner_export.get(col, np.nan) for col in cols_summoner})
 summoner_export = summoner_export.reset_index(drop=True)
 
@@ -190,7 +195,11 @@ champion_stats = pd.DataFrame(rows)
 champion_export = pd.concat([champion_info, champion_stats.drop(columns='Name')], axis=1)
 champion_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 champion_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
-champion_export = champion_export[[cols_champion]]
+
+# champion_export = champion_export[[cols_champion]]
+# cols_existing = [col for col in cols_champion if col in champion_export.columns]
+# champion_export = champion_export[[cols_existing]]
+
 champion_export = pd.DataFrame({col: champion_export.get(col, np.nan) for col in cols_champion})
 champion_export = champion_export.reset_index(drop=True)
 
@@ -257,6 +266,31 @@ print(f"{len(master_match_data) = }")
 
 #########################
 #########################
+##### lol_all_match
+#########################
+#########################
+
+if len(master_match_data) == 0:
+    print("skip lol_all_match, no new data to run")
+else:
+    table_name = 'lol_all_match'
+    insert_or_replace = 'INSERT' # 'REPLACE'
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    query = f"{insert_or_replace} INTO {table_name} (matchId, allMatch) VALUES (%s, %s)"
+    for match_id, match_data in master_match_data.items():
+        match_id = str(match_id)
+        cursor.execute(query, (match_id, json.dumps(match_data)))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    # print(f"{table_name}: {commit_count = }, {fail_count = }")
+    print("lol_all_match complete")
+
+
+
+#########################
+#########################
 ##### lol_match
 #########################
 #########################
@@ -273,7 +307,11 @@ else:
         info['matchId'] = match
         match_export = pd.concat([match_export, info], ignore_index=True)
     match_export = convert_epoch_to_datetime(match_export)
-    match_export = match_export[[cols_match]]
+
+    # match_export = match_export[[cols_match]]
+    # cols_existing = [col for col in cols_match if col in match_export.columns]
+    # match_export = match_export[[cols_existing]]
+
     match_export = pd.DataFrame({col: match_export.get(col, np.nan) for col in cols_match})
     match_export = match_export.reset_index(drop=True)
 
@@ -329,7 +367,11 @@ else:
         summ_id = participants_info[['summonerId']]
 
     participants_info_export = pd.concat([participants_match, participants_info], axis=1)
-    participants_info_export = participants_info_export[[cols_participants_info]]
+
+    # participants_info_export = participants_info_export[[cols_participants_info]]
+    # cols_existing = [col for col in cols_participants_info if col in participants_info_export.columns]
+    # participants_info_export = participants_info_export[[cols_existing]]
+
     participants_info_export = pd.DataFrame({col: participants_info_export.get(col, np.nan) for col in cols_participants_info})
     participants_info_export = participants_info_export.reset_index(drop=True)
 
@@ -384,7 +426,11 @@ else:
         'killingSprees': 'killingSpreesChallenges', \
         'turretTakedowns': 'turretTakedownsChallenges', \
         'challenges': 'challengesChallenges'})
-    participants_challenges_export = participants_challenges_export[[cols_participants_challenges]]
+
+    # participants_challenges_export = participants_challenges_export[[cols_participants_challenges]]
+    # cols_existing = [col for col in cols_participants_challenges if col in participants_challenges_export.columns]
+    # participants_challenges_export = participants_challenges_export[[cols_existing]]
+
     participants_challenges_export = pd.DataFrame({col: participants_challenges_export.get(col, np.nan) for col in cols_participants_challenges})
     participants_challenges_export = participants_challenges_export.reset_index(drop=True)
 
