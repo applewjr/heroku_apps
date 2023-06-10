@@ -113,6 +113,7 @@ summoner_export = pd.DataFrame(summoner_export)
 summoner_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 summoner_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
 summoner_export = summoner_export.rename(columns={'rank': 'ranking'})
+summoner_export = summoner_export[[cols_summoner]]
 summoner_export = pd.DataFrame({col: summoner_export.get(col, np.nan) for col in cols_summoner})
 summoner_export = summoner_export.reset_index(drop=True)
 
@@ -189,6 +190,7 @@ champion_stats = pd.DataFrame(rows)
 champion_export = pd.concat([champion_info, champion_stats.drop(columns='Name')], axis=1)
 champion_export['pulled_dt'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 champion_export['pulled_date'] = datetime.now().strftime('%Y-%m-%d')
+champion_export = champion_export[[cols_champion]]
 champion_export = pd.DataFrame({col: champion_export.get(col, np.nan) for col in cols_champion})
 champion_export = champion_export.reset_index(drop=True)
 
@@ -271,6 +273,7 @@ else:
         info['matchId'] = match
         match_export = pd.concat([match_export, info], ignore_index=True)
     match_export = convert_epoch_to_datetime(match_export)
+    match_export = match_export[[cols_match]]
     match_export = pd.DataFrame({col: match_export.get(col, np.nan) for col in cols_match})
     match_export = match_export.reset_index(drop=True)
 
@@ -326,6 +329,7 @@ else:
         summ_id = participants_info[['summonerId']]
 
     participants_info_export = pd.concat([participants_match, participants_info], axis=1)
+    participants_info_export = participants_info_export[[cols_participants_info]]
     participants_info_export = pd.DataFrame({col: participants_info_export.get(col, np.nan) for col in cols_participants_info})
     participants_info_export = participants_info_export.reset_index(drop=True)
 
@@ -375,12 +379,12 @@ else:
         participants_challenges = pd.concat([participants_challenges, df])
 
     participants_challenges_export = pd.concat([participants_match, summ_id, participants_challenges], axis=1)
-
     participants_challenges_export = participants_challenges_export.rename(columns={
         '12AssistStreakCount': 'assistStreakCount12', \
         'killingSprees': 'killingSpreesChallenges', \
         'turretTakedowns': 'turretTakedownsChallenges', \
         'challenges': 'challengesChallenges'})
+    participants_challenges_export = participants_challenges_export[[cols_participants_challenges]]
     participants_challenges_export = pd.DataFrame({col: participants_challenges_export.get(col, np.nan) for col in cols_participants_challenges})
     participants_challenges_export = participants_challenges_export.reset_index(drop=True)
 
