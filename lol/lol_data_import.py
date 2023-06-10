@@ -39,11 +39,14 @@ else:
     LOL_REGION = secret_pass.LOL_REGION
 
 start_num = 0
-count_num = 20
+count_num = 50
 
 
-
-
+#########################
+#########################
+##### prep
+#########################
+#########################
 
 def generate_insert_script(df, table_name, insert_or_replace):
     statements = {}
@@ -68,19 +71,9 @@ def convert_epoch_to_datetime(df):
             df[column] = pd.to_datetime(df[column], unit='ms').dt.strftime('%Y-%m-%d %H:%M:%S')
     return df
 
-
-
-
-#########################
-#########################
-##### prep
-#########################
-#########################
-
 lol_watcher = LolWatcher(LOL_API_KEY)
 summoner = lol_watcher.summoner.by_name(LOL_REGION, LOL_SUMMONER)
 puuid = summoner['puuid']
-
 
 
 
@@ -134,8 +127,8 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }, {fail_count = }")
+# summoner_export.to_csv('C:/Users/james/OneDrive/Desktop/summoner.csv', index=False)
 
 
 
@@ -241,14 +234,14 @@ for key in insert_script.keys():
     # time.sleep(0.25)
 cursor.close()
 conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
 print(f"{table_name}: {commit_count = }, {fail_count = }")
+# champion_export.to_csv('C:/Users/james/OneDrive/Desktop/champion.csv', index=False)
 
 
 
 #########################
 #########################
-##### lol_match
+##### match prep
 #########################
 #########################
 
@@ -257,6 +250,21 @@ api_url = api_url + '&api_key=' + LOL_API_KEY
 resp = requests.get(api_url)
 match_ids = resp.json()
 all_match_ids = match_ids
+print(f"pre cross ref: {len(all_match_ids) = }")
+
+# only return the matchIDs that are not already in the db
+conn = mysql.connector.connect(**config)
+cursor = conn.cursor()
+cursor.execute("""SELECT matchId FROM lol_match;""")
+result = cursor.fetchall()
+conn.commit()
+cursor.close()
+conn.close()
+mysql_matchid = pd.DataFrame(result, columns=["matchId"])
+all_match_ids_set = set(all_match_ids) # Convert the list of IDs to a set for faster membership checking
+filtered_ids = [id for id in all_match_ids_set if id not in mysql_matchid["matchId"].values] # Filter the IDs that are in all_match_ids but not in mysql_matchid
+all_match_ids = [str(id) for id in filtered_ids] # Convert the filtered IDs to a list of strings
+print(f"post cross ref: {len(all_match_ids) = }")
 
 master_match_data = {}
 for match_id in all_match_ids:
@@ -268,55 +276,67 @@ for match_id in all_match_ids:
     time.sleep(1.25)
 print(f"{len(master_match_data) = }")
 
-match_export = pd.DataFrame()  # Create an empty dataframe
-for match in master_match_data:
-    info = master_match_data[match]['info'].copy()
-    info.pop('participants')
-    info.pop('teams')
-    info = pd.DataFrame(info, index=[0])
-    info['matchId'] = match
-    match_export = pd.concat([match_export, info], ignore_index=True)
-match_export = convert_epoch_to_datetime(match_export)
-selected_columns = [
-     'gameCreation'
-    ,'gameDuration'
-    ,'gameEndTimestamp'
-    ,'gameId'
-    ,'gameMode'
-    ,'gameName'
-    ,'gameStartTimestamp'
-    ,'gameType'
-    ,'gameVersion'
-    ,'mapId'
-    ,'platformId'
-    ,'queueId'
-    ,'tournamentCode'
-    ,'matchId'
-    ]
-match_export = pd.DataFrame({col: match_export.get(col, np.nan) for col in selected_columns})
-match_export = match_export.reset_index(drop=True)
 
-table_name = 'lol_match'
-insert_or_replace = 'INSERT' # 'REPLACE'
-insert_script = generate_insert_script(match_export, table_name, insert_or_replace)
-print(f"{table_name}: {len(match_export) = }")
 
-conn = mysql.connector.connect(**config)
-cursor = conn.cursor()
-commit_count = 0
-fail_count = 0
-for key in insert_script.keys():
-    try:
-        cursor.execute(insert_script[key])
-        conn.commit()
-        commit_count += 1
-    except mysql.connector.Error as err:
-        fail_count += 1
-    # time.sleep(0.25)
-cursor.close()
-conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }, {fail_count = }")
+#########################
+#########################
+##### lol_match
+#########################
+#########################
+
+if len(master_match_data) == 0:
+    print("skip lol_match, no new data to run")
+else:
+    match_export = pd.DataFrame()  # Create an empty dataframe
+    for match in master_match_data:
+        info = master_match_data[match]['info'].copy()
+        info.pop('participants')
+        info.pop('teams')
+        info = pd.DataFrame(info, index=[0])
+        info['matchId'] = match
+        match_export = pd.concat([match_export, info], ignore_index=True)
+    match_export = convert_epoch_to_datetime(match_export)
+    selected_columns = [
+         'gameCreation'
+        ,'gameDuration'
+        ,'gameEndTimestamp'
+        ,'gameId'
+        ,'gameMode'
+        ,'gameName'
+        ,'gameStartTimestamp'
+        ,'gameType'
+        ,'gameVersion'
+        ,'mapId'
+        ,'platformId'
+        ,'queueId'
+        ,'tournamentCode'
+        ,'matchId'
+        ]
+    match_export = pd.DataFrame({col: match_export.get(col, np.nan) for col in selected_columns})
+    match_export = match_export.reset_index(drop=True)
+
+    table_name = 'lol_match'
+    insert_or_replace = 'INSERT' # 'REPLACE'
+    insert_script = generate_insert_script(match_export, table_name, insert_or_replace)
+    print(f"{table_name}: {len(match_export) = }")
+
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    commit_count = 0
+    fail_count = 0
+    for key in insert_script.keys():
+        try:
+            cursor.execute(insert_script[key])
+            conn.commit()
+            commit_count += 1
+        except mysql.connector.Error as err:
+            fail_count += 1
+        # time.sleep(0.25)
+    cursor.close()
+    conn.close()
+    
+    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    # match_export.to_csv('C:/Users/james/OneDrive/Desktop/match.csv', index=False)
 
 
 
@@ -326,162 +346,166 @@ print(f"{table_name}: {commit_count = }, {fail_count = }")
 #########################
 #########################
 
-participants_df = pd.DataFrame()
-participants_match = pd.DataFrame()
-participants_info = pd.DataFrame()
+if len(master_match_data) == 0:
+    print("skip lol_participants_info, no new data to run")
+else:
+    participants_df = pd.DataFrame()
+    participants_match = pd.DataFrame()
+    participants_info = pd.DataFrame()
 
-for match in master_match_data:
-    all_match_data = master_match_data[match]
-    df = pd.DataFrame.from_dict(all_match_data['metadata'])
-    participants_match = pd.concat([participants_match, df[['matchId']]])
+    for match in master_match_data:
+        all_match_data = master_match_data[match]
+        df = pd.DataFrame.from_dict(all_match_data['metadata'])
+        participants_match = pd.concat([participants_match, df[['matchId']]])
 
-for match in master_match_data:
-    all_match_data = master_match_data[match]
-    match_data = all_match_data['info']['participants']
-    df_list = []
-    for data in match_data:
-        df_list.append(pd.DataFrame(data, index=[0]))
-    df = pd.concat(df_list, ignore_index=True)
-    participants_info = pd.concat([participants_info, df])
-    summ_id = participants_info[['summonerId']]
+    for match in master_match_data:
+        all_match_data = master_match_data[match]
+        match_data = all_match_data['info']['participants']
+        df_list = []
+        for data in match_data:
+            df_list.append(pd.DataFrame(data, index=[0]))
+        df = pd.concat(df_list, ignore_index=True)
+        participants_info = pd.concat([participants_info, df])
+        summ_id = participants_info[['summonerId']]
 
 
-participants_info_export = pd.concat([participants_match, participants_info], axis=1)
-selected_columns = [
-     'matchId'
-    ,'summonerId'
-    ,'assists'
-    ,'baronKills'
-    ,'basicPings'
-    ,'bountyLevel'
-    ,'challenges'
-    ,'champExperience'
-    ,'champLevel'
-    ,'championId'
-    ,'championName'
-    ,'championTransform'
-    ,'consumablesPurchased'
-    ,'damageDealtToBuildings'
-    ,'damageDealtToObjectives'
-    ,'damageDealtToTurrets'
-    ,'damageSelfMitigated'
-    ,'deaths'
-    ,'detectorWardsPlaced'
-    ,'doubleKills'
-    ,'dragonKills'
-    ,'eligibleForProgression'
-    ,'firstBloodAssist'
-    ,'firstBloodKill'
-    ,'firstTowerAssist'
-    ,'firstTowerKill'
-    ,'gameEndedInEarlySurrender'
-    ,'gameEndedInSurrender'
-    ,'goldEarned'
-    ,'goldSpent'
-    ,'individualPosition'
-    ,'inhibitorKills'
-    ,'inhibitorTakedowns'
-    ,'inhibitorsLost'
-    ,'item0'
-    ,'item1'
-    ,'item2'
-    ,'item3'
-    ,'item4'
-    ,'item5'
-    ,'item6'
-    ,'itemsPurchased'
-    ,'killingSprees'
-    ,'kills'
-    ,'lane'
-    ,'largestCriticalStrike'
-    ,'largestKillingSpree'
-    ,'largestMultiKill'
-    ,'longestTimeSpentLiving'
-    ,'magicDamageDealt'
-    ,'magicDamageDealtToChampions'
-    ,'magicDamageTaken'
-    ,'neutralMinionsKilled'
-    ,'nexusKills'
-    ,'nexusLost'
-    ,'nexusTakedowns'
-    ,'objectivesStolen'
-    ,'objectivesStolenAssists'
-    ,'participantId'
-    ,'pentaKills'
-    ,'perks'
-    ,'physicalDamageDealt'
-    ,'physicalDamageDealtToChampions'
-    ,'physicalDamageTaken'
-    ,'profileIcon'
-    ,'puuid'
-    ,'quadraKills'
-    ,'riotIdName'
-    ,'riotIdTagline'
-    ,'role'
-    ,'sightWardsBoughtInGame'
-    ,'spell1Casts'
-    ,'spell2Casts'
-    ,'spell3Casts'
-    ,'spell4Casts'
-    ,'summoner1Casts'
-    ,'summoner1Id'
-    ,'summoner2Casts'
-    ,'summoner2Id'
-    ,'summonerLevel'
-    ,'summonerName'
-    ,'teamEarlySurrendered'
-    ,'teamId'
-    ,'teamPosition'
-    ,'timeCCingOthers'
-    ,'timePlayed'
-    ,'totalDamageDealt'
-    ,'totalDamageDealtToChampions'
-    ,'totalDamageShieldedOnTeammates'
-    ,'totalDamageTaken'
-    ,'totalHeal'
-    ,'totalHealsOnTeammates'
-    ,'totalMinionsKilled'
-    ,'totalTimeCCDealt'
-    ,'totalTimeSpentDead'
-    ,'totalUnitsHealed'
-    ,'tripleKills'
-    ,'trueDamageDealt'
-    ,'trueDamageDealtToChampions'
-    ,'trueDamageTaken'
-    ,'turretKills'
-    ,'turretTakedowns'
-    ,'turretsLost'
-    ,'unrealKills'
-    ,'visionScore'
-    ,'visionWardsBoughtInGame'
-    ,'wardsKilled'
-    ,'wardsPlaced'
-    ,'win'
-    ]
-participants_info_export = pd.DataFrame({col: participants_info_export.get(col, np.nan) for col in selected_columns})
-participants_info_export = participants_info_export.reset_index(drop=True)
+    participants_info_export = pd.concat([participants_match, participants_info], axis=1)
+    selected_columns = [
+         'matchId'
+        ,'summonerId'
+        ,'assists'
+        ,'baronKills'
+        ,'basicPings'
+        ,'bountyLevel'
+        ,'challenges'
+        ,'champExperience'
+        ,'champLevel'
+        ,'championId'
+        ,'championName'
+        ,'championTransform'
+        ,'consumablesPurchased'
+        ,'damageDealtToBuildings'
+        ,'damageDealtToObjectives'
+        ,'damageDealtToTurrets'
+        ,'damageSelfMitigated'
+        ,'deaths'
+        ,'detectorWardsPlaced'
+        ,'doubleKills'
+        ,'dragonKills'
+        ,'eligibleForProgression'
+        ,'firstBloodAssist'
+        ,'firstBloodKill'
+        ,'firstTowerAssist'
+        ,'firstTowerKill'
+        ,'gameEndedInEarlySurrender'
+        ,'gameEndedInSurrender'
+        ,'goldEarned'
+        ,'goldSpent'
+        ,'individualPosition'
+        ,'inhibitorKills'
+        ,'inhibitorTakedowns'
+        ,'inhibitorsLost'
+        ,'item0'
+        ,'item1'
+        ,'item2'
+        ,'item3'
+        ,'item4'
+        ,'item5'
+        ,'item6'
+        ,'itemsPurchased'
+        ,'killingSprees'
+        ,'kills'
+        ,'lane'
+        ,'largestCriticalStrike'
+        ,'largestKillingSpree'
+        ,'largestMultiKill'
+        ,'longestTimeSpentLiving'
+        ,'magicDamageDealt'
+        ,'magicDamageDealtToChampions'
+        ,'magicDamageTaken'
+        ,'neutralMinionsKilled'
+        ,'nexusKills'
+        ,'nexusLost'
+        ,'nexusTakedowns'
+        ,'objectivesStolen'
+        ,'objectivesStolenAssists'
+        ,'participantId'
+        ,'pentaKills'
+        ,'perks'
+        ,'physicalDamageDealt'
+        ,'physicalDamageDealtToChampions'
+        ,'physicalDamageTaken'
+        ,'profileIcon'
+        ,'puuid'
+        ,'quadraKills'
+        ,'riotIdName'
+        ,'riotIdTagline'
+        ,'role'
+        ,'sightWardsBoughtInGame'
+        ,'spell1Casts'
+        ,'spell2Casts'
+        ,'spell3Casts'
+        ,'spell4Casts'
+        ,'summoner1Casts'
+        ,'summoner1Id'
+        ,'summoner2Casts'
+        ,'summoner2Id'
+        ,'summonerLevel'
+        ,'summonerName'
+        ,'teamEarlySurrendered'
+        ,'teamId'
+        ,'teamPosition'
+        ,'timeCCingOthers'
+        ,'timePlayed'
+        ,'totalDamageDealt'
+        ,'totalDamageDealtToChampions'
+        ,'totalDamageShieldedOnTeammates'
+        ,'totalDamageTaken'
+        ,'totalHeal'
+        ,'totalHealsOnTeammates'
+        ,'totalMinionsKilled'
+        ,'totalTimeCCDealt'
+        ,'totalTimeSpentDead'
+        ,'totalUnitsHealed'
+        ,'tripleKills'
+        ,'trueDamageDealt'
+        ,'trueDamageDealtToChampions'
+        ,'trueDamageTaken'
+        ,'turretKills'
+        ,'turretTakedowns'
+        ,'turretsLost'
+        ,'unrealKills'
+        ,'visionScore'
+        ,'visionWardsBoughtInGame'
+        ,'wardsKilled'
+        ,'wardsPlaced'
+        ,'win'
+        ]
+    participants_info_export = pd.DataFrame({col: participants_info_export.get(col, np.nan) for col in selected_columns})
+    participants_info_export = participants_info_export.reset_index(drop=True)
 
-table_name = 'lol_participants_info'
-insert_or_replace = 'INSERT' # 'REPLACE'
-insert_script = generate_insert_script(participants_info_export, table_name, insert_or_replace)
-print(f"{table_name}: {len(participants_info_export) = }")
+    table_name = 'lol_participants_info'
+    insert_or_replace = 'INSERT' # 'REPLACE'
+    insert_script = generate_insert_script(participants_info_export, table_name, insert_or_replace)
+    print(f"{table_name}: {len(participants_info_export) = }")
 
-conn = mysql.connector.connect(**config)
-cursor = conn.cursor()
-commit_count = 0
-fail_count = 0
-for key in insert_script.keys():
-    try:
-        cursor.execute(insert_script[key])
-        conn.commit()
-        commit_count += 1
-    except mysql.connector.Error as err:
-        fail_count += 1
-    # time.sleep(0.25)
-cursor.close()
-conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }, {fail_count = }")
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    commit_count = 0
+    fail_count = 0
+    for key in insert_script.keys():
+        try:
+            cursor.execute(insert_script[key])
+            conn.commit()
+            commit_count += 1
+        except mysql.connector.Error as err:
+            fail_count += 1
+        # time.sleep(0.25)
+    cursor.close()
+    conn.close()
+    
+    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    # participants_info_export.to_csv('C:/Users/james/OneDrive/Desktop/participants_info.csv', index=False)
 
 
 
@@ -491,186 +515,186 @@ print(f"{table_name}: {commit_count = }, {fail_count = }")
 #########################
 #########################
 
-participants_challenges = pd.DataFrame()
-for match in master_match_data:
-    all_match_data = master_match_data[match]
-    match_data = all_match_data['info']['participants']
-    df_list = []
-    for data in match_data:
+if len(master_match_data) == 0:
+    print("skip lol_participants_challenges, no new data to run")
+else:
+    participants_challenges = pd.DataFrame()
+    for match in master_match_data:
+        all_match_data = master_match_data[match]
+        match_data = all_match_data['info']['participants']
+        df_list = []
+        for data in match_data:
+            try:
+                df_list.append(pd.DataFrame(data['challenges'], index=[0]))
+            except KeyError:
+                df_list.append(pd.DataFrame({'challenges': [np.nan]}))
+        df = pd.concat(df_list, ignore_index=True)
+        participants_challenges = pd.concat([participants_challenges, df])
+
+
+    participants_challenges_export = pd.concat([participants_match, summ_id, participants_challenges], axis=1)
+
+    participants_challenges_export = participants_challenges_export.rename(columns={'12AssistStreakCount': 'assistStreakCount12', 'killingSprees': 'killingSpreesChallenges', \
+        'turretTakedowns': 'turretTakedownsChallenges', 'challenges': 'challengesChallenges'})
+    selected_columns = [
+         'matchId'
+        ,'summonerId'
+        ,'assistStreakCount12'
+        ,'abilityUses'
+        ,'acesBefore15Minutes'
+        ,'alliedJungleMonsterKills'
+        ,'baronTakedowns'
+        ,'blastConeOppositeOpponentCount'
+        ,'bountyGold'
+        ,'buffsStolen'
+        ,'completeSupportQuestInTime'
+        ,'controlWardsPlaced'
+        ,'damagePerMinute'
+        ,'damageTakenOnTeamPercentage'
+        ,'dancedWithRiftHerald'
+        ,'deathsByEnemyChamps'
+        ,'dodgeSkillShotsSmallWindow'
+        ,'doubleAces'
+        ,'dragonTakedowns'
+        ,'earliestDragonTakedown'
+        ,'earlyLaningPhaseGoldExpAdvantage'
+        ,'effectiveHealAndShielding'
+        ,'elderDragonKillsWithOpposingSoul'
+        ,'elderDragonMultikills'
+        ,'enemyChampionImmobilizations'
+        ,'enemyJungleMonsterKills'
+        ,'epicMonsterKillsNearEnemyJungler'
+        ,'epicMonsterKillsWithin30SecondsOfSpawn'
+        ,'epicMonsterSteals'
+        ,'epicMonsterStolenWithoutSmite'
+        ,'firstTurretKilled'
+        ,'flawlessAces'
+        ,'fullTeamTakedown'
+        ,'gameLength'
+        ,'getTakedownsInAllLanesEarlyJungleAsLaner'
+        ,'goldPerMinute'
+        ,'hadOpenNexus'
+        ,'immobilizeAndKillWithAlly'
+        ,'initialBuffCount'
+        ,'initialCrabCount'
+        ,'jungleCsBefore10Minutes'
+        ,'junglerTakedownsNearDamagedEpicMonster'
+        ,'kTurretsDestroyedBeforePlatesFall'
+        ,'kda'
+        ,'killAfterHiddenWithAlly'
+        ,'killParticipation'
+        ,'killedChampTookFullTeamDamageSurvived'
+        ,'killingSpreesChallenges'
+        ,'killsNearEnemyTurret'
+        ,'killsOnOtherLanesEarlyJungleAsLaner'
+        ,'killsOnRecentlyHealedByAramPack'
+        ,'killsUnderOwnTurret'
+        ,'killsWithHelpFromEpicMonster'
+        ,'knockEnemyIntoTeamAndKill'
+        ,'landSkillShotsEarlyGame'
+        ,'laneMinionsFirst10Minutes'
+        ,'laningPhaseGoldExpAdvantage'
+        ,'legendaryCount'
+        ,'lostAnInhibitor'
+        ,'maxCsAdvantageOnLaneOpponent'
+        ,'maxKillDeficit'
+        ,'maxLevelLeadLaneOpponent'
+        ,'mejaisFullStackInTime'
+        ,'moreEnemyJungleThanOpponent'
+        ,'multiKillOneSpell'
+        ,'multiTurretRiftHeraldCount'
+        ,'multikills'
+        ,'multikillsAfterAggressiveFlash'
+        ,'mythicItemUsed'
+        ,'outerTurretExecutesBefore10Minutes'
+        ,'outnumberedKills'
+        ,'outnumberedNexusKill'
+        ,'perfectDragonSoulsTaken'
+        ,'perfectGame'
+        ,'pickKillWithAlly'
+        ,'playedChampSelectPosition'
+        ,'poroExplosions'
+        ,'quickCleanse'
+        ,'quickFirstTurret'
+        ,'quickSoloKills'
+        ,'riftHeraldTakedowns'
+        ,'saveAllyFromDeath'
+        ,'scuttleCrabKills'
+        ,'skillshotsDodged'
+        ,'skillshotsHit'
+        ,'snowballsHit'
+        ,'soloBaronKills'
+        ,'soloKills'
+        ,'stealthWardsPlaced'
+        ,'survivedSingleDigitHpCount'
+        ,'survivedThreeImmobilizesInFight'
+        ,'takedownOnFirstTurret'
+        ,'takedowns'
+        ,'takedownsAfterGainingLevelAdvantage'
+        ,'takedownsBeforeJungleMinionSpawn'
+        ,'takedownsFirstXMinutes'
+        ,'takedownsInAlcove'
+        ,'takedownsInEnemyFountain'
+        ,'teamBaronKills'
+        ,'teamDamagePercentage'
+        ,'teamElderDragonKills'
+        ,'teamRiftHeraldKills'
+        ,'teleportTakedowns'
+        ,'tookLargeDamageSurvived'
+        ,'turretPlatesTaken'
+        ,'turretTakedownsChallenges'
+        ,'turretsTakenWithRiftHerald'
+        ,'twentyMinionsIn3SecondsCount'
+        ,'twoWardsOneSweeperCount'
+        ,'unseenRecalls'
+        ,'visionScoreAdvantageLaneOpponent'
+        ,'visionScorePerMinute'
+        ,'wardTakedowns'
+        ,'wardTakedownsBefore20M'
+        ,'wardsGuarded'
+        ,'junglerKillsEarlyJungle'
+        ,'killsOnLanersEarlyJungleAsJungler'
+        ,'controlWardTimeCoverageInRiverOrEnemyHalf'
+        ,'baronBuffGoldAdvantageOverThreshold'
+        ,'earliestBaron'
+        ,'firstTurretKilledTime'
+        ,'soloTurretsLategame'
+        ,'shortestTimeToAceFromFirstTakedown'
+        ,'fastestLegendary'
+        ,'highestChampionDamage'
+        ,'highestWardKills'
+        ,'highestCrowdControlScore'
+        ,'fasterSupportQuestCompletion'
+        ,'thirdInhibitorDestroyedTime'
+        ,'hadAfkTeammate'
+        ,'earliestElderDragon'
+        ,'threeWardsOneSweeperCount'
+        ,'challengesChallenges'
+        ]
+    participants_challenges_export = pd.DataFrame({col: participants_challenges_export.get(col, np.nan) for col in selected_columns})
+    participants_challenges_export = participants_challenges_export.reset_index(drop=True)
+
+    table_name = 'lol_participants_challenges'
+    insert_or_replace = 'INSERT' # 'REPLACE'
+    insert_script = generate_insert_script(participants_challenges_export, table_name, insert_or_replace)
+    print(f"{table_name}: {len(participants_challenges_export) = }")
+
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    commit_count = 0
+    fail_count = 0
+    for key in insert_script.keys():
         try:
-            df_list.append(pd.DataFrame(data['challenges'], index=[0]))
-        except KeyError:
-            df_list.append(pd.DataFrame({'challenges': [np.nan]}))
-    df = pd.concat(df_list, ignore_index=True)
-    participants_challenges = pd.concat([participants_challenges, df])
-
-
-participants_challenges_export = pd.concat([participants_match, summ_id, participants_challenges], axis=1)
-
-participants_challenges_export = participants_challenges_export.rename(columns={'12AssistStreakCount': 'assistStreakCount12', 'killingSprees': 'killingSpreesChallenges', \
-    'turretTakedowns': 'turretTakedownsChallenges', 'challenges': 'challengesChallenges'})
-selected_columns = [
-     'matchId'
-    ,'summonerId'
-    ,'assistStreakCount12'
-    ,'abilityUses'
-    ,'acesBefore15Minutes'
-    ,'alliedJungleMonsterKills'
-    ,'baronTakedowns'
-    ,'blastConeOppositeOpponentCount'
-    ,'bountyGold'
-    ,'buffsStolen'
-    ,'completeSupportQuestInTime'
-    ,'controlWardsPlaced'
-    ,'damagePerMinute'
-    ,'damageTakenOnTeamPercentage'
-    ,'dancedWithRiftHerald'
-    ,'deathsByEnemyChamps'
-    ,'dodgeSkillShotsSmallWindow'
-    ,'doubleAces'
-    ,'dragonTakedowns'
-    ,'earliestDragonTakedown'
-    ,'earlyLaningPhaseGoldExpAdvantage'
-    ,'effectiveHealAndShielding'
-    ,'elderDragonKillsWithOpposingSoul'
-    ,'elderDragonMultikills'
-    ,'enemyChampionImmobilizations'
-    ,'enemyJungleMonsterKills'
-    ,'epicMonsterKillsNearEnemyJungler'
-    ,'epicMonsterKillsWithin30SecondsOfSpawn'
-    ,'epicMonsterSteals'
-    ,'epicMonsterStolenWithoutSmite'
-    ,'firstTurretKilled'
-    ,'flawlessAces'
-    ,'fullTeamTakedown'
-    ,'gameLength'
-    ,'getTakedownsInAllLanesEarlyJungleAsLaner'
-    ,'goldPerMinute'
-    ,'hadOpenNexus'
-    ,'immobilizeAndKillWithAlly'
-    ,'initialBuffCount'
-    ,'initialCrabCount'
-    ,'jungleCsBefore10Minutes'
-    ,'junglerTakedownsNearDamagedEpicMonster'
-    ,'kTurretsDestroyedBeforePlatesFall'
-    ,'kda'
-    ,'killAfterHiddenWithAlly'
-    ,'killParticipation'
-    ,'killedChampTookFullTeamDamageSurvived'
-    ,'killingSpreesChallenges'
-    ,'killsNearEnemyTurret'
-    ,'killsOnOtherLanesEarlyJungleAsLaner'
-    ,'killsOnRecentlyHealedByAramPack'
-    ,'killsUnderOwnTurret'
-    ,'killsWithHelpFromEpicMonster'
-    ,'knockEnemyIntoTeamAndKill'
-    ,'landSkillShotsEarlyGame'
-    ,'laneMinionsFirst10Minutes'
-    ,'laningPhaseGoldExpAdvantage'
-    ,'legendaryCount'
-    ,'lostAnInhibitor'
-    ,'maxCsAdvantageOnLaneOpponent'
-    ,'maxKillDeficit'
-    ,'maxLevelLeadLaneOpponent'
-    ,'mejaisFullStackInTime'
-    ,'moreEnemyJungleThanOpponent'
-    ,'multiKillOneSpell'
-    ,'multiTurretRiftHeraldCount'
-    ,'multikills'
-    ,'multikillsAfterAggressiveFlash'
-    ,'mythicItemUsed'
-    ,'outerTurretExecutesBefore10Minutes'
-    ,'outnumberedKills'
-    ,'outnumberedNexusKill'
-    ,'perfectDragonSoulsTaken'
-    ,'perfectGame'
-    ,'pickKillWithAlly'
-    ,'playedChampSelectPosition'
-    ,'poroExplosions'
-    ,'quickCleanse'
-    ,'quickFirstTurret'
-    ,'quickSoloKills'
-    ,'riftHeraldTakedowns'
-    ,'saveAllyFromDeath'
-    ,'scuttleCrabKills'
-    ,'skillshotsDodged'
-    ,'skillshotsHit'
-    ,'snowballsHit'
-    ,'soloBaronKills'
-    ,'soloKills'
-    ,'stealthWardsPlaced'
-    ,'survivedSingleDigitHpCount'
-    ,'survivedThreeImmobilizesInFight'
-    ,'takedownOnFirstTurret'
-    ,'takedowns'
-    ,'takedownsAfterGainingLevelAdvantage'
-    ,'takedownsBeforeJungleMinionSpawn'
-    ,'takedownsFirstXMinutes'
-    ,'takedownsInAlcove'
-    ,'takedownsInEnemyFountain'
-    ,'teamBaronKills'
-    ,'teamDamagePercentage'
-    ,'teamElderDragonKills'
-    ,'teamRiftHeraldKills'
-    ,'teleportTakedowns'
-    ,'tookLargeDamageSurvived'
-    ,'turretPlatesTaken'
-    ,'turretTakedownsChallenges'
-    ,'turretsTakenWithRiftHerald'
-    ,'twentyMinionsIn3SecondsCount'
-    ,'twoWardsOneSweeperCount'
-    ,'unseenRecalls'
-    ,'visionScoreAdvantageLaneOpponent'
-    ,'visionScorePerMinute'
-    ,'wardTakedowns'
-    ,'wardTakedownsBefore20M'
-    ,'wardsGuarded'
-    ,'junglerKillsEarlyJungle'
-    ,'killsOnLanersEarlyJungleAsJungler'
-    ,'controlWardTimeCoverageInRiverOrEnemyHalf'
-    ,'baronBuffGoldAdvantageOverThreshold'
-    ,'earliestBaron'
-    ,'firstTurretKilledTime'
-    ,'soloTurretsLategame'
-    ,'shortestTimeToAceFromFirstTakedown'
-    ,'fastestLegendary'
-    ,'highestChampionDamage'
-    ,'highestWardKills'
-    ,'highestCrowdControlScore'
-    ,'fasterSupportQuestCompletion'
-    ,'thirdInhibitorDestroyedTime'
-    ,'hadAfkTeammate'
-    ,'earliestElderDragon'
-    ,'threeWardsOneSweeperCount'
-    ,'challengesChallenges'
-    ]
-participants_challenges_export = pd.DataFrame({col: participants_challenges_export.get(col, np.nan) for col in selected_columns})
-participants_challenges_export = participants_challenges_export.reset_index(drop=True)
-
-table_name = 'lol_participants_challenges'
-insert_or_replace = 'INSERT' # 'REPLACE'
-insert_script = generate_insert_script(participants_challenges_export, table_name, insert_or_replace)
-print(f"{table_name}: {len(participants_challenges_export) = }")
-
-conn = mysql.connector.connect(**config)
-cursor = conn.cursor()
-commit_count = 0
-fail_count = 0
-for key in insert_script.keys():
-    try:
-        cursor.execute(insert_script[key])
-        conn.commit()
-        commit_count += 1
-    except mysql.connector.Error as err:
-        fail_count += 1
-    # time.sleep(0.25)
-cursor.close()
-conn.close()
-# print(f"{table_name}: {len(insert_script) = }")
-print(f"{table_name}: {commit_count = }, {fail_count = }")
-
-
+            cursor.execute(insert_script[key])
+            conn.commit()
+            commit_count += 1
+        except mysql.connector.Error as err:
+            fail_count += 1
+        # time.sleep(0.25)
+    cursor.close()
+    conn.close()
+    
+    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    # participants_challenges_export.to_csv('C:/Users/james/OneDrive/Desktop/participants_challenges.csv', index=False)
 
 print("^-^")
-
-
