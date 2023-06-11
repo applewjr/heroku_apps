@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import os
 import pytz
 from PIL import Image
+import smtplib
+from email.mime.text import MIMEText
 pd.options.mode.chained_assignment = None  # default='warn'
 
 if 'IS_HEROKU' in os.environ:
@@ -22,6 +24,7 @@ if 'IS_HEROKU' in os.environ:
     consumer_secret = os.environ.get('tw_consumer_secret')
     access_token = os.environ.get('tw_access_token')
     access_token_secret = os.environ.get('tw_access_token_secret')
+    GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -29,17 +32,15 @@ else:
     root_directory = os.path.dirname(script_directory)
     sys.path.append(root_directory)
     import secret_pass
-
     consumer_key = secret_pass.consumer_key
     consumer_secret = secret_pass.consumer_secret
     access_token = secret_pass.access_token
     access_token_secret = secret_pass.access_token_secret
+    GMAIL_PASS = secret_pass.GMAIL_PASS
 
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 api = tweepy.API(auth, wait_on_rate_limit = True)
-
-
 
 current_time_utc = datetime.utcnow()
 pst = pytz.timezone('US/Pacific')
@@ -50,6 +51,14 @@ text_ymd = current_time_pst.strftime('%Y-%m-%d')
 today = pd.to_datetime(current_time_pst.strftime('%Y-%m-%d'))
 text_ymdt = current_time_pst.strftime('%Y-%m-%d %H:%M:%S')
 
+gmail_sender_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = 'james.r.applewhite@gmail.com'
+gmail_subject = 'stock_bot_stock1.py'
+gmail_list = []
+
+def print_and_append(statement):
+    print(statement)
+    gmail_list.append(statement)
 
 
 
@@ -140,7 +149,7 @@ else:
     elif len(contrib_amt) == 1: 
         contrib_amt = [contrib_amt[0] for x in enumerate(stock_list)]
     else:
-        print('Incorrect length of contrib_amt. Make it match the length of the stock list or be 1 value')
+        print_and_append('Incorrect length of contrib_amt. Make it match the length of the stock list or be 1 value')
 
     # check every 15 seconds for complete data
     # wait times should only happen for ~1-2 minutes after market open on trading days (right after 0630am PST)
@@ -171,9 +180,9 @@ else:
                 time.sleep(15)
             else:
                 if df_now.index.day == date.today().day:
-                    print('Datetime of data available: ', datetime.now().strftime("%B %d, %Y %H:%M:%S"))
+                    print_and_append('Datetime of data available: ', datetime.now().strftime("%B %d, %Y %H:%M:%S"))
                 else:
-                    print('Warning, today\'s data not yet available')
+                    print_and_append('Warning, today\'s data not yet available')
 
     # check the traditional open price
     df_open_check = yf.download(
@@ -231,9 +240,9 @@ else:
         if pd.isna(df[i].iloc[0]) == True:
             nlist.append(i)
     if len(nlist) >0:
-        print('Stocks with not enough history', nlist)
+        print_and_append('Stocks with not enough history', nlist)
         for j in nlist:
-            print(j, 'missing days:', df['Index'].count()-df[j].count())
+            print_and_append(j, 'missing days:', df['Index'].count()-df[j].count())
 
     # establishing day of week, week number, trading day
     dow_dict = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6}
@@ -250,7 +259,7 @@ else:
                 trade_day_list.append(0)
         df['trade_day'] = trade_day_list
     elif trade_type != 'crypto' and (trade_dow == 'Saturday' or trade_dow == 'Sunday'):
-        print('error - stocks not open on the weekend')
+        print_and_append('error - stocks not open on the weekend')
     else:
         for i in range(len(df)):
             df['dow_dynamic'] = df['dow']-dow_dict[trade_dow]
@@ -508,7 +517,7 @@ if len(contrib_amt) == len(stock_list):
 elif len(contrib_amt) == 1: 
     contrib_amt = [contrib_amt[0] for x in enumerate(stock_list)]
 else:
-    print('Incorrect length of contrib_amt. Make it match the length of the stock list or be 1 value')
+    print_and_append('Incorrect length of contrib_amt. Make it match the length of the stock list or be 1 value')
     exit()
 
 ### pull most recent day
@@ -595,9 +604,9 @@ for i in stock_list:
         nlist.append(i)
 
 if len(nlist) >0:
-    print('Stocks with not enough history', nlist)
+    print_and_append('Stocks with not enough history', nlist)
     for j in nlist:
-        print(j, 'missing days:', df['Index'].count()-df[j].count())
+        print_and_append(j, 'missing days:', df['Index'].count()-df[j].count())
     exit() # Maybe not the best to add this. I still want to see the data
 
 # create pred and pred/open list for each of the n dataframes
@@ -648,6 +657,17 @@ if df['date'][len(df)-1] == today:
 
     api.update_status_with_media(status=update, filename='stock1.jpg')
 
-    print(f'{segment_name} complete')
+    print_and_append(f'{segment_name} complete')
 
-else: print(f'{segment_name} not open (most recent date pull != today)')
+else: print_and_append(f'{segment_name} not open (most recent date pull != today)')
+
+gmail_message = '\n'.join(gmail_list)
+msg = MIMEText(gmail_message)
+msg['Subject'] = gmail_subject
+msg['From'] = gmail_sender_email
+msg['To'] = gmail_receiver_email
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login(gmail_sender_email, GMAIL_PASS)
+    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+    print('email sent')

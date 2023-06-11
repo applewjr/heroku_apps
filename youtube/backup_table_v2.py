@@ -1,5 +1,7 @@
 import mysql.connector
 import os
+import smtplib
+from email.mime.text import MIMEText
 # import logging
 
 
@@ -12,6 +14,7 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
+    GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -26,6 +29,16 @@ else:
         'database': secret_pass.mysql_bd,
         'raise_on_warnings': True
         }
+    GMAIL_PASS = secret_pass.GMAIL_PASS
+
+gmail_sender_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = 'james.r.applewhite@gmail.com'
+gmail_subject = 'backup_table_v2.py'
+gmail_list = []
+
+def print_and_append(statement):
+    print(statement)
+    gmail_list.append(statement)
 
 
 conn = mysql.connector.connect(**config)
@@ -58,4 +71,15 @@ cursor.execute(query)
 cursor.close()
 conn.close()
 
-print("complete: backup of youtube_trending")
+print_and_append("complete: backup of youtube_trending")
+
+gmail_message = '\n'.join(gmail_list)
+msg = MIMEText(gmail_message)
+msg['Subject'] = gmail_subject
+msg['From'] = gmail_sender_email
+msg['To'] = gmail_receiver_email
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login(gmail_sender_email, GMAIL_PASS)
+    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+    print('email sent')
