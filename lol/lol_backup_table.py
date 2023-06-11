@@ -1,5 +1,7 @@
 import mysql.connector
 import os
+import smtplib
+from email.mime.text import MIMEText
 # import logging
 
 
@@ -12,6 +14,7 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
+    GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -26,6 +29,16 @@ else:
         'database': secret_pass.mysql_bd,
         'raise_on_warnings': True
         }
+    GMAIL_PASS = secret_pass.GMAIL_PASS
+
+gmail_sender_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = 'james.r.applewhite@gmail.com'
+gmail_subject = 'lol_backup_table.py'
+gmail_list = []
+
+def print_and_append(statement):
+    print(statement)
+    gmail_list.append(statement)
 
 
 conn = mysql.connector.connect(**config)
@@ -55,7 +68,7 @@ UNIQUE KEY unique_summoner (leagueId, pulled_date)
 ) AS SELECT * FROM lol_summoner;
 """
 cursor.execute(query)
-print("complete: backup of lol_summoner")
+print_and_append("complete: backup of lol_summoner")
 
 
 
@@ -94,7 +107,7 @@ UNIQUE KEY unique_champion (Name)
 ) AS SELECT * FROM lol_champion;
 """
 cursor.execute(query)
-print("complete: backup of lol_champion")
+print_and_append("complete: backup of lol_champion")
 
 
 
@@ -108,7 +121,7 @@ UNIQUE KEY unique_all_match (matchID)
 ) AS SELECT * FROM lol_all_match;
 """
 cursor.execute(query)
-print("complete: backup of lol_all_match")
+print_and_append("complete: backup of lol_all_match")
 
 
 
@@ -134,7 +147,7 @@ UNIQUE KEY unique_match (matchID)
 ) AS SELECT * FROM lol_match;
 """
 cursor.execute(query)
-print("complete: backup of lol_match")
+print_and_append("complete: backup of lol_match")
 
 
 
@@ -255,7 +268,7 @@ UNIQUE KEY participants_info (matchId, summonerId)
 ) AS SELECT * FROM lol_participants_info;
 """
 cursor.execute(query)
-print("complete: backup of lol_participants_info")
+print_and_append("complete: backup of lol_participants_info")
 
 
 
@@ -400,9 +413,20 @@ UNIQUE KEY participants_challenges (matchId, summonerId)
 ) AS SELECT * FROM lol_participants_challenges;
 """
 cursor.execute(query)
-print("complete: backup of lol_participants_challenges")
+print_and_append("complete: backup of lol_participants_challenges")
 
 cursor.close()
 conn.close()
 
-print("^-^")
+print_and_append("^-^")
+
+gmail_message = '\n'.join(gmail_list)
+msg = MIMEText(gmail_message)
+msg['Subject'] = gmail_subject
+msg['From'] = gmail_sender_email
+msg['To'] = gmail_receiver_email
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login(gmail_sender_email, GMAIL_PASS)
+    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+    print('email sent')

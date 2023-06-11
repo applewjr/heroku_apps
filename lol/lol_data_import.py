@@ -7,6 +7,8 @@ from riotwatcher import LolWatcher, ApiError
 import requests
 import time
 import json
+import smtplib
+from email.mime.text import MIMEText
 
 
 if 'IS_HEROKU' in os.environ:
@@ -21,6 +23,7 @@ if 'IS_HEROKU' in os.environ:
     LOL_API_KEY = os.environ.get('LOL_API_KEY')
     LOL_SUMMONER = os.environ.get('LOL_SUMMONER')
     LOL_REGION = os.environ.get('LOL_REGION')
+    GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -38,10 +41,19 @@ else:
     LOL_API_KEY = secret_pass.LOL_API_KEY
     LOL_SUMMONER = secret_pass.LOL_SUMMONER
     LOL_REGION = secret_pass.LOL_REGION
+    GMAIL_PASS = secret_pass.GMAIL_PASS
 
 start_num = 0
 count_num = 50
 
+gmail_sender_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = 'james.r.applewhite@gmail.com'
+gmail_subject = 'lol_data_import.py'
+gmail_list = []
+
+def print_and_append(statement):
+    print(statement)
+    gmail_list.append(statement)
 
 
 #########################
@@ -125,7 +137,7 @@ summoner_export = summoner_export.reset_index(drop=True)
 table_name = 'lol_summoner'
 insert_or_replace = 'INSERT' # 'REPLACE'
 insert_script = generate_insert_script(summoner_export, table_name, insert_or_replace)
-print(f"{table_name}: {len(summoner_export) = }")
+print_and_append(f"{table_name}: {len(summoner_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
@@ -140,7 +152,7 @@ for key in insert_script.keys():
         fail_count += 1
 cursor.close()
 conn.close()
-print(f"{table_name}: {commit_count = }, {fail_count = }")
+print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -206,7 +218,7 @@ champion_export = champion_export.reset_index(drop=True)
 table_name = 'lol_champion'
 insert_or_replace = 'REPLACE' # 'INSERT'
 insert_script = generate_insert_script(champion_export, table_name, insert_or_replace)
-print(f"{table_name}: {len(champion_export) = }")
+print_and_append(f"{table_name}: {len(champion_export) = }")
 
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
@@ -221,7 +233,7 @@ for key in insert_script.keys():
         fail_count += 1
 cursor.close()
 conn.close()
-print(f"{table_name}: {commit_count = }, {fail_count = }")
+print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -236,7 +248,7 @@ api_url = api_url + '&api_key=' + LOL_API_KEY
 resp = requests.get(api_url)
 match_ids = resp.json()
 all_match_ids = match_ids
-print(f"pre cross ref: {len(all_match_ids) = }")
+print_and_append(f"pre cross ref: {len(all_match_ids) = }")
 
 # only return the matchIDs that are not already in the db
 conn = mysql.connector.connect(**config)
@@ -250,7 +262,7 @@ mysql_matchid = pd.DataFrame(result, columns=["matchId"])
 all_match_ids_set = set(all_match_ids) # Convert the list of IDs to a set for faster membership checking
 filtered_ids = [id for id in all_match_ids_set if id not in mysql_matchid["matchId"].values] # Filter the IDs that are in all_match_ids but not in mysql_matchid
 all_match_ids = [str(id) for id in filtered_ids] # Convert the filtered IDs to a list of strings
-print(f"post cross ref: {len(all_match_ids) = }")
+print_and_append(f"post cross ref: {len(all_match_ids) = }")
 
 master_match_data = {}
 for match_id in all_match_ids:
@@ -260,7 +272,7 @@ for match_id in all_match_ids:
     match_data = resp.json()
     master_match_data[match_id] = match_data
     time.sleep(1.25)
-print(f"{len(master_match_data) = }")
+print_and_append(f"{len(master_match_data) = }")
 
 
 
@@ -271,7 +283,7 @@ print(f"{len(master_match_data) = }")
 #########################
 
 if len(master_match_data) == 0:
-    print("skip lol_all_match, no new data to run")
+    print_and_append("skip lol_all_match, no new data to run")
 else:
     table_name = 'lol_all_match'
     insert_or_replace = 'INSERT' # 'REPLACE'
@@ -284,8 +296,8 @@ else:
     conn.commit()
     cursor.close()
     conn.close()
-    # print(f"{table_name}: {commit_count = }, {fail_count = }")
-    print("lol_all_match complete")
+    # print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
+    print_and_append("lol_all_match complete")
 
 
 
@@ -296,7 +308,7 @@ else:
 #########################
 
 if len(master_match_data) == 0:
-    print("skip lol_match, no new data to run")
+    print_and_append("skip lol_match, no new data to run")
 else:
     match_export = pd.DataFrame()  # Create an empty dataframe
     for match in master_match_data:
@@ -318,7 +330,7 @@ else:
     table_name = 'lol_match'
     insert_or_replace = 'INSERT' # 'REPLACE'
     insert_script = generate_insert_script(match_export, table_name, insert_or_replace)
-    print(f"{table_name}: {len(match_export) = }")
+    print_and_append(f"{table_name}: {len(match_export) = }")
 
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
@@ -334,7 +346,7 @@ else:
     cursor.close()
     conn.close()
     
-    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -345,7 +357,7 @@ else:
 #########################
 
 if len(master_match_data) == 0:
-    print("skip lol_participants_info, no new data to run")
+    print_and_append("skip lol_participants_info, no new data to run")
 else:
     participants_df = pd.DataFrame()
     participants_match = pd.DataFrame()
@@ -378,7 +390,7 @@ else:
     table_name = 'lol_participants_info'
     insert_or_replace = 'INSERT' # 'REPLACE'
     insert_script = generate_insert_script(participants_info_export, table_name, insert_or_replace)
-    print(f"{table_name}: {len(participants_info_export) = }")
+    print_and_append(f"{table_name}: {len(participants_info_export) = }")
 
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
@@ -394,7 +406,7 @@ else:
     cursor.close()
     conn.close()
     
-    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
 
 
 
@@ -405,7 +417,7 @@ else:
 #########################
 
 if len(master_match_data) == 0:
-    print("skip lol_participants_challenges, no new data to run")
+    print_and_append("skip lol_participants_challenges, no new data to run")
 else:
     participants_challenges = pd.DataFrame()
     for match in master_match_data:
@@ -437,7 +449,7 @@ else:
     table_name = 'lol_participants_challenges'
     insert_or_replace = 'INSERT' # 'REPLACE'
     insert_script = generate_insert_script(participants_challenges_export, table_name, insert_or_replace)
-    print(f"{table_name}: {len(participants_challenges_export) = }")
+    print_and_append(f"{table_name}: {len(participants_challenges_export) = }")
 
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
@@ -453,6 +465,17 @@ else:
     cursor.close()
     conn.close()
     
-    print(f"{table_name}: {commit_count = }, {fail_count = }")
+    print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
 
-print("^-^")
+print_and_append("^-^")
+
+gmail_message = '\n'.join(gmail_list)
+msg = MIMEText(gmail_message)
+msg['Subject'] = gmail_subject
+msg['From'] = gmail_sender_email
+msg['To'] = gmail_receiver_email
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login(gmail_sender_email, GMAIL_PASS)
+    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+    print('email sent')
