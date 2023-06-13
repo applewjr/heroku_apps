@@ -137,12 +137,6 @@ print_and_append(f"df created: {len(videos_df) = }")
 
 
 
-
-
-
-
-
-
 conn = mysql.connector.connect(**config)
 
 # Create a cursor object
@@ -161,10 +155,9 @@ insert_query = """
 
 # Iterate over the rows of the DataFrame and insert the data
 for r in videos_df.itertuples(index=False):
-    # values = (r.video, r.chnl, r.vid_rank, r.vid_views, r.vid_likes, r.vid_comments, r.vid_cat_id, \
-    #     r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date, \
-    #     r.vid_id, r.chnl_id)
-    values = r[1:]
+    values = (r.video, r.chnl, r.vid_rank, r.vid_views, r.vid_likes, r.vid_comments, r.vid_cat_id, \
+        r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date, \
+        r.vid_id, r.chnl_id)
     try:
         cursor.execute(insert_query, values)
         conn.commit()
