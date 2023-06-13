@@ -62,8 +62,6 @@ def print_and_append(statement):
 
 
 
-
-
 ######################################
 ######################################
 ##### segment_name = master value assignments
@@ -80,16 +78,6 @@ df_policy = pd.DataFrame({'fund': ['BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD', 
 df_policy = df_policy.set_index('fund')
 df_policy = df_policy[['amt']]
 dict_policy = df_policy.to_dict()
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -180,7 +168,7 @@ else:
                 time.sleep(15)
             else:
                 if df_now.index.day == date.today().day:
-                    print_and_append('Datetime of data available: ', datetime.now().strftime("%B %d, %Y %H:%M:%S"))
+                    print_and_append(f"Datetime of data available: {datetime.now().strftime('%B %d, %Y %H:%M:%S')}")
                 else:
                     print_and_append('Warning, today\'s data not yet available')
 
@@ -240,9 +228,9 @@ else:
         if pd.isna(df[i].iloc[0]) == True:
             nlist.append(i)
     if len(nlist) >0:
-        print_and_append('Stocks with not enough history', nlist)
+        print_and_append(f"Stocks with not enough history {nlist}")
         for j in nlist:
-            print_and_append(j, 'missing days:', df['Index'].count()-df[j].count())
+            print_and_append(f"{j} missing days: {df['Index'].count()-df[j].count()}")
 
     # establishing day of week, week number, trading day
     dow_dict = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6}
@@ -459,10 +447,6 @@ else:
 
 
 
-
-
-
-
 ######################################
 ######################################
 ##### stock1 (Export to Twitter)
@@ -604,9 +588,9 @@ for i in stock_list:
         nlist.append(i)
 
 if len(nlist) >0:
-    print_and_append('Stocks with not enough history', nlist)
+    print_and_append(f"Stocks with not enough history {nlist}")
     for j in nlist:
-        print_and_append(j, 'missing days:', df['Index'].count()-df[j].count())
+        print_and_append(f"{j} missing days: {df['Index'].count()-df[j].count()}")
     exit() # Maybe not the best to add this. I still want to see the data
 
 # create pred and pred/open list for each of the n dataframes
