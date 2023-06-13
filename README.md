@@ -37,6 +37,7 @@ This is my central hub where I practice:
 - Pulls fresh data each morning from Riot Games' API and inserts or replaces into a MySQL instance. Used for interfacing with a Power BI dashboard
 - Pulls player (summoner), character (champion), and match data
 - Parse all data from source JSON into a series of dataframes, taking care to replace values that don't always show up
+- Auto emails sent to myself with pass/fail status messages, so I don't need to dig into my logs daily
 - Run table backups daily
 
 [YouTube Trending Summary](https://www.jamesapplewhite.com/youtube_trending)
