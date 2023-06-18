@@ -24,6 +24,7 @@ if 'IS_HEROKU' in os.environ:
     consumer_secret = os.environ.get('tw_consumer_secret')
     access_token = os.environ.get('tw_access_token')
     access_token_secret = os.environ.get('tw_access_token_secret')
+    bearer_token = os.environ.get('tw_bearer_token')
     GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
@@ -36,11 +37,17 @@ else:
     consumer_secret = secret_pass.consumer_secret
     access_token = secret_pass.access_token
     access_token_secret = secret_pass.access_token_secret
+    bearer_token = secret_pass.bearer_token
     GMAIL_PASS = secret_pass.GMAIL_PASS
 
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
-api = tweepy.API(auth, wait_on_rate_limit = True)
+# auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+# auth.set_access_token(access_token, access_token_secret)
+# api = tweepy.API(auth, wait_on_rate_limit = True)
+api = tweepy.Client(bearer_token=bearer_token,
+    access_token=access_token,
+    access_token_secret=access_token_secret,
+    consumer_key=consumer_key,
+    consumer_secret=consumer_secret)
 
 current_time_utc = datetime.utcnow()
 pst = pytz.timezone('US/Pacific')
@@ -639,7 +646,8 @@ update = (f"{text_ymdt} ({today.strftime('%a')})\nRoll Hist Days = {roll_days}, 
 # exports
 if df['date'][len(df)-1] == today:
 
-    api.update_status_with_media(status=update, filename='stock1.jpg')
+    # api.update_status_with_media(status=update, filename='stock1.jpg')
+    api.create_tweet(text=update)
 
     print_and_append(f'{segment_name} complete')
 
