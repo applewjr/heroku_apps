@@ -367,7 +367,7 @@ print_and_append(f"df created: {len(artist_df) = }")
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
 
-replace_fail_count = 0
+import_fail_count = 0
 import_success_count = 0
 table_name = 'spotify_artists'
 insert_query = """
