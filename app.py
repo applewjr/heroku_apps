@@ -672,6 +672,92 @@ def youtube_trending():
 
 
 
+######################################
+######################################
+##### ETL status dashboard
+######################################
+######################################
+
+@app.route("/etl_dash", methods=["POST", "GET"])
+def etl_status_dash():
+
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+    today = date.today().strftime("%Y-%m-%d")
+
+    cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+    youtube_dash = """
+    SELECT
+    collected_dt
+    ,collected_date
+    ,count(1) cnt
+    FROM youtube_trending
+    GROUP BY collected_dt, collected_date
+    ORDER BY collected_dt DESC
+    LIMIT 10;
+    """
+    cursor.execute(youtube_dash)
+    youtube_dash = cursor.fetchall()
+    youtube_dash = pd.DataFrame(youtube_dash, columns=['Collected Datetime', 'Collected Date', 'Count of Rows'])
+
+
+    lol_dash = """
+    SELECT 'lol_summoner' AS table_name,  COUNT(1) AS row_count, (DATEDIFF(CURDATE(), MIN(pulled_date)) + 1) * 2 AS expected_cnt, MIN(pulled_dt) AS min_pulled_dt, MAX(pulled_dt) AS max_pulled_dt, NULL AS min_matchId, NULL AS max_matchId FROM lol_summoner
+        UNION ALL SELECT 'lol_champion' AS table_name, COUNT(1), 163, MIN(pulled_dt), MAX(pulled_dt), NULL, NULL FROM lol_champion
+        UNION ALL SELECT 'lol_all_match' AS table_name, COUNT(1), NULL, NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_all_match
+        UNION ALL SELECT 'lol_match' AS table_name, COUNT(1), (SELECT COUNT(1) FROM lol_all_match), MIN(gameCreation), MAX(gameCreation), MIN(matchId), MAX(matchId) FROM lol_match
+        UNION ALL SELECT 'lol_participants_info' AS table_name, COUNT(1), (SELECT COUNT(1) * 10 FROM lol_all_match), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_info
+        UNION ALL SELECT 'lol_participants_challenges' AS table_name, COUNT(1), (SELECT COUNT(1) * 10 FROM lol_all_match), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_challenges;
+    """
+    cursor.execute(lol_dash)
+    lol_dash = cursor.fetchall()
+    lol_dash = pd.DataFrame(lol_dash, columns=['Table Name', 'Row Cnt', 'Expect Cnt', 'Min Datetime', 'Max Datetime', 'Min ID', 'Max ID'])
+
+
+    spotify_dash = """
+    WITH all_dates AS (
+        SELECT collected_date FROM spotify_playlists
+        UNION SELECT collected_date FROM spotify_artists
+        UNION SELECT collected_date FROM spotify_tracks
+        )
+    SELECT
+     all_dates.collected_date
+    ,COALESCE(p.playlist_count, 0) AS playlist_count
+    ,COALESCE(a.artist_count, 0) AS artist_count
+    ,COALESCE(t.track_count, 0) AS track_count
+    FROM all_dates
+    LEFT JOIN (
+        SELECT collected_date, COUNT(*) AS playlist_count
+        FROM spotify_playlists
+        GROUP BY collected_date
+        ) p ON all_dates.collected_date = p.collected_date
+    LEFT JOIN (
+        SELECT collected_date, COUNT(*) AS artist_count
+        FROM spotify_artists
+        GROUP BY collected_date
+        ) a ON all_dates.collected_date = a.collected_date
+    LEFT JOIN (
+        SELECT collected_date, COUNT(*) AS track_count
+        FROM spotify_tracks
+        GROUP BY collected_date
+        ) t ON all_dates.collected_date = t.collected_date
+    ORDER BY all_dates.collected_date DESC
+    LIMIT 10;
+    """
+    cursor.execute(spotify_dash)
+    spotify_dash = cursor.fetchall()
+    spotify_dash = pd.DataFrame(spotify_dash, columns=['Collected Date', 'Playlist Count', 'Artist Count', 'Track Count'])
+
+    cursor.close()
+    conn.close()
+
+    return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash)
+
+
+
+
+
+
 
 
 
