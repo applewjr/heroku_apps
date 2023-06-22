@@ -569,28 +569,30 @@ def youtube_trending():
     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
     top_10_today = """
     WITH vid_rank AS (
-    SELECT chnl, MIN(vid_rank) AS best_vid_rank
-    FROM youtube_trending
-    WHERE vid_rank <= 10
-    GROUP BY chnl)
+        SELECT video, MIN(vid_rank) AS best_vid_rank
+        FROM youtube_trending
+        WHERE vid_rank <= 10
+        GROUP BY video
+        )
     ,rank_yesterday AS (
-    SELECT video, chnl, vid_rank AS rank_yesterday
-    FROM youtube_trending
-    WHERE collected_date = CURDATE()-1
-    AND vid_rank <= 10)
+        SELECT video, chnl, vid_rank AS rank_yesterday
+        FROM youtube_trending
+        WHERE collected_date = CURDATE()-1
+            AND vid_rank <= 10
+        )
     SELECT
-    yt.vid_rank
+     yt.vid_rank
     ,yt.video
     ,yt.chnl
     ,vid_rank.best_vid_rank
     ,CASE WHEN rank_yesterday.rank_yesterday IS NULL THEN "New"
-    ELSE rank_yesterday.rank_yesterday
-    END AS vid_rank_yesterday
+        ELSE rank_yesterday.rank_yesterday
+        END AS vid_rank_yesterday
     FROM youtube_trending AS yt
-    LEFT JOIN vid_rank ON yt.chnl = vid_rank.chnl
+    LEFT JOIN vid_rank ON yt.video = vid_rank.video
     LEFT JOIN rank_yesterday ON yt.video = rank_yesterday.video AND yt.chnl = rank_yesterday.chnl
     WHERE yt.collected_date = curdate()
-    AND vid_rank <= 10
+        AND vid_rank <= 10
     ORDER BY yt.vid_rank ASC;
     """
     cursor.execute(top_10_today)
@@ -600,7 +602,7 @@ def youtube_trending():
 
     top_10_title = """
     SELECT
-    video
+     video
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_vid_rank
     FROM youtube_trending
@@ -616,7 +618,7 @@ def youtube_trending():
 
     top_10_channel = """
     SELECT
-    chnl
+     chnl
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_channel_rank
     FROM youtube_trending
