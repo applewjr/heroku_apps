@@ -220,8 +220,11 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
                 # Retrieve audio features of the track
                 audio_features = sp.audio_features(info['id'])[0]
     
-                track_duration_ms = audio_features['duration_ms']
-                track_duration = f'{int(track_duration_ms / 3600000):02d}:{int((track_duration_ms / 60000) % 60):02d}:{int((track_duration_ms / 1000) % 60):02d}'
+                try:
+                    track_duration_ms = audio_features['duration_ms']
+                    track_duration = f'{int(track_duration_ms / 3600000):02d}:{int((track_duration_ms / 60000) % 60):02d}:{int((track_duration_ms / 1000) % 60):02d}'
+                except:
+                    track_duration = None
                 
                 # Parse release date and format as YYYY-MM-DD
                 track_release_date = info['album']['release_date']
@@ -237,19 +240,19 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
                     'track_name': info['name'],
                     'track_release_date': release_date_formatted,
                     'track_release_date_precision': info['album']['release_date_precision'],
-                    'danceability': audio_features['danceability'],
-                    'energy': audio_features['energy'],
-                    'trk_key': audio_features['key'],
-                    'loudness': audio_features['loudness'],
-                    'trk_mode': audio_features['mode'],
-                    'speechiness': audio_features['speechiness'],
-                    'acousticness': audio_features['acousticness'],
-                    'instrumentalness': audio_features['instrumentalness'],
-                    'liveness': audio_features['liveness'],
-                    'valence': audio_features['valence'],
-                    'tempo': audio_features['tempo'],
+                    'danceability': audio_features['danceability'] if audio_features and 'danceability' in audio_features else None,
+                    'energy': audio_features['energy'] if audio_features and 'energy' in audio_features else None,
+                    'trk_key': audio_features['key'] if audio_features and 'key' in audio_features else None,
+                    'loudness': audio_features['loudness'] if audio_features and 'loudness' in audio_features else None,
+                    'trk_mode': audio_features['mode'] if audio_features and 'mode' in audio_features else None,
+                    'speechiness': audio_features['speechiness'] if audio_features and 'speechiness' in audio_features else None,
+                    'acousticness': audio_features['acousticness'] if audio_features and 'acousticness' in audio_features else None,
+                    'instrumentalness': audio_features['instrumentalness'] if audio_features and 'instrumentalness' in audio_features else None,
+                    'liveness': audio_features['liveness'] if audio_features and 'liveness' in audio_features else None,
+                    'valence': audio_features['valence'] if audio_features and 'valence' in audio_features else None,
+                    'tempo': audio_features['tempo'] if audio_features and 'tempo' in audio_features else None,
                     'duration': track_duration,
-                    'time_signature': audio_features['time_signature'],
+                    'time_signature': audio_features['time_signature'] if audio_features and 'time_signature' in audio_features else None,
                     'collected_dt': now.strftime("%Y-%m-%d %H:%M:%S"),
                     'collected_date': now.strftime("%Y-%m-%d")
                 }
@@ -337,10 +340,10 @@ def get_artist_info(artist_ids, batch_size=50):
                 # Create a dictionary with artist info
                 artist_info = {
                     'artist_id': artist_id,
-                    'artist_name': artist['name'],
+                    'artist_name': artist['name'] if artist and 'name' in artist else None,
                     'genre': genre,
-                    'followers': artist['followers']['total'],
-                    'popularity': artist['popularity'],
+                    'followers': artist['followers']['total'] if artist and 'followers' in artist and 'total' in artist['followers'] else None,
+                    'popularity': artist['popularity'] if artist and 'popularity' in artist else None,
                     'collected_dt': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     'collected_date': datetime.now().strftime("%Y-%m-%d")
                 }
@@ -394,6 +397,8 @@ conn.close()
 # TODO
 # artists more data
 # album more data
+# more efficiently parse out the non-imports due to dups. query the data and assess dups in python, 
+    # then only insert those that will insert successfully
 
 
 
