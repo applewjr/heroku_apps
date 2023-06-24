@@ -651,32 +651,6 @@ def youtube_trending():
     top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 1 Count', 'Top 10 Count', 'Top 50 Count'])
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     oldest_date = """
     SELECT collected_date
     FROM youtube_trending
