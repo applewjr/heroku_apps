@@ -112,26 +112,12 @@ if 'playlists' in trending_data:
                 track_name = track['track']['name']
                 track_artist = track['track']['artists'][0]['name']
                 track_album = track['track']['album']['name']
-                # track_duration_ms = track['track']['duration_ms']
-                # track_release_date = track['track']['album']['release_date']
                 track_added_at = track['added_at']
                 track_popularity = track['track']['popularity']
                 track_id = track['track']['id']
                 track_artist_id = track['track']['artists'][0]['id']
                 track_album_id = track['track']['album']['id']
 
-                # Convert duration from milliseconds to minutes:seconds format
-                # track_duration = f'{int(track_duration_ms / 3600000):02d}:{int((track_duration_ms / 60000) % 60):02d}:{int((track_duration_ms / 1000) % 60):02d}'
-                
-                # # Parse release date and format as YYYY-MM-DD
-                # if len(track_release_date) == 4:
-                #     # Only year provided, append "-01-01" to make it YYYY-MM-DD
-                #     release_date_formatted = f'{track_release_date}-01-01'
-                # else:
-                #     release_date_formatted = datetime.datetime.strptime(track_release_date, "%Y-%m-%d").date().isoformat()
-
-                # Convert 'Added At' to 'YYYY-MM-DD HH:MM:SS' format
-                # added_at_datetime = datetime.datetime.strptime(track_added_at, "%Y-%m-%dT%H:%M:%SZ")
                 added_at_datetime = datetime.strptime(track_added_at, "%Y-%m-%dT%H:%M:%SZ")
                 added_at_formatted = added_at_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -157,7 +143,6 @@ if 'playlists' in trending_data:
                 day_index += 1
 
 playlist_df = pd.DataFrame(data)
-# playlist_df
 
 print_and_append(f"df created: {len(playlist_df) = }")
 
@@ -209,7 +194,6 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
     try:
         # Split track IDs into batches
         batches = [track_ids[i:i + batch_size] for i in range(0, len(track_ids), batch_size)]
-        
         metadata = []
         
         for batch in batches:
@@ -218,7 +202,10 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
             
             for info in track_info:
                 # Retrieve audio features of the track
-                audio_features = sp.audio_features(info['id'])[0]
+                try:
+                    audio_features = sp.audio_features(info['id'])[0]
+                except:
+                    audio_features = None
     
                 try:
                     track_duration_ms = audio_features['duration_ms']
@@ -226,13 +213,15 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
                 except:
                     track_duration = None
                 
-                # Parse release date and format as YYYY-MM-DD
-                track_release_date = info['album']['release_date']
-                if len(track_release_date) == 4:
-                    # Only year provided, append "-01-01" to make it YYYY-MM-DD
-                    release_date_formatted = f'{track_release_date}-01-01'
-                else:
-                    release_date_formatted = datetime.strptime(track_release_date, "%Y-%m-%d").date().isoformat()
+                try:
+                    track_release_date = info['album']['release_date']
+                    if len(track_release_date) == 4:
+                        # Only year provided, append "-01-01" to make it YYYY-MM-DD
+                        release_date_formatted = f'{track_release_date}-01-01'
+                    else:
+                        release_date_formatted = datetime.strptime(track_release_date, "%Y-%m-%d").date().isoformat()
+                except:
+                    release_date_formatted = None
 
                 # Create a dictionary with track metadata
                 track_metadata = {
@@ -267,13 +256,11 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
     except spotipy.exceptions.SpotifyException:
         print("Unable to connect to the Spotify API.")
 
-# track_ids = df['track_id'].to_list()[0:10]  # Replace with a list of track IDs
-
 track_ids = playlist_df['track_id'].to_list()
 track_df = get_track_metadata_bulk(track_ids)
-# track_df
 
 print_and_append(f"df created: {len(track_df) = }")
+
 
 
 conn = mysql.connector.connect(**config)
@@ -349,8 +336,6 @@ def get_artist_info(artist_ids, batch_size=50):
                 }
 
                 metadata.append(artist_info)
-
-                # time.sleep(0.25)
 
         # Convert the list of dictionaries to a pandas DataFrame
         df = pd.DataFrame(metadata)
