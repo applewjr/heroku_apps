@@ -567,6 +567,7 @@ def youtube_trending():
     today = date.today().strftime("%Y-%m-%d")
 
     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+
     top_10_today = """
     WITH vid_rank AS (
         SELECT video, MIN(vid_rank) AS best_vid_rank
@@ -603,17 +604,18 @@ def youtube_trending():
     top_10_title = """
     SELECT
      video
+    ,chnl
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_vid_rank
     FROM youtube_trending
-    WHERE vid_rank <= 10
+    WHERE vid_rank <= 50
     GROUP BY video
     ORDER BY occurrences DESC, best_vid_rank ASC
     LIMIT 10;
     """
     cursor.execute(top_10_title)
     top_10_title = cursor.fetchall()
-    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Count of Days', 'Best Video Rank'])
+    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
 
 
     top_10_channel = """
@@ -622,7 +624,7 @@ def youtube_trending():
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_channel_rank
     FROM youtube_trending
-    WHERE vid_rank <= 10
+    WHERE vid_rank <= 50
     GROUP BY chnl
     ORDER BY occurrences DESC, best_channel_rank ASC
     LIMIT 10;
@@ -630,6 +632,49 @@ def youtube_trending():
     cursor.execute(top_10_channel)
     top_10_channel = cursor.fetchall()
     top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
+
+
+    top_categories = """
+    SELECT
+     category
+    ,SUM(CASE WHEN vid_rank <= 1 THEN 1 ELSE 0 END) AS top_1_count
+    ,SUM(CASE WHEN vid_rank <= 10 THEN 1 ELSE 0 END) AS top_10_count
+    ,SUM(CASE WHEN vid_rank <= 50 THEN 1 ELSE 0 END) AS top_50_count
+    FROM youtube_trending AS yt
+    LEFT JOIN youtube_cat AS cat ON yt.vid_cat_id = cat.id
+    GROUP BY category
+    ORDER BY top_1_count DESC, top_10_count DESC, top_50_count DESC  
+    ;
+    """
+    cursor.execute(top_categories)
+    top_categories = cursor.fetchall()
+    top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 1 Count', 'Top 10 Count', 'Top 50 Count'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     oldest_date = """
@@ -665,7 +710,7 @@ def youtube_trending():
     conn.close()
 
     return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date)
+        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories)
 
 
 
