@@ -70,11 +70,12 @@
     <br> 
 
     <div class="dashboard-section">
-        <h3>Top 10 Videos (Last {{ day_count }} Days)</h3>
+        <h3>Top 10 Videos</h3>
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Video</th>
+                    <th>Channel</th>
                     <th>Count of Days</th>
                     <th>Best Video Rank</th>
                 </tr>
@@ -83,6 +84,7 @@
                 {% for index, row in top_10_title.iterrows() %}
                 <tr>
                     <td>{{ row['Video'] }}</td>
+                    <td>{{ row['Channel'] }}</td>
                     <td>{{ row['Count of Days'] }}</td>
                     <td>{{ row['Best Video Rank'] }}</td>
                 </tr>
@@ -93,8 +95,7 @@
     <br>
 
     <div class="dashboard-section">
-        <h3>Top 10 Channels (Last {{ day_count }} Days)</h3>
-        <p>Count of video days can be higher than count of days if a channel has had multiple top 10 videos at one time</p>
+        <h3>Top 10 Channels</h3>
         <table class="data-table">
             <thead>
                 <tr>
@@ -109,6 +110,31 @@
                     <td>{{ row['Channel'] }}</td>
                     <td>{{ row['Count of Video Days'] }}</td>
                     <td>{{ row['Best Channel Rank'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br>
+
+    <div class="dashboard-section">
+        <h3>Highest Ranked Video Categories</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Top 1 Count</th>
+                    <th>Top 10 Count</th>
+                    <th>Top 50 Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in top_categories.iterrows() %}
+                <tr>
+                    <td>{{ row['Category'] }}</td>
+                    <td>{{ row['Top 1 Count'] }}</td>
+                    <td>{{ row['Top 10 Count'] }}</td>
+                    <td>{{ row['Top 50 Count'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
