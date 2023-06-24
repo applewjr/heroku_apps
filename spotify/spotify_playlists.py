@@ -148,8 +148,6 @@ print_and_append(f"df created: {len(playlist_df) = }")
 
 
 
-
-
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
 
@@ -185,6 +183,24 @@ conn.close()
 
 
 
+
+
+
+
+# only return the track_id that are not already in spotify_tracks
+print_and_append(f"pre cross ref: {len(playlist_df) = }")
+conn = mysql.connector.connect(**config)
+cursor = conn.cursor()
+cursor.execute("""SELECT DISTINCT track_id FROM spotify_tracks;""")
+result = cursor.fetchall()
+conn.commit()
+cursor.close()
+conn.close()
+mysql_track_id = pd.DataFrame(result, columns=["track_id"])
+all_match_ids_set = set(playlist_df['track_id']) # Convert the list of IDs to a set for faster membership checking
+filtered_ids = [id for id in all_match_ids_set if id not in mysql_track_id["track_id"].values] # Filter the IDs that are in all_match_ids but not in mysql_track_id
+track_ids = [str(id) for id in filtered_ids] # Convert the filtered IDs to a list of strings
+print_and_append(f"post cross ref: {len(track_ids) = }")
 
 
 
@@ -257,7 +273,6 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
     except spotipy.exceptions.SpotifyException:
         print("Unable to connect to the Spotify API.")
 
-track_ids = playlist_df['track_id'].to_list()
 track_df = get_track_metadata_bulk(track_ids)
 
 print_and_append(f"df created: {len(track_df) = }")
@@ -267,36 +282,37 @@ print_and_append(f"df created: {len(track_df) = }")
 
 
 
-# TODO - query spotify_tracks for track_id that already exist. drop them from track_df
-    # and a prep condition to not run anything in len(track_df) == 0
 
-conn = mysql.connector.connect(**config)
-cursor = conn.cursor()
+if len(track_df) == 0:
+    print_and_append("skip spotify_tracks, no new data to run")
+else:
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
 
-import_fail_count = 0
-import_success_count = 0
-table_name = 'spotify_tracks'
-insert_query = """
-    INSERT INTO {} (track_id, track_name, track_release_date, track_release_date_precision, danceability, energy, trk_key, loudness, \
-trk_mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo, duration, time_signature, collected_dt, collected_date)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """.format(table_name)
-for r in track_df.itertuples(index=False):
-    values = (r.track_id, r.track_name, r.track_release_date, r.track_release_date_precision, r.danceability, r.energy, r.trk_key, r.loudness, \
-r.trk_mode, r.speechiness, r.acousticness, r.instrumentalness, r.liveness, r.valence, r.tempo, r.duration, r.time_signature, r.collected_dt, r.collected_date)
-    try:
-        cursor.execute(insert_query, values)
-        conn.commit()
-        import_success_count += 1
-    except mysql.connector.Error as err:
-        import_fail_count += 1
-        if "Duplicate entry" not in str(err): # expect many import fails due to dups during typical dailies
-            print_and_append(f"Error on import: {str(err)}")
+    import_fail_count = 0
+    import_success_count = 0
+    table_name = 'spotify_tracks'
+    insert_query = """
+        INSERT INTO {} (track_id, track_name, track_release_date, track_release_date_precision, danceability, energy, trk_key, loudness, \
+    trk_mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo, duration, time_signature, collected_dt, collected_date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """.format(table_name)
+    for r in track_df.itertuples(index=False):
+        values = (r.track_id, r.track_name, r.track_release_date, r.track_release_date_precision, r.danceability, r.energy, r.trk_key, r.loudness, \
+    r.trk_mode, r.speechiness, r.acousticness, r.instrumentalness, r.liveness, r.valence, r.tempo, r.duration, r.time_signature, r.collected_dt, r.collected_date)
+        try:
+            cursor.execute(insert_query, values)
+            conn.commit()
+            import_success_count += 1
+        except mysql.connector.Error as err:
+            import_fail_count += 1
+            if "Duplicate entry" not in str(err): # expect many import fails due to dups during typical dailies
+                print_and_append(f"Error on import: {str(err)}")
 
-print_and_append(f"{table_name}: {import_success_count = }, {import_fail_count = }")
+    print_and_append(f"{table_name}: {import_success_count = }, {import_fail_count = }")
 
-cursor.close()
-conn.close()
+    cursor.close()
+    conn.close()
 
 
 
