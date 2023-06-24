@@ -168,8 +168,9 @@ for r in playlist_df.itertuples(index=False):
         cursor.execute(insert_query, values)
         conn.commit()
         import_success_count += 1
-    except:
+    except mysql.connector.Error as err:
         import_fail_count += 1
+        print_and_append(f"Error on import: {str(err)}")
 
 print_and_append(f"{table_name}: {import_success_count = }, {import_fail_count = }")
 
@@ -263,6 +264,12 @@ print_and_append(f"df created: {len(track_df) = }")
 
 
 
+
+
+
+# TODO - query spotify_tracks for track_id that already exist. drop them from track_df
+    # and a prep condition to not run anything in len(track_df) == 0
+
 conn = mysql.connector.connect(**config)
 cursor = conn.cursor()
 
@@ -281,8 +288,10 @@ r.trk_mode, r.speechiness, r.acousticness, r.instrumentalness, r.liveness, r.val
         cursor.execute(insert_query, values)
         conn.commit()
         import_success_count += 1
-    except:
+    except mysql.connector.Error as err:
         import_fail_count += 1
+        if "Duplicate entry" not in str(err): # expect many import fails due to dups during typical dailies
+            print_and_append(f"Error on import: {str(err)}")
 
 print_and_append(f"{table_name}: {import_success_count = }, {import_fail_count = }")
 
@@ -368,8 +377,9 @@ for r in artist_df.itertuples(index=False):
         cursor.execute(insert_query, values)
         conn.commit()
         import_success_count += 1
-    except:
+    except mysql.connector.Error as err:
         import_fail_count += 1
+        print_and_append(f"Error on import: {str(err)}")
 
 print_and_append(f"{table_name}: {import_success_count = }, {import_fail_count = }")
 
