@@ -150,6 +150,7 @@ for key in insert_script.keys():
         commit_count += 1
     except mysql.connector.Error as err:
         fail_count += 1
+        print_and_append("Error on import:", str(err))
 cursor.close()
 conn.close()
 print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
@@ -231,6 +232,7 @@ for key in insert_script.keys():
         commit_count += 1
     except mysql.connector.Error as err:
         fail_count += 1
+        print_and_append("Error on import:", str(err))
 cursor.close()
 conn.close()
 print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
@@ -343,6 +345,7 @@ else:
             commit_count += 1
         except mysql.connector.Error as err:
             fail_count += 1
+            print_and_append("Error on import:", str(err))
     cursor.close()
     conn.close()
     
@@ -403,6 +406,7 @@ else:
             commit_count += 1
         except mysql.connector.Error as err:
             fail_count += 1
+            print_and_append("Error on import:", str(err))
     cursor.close()
     conn.close()
     
@@ -462,6 +466,7 @@ else:
             commit_count += 1
         except mysql.connector.Error as err:
             fail_count += 1
+            print_and_append("Error on import:", str(err))
     cursor.close()
     conn.close()
     
