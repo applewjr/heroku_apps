@@ -47,7 +47,7 @@ start_num = 0
 count_num = 50
 
 gmail_sender_email = 'james.r.applewhite@gmail.com'
-gmail_receiver_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = ['james.r.applewhite@gmail.com', 'justinevtruong@gmail.com']
 gmail_subject = 'lol_data_import.py'
 gmail_list = []
 
@@ -478,7 +478,7 @@ gmail_message = '\n'.join(gmail_list)
 msg = MIMEText(gmail_message)
 msg['Subject'] = gmail_subject
 msg['From'] = gmail_sender_email
-msg['To'] = gmail_receiver_email
+msg['To'] = ', '.join(gmail_receiver_email)
 with smtplib.SMTP('smtp.gmail.com', 587) as server:
     server.starttls()
     server.login(gmail_sender_email, GMAIL_PASS)
