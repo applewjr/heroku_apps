@@ -278,6 +278,9 @@ print_and_append(f"{len(master_match_data) = }")
 
 
 
+
+
+
 #########################
 #########################
 ##### lol_all_match
@@ -292,14 +295,23 @@ else:
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
     query = f"{insert_or_replace} INTO {table_name} (matchId, allMatch) VALUES (%s, %s)"
+    commit_count = 0
+    fail_count = 0
     for match_id, match_data in master_match_data.items():
-        match_id = str(match_id)
-        cursor.execute(query, (match_id, json.dumps(match_data)))
-    conn.commit()
+        try:
+            match_id = str(match_id)
+            cursor.execute(query, (match_id, json.dumps(match_data)))
+            conn.commit()
+            commit_count += 1
+        except:
+            fail_count += 1
+            print_and_append(f"Error on import: {str(err)}")            
     cursor.close()
     conn.close()
-    # print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
-    print_and_append("lol_all_match complete")
+    print_and_append(f"{table_name}: {commit_count = }, {fail_count = }")
+
+
+
 
 
 
