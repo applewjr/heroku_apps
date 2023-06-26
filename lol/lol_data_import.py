@@ -303,7 +303,7 @@ else:
             cursor.execute(query, (match_id, json.dumps(match_data)))
             conn.commit()
             commit_count += 1
-        except:
+        except mysql.connector.Error as err:
             fail_count += 1
             print_and_append(f"Error on import: {str(err)}")            
     cursor.close()
