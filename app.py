@@ -8,7 +8,6 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
-import matplotlib.pyplot as plt
 
 
 ########## local functions ##########
