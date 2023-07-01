@@ -51,7 +51,6 @@
                     <th>Channel</th>
                     <th>Rank</th>
                     <th>Best Video Rank</th>
-                    <!-- <th>Video Rank Yesterday</th> -->
                 </tr>
             </thead>
             <tbody>
@@ -61,7 +60,6 @@
                     <td>{{ row['Channel'] }}</td>
                     <td>{{ row['Rank'] }}</td>
                     <td>{{ row['Best Video Rank'] }}</td>
-                    <!-- <td>{{ row['Video Rank Yesterday'] }}</td> -->
                 </tr>
                 {% endfor %}
             </tbody>
@@ -140,6 +138,10 @@
             </tbody>
         </table>
     </div>
+    <br>
+
+    <img src="{{ plot_file }}" alt="Plot">
+    <!-- <img src="static/plot.png" alt="youtube plot"> -->
     <br>
 
     <p>Updates daily at 12 am PST</p>

@@ -8,6 +8,7 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
+import matplotlib.pyplot as plt
 
 
 ########## local functions ##########
@@ -20,6 +21,8 @@ from functions import wordle
 from functions import stocks
 from functions import all_words
 from functions import data_analysis
+
+from functions import plot_viz
 
 
 ########## local data ##########
@@ -683,8 +686,16 @@ def youtube_trending():
     cursor.close()
     conn.close()
 
+    plot = plot_viz.yt_plot()
+    temp_plot_file = 'static/plot.png'  # You can change the path and filename as needed
+    plot.savefig(temp_plot_file)
+
+
+
+
     return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories)
+        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories, plot_file=temp_plot_file
+        )
 
 
 
