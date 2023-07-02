@@ -2,34 +2,44 @@ import mysql.connector
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from adjustText import adjust_text
 import matplotlib
 matplotlib.use('Agg') # allows Matplotlib to render plots directly to image files without requiring a GUI
 import os
 
-def yt_plot():
-    if 'IS_HEROKU' in os.environ:
-        # Running on Heroku, load values from Heroku Config Vars
-        config = {
-            'user': os.environ.get('jawsdb_user'),
-            'password': os.environ.get('jawsdb_pass'),
-            'host': os.environ.get('jawsdb_host'),
-            'database': os.environ.get('jawsdb_db'),
-            'raise_on_warnings': True
-            }
+if 'IS_HEROKU' in os.environ:
+    # Running on Heroku, load values from Heroku Config Vars
+    config = {
+        'user': os.environ.get('jawsdb_user'),
+        'password': os.environ.get('jawsdb_pass'),
+        'host': os.environ.get('jawsdb_host'),
+        'database': os.environ.get('jawsdb_db'),
+        'raise_on_warnings': True
+        }
+else:
+    # Running locally, load values from secret_pass.py
+    import secret_pass
+    config = {
+        'user': secret_pass.mysql_user,
+        'password': secret_pass.mysql_pass,
+        'host': secret_pass.mysql_host,
+        'database': secret_pass.mysql_bd,
+        'raise_on_warnings': True
+        }
+
+def format_tick_value(value):
+    if abs(value) >= 1e9:
+        return f'{value/1e9:.0f}B'
+    elif abs(value) >= 1e6:
+        return f'{value/1e6:.0f}M'
+    elif abs(value) >= 1e3:
+        return f'{value/1e3:.0f}K'
     else:
-        # Running locally, load values from secret_pass.py
-        import secret_pass
-        config = {
-            'user': secret_pass.mysql_user,
-            'password': secret_pass.mysql_pass,
-            'host': secret_pass.mysql_host,
-            'database': secret_pass.mysql_bd,
-            'raise_on_warnings': True
-            }
+        return str(value)
+        
 
-
-
-
+def yt_stacked_bar_plot():
     cat_dict = {
         'Film & Animation': 'film_animation'
         ,'Autos & Vehicles': 'autos_vehicles'
@@ -116,6 +126,8 @@ def yt_plot():
     new_top_categories_df['Other'] = top_categories_df[other_categories].sum(axis=1)
     new_top_categories = top_categories + ['Other']
 
+    plt.clf()
+
     # Plot the stacked bar chart
     plt.figure(figsize=(10, 6))  # Adjust the figure size as per your preference
 
@@ -139,17 +151,116 @@ def yt_plot():
 
     # Show the plot
     plt.tight_layout()
-    # plt.show()
 
     return plt
 
-    # plot_filename = 'plot.png'
 
-    # # return plot_filename
+def yt_video_scatter():
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
 
-    # plt.savefig(plot_filename)
+    sql_query = """
+        SELECT MAX(vid_likes), MAX(vid_views), chnl
+        FROM youtube_trending
+        WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
+        GROUP BY chnl;
+        """
 
-    # static_folder = 'static/'
-    # plot_filename = 'plot.png'
-    # plot_path = os.path.join(static_folder, plot_filename)
-    # plt.savefig(plot_path)
+    cursor.execute(sql_query)
+    data = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    # Separate x, y, and names
+    x = [item[0] for item in data]
+    y = [item[1] for item in data]
+    names = [item[2] for item in data]
+
+    plt.clf()
+
+    # Create scatter plot
+    plt.scatter(x, y)
+    plt.margins(0.1)
+
+    # Find the indices of the 5 most extreme outliers
+    extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
+
+    # Plot the names for the 5 most extreme outliers
+    texts = []
+    for i in extreme_indices:
+        texts.append(plt.text(x[i], y[i], names[i], ha='left', va='bottom'))
+
+    # Adjust the text positions to avoid overlap
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
+
+    # Set labels and title
+    plt.xlabel('Video Likes')
+    plt.ylabel('Video Views')
+    plt.title('Channels with Trending Videos, Last 7 Days')
+
+    # Format the x-axis ticks as abbreviated values
+    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+
+    # Format the y-axis ticks as abbreviated values
+    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
+
+    # Show the plot
+    # plt.show()
+    return plt
+
+
+
+def yt_chnl_scatter():
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+
+    sql_query = """
+        SELECT  MAX(chnl_subs), MAX(chnl_views), chnl
+        FROM youtube_trending
+        WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
+        GROUP BY chnl;
+        """
+
+    cursor.execute(sql_query)
+    data = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    # Separate x, y, and names
+    x = [item[0] for item in data]
+    y = [item[1] for item in data]
+    names = [item[2] for item in data]
+
+    plt.clf()
+
+    # Create scatter plot
+    plt.scatter(x, y)
+    plt.margins(0.1)
+
+    # Find the indices of the 5 most extreme outliers
+    extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
+
+    # Plot the names for the 5 most extreme outliers
+    texts = []
+    for i in extreme_indices:
+        texts.append(plt.text(x[i], y[i], names[i], ha='left', va='bottom'))
+
+    # Adjust the text positions to avoid overlap
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
+
+    # Set labels and title
+    plt.xlabel('Channel Subs')
+    plt.ylabel('Channel Views')
+    plt.title('Channels with Trending Videos, Last 7 Days')
+
+    # Format the x-axis ticks as abbreviated values
+    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+
+    # Format the y-axis ticks as abbreviated values
+    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
+
+    # Show the plot
+    # plt.show()
+    return plt
