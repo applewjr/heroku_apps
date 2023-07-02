@@ -685,15 +685,22 @@ def youtube_trending():
     cursor.close()
     conn.close()
 
-    plot = plot_viz.yt_plot()
-    temp_plot_file = 'static/plot.png'  # You can change the path and filename as needed
-    plot.savefig(temp_plot_file)
+    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot()
+    temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
+    yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
+    yt_video_scatter = plot_viz.yt_video_scatter()
+    temp_yt_video_scatter = 'static/yt_video_scatter.png'
+    yt_video_scatter.savefig(temp_yt_video_scatter)
 
+    yt_chnl_scatter = plot_viz.yt_chnl_scatter()
+    temp_yt_chnl_scatter = 'static/yt_chnl_scatter.png'
+    yt_chnl_scatter.savefig(temp_yt_chnl_scatter)
 
 
     return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories, plot_file=temp_plot_file
+        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories, \
+        yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
         )
 
 
