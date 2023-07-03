@@ -43,7 +43,7 @@
     <br>
     
     <div class="dashboard-section">
-        <h3>Top 10 Videos Today</h3>
+        <h3>Top 10 Trending Videos Today</h3>
         <table class="data-table">
             <thead>
                 <tr>
@@ -69,6 +69,7 @@
 
     <div class="dashboard-section">
         <h3>Top 10 Videos</h3>
+        <p>Last 30 days</p>
         <table class="data-table">
             <thead>
                 <tr>
@@ -94,6 +95,7 @@
 
     <div class="dashboard-section">
         <h3>Top 10 Channels</h3>
+        <p>Last 30 days</p>
         <table class="data-table">
             <thead>
                 <tr>
@@ -117,6 +119,7 @@
 
     <div class="dashboard-section">
         <h3>Highest Ranked Video Categories</h3>
+        <p>Last 30 days</p>
         <table class="data-table">
             <thead>
                 <tr>
@@ -142,14 +145,15 @@
 
     <img src="{{ yt_stacked_bar_plot }}" alt="Plot">
     <br>
+    <br>
     <img src="{{ yt_video_scatter }}" alt="Plot">
+    <br>
     <br>
     <img src="{{ yt_chnl_scatter }}" alt="Plot">
     <br>
+    <br>
 
     <p>Updates daily at 12 am PST</p>
-    <p>Date range availabe: {{ oldest_date }} - {{ newest_date }} ({{ day_count }} Days)</p>
-    <!-- <p>Data collection started on 2023-06-03. The data history are working up to 90 days</p> -->
     <br>
     <br>
     <br>
