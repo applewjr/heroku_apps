@@ -566,7 +566,7 @@ def youtube_trending():
 
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
-    today = date.today().strftime("%Y-%m-%d")
+    # today = date.today().strftime("%Y-%m-%d")
 
     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
@@ -610,7 +610,7 @@ def youtube_trending():
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_vid_rank
     FROM youtube_trending
-    WHERE vid_rank <= 50
+    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
     GROUP BY video
     ORDER BY occurrences DESC, best_vid_rank ASC
     LIMIT 10;
@@ -626,7 +626,7 @@ def youtube_trending():
     ,COUNT(*) AS occurrences
     ,MIN(vid_rank) AS best_channel_rank
     FROM youtube_trending
-    WHERE vid_rank <= 50
+    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
     GROUP BY chnl
     ORDER BY occurrences DESC, best_channel_rank ASC
     LIMIT 10;
@@ -644,6 +644,7 @@ def youtube_trending():
     ,SUM(CASE WHEN vid_rank <= 50 THEN 1 ELSE 0 END) AS top_50_count
     FROM youtube_trending AS yt
     LEFT JOIN youtube_cat AS cat ON yt.vid_cat_id = cat.id
+    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
     GROUP BY category
     ORDER BY top_1_count DESC, top_10_count DESC, top_50_count DESC  
     ;
@@ -652,42 +653,8 @@ def youtube_trending():
     top_categories = cursor.fetchall()
     top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 1 Count', 'Top 10 Count', 'Top 50 Count'])
 
-
-    oldest_date = """
-    SELECT collected_date
-    FROM youtube_trending
-    ORDER BY collected_date ASC
-    LIMIT 1
-    """
-    cursor.execute(oldest_date)
-    oldest_date = cursor.fetchone()
-    oldest_date = oldest_date[0].strftime("%Y-%m-%d")
-
-    newest_date = """
-    SELECT collected_date
-    FROM youtube_trending
-    ORDER BY collected_date DESC
-    LIMIT 1
-    """
-    cursor.execute(newest_date)
-    newest_date = cursor.fetchone()
-    newest_date = newest_date[0].strftime("%Y-%m-%d")
-
-    day_count = """
-    SELECT COUNT(DISTINCT collected_date) AS dist_date
-    FROM youtube_trending
-    LIMIT 1
-    """
-    cursor.execute(day_count)
-    day_count = cursor.fetchone()
-    day_count = day_count[0]
-
     cursor.close()
     conn.close()
-
-    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot()
-    temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
-    yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
     yt_video_scatter = plot_viz.yt_video_scatter()
     temp_yt_video_scatter = 'static/yt_video_scatter.png'
@@ -697,9 +664,12 @@ def youtube_trending():
     temp_yt_chnl_scatter = 'static/yt_chnl_scatter.png'
     yt_chnl_scatter.savefig(temp_yt_chnl_scatter)
 
+    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot() # set last due to custom figsize
+    temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
+    yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
-    return render_template("youtube_trending.html", oldest_date=oldest_date, day_count=day_count, top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel, newest_date=newest_date, top_categories=top_categories, \
+    return render_template("youtube_trending.html", top_10_today=top_10_today, \
+        top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
         )
 

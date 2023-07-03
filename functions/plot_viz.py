@@ -86,7 +86,7 @@ def yt_stacked_bar_plot():
         LEFT JOIN youtube_cat AS cat ON yt.vid_cat_id = cat.id
         GROUP BY collected_date
         ORDER BY collected_date DESC
-        LIMIT 28; -- last 4 weeks
+        LIMIT 30;
         """)
     sql_query = ' '.join(dynamic_query)
 
@@ -139,12 +139,15 @@ def yt_stacked_bar_plot():
         bottom += np.array(values)
 
     # Set the x-axis ticks and labels
-    plt.xticks(range(len(dates)), dates, rotation=90, ha='right')
+    plt.xticks(range(len(dates)), dates, rotation=90, ha='center')
 
     # Add labels and title
-    plt.xlabel('Date (Last 4 Weeks)')
+    plt.xlabel('Date (Last 30 Days)')
     plt.ylabel('Video Count')
-    plt.title('Top Categories by Date')
+    plt.suptitle('Daily 50 Trending Videos By Category', fontsize=16)
+    # plt.title('Last 30 days', fontsize=10)
+    # plt.text(0.5, -0.35, 'Last 30 days', fontsize=10, ha='center', transform=plt.gca().transAxes)
+    # plt.title('Top Categories')
 
     # Adjust the legend placement
     plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
@@ -153,7 +156,6 @@ def yt_stacked_bar_plot():
     plt.tight_layout()
 
     return plt
-
 
 def yt_video_scatter():
     conn = mysql.connector.connect(**config)
@@ -181,7 +183,7 @@ def yt_video_scatter():
 
     # Create scatter plot
     plt.scatter(x, y)
-    plt.margins(0.1)
+    # plt.margins(0.1)
 
     # Find the indices of the 5 most extreme outliers
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
@@ -197,7 +199,10 @@ def yt_video_scatter():
     # Set labels and title
     plt.xlabel('Video Likes')
     plt.ylabel('Video Views')
-    plt.title('Channels with Trending Videos, Last 7 Days')
+    plt.suptitle('Trending Videos: Views ~ Likes', fontsize=16)
+    # plt.title('Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10)
+    plt.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10, ha='center', transform=plt.gca().transAxes)
+    # plt.title('Channels with Trending Videos')
 
     # Format the x-axis ticks as abbreviated values
     plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
@@ -205,6 +210,7 @@ def yt_video_scatter():
     # Format the y-axis ticks as abbreviated values
     plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
 
+    plt.tight_layout()
     # Show the plot
     # plt.show()
     return plt
@@ -237,7 +243,7 @@ def yt_chnl_scatter():
 
     # Create scatter plot
     plt.scatter(x, y)
-    plt.margins(0.1)
+    # plt.margins(0.1)
 
     # Find the indices of the 5 most extreme outliers
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
@@ -253,7 +259,10 @@ def yt_chnl_scatter():
     # Set labels and title
     plt.xlabel('Channel Subs')
     plt.ylabel('Channel Views')
-    plt.title('Channels with Trending Videos, Last 7 Days')
+    plt.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16)
+    # plt.title('Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10)
+    plt.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Channels Tagged', fontsize=10, ha='center', transform=plt.gca().transAxes)
+    # plt.title('Channels with Trending Videos')
 
     # Format the x-axis ticks as abbreviated values
     plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
@@ -261,6 +270,7 @@ def yt_chnl_scatter():
     # Format the y-axis ticks as abbreviated values
     plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
 
+    plt.tight_layout()
     # Show the plot
     # plt.show()
     return plt
