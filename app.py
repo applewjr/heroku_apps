@@ -694,6 +694,19 @@ def etl_status_dash():
     today = date.today().strftime("%Y-%m-%d")
 
     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+
+    all_dash = """
+    SELECT 'YouTube' AS table_name, MIN(collected_dt) AS min, MAX(collected_dt) AS max, FORMAT(COUNT(*), 0) AS rows_count FROM youtube_trending
+    UNION ALL SELECT 'Spotify Playlists', MIN(collected_dt), MAX(collected_dt), FORMAT(COUNT(*), 0) FROM spotify_playlists
+    UNION ALL SELECT 'Spotify Artists', MIN(collected_dt), MAX(collected_dt), FORMAT(COUNT(*), 0) FROM spotify_artists
+    UNION ALL SELECT 'Spotify Tracks', MIN(collected_dt), MAX(collected_dt), FORMAT(COUNT(*), 0) FROM spotify_tracks
+    UNION ALL SELECT 'LoL Summoner', MIN(pulled_dt), MAX(pulled_dt), FORMAT(COUNT(*), 0) FROM lol_summoner
+    UNION ALL SELECT 'LoL Champion', MIN(pulled_dt), MAX(pulled_dt), FORMAT(COUNT(*), 0) FROM lol_champion;
+    """
+    cursor.execute(all_dash)
+    all_dash = cursor.fetchall()
+    all_dash = pd.DataFrame(all_dash, columns=['Table Name', 'Min Datetime', 'Max Datetime', 'Row Count'])
+
     youtube_dash = """
     SELECT
     collected_dt
@@ -759,7 +772,7 @@ def etl_status_dash():
     cursor.close()
     conn.close()
 
-    return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash)
+    return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash, all_dash=all_dash)
 
 
 

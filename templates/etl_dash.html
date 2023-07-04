@@ -43,6 +43,31 @@
     <br>
     
     <div class="dashboard-section">
+        <h3>High Level Info for All ETL</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Table Name</th>
+                    <th>Min Datetime</th>
+                    <th>Max Datetime</th>
+                    <th>Row Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in all_dash.iterrows() %}
+                <tr>
+                    <td>{{ row['Table Name'] }}</td>
+                    <td>{{ row['Min Datetime'] }}</td>
+                    <td>{{ row['Max Datetime'] }}</td>
+                    <td>{{ row['Row Count'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br> 
+
+    <div class="dashboard-section">
         <h3>YouTube</h3>
         <p>10 most recent days</p>
         <p>Expect: New date daily with 50 "Count of Rows"</p>
