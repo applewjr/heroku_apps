@@ -109,7 +109,7 @@ if 'playlists' in trending_data:
         if 'items' in playlist_tracks_data:
             tracks = playlist_tracks_data['items']
             for track in tracks:
-                track_name = track['track']['name']
+                track_name = track['track']['name'] if track is not None and track['track'] is not None else None
                 track_artist = track['track']['artists'][0]['name']
                 track_album = track['track']['album']['name']
                 track_added_at = track['added_at']
