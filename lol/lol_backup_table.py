@@ -111,17 +111,17 @@ print_and_append("complete: backup of lol_champion")
 
 
 
-cursor.execute("""DROP TABLE IF EXISTS lol_all_match_backup;""")
-query = """
-CREATE TABLE IF NOT EXISTS lol_all_match_backup (
-id INT AUTO_INCREMENT PRIMARY KEY,
-matchId VARCHAR(30),
-allMatch JSON,
-UNIQUE KEY unique_all_match (matchID)
-) AS SELECT * FROM lol_all_match;
-"""
-cursor.execute(query)
-print_and_append("complete: backup of lol_all_match")
+# cursor.execute("""DROP TABLE IF EXISTS lol_all_match_backup;""")
+# query = """
+# CREATE TABLE IF NOT EXISTS lol_all_match_backup (
+# id INT AUTO_INCREMENT PRIMARY KEY,
+# matchId VARCHAR(30),
+# allMatch JSON,
+# UNIQUE KEY unique_all_match (matchID)
+# ) AS SELECT * FROM lol_all_match;
+# """
+# cursor.execute(query)
+# print_and_append("complete: backup of lol_all_match")
 
 
 
