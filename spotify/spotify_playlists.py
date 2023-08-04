@@ -110,13 +110,34 @@ if 'playlists' in trending_data:
             tracks = playlist_tracks_data['items']
             for track in tracks:
                 track_name = track['track']['name'] if track is not None and track['track'] is not None else None
-                track_artist = track['track']['artists'][0]['name']
-                track_album = track['track']['album']['name']
-                track_added_at = track['added_at']
-                track_popularity = track['track']['popularity']
-                track_id = track['track']['id']
-                track_artist_id = track['track']['artists'][0]['id']
-                track_album_id = track['track']['album']['id']
+                try:
+                    track_artist = track['track']['artists'][0]['name']
+                except:
+                    track_artist = None
+                try:
+                    track_album = track['track']['album']['name']
+                except:
+                    track_album = None
+                try:
+                    track_added_at = track['added_at']
+                except:
+                    track_added_at = None
+                try:
+                    track_popularity = track['track']['popularity']
+                except:
+                    track_popularity = None
+                try:
+                    track_id = track['track']['id']
+                except:
+                    track_id = None
+                try:
+                    track_artist_id = track['track']['artists'][0]['id']
+                except:
+                    track_artist_id = None
+                try:
+                    track_album_id = track['track']['album']['id']
+                except:
+                    track_album_id = None
 
                 added_at_datetime = datetime.strptime(track_added_at, "%Y-%m-%dT%H:%M:%SZ")
                 added_at_formatted = added_at_datetime.strftime("%Y-%m-%d %H:%M:%S")
@@ -242,8 +263,8 @@ def get_track_metadata_bulk(track_ids, batch_size=50):
 
                 # Create a dictionary with track metadata
                 track_metadata = {
-                    'track_id': info['id'],
-                    'track_name': info['name'],
+                    'track_id': info['id'] if info and 'id' in info else None,
+                    'track_name': info['name'] if info and 'name' in info else None,
                     'track_release_date': release_date_formatted,
                     'track_release_date_precision': info['album']['release_date_precision'],
                     'danceability': audio_features['danceability'] if audio_features and 'danceability' in audio_features else None,
@@ -336,6 +357,7 @@ def get_artist_info(artist_ids, batch_size=50):
             artist_ids = [artist_ids]  # Convert to list for consistency
 
         # Drop duplicates in the artist IDs list
+        artist_ids = [id for id in artist_ids if id is not None]
         artist_ids = list(set(artist_ids))
 
         # Split artist IDs into batches
