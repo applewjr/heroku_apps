@@ -364,6 +364,86 @@ def run_quordle():
         return render_template("quordle.html")
 
 
+@app.route("/quordle_mobile", methods=["POST", "GET"])
+def run_quordle_mobile():
+    if request.method == "POST":
+        must_not_be_present1 = request.form["must_not_be_present1"]
+        must_not_be_present2 = request.form["must_not_be_present2"]
+        must_not_be_present3 = request.form["must_not_be_present3"]
+        must_not_be_present4 = request.form["must_not_be_present4"]
+
+        present1_1 = request.form["present1_1"]
+        present1_2 = request.form["present1_2"]
+        present1_3 = request.form["present1_3"]
+        present1_4 = request.form["present1_4"]
+        present1_5 = request.form["present1_5"]
+        present2_1 = request.form["present2_1"]
+        present2_2 = request.form["present2_2"]
+        present2_3 = request.form["present2_3"]
+        present2_4 = request.form["present2_4"]
+        present2_5 = request.form["present2_5"]
+        present3_1 = request.form["present3_1"]
+        present3_2 = request.form["present3_2"]
+        present3_3 = request.form["present3_3"]
+        present3_4 = request.form["present3_4"]
+        present3_5 = request.form["present3_5"]
+        present4_1 = request.form["present4_1"]
+        present4_2 = request.form["present4_2"]
+        present4_3 = request.form["present4_3"]
+        present4_4 = request.form["present4_4"]
+        present4_5 = request.form["present4_5"]
+
+        not_present1_1 = request.form["not_present1_1"]
+        not_present1_2 = request.form["not_present1_2"]
+        not_present1_3 = request.form["not_present1_3"]
+        not_present1_4 = request.form["not_present1_4"]
+        not_present1_5 = request.form["not_present1_5"]
+        not_present2_1 = request.form["not_present2_1"]
+        not_present2_2 = request.form["not_present2_2"]
+        not_present2_3 = request.form["not_present2_3"]
+        not_present2_4 = request.form["not_present2_4"]
+        not_present2_5 = request.form["not_present2_5"]
+        not_present3_1 = request.form["not_present3_1"]
+        not_present3_2 = request.form["not_present3_2"]
+        not_present3_3 = request.form["not_present3_3"]
+        not_present3_4 = request.form["not_present3_4"]
+        not_present3_5 = request.form["not_present3_5"]
+        not_present4_1 = request.form["not_present4_1"]
+        not_present4_2 = request.form["not_present4_2"]
+        not_present4_3 = request.form["not_present4_3"]
+        not_present4_4 = request.form["not_present4_4"]
+        not_present4_5 = request.form["not_present4_5"]
+
+        final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all \
+        ,final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1 \
+        ,final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2 \
+        ,final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3 \
+        ,final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4 = wordle.quordle_solver_split(df, \
+        must_not_be_present1, present1_1, present1_2, present1_3, present1_4, present1_5, not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5, \
+        must_not_be_present2, present2_1, present2_2, present2_3, present2_4, present2_5, not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5, \
+        must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
+        must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
+
+        return render_template("quordle_mobile.html", \
+            final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
+            ,final_out1_1=final_out1_1, final_out1_2=final_out1_2, final_out1_3=final_out1_3, final_out1_4=final_out1_4, final_out1_5=final_out1_5, final_out_end1=final_out_end1 \
+            ,final_out2_1=final_out2_1, final_out2_2=final_out2_2, final_out2_3=final_out2_3, final_out2_4=final_out2_4, final_out2_5=final_out2_5, final_out_end2=final_out_end2 \
+            ,final_out3_1=final_out3_1, final_out3_2=final_out3_2, final_out3_3=final_out3_3, final_out3_4=final_out3_4, final_out3_5=final_out3_5, final_out_end3=final_out_end3 \
+            ,final_out4_1=final_out4_1, final_out4_2=final_out4_2, final_out4_3=final_out4_3, final_out4_4=final_out4_4, final_out4_5=final_out4_5, final_out_end4=final_out_end4 \
+
+            ,must_not_be_present1_val=must_not_be_present1, present1_1_val=present1_1, present1_2_val=present1_2, present1_3_val=present1_3, present1_4_val=present1_4, present1_5_val=present1_5 \
+            ,not_present1_1_val=not_present1_1, not_present1_2_val=not_present1_2, not_present1_3_val=not_present1_3, not_present1_4_val=not_present1_4, not_present1_5_val=not_present1_5 \
+            ,must_not_be_present2_val=must_not_be_present2, present2_1_val=present2_1, present2_2_val=present2_2, present2_3_val=present2_3, present2_4_val=present2_4, present2_5_val=present2_5 \
+            ,not_present2_1_val=not_present2_1, not_present2_2_val=not_present2_2, not_present2_3_val=not_present2_3, not_present2_4_val=not_present2_4, not_present2_5_val=not_present2_5 \
+            ,must_not_be_present3_val=must_not_be_present3, present3_1_val=present3_1, present3_2_val=present3_2, present3_3_val=present3_3, present3_4_val=present3_4, present3_5_val=present3_5 \
+            ,not_present3_1_val=not_present3_1, not_present3_2_val=not_present3_2, not_present3_3_val=not_present3_3, not_present3_4_val=not_present3_4, not_present3_5_val=not_present3_5 \
+            ,must_not_be_present4_val=must_not_be_present4, present4_1_val=present4_1, present4_2_val=present4_2, present4_3_val=present4_3, present4_4_val=present4_4, present4_5_val=present4_5 \
+            ,not_present4_1_val=not_present4_1, not_present4_2_val=not_present4_2, not_present4_3_val=not_present4_3, not_present4_4_val=not_present4_4, not_present4_5_val=not_present4_5 \
+            ,suggested="Suggested word(s):", all_puzzle="All Puzzle:", puzzle_1="Puzzle 1:", puzzle_2="Puzzle 2:", puzzle_3="Puzzle 3:", puzzle_4="Puzzle 4:")
+    else:
+        return render_template("quordle_mobile.html")
+
+
 @app.route("/fixer", methods=["POST", "GET"])
 def run_wordle_fixer():
     if request.method == "POST":
@@ -868,7 +948,6 @@ if __name__ == "__main__":
 
 # env\Scripts\activate
 # pip freeze > requirements.txt
-
 
 ### buildpacks previously used, currently removed
 # https://github.com/heroku/heroku-buildpack-google-chrome
