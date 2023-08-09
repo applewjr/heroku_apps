@@ -284,6 +284,29 @@ def run_wordle():
     else:
         return render_template("wordle.html")
 
+@app.route("/antiwordle", methods=["POST", "GET"])
+def run_antiwordle():
+    if request.method == "POST":
+        must_not_be_present = request.form["must_not_be_present"]
+        present1 = request.form["present1"]
+        present2 = request.form["present2"]
+        present3 = request.form["present3"]
+        present4 = request.form["present4"]
+        present5 = request.form["present5"]
+        not_present1 = request.form["not_present1"]
+        not_present2 = request.form["not_present2"]
+        not_present3 = request.form["not_present3"]
+        not_present4 = request.form["not_present4"]
+        not_present5 = request.form["not_present5"]
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.antiwordle_solver_split(df, must_not_be_present, \
+            present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
+        return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
+            must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
+            not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5, \
+            suggested="Suggested word(s):")
+    else:
+        return render_template("antiwordle.html")
+
 @app.route("/quordle", methods=["POST", "GET"])
 def run_quordle():
     if request.method == "POST":
