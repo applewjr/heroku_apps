@@ -583,3 +583,85 @@ def find_word_with_letters(import_df, must_be_present: str):
 
     return final_out1, final_out2, final_out3, final_out4, final_out5
 
+
+def antiwordle_solver_split(import_df, must_not_be_present: str, 
+    present1: str, present2: str, present3: str, present4: str, present5: str,
+    not_present1: str, not_present2: str, not_present3: str, not_present4: str, not_present5: str):
+
+    must_not_be_present = must_not_be_present.lower()
+    present1 = present1.lower()
+    present2 = present2.lower()
+    present3 = present3.lower()
+    present4 = present4.lower()
+    present5 = present5.lower()
+    not_present1 = not_present1.lower()
+    not_present2 = not_present2.lower()
+    not_present3 = not_present3.lower()
+    not_present4 = not_present4.lower()
+    not_present5 = not_present5.lower()
+
+    # final_out2 = must_not_be_present + present1 + present2 + present3 + present4 + present5 + \
+    #     not_present1 + not_present2 + not_present3 + not_present4 + not_present5
+
+    # split individual letters into lists
+    must_not_be_present = list(must_not_be_present)
+    present = [present1, present2, present3, present4, present5]
+    not_present = [not_present1, not_present2, not_present3, not_present4, not_present5]
+    must_be_present = (''.join(not_present))
+
+    places = ['one', 'two', 'three', 'four', 'five']
+    # df = pd.read_excel(import_df)
+    df = import_df.copy()
+    total_len = len(df)
+
+    # process the 'must be present' letters
+    for j in must_be_present:
+        drop_list = []
+        for i in range(len(df)):
+            drop_list.append(df['word'][i].find(j))
+        df['drop_no_' + j] = drop_list
+    for j in must_be_present:
+        df = df[df['drop_no_' + j] != -1]
+
+    # process the 'must not be present' letters
+    for i in places:
+        for j in must_not_be_present:
+            df = df[df[i] != j]
+
+    # process the 'specific values must be present' letters
+    for i, v in enumerate(places):
+        if present[i] != '':
+            df = df[df[v] == present[i]]
+
+    # process the 'specific values not must be present' letters
+    for j, k in enumerate(places):
+        if len(not_present[j]) > 0:
+            for i in not_present[j]:
+                df = df[df[k] != (','.join(i))]
+
+    # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
+    df = df.sort_values(by = 'word_score', ascending =  True)
+
+    try:
+        final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out1 = 'No words found'
+    try:
+        final_out2 = 'Pick 2: ' + df.iat[1, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out2 = ''
+    try:
+        final_out3 = 'Pick 3: ' + df.iat[2, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out3 = ''
+    try:
+        final_out4 = 'Pick 4: ' + df.iat[3, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out4 = ''
+    try:
+        final_out5 = 'Pick 5: ' + df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out5 = ''
+    final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
+
+    return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end
