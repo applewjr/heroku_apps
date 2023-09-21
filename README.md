@@ -37,7 +37,7 @@ This is my central hub where I practice:
 - Pulls fresh data each morning from Riot Games' API and inserts or replaces into a MySQL instance. Used for interfacing with a Power BI dashboard
 - Pulls player (summoner), character (champion), and match data
 - Parse all data from source JSON into a series of dataframes, taking care to replace values that don't always show up
-- Auto emails sent to myself with pass/fail status messages, so I don't need to dig into my logs daily
+- Auto emails sent to myself and my customer with pass/fail status messages, so I don't need to dig into my logs daily
 - Run table backups daily
 
 [YouTube Trending Summary](https://www.jamesapplewhite.com/youtube_trending)
@@ -73,6 +73,7 @@ This is my central hub where I practice:
 
 [Blossom/Spelling Bee Solver](https://www.jamesapplewhite.com/blossom)
 - Another Python function that ingests all english words to find the largest words based on inclusion criteria
+- Interestingly, this is the only page that gets any notable Google clicks
 
 [Any Word Finder](https://www.jamesapplewhite.com/any_word)
 - An expansion of the Blossom solver beyond the game. Find any word you are thinking of by entering a variety of criteria to describe the word
