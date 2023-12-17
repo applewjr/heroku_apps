@@ -23,11 +23,19 @@
             color:gray;
         }
 
+        /* Default style for larger screens */
         table.espresso-info {
-            width: 40%; /* Set table width to 80% of the parent element */
+            width: 40%; /* Set table width to 40% of the parent element */
             margin-left: auto; /* Center the table horizontally */
             margin-right: auto;
             border-collapse: collapse; /* Remove gaps between cells */
+        }
+
+        /* Style for smaller screens (e.g., mobile devices) */
+        @media (max-width: 768px) {
+            table.espresso-info {
+                width: 100%; /* Set table width to 100% for smaller screens */
+            }
         }
 
         table.espresso-info, th, td {
