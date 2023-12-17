@@ -57,7 +57,7 @@ def wordle_solver_split(import_df, must_not_be_present: str,
                 df = df[df[k] != (','.join(i))]
 
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
-    df = df.sort_values(by = 'word_score', ascending =  False)
+    df = df.sort_values(by = 'word_score', ascending = False)
 
     try:
         final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time

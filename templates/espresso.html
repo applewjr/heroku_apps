@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Optimizer{% endblock %}
+
+{% block content %}
+
+<head>
+    <style>
+        /* Style the button */
+        .custom-button {
+            background-color: #007BFF; /* Blue background color */
+            color: white; /* White text color */
+            padding: 10px 20px; /* Add padding for a better look */
+            border: none; /* Remove border */
+            text-align: center; /* Center-align text */
+            text-decoration: none; /* Remove underline for links */
+            display: inline-block; /* Display as inline block */
+            font-size: 16px; /* Font size */
+            border-radius: 5px; /* Rounded corners */
+            cursor: pointer; /* Add a pointer cursor on hover */
+        }
+
+        /* Hover effect */
+        .custom-button:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+    </style>
+</head>
+
+<body>
+    <center>
+        <h1 style="text-align: center">Espresso Optimizer</h1>
+    <br>
+    <a href="https://docs.google.com/forms/d/e/1FAIpQLScPZQN5Kb4q6an_afiar9N6jHNMejM567JL8DLGtIk1sKK74A/viewform" target="_blank">
+        <button class="custom-button">Enter Brew Data</button>
+    </a>
+    <br>
+    </center>
+</body>
+
+{% endblock %}
