@@ -200,7 +200,6 @@ def unused_letters(must_have, may_have):
 
     return [''.join(unused)]
 
-
 def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
     """
     Filter a list of words by required and forbidden letters, and an optional first letter.
@@ -234,8 +233,6 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
     valid_words.sort(key=len, reverse=True)
 
     return valid_words[:list_len]
-
-
 
 def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length):
     """
@@ -289,3 +286,69 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
         random.shuffle(valid_words)
 
     return valid_words[:list_len]
+
+# def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length, required_substrings, forbidden_substrings):
+#     """
+#     Filter a list of words by required and forbidden letters, required and forbidden substrings, and an optional first letter.
+
+#     Args:
+#         words (list): A list of words to filter.
+#         required_letters (list): A list of letters that must be present in the words.
+#         forbidden_letters (list): A list of letters that must not be present in the words.
+#         required_substrings (list): A list of substrings that must be present as a contiguous sequence in the words.
+#         forbidden_substrings (list): A list of substrings that must not be present in the words.
+#         first_letter (str): An optional letter that must be the first letter of the words.
+#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', 'max-min', and 'random'.
+#         min_length (int): The minimum length of the words to return.
+#         max_length (int): The maximum length of the words to return.
+                
+#     Returns:
+#         list: A list of valid words that meet all the criteria.
+#     """
+
+#     required_letters = [char.lower() for char in required_letters]
+#     forbidden_letters = [char.lower() for char in forbidden_letters]
+#     first_letter = first_letter.lower() if first_letter else None
+#     min_length = int(min_length)
+#     max_length = int(max_length)
+#     list_len = int(list_len)
+
+#     valid_words = []
+#     for word in words:
+#         word = str(word).lower()
+#         if (all(letter in word for letter in required_letters) and 
+#             all(letter not in word for letter in forbidden_letters) and
+#             all(substring in word for substring in required_substrings) and
+#             all(substring not in word for substring in forbidden_substrings) and
+#             (first_letter is None or word.startswith(first_letter)) and 
+#             (min_length is None or len(word) >= min_length) and 
+#             (max_length is None or len(word) <= max_length)):
+
+#             # Check if all required substrings are present as contiguous sequences
+#             valid_for_substrings = True
+#             current_position = 0
+#             for substring in required_substrings:
+#                 found_position = word.find(substring, current_position)
+#                 if found_position == -1:
+#                     valid_for_substrings = False
+#                     break
+#                 else:
+#                     current_position = found_position + len(substring)
+#             if valid_for_substrings:
+#                 valid_words.append(word)
+
+#     if sort_order == 'A-Z':
+#         valid_words.sort()
+#     elif sort_order == 'Z-A':
+#         valid_words.sort(reverse=True)
+#     elif sort_order == 'Min-Max':
+#         valid_words.sort(key=len)
+#     elif sort_order == 'Max-Min':
+#         valid_words.sort(key=len, reverse=True)
+#     elif sort_order == 'Random':
+#         import random
+#         random.shuffle(valid_words)
+
+#     return valid_words[:list_len]
+
+

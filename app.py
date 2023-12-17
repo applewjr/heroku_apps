@@ -595,10 +595,12 @@ def any_word():
         list_len = request.form["list_len"]
         min_length = request.form["min_length"]
         max_length = request.form["max_length"]
-        list_out = all_words.filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words, min_length, max_length)
+        # required_substrings = request.form["required_substrings"]
+        # forbidden_substrings = request.form["forbidden_substrings"]
+        list_out = all_words.filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words, min_length, max_length)#, required_substrings, forbidden_substrings)
         return render_template("any_word.html", list_out=list_out, \
             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len, \
-            min_length_val=min_length, max_length_val=max_length)
+            min_length_val=min_length, max_length_val=max_length)#, required_substrings_val=required_substrings, forbidden_substrings_val=forbidden_substrings)
     else:
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
@@ -952,6 +954,22 @@ def etl_status_dash():
 #         return render_template('any_word_sql.html', query=query, results=results)
 
 #     return render_template('any_word_sql.html', query="-- Example:\nWHERE words LIKE 'z%a'\nORDER BY LENGTH(words) DESC\nLIMIT 5;")
+
+
+
+
+
+
+
+######################################
+######################################
+##### Espresso Optimizer - IP
+######################################
+######################################
+
+@app.route('/espresso')
+def espresso():
+    return render_template('espresso.html')
 
 
 
