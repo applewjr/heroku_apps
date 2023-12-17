@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import datetime
+import json
 from datetime import date
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -20,8 +21,8 @@ from functions import wordle
 from functions import stocks
 from functions import all_words
 from functions import data_analysis
-
 from functions import plot_viz
+from functions import espresso
 
 
 ########## local data ##########
@@ -39,6 +40,8 @@ df_demo_realtor = pd.read_csv(os.path.join(data_folder, 'realtor_data.csv'))
 df_demo_titanic = pd.read_csv(os.path.join(data_folder, 'titanic_dataset.csv'))
 df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
 
+with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_file:
+    espresso_points = json.load(json_file)
 
 ########## MySQL stuff ##########
 
@@ -967,13 +970,29 @@ def etl_status_dash():
 ######################################
 ######################################
 
-@app.route('/espresso')
-def espresso():
-    return render_template('espresso.html')
+# @app.route('/espresso', methods=['GET', 'POST'])
+# def espresso_route():
+#     if request.method == "POST":
+#         roast = request.form["roast"]
+#         dose = request.form["dose"]
+#         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
+#         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
+#     else:
+#         return render_template('espresso.html')
 
 
-
-
+@app.route('/espresso', methods=['GET', 'POST'])
+def espresso_route():
+    if request.method == "POST":
+        roast = request.form["roast"]
+        dose = request.form["dose"]
+        naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
+        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
+    else:
+        roast = 'Medium'
+        dose = '2'
+        naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
+        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
 
 
 
