@@ -65,7 +65,7 @@
 
 <body>
     <center>
-        <h1 style="text-align: center">Espresso Optimizer</h1>
+    <h1 style="text-align: center">Espresso Optimizer</h1>
     <br>
     <a href="https://docs.google.com/forms/d/e/1FAIpQLScPZQN5Kb4q6an_afiar9N6jHNMejM567JL8DLGtIk1sKK74A/viewform" target="_blank">
         <button class="custom-button">Enter Brew Data</button>
@@ -74,7 +74,8 @@
     <br>
     <br>
     <form name="form1" action="#" method="post">
-        <h1 style="text-align: center">Naive Recommendations</h1>
+        <h1 style="text-align: center">Naive Brewing Recommendations</h1>
+        <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
         <div class="flex-container">
             <p class="pad_lr_30">Roast</p>
             <select name="roast">
@@ -154,16 +155,76 @@
                 <td>{{ naive_espresso_info['espresso_grams_out'] }}</td>
             </tr>
         </table>
+    </form>
+    <br>
+    <br>
+    <br>
+    <form name="form2" action="#" method="post">
+        <h1 style="text-align: center">KNN-Based Brewing Recommendations</h1>
+        <p>Currently using dummy data while I'm gathering real data</p>
+        <p>KNN, Neighbors = 3, based on specific users and roasts</p>
+        <div class="flex-container">
+            <p class="pad_lr_30">User</p>
+            <select name="user_pred">
+                <option value="{{user_pred_val}}">{{user_pred_val}}</option>
+                <option disabled>______</option>
+                <option value="James">James</option>
+                <option value="Justine">Justine</option>
+            </select>
+        </div>
+        <br>
+        <div class="flex-container">
+            <p class="pad_lr_30">Roast</p>
+            <select name="roast_pred">
+                <option value="{{roast_pred_val}}">{{roast_pred_val}}</option>
+                <option disabled>______</option>
+                <option value="Light">Light</option>
+                <option value="Medium">Medium</option>
+                <option value="Dark">Dark</option>
+            </select>
+        </div>
+        <br>
+        <input type="submit" value="Calculate">
         <br>
         <br>
-        <br>
-        <h1 style="text-align: center">Tailored Recommendations</h1>
-        <p class="pad_lr_30" style="text-align: center">Upcoming</p>
-        <br>
-        <br>
-        <br>
-        </form>
-    </center>
+        <table class="espresso-info">
+            <tr>
+                <th>Category</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Niche Grind Setting</td>
+                <td>{{ optimal_parameters_dict['niche_grind_setting'] }}</td>
+            </tr>
+            <tr>
+                <td>Coffee to Espresso Ratio</td>
+                <td>{{ optimal_parameters_dict['espresso_coffee_ratio'] }}</td>
+            </tr>
+            <tr>
+                <td>Extraction Time in Seconds</td>
+                <td>{{ optimal_parameters_dict['extraction_time_seconds'] }}</td>
+            </tr>
+            <tr>
+                <td>Flow Time in Seconds</td>
+                <td>{{ optimal_parameters_dict['flow_time_seconds'] }}</td>
+            </tr>
+            <tr>
+                <td>Extraction to Flow Ratio</td>
+                <td>{{ optimal_parameters_dict['extract_flow_ratio'] }}</td>
+            </tr>
+            <tr>
+                <td>Water Temp F</td>
+                <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
+            </tr>
+        </table>
+        <!-- <p>TODO: provide an alternate fail message when not enough data are available</p>
+        <p>TODO: allow all users' data to join together</p>
+        <p>TODO: provide model performance such as rmse, r2, etc</p> -->
+    </form>
+    <br>
+    <br>
+    <br>
+</center>
 </body>
 
 {% endblock %}

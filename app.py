@@ -56,6 +56,10 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
+    GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
+    GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
+    GOOGLE_SHEETS_URL_BEAN = os.environ.get('GOOGLE_SHEETS_URL_BEAN')
+    GOOGLE_SHEETS_URL_PROFILE = os.environ.get('GOOGLE_SHEETS_URL_PROFILE')
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -66,6 +70,10 @@ else:
         'database': secret_pass.mysql_bd,
         'raise_on_warnings': True
         }
+    GOOGLE_SHEETS_JSON = secret_pass.GOOGLE_SHEETS_JSON
+    GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
+    GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
+    GOOGLE_SHEETS_URL_PROFILE = secret_pass.GOOGLE_SHEETS_URL_PROFILE
 
 
 ########## Other SQL stuff ##########
@@ -984,16 +992,50 @@ def etl_status_dash():
 @app.route('/espresso', methods=['GET', 'POST'])
 def espresso_route():
     if request.method == "POST":
-        roast = request.form["roast"]
-        dose = request.form["dose"]
+
+        if 'roast' in request.form:
+            roast = request.form['roast']
+        else:
+            roast = 'Medium'
+        if 'dose' in request.form:
+            dose = request.form['dose']
+        else:
+            dose = 2
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
-        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
+
+        if 'user_pred' in request.form:
+            user_pred = request.form['user_pred']
+        else:
+            user_pred = 'James'
+        if 'roast_pred' in request.form:
+            roast_pred = request.form['roast_pred']
+        else:
+            roast_pred = 'Medium'
+        google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
+        df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
+        df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
+        df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
+        optimal_parameters_dict = espresso.find_optimal_espresso_parameters(df_analyze)
+
+        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
+            ,optimal_parameters_dict=optimal_parameters_dict, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            )
     else:
         roast = 'Medium'
-        dose = '2'
+        dose = 2
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
-        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
 
+        user_pred = 'James'
+        roast_pred = 'Medium'
+        google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
+        df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
+        df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
+        df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
+        optimal_parameters_dict = espresso.find_optimal_espresso_parameters(df_analyze)
+
+        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
+            ,optimal_parameters_dict=optimal_parameters_dict, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            )
 
 
 
