@@ -600,10 +600,10 @@ def blossom():
             cursor = conn.cursor()
             # cursor.execute("INSERT INTO blossom_clicks (click_time) VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));")
             query = """
-            INSERT INTO blossom_clicks (click_time, must_have, may_have) 
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO blossom_clicks (click_time, must_have, may_have, list_len) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (must_have, may_have))
+            cursor.execute(query, (must_have, may_have, list_len))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
