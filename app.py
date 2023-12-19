@@ -590,10 +590,21 @@ def blossom():
     if request.method == "POST":
 
         # log clicks
+        # try:
+        #     conn = mysql.connector.connect(**config)
+        #     cursor = conn.cursor()
+        #     cursor.execute("UPDATE blossom_click_count SET count = count + 1 WHERE id = 1;")
+        #     conn.commit()
+        # except mysql.connector.Error as err:
+        #     print("Error:", err)
+        # finally:
+        #     if conn.is_connected():
+        #         cursor.close()
+        #         conn.close()
         try:
             conn = mysql.connector.connect(**config)
             cursor = conn.cursor()
-            cursor.execute("UPDATE blossom_click_count SET count = count + 1 WHERE id = 1;")
+            cursor.execute("INSERT INTO blossom_clicks (click_time) VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));")
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
