@@ -589,22 +589,21 @@ def run_common_denominator():
 def blossom():
     if request.method == "POST":
 
-        # log clicks
-        # try:
-        #     conn = mysql.connector.connect(**config)
-        #     cursor = conn.cursor()
-        #     cursor.execute("UPDATE blossom_click_count SET count = count + 1 WHERE id = 1;")
-        #     conn.commit()
-        # except mysql.connector.Error as err:
-        #     print("Error:", err)
-        # finally:
-        #     if conn.is_connected():
-        #         cursor.close()
-        #         conn.close()
+        must_have = request.form["must_have"]
+        may_have = request.form["may_have"]
+        list_len = request.form["list_len"]
+        list_out = all_words.filter_words_blossom(must_have, all_words.unused_letters(must_have, may_have), list_len, words)
+
+        # log clicks and inputs
         try:
             conn = mysql.connector.connect(**config)
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO blossom_clicks (click_time) VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));")
+            # cursor.execute("INSERT INTO blossom_clicks (click_time) VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));")
+            query = """
+            INSERT INTO blossom_clicks (click_time, must_have, may_have) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (must_have, may_have))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
@@ -613,10 +612,6 @@ def blossom():
                 cursor.close()
                 conn.close()
 
-        must_have = request.form["must_have"]
-        may_have = request.form["may_have"]
-        list_len = request.form["list_len"]
-        list_out = all_words.filter_words_blossom(must_have, all_words.unused_letters(must_have, may_have), list_len, words)
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
 
     else:
