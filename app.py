@@ -615,7 +615,7 @@ def blossom():
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
 
     else:
-        return render_template("blossom.html", list_len_val=10)
+        return render_template("blossom.html", list_len_val=25)
 
 @app.route("/any_word", methods=["POST", "GET"])
 def any_word():
