@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 def get_naive_espresso_points(roast, dose, espresso_points):
 
@@ -219,10 +220,11 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
 
     df_analyze['espresso_coffee_ratio'] = (df_analyze['espresso_out_grams'] / df_analyze['ground_coffee_grams']).round(4)
     df_analyze['extract_flow_ratio'] = (df_analyze['extraction_time_seconds'] / df_analyze['flow_time_seconds']).round(4)
+    df_analyze['extract_flow_rate'] = (df_analyze['espresso_out_grams'] / df_analyze['flow_time_seconds']).round(4)
 
     columns_to_keep = [
         'niche_grind_setting', 'espresso_coffee_ratio',
-        'extraction_time_seconds', 'flow_time_seconds', 'extract_flow_ratio', 
+        'extraction_time_seconds', 'flow_time_seconds', 'extract_flow_ratio', 'extract_flow_rate',
         'water_temp_f',
         # 'standard_tools_wdt', 'standard_tools_tamp','standard_tools_filtered_water','standard_tools_wet_beans','standard_tools_prewarm_filter',
         # 't1', 'p1', 't2', 'p2', 't3', 'p3', 't4', 'p4', 't5', 'p5',
@@ -268,3 +270,15 @@ def find_optimal_espresso_parameters(df_analyze):
     optimal_parameters_dict = {col: param_value for col, param_value in zip(X.columns, optimal_parameters)}
 
     return optimal_parameters_dict
+
+def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
+
+    plt.clf()
+    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col])
+    plt.title(f'{espresso_x_col} vs {espresso_y_col}')
+    plt.xlabel(espresso_x_col)
+    plt.ylabel(espresso_y_col)
+    plt.show()
+    # plt.tight_layout()
+
+    return plt

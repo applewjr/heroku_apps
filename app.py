@@ -999,17 +999,6 @@ def etl_status_dash():
 ######################################
 ######################################
 
-# @app.route('/espresso', methods=['GET', 'POST'])
-# def espresso_route():
-#     if request.method == "POST":
-#         roast = request.form["roast"]
-#         dose = request.form["dose"]
-#         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
-#         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose)
-#     else:
-#         return render_template('espresso.html')
-
-
 @app.route('/espresso', methods=['GET', 'POST'])
 def espresso_route():
     if request.method == "POST":
@@ -1038,8 +1027,30 @@ def espresso_route():
         df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
         optimal_parameters_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
+        if 'espresso_x_col' in request.form:
+            espresso_x_col = request.form['espresso_x_col']
+        else:
+            espresso_x_col = 'niche_grind_setting'
+        if 'espresso_y_col' in request.form:
+            espresso_y_col = request.form['espresso_y_col']
+        else:
+            espresso_y_col = 'final_score'
+        if 'user_pred_scatter' in request.form:
+            user_pred_scatter = request.form['user_pred_scatter']
+        else:
+            user_pred_scatter = 'James'
+        if 'roast_pred_scatter' in request.form:
+            roast_pred_scatter = request.form['roast_pred_scatter']
+        else:
+            roast_pred_scatter = 'Medium'
+        df_analyze_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, df_espresso_initial, df_profile)
+        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_analyze_scatter, espresso_x_col, espresso_y_col)
+        temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
+        espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
+
         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,optimal_parameters_dict=optimal_parameters_dict, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
     else:
         roast = 'Medium'
@@ -1054,9 +1065,22 @@ def espresso_route():
         df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
         optimal_parameters_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
+        espresso_x_col = 'niche_grind_setting'
+        espresso_y_col = 'final_score'
+        user_pred_scatter = 'James'
+        roast_pred_scatter = 'Medium'
+        df_analyze_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, df_espresso_initial, df_profile)
+        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_analyze_scatter, espresso_x_col, espresso_y_col)
+        temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
+        espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
+
         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,optimal_parameters_dict=optimal_parameters_dict, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
+
+
+
 
 
 
