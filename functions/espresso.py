@@ -4,9 +4,10 @@ import pandas as pd
 import json
 import numpy as np
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 def get_naive_espresso_points(roast, dose, espresso_points):
 
@@ -238,54 +239,84 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
 
 def find_optimal_espresso_parameters(df_analyze):
     # Check if the dataset has enough data
-    min_data_threshold = 10  # Set a threshold for minimum data
+    min_data_threshold = 10
     if df_analyze.shape[0] < min_data_threshold:
-        # Not enough data, return N/A for all parameters
-        return {col: f"Need {min_data_threshold-df_analyze.shape[0]} more data points to complete this analysis" for col in df_analyze.columns if col != 'final_score'}, False
-
-    # Proceed with the analysis
-    data = df_analyze.copy()
+        return {col: f"Need {min_data_threshold - df_analyze.shape[0]} more data points to complete this analysis" for col in df_analyze.columns if col != 'final_score'}, False, None
 
     # Define features and target variable
-    X = data.drop('final_score', axis=1)
-    y = data['final_score']
+    X = df_analyze.drop('final_score', axis=1)
+    y = df_analyze['final_score']
 
-    # Split the data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Initialize cross-validator
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
-    # Standardize the features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    # Define a range of hyperparameters for tuning
+    param_grid = {
+        'n_neighbors': range(1, 10),
+        'weights': ['uniform', 'distance'],
+        'metric': ['euclidean', 'manhattan']
+    }
 
     # Initialize the KNN regressor
-    knn = KNeighborsRegressor(n_neighbors=3)
+    knn = KNeighborsRegressor()
 
-    # Fit the model
-    knn.fit(X_train_scaled, y_train)
+    # Create grid search object with cross-validation
+    grid_search = GridSearchCV(knn, param_grid, cv=kf, scoring='neg_mean_squared_error')
 
-    # Find the training instance with the highest predicted score
-    predicted_scores = knn.predict(X_train_scaled)
+    # Fit the grid search to the data
+    grid_search.fit(X, y)
+
+    # Get the best estimator and its parameters
+    best_knn = grid_search.best_estimator_
+    best_params = grid_search.best_params_
+
+    # Evaluate performance of the best model
+    mse_scores = cross_val_score(best_knn, X, y, cv=kf, scoring='neg_mean_squared_error')
+    r2_scores = cross_val_score(best_knn, X, y, cv=kf, scoring='r2')
+    mae_scores = cross_val_score(best_knn, X, y, cv=kf, scoring='neg_mean_absolute_error')
+
+    # Average performance across folds
+    performance_dict = {
+        'Mean Squared Error': round(-np.mean(mse_scores), 4),
+        'R-squared': round(np.mean(r2_scores), 4),
+        'Mean Absolute Error': round(-np.mean(mae_scores), 4),
+        'Observations': df_analyze.shape[0],
+        'Optimal Number of Neighbors': best_params['n_neighbors'],
+        'Optimal Weight Method': best_params['weights'],
+        'Optimal Metric': best_params['metric']
+    }
+
+    # Find optimal parameters with the best model
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    best_knn.fit(X_scaled, y)
+    predicted_scores = best_knn.predict(X_scaled)
     highest_score_index = predicted_scores.argmax()
-    optimal_parameters_scaled = X_train_scaled[highest_score_index]
-
-    # Inverse transform the scaled optimal parameters to the original scale
+    optimal_parameters_scaled = X_scaled[highest_score_index]
     optimal_parameters = scaler.inverse_transform([optimal_parameters_scaled])[0]
-
-    # Create a dictionary with the optimal parameters
     optimal_parameters_dict = {col: param_value for col, param_value in zip(X.columns, optimal_parameters)}
 
-    return optimal_parameters_dict, True
-
+    return optimal_parameters_dict, True, performance_dict
 
 def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
+    # Normalize 'final_score' values to range between 1 and 10
+    norm = plt.Normalize(1, 10)
+
+    # Create a custom colormap from orange to blue
+    # Note that the mapping starts at 0 (for 1 in 'final_score') and ends at 1 (for 10 in 'final_score')
+    colors = [(0, 'orange'), (1, 'blue')]
+    cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', colors)
 
     plt.clf()
-    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col])
+
+    # Scatter plot with color based on 'final_score'
+    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], 
+                c=df_analyze['final_score'], cmap=cmap, norm=norm, alpha=0.8)
+
     plt.title(f'{espresso_x_col} vs {espresso_y_col}')
     plt.xlabel(espresso_x_col)
     plt.ylabel(espresso_y_col)
+    plt.colorbar(label='Final Score')  # Optional: add a colorbar
     plt.show()
-    # plt.tight_layout()
 
     return plt

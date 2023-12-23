@@ -250,7 +250,7 @@
 
     <form name="form3" action="#" method="post">
         <h1 style="text-align: center">KNN Predictive Recommendations</h1>
-        <p>KNN, Neighbors = 3, based on specific users and roasts</p>
+        <p>KNN, Cross-validation = 5 fold, Based on specific users and roasts</p>
         <!-- <p>Only James + Medium works while gathering more data</p> -->
         <div class="flex-container">
             <p class="pad_lr_30">User</p>
@@ -308,6 +308,45 @@
                 <tr>
                     <td>Water Temp F</td>
                     <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
+                </tr>
+            </table>
+            <br>
+            <table class="espresso-info">
+                <tr>
+                    <th>Parameters</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Optimal Number of Neighbors</td>
+                    <td>{{ performance_dict['Optimal Number of Neighbors'] }}</td>
+                </tr>
+                <tr>
+                    <td>Optimal Weight Method</td>
+                    <td>{{ performance_dict['Optimal Weight Method'] }}</td>
+                </tr>
+                <tr>
+                    <td>Optimal Metric</td>
+                    <td>{{ performance_dict['Optimal Metric'] }}</td>
+                </tr>
+                <tr>
+                    <th>Performance</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Observations</td>
+                    <td>{{ performance_dict['Observations'] }}</td>
+                </tr>
+                <tr>
+                    <td>Mean Squared Error</td>
+                    <td>{{ performance_dict['Mean Squared Error'] }}</td>
+                </tr>
+                <tr>
+                    <td>R-squared</td>
+                    <td>{{ performance_dict['R-squared'] }}</td>
+                </tr>
+                <tr>
+                    <td>Mean Absolute Error</td>
+                    <td>{{ performance_dict['Mean Absolute Error'] }}</td>
                 </tr>
             </table>
         {% else %}
