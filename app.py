@@ -1037,7 +1037,7 @@ def espresso_route():
         df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
         df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
         df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
-        optimal_parameters_dict, good_run = espresso.find_optimal_espresso_parameters(df_analyze)
+        optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         if 'espresso_x_col' in request.form:
             espresso_x_col = request.form['espresso_x_col']
@@ -1063,7 +1063,7 @@ def espresso_route():
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
-            ,optimal_parameters_dict=optimal_parameters_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
             ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_x_col_label_val=espresso_x_col_label, espresso_y_col_label_val=espresso_y_col_label \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
@@ -1078,7 +1078,7 @@ def espresso_route():
         df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
         df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
         df_analyze = espresso.clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile)
-        optimal_parameters_dict, good_run = espresso.find_optimal_espresso_parameters(df_analyze)
+        optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         espresso_x_col = 'flow_time_seconds'
         espresso_x_col_label = espresso_col_labels.get(espresso_x_col, espresso_x_col)
@@ -1092,7 +1092,7 @@ def espresso_route():
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
-            ,optimal_parameters_dict=optimal_parameters_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
+            ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
             ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_x_col_label_val=espresso_x_col_label, espresso_y_col_label_val=espresso_y_col_label \
             , user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
