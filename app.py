@@ -1042,7 +1042,7 @@ def espresso_route():
         if 'espresso_x_col' in request.form:
             espresso_x_col = request.form['espresso_x_col']
         else:
-            espresso_x_col = 'niche_grind_setting'
+            espresso_x_col = 'flow_time_seconds'
         espresso_x_col_label = espresso_col_labels.get(espresso_x_col, espresso_x_col)
         if 'espresso_y_col' in request.form:
             espresso_y_col = request.form['espresso_y_col']

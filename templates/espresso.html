@@ -98,93 +98,6 @@
     <hr style="width:60%;border: 1px dashed #d3d6da;">
     <br>
 
-    <form name="form1" action="#" method="post">
-        <h1 style="text-align: center">Baseline Brewing Recommendations</h1>
-        <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
-        <div class="flex-container">
-            <p class="pad_lr_30">Roast</p>
-            <p class="pad_lr_30">Dose</p> 
-        </div>
-        <div class="flex-container">
-            <select name="roast">
-                <option value="{{roast_val}}">{{roast_val}}</option>
-                <option disabled>______</option>
-                <option value="Light">Light</option>
-                <option value="Medium">Medium</option>
-                <option value="Dark">Dark</option>
-            </select>
-            <select name="dose">
-                <option value="{{dose_val}}">{{dose_val}}</option>
-                <option disabled>______</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-            </select>
-        </div>
-        <br>
-        <input type="submit" value="Calculate">
-        <br>
-        <br>
-        <table class="espresso-info">
-            <tr>
-                <th>Category</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>Style</td>
-                <td>{{ naive_espresso_info['style'] }}</td>
-            </tr>
-            <tr>
-                <td>Coffee Grams In</td>
-                <td>{{ naive_espresso_info['coffee_grams_in'] }}</td>
-            </tr>
-            <tr>
-                <td>Water Temp F</td>
-                <td>{{ naive_espresso_info['water_temp_f'] }}</td>
-            </tr>
-            <tr>
-                <td>Brew Profile Part 1</td>
-                <td>{{ naive_espresso_info['brew_profile']['part1'] }}</td>
-            </tr>
-            <tr>
-                <td>Brew Profile Part 2</td>
-                <td>{{ naive_espresso_info['brew_profile']['part2'] }}</td>
-            </tr>
-            <tr>
-                <td>Brew Profile Part 3</td>
-                <td>{{ naive_espresso_info['brew_profile']['part3'] }}</td>
-            </tr>
-            <tr>
-                <td>Brew Profile Part 4</td>
-                <td>{{ naive_espresso_info['brew_profile']['part4'] }}</td>
-            </tr>
-            <tr>
-                <td>Brew Profile Part 5</td>
-                <td>{{ naive_espresso_info['brew_profile']['part5'] }}</td>
-            </tr>
-            <tr>
-                <td>Total Brew Seconds</td>
-                <td>{{ naive_espresso_info['brew_profile']['total_seconds'] }}</td>
-            </tr>
-            <tr>
-                <td>Niche Grind Setting</td>
-                <td>{{ naive_espresso_info['niche_grind_setting'] }}</td>
-            </tr>
-            <tr>
-                <td>Coffee to Espresso Ratio</td>
-                <td>{{ naive_espresso_info['coffee_to_espresso_ratio'] }}</td>
-            </tr>
-            <tr>
-                <td>Espresso Grams Out</td>
-                <td>{{ naive_espresso_info['espresso_grams_out'] }}</td>
-            </tr>
-        </table>
-    </form>
-
-    <br>
-    <hr style="width:60%;border: 1px dashed #d3d6da;">
-    <br>
-
     <form name="form2" action="#" method="post">
         <h1 style="text-align: center">Dynamic Scatter Plots</h1>
         <p>Choose your X and Y axis</p>
@@ -352,15 +265,130 @@
         {% else %}
             {{ optimal_parameters_dict['niche_grind_setting'] }}
         {% endif %}
-        <!-- <p>TODO: provide an alternate fail message when not enough data are available</p> -->
-        <!-- <p>TODO: allow all users' data to join together</p> -->
-        <!-- <p>TODO: provide model performance such as rmse, r2, etc</p> -->
     </form>
+
+    <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
+    <br>
+
+    <button id="toggleButton" class="custom-button">Show/Hide Baseline Brewing Recommendations</button>
+    <br>
+    <br>
+    <div id="toggleSection" style="display: none;">
+        <form name="form1" action="#" method="post">
+            <h1 style="text-align: center">Baseline Brewing Recommendations</h1>
+            <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
+            <div class="flex-container">
+                <p class="pad_lr_30">Roast</p>
+                <p class="pad_lr_30">Dose</p> 
+            </div>
+            <div class="flex-container">
+                <select name="roast">
+                    <option value="{{roast_val}}">{{roast_val}}</option>
+                    <option disabled>______</option>
+                    <option value="Light">Light</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Dark">Dark</option>
+                </select>
+                <select name="dose">
+                    <option value="{{dose_val}}">{{dose_val}}</option>
+                    <option disabled>______</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </div>
+            <br>
+            <input type="submit" value="Calculate">
+            <br>
+            <br>
+            <table class="espresso-info">
+                <tr>
+                    <th>Category</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Style</td>
+                    <td>{{ naive_espresso_info['style'] }}</td>
+                </tr>
+                <tr>
+                    <td>Coffee Grams In</td>
+                    <td>{{ naive_espresso_info['coffee_grams_in'] }}</td>
+                </tr>
+                <tr>
+                    <td>Water Temp F</td>
+                    <td>{{ naive_espresso_info['water_temp_f'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 1</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part1'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 2</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part2'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 3</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part3'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 4</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part4'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 5</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part5'] }}</td>
+                </tr>
+                <tr>
+                    <td>Total Brew Seconds</td>
+                    <td>{{ naive_espresso_info['brew_profile']['total_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Niche Grind Setting</td>
+                    <td>{{ naive_espresso_info['niche_grind_setting'] }}</td>
+                </tr>
+                <tr>
+                    <td>Coffee to Espresso Ratio</td>
+                    <td>{{ naive_espresso_info['coffee_to_espresso_ratio'] }}</td>
+                </tr>
+                <tr>
+                    <td>Espresso Grams Out</td>
+                    <td>{{ naive_espresso_info['espresso_grams_out'] }}</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+
     <br>
     <br>
     <br>
 
 </center>
+
+<script>
+    // Check if the section was previously opened and maintain its state
+    window.onload = function() {
+        var section = document.getElementById("toggleSection");
+        if (localStorage.getItem("sectionVisible") === "true") {
+            section.style.display = "block";
+        } else {
+            section.style.display = "none";
+        }
+    };
+
+    // JavaScript to toggle the visibility and store the state in localStorage
+    document.getElementById("toggleButton").addEventListener("click", function() {
+        var section = document.getElementById("toggleSection");
+        if (section.style.display === "none") {
+            section.style.display = "block";
+            localStorage.setItem("sectionVisible", "true"); // Store the state
+        } else {
+            section.style.display = "none";
+            localStorage.setItem("sectionVisible", "false"); // Store the state
+        }
+    });
+</script>
+
 </body>
 
 {% endblock %}
