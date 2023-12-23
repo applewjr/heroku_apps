@@ -60,6 +60,22 @@
             margin: 0 10px 0 0; /* Right margin and remove default top and bottom margins */
         }
 
+
+
+        .responsive-image {
+            max-width: 100%; /* ensures the image is never wider than its container */
+            height: auto; /* maintains the aspect ratio of the image */
+            display: block; /* ensures there are no extra spaces around the image */
+            margin-left: auto; /* center align image horizontally */
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .responsive-image {
+                max-width: 80%; /* or any other percentage/fixed width as per your design */
+            }
+        }
+
 </style>
 </head>
 
@@ -70,11 +86,13 @@
     <a href="https://docs.google.com/forms/d/e/1FAIpQLScPZQN5Kb4q6an_afiar9N6jHNMejM567JL8DLGtIk1sKK74A/viewform" target="_blank">
         <button class="custom-button">Enter Brew Data</button>
     </a>
+
     <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
     <br>
-    <br>
+
     <form name="form1" action="#" method="post">
-        <h1 style="text-align: center">Naive Brewing Recommendations</h1>
+        <h1 style="text-align: center">Baseline Brewing Recommendations</h1>
         <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
         <div class="flex-container">
             <p class="pad_lr_30">Roast</p>
@@ -156,9 +174,11 @@
             </tr>
         </table>
     </form>
+
     <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
     <br>
-    <br>
+
     <form name="form2" action="#" method="post">
         <h1 style="text-align: center">Dynamic Scatter Plots</h1>
         <p>Choose your X and Y axis</p>
@@ -186,7 +206,7 @@
         <div class="flex-container">
             <p class="pad_lr_30">X Axis</p>
             <select name="espresso_x_col">
-                <option value="{{espresso_x_col_val}}">{{espresso_x_col_val}}</option>
+                <option value="{{espresso_x_col_val}}">{{espresso_x_col_label_val}}</option>
                 <option disabled>______</option>
                 <option value="final_score">Final Score</option>
                 <option value="niche_grind_setting">Niche Grind Setting</option>
@@ -202,7 +222,7 @@
         <div class="flex-container">
             <p class="pad_lr_30">Y Axis</p>
             <select name="espresso_y_col">
-                <option value="{{espresso_y_col_val}}">{{espresso_y_col_val}}</option>
+                <option value="{{espresso_y_col_val}}">{{espresso_y_col_label_val}}</option>
                 <option disabled>______</option>
                 <option value="final_score">Final Score</option>
                 <option value="niche_grind_setting">Niche Grind Setting</option>
@@ -218,15 +238,17 @@
         <input type="submit" value="Calculate">
         <br>
         <br>
-        <img src="{{ espresso_scatter_plot }}" alt="Plot">
+        <img src="{{ espresso_scatter_plot }}" alt="Plot" class="responsive-image">
     </form>
+
     <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
     <br>
-    <br>
+
     <form name="form3" action="#" method="post">
         <h1 style="text-align: center">KNN Predictive Recommendations</h1>
         <p>KNN, Neighbors = 3, based on specific users and roasts</p>
-        <p>Only James + Medium works while gathering more data</p>
+        <!-- <p>Only James + Medium works while gathering more data</p> -->
         <div class="flex-container">
             <p class="pad_lr_30">User</p>
             <select name="user_pred">
@@ -251,40 +273,44 @@
         <input type="submit" value="Calculate">
         <br>
         <br>
-        <table class="espresso-info">
-            <tr>
-                <th>Category</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>Niche Grind Setting</td>
-                <td>{{ optimal_parameters_dict['niche_grind_setting'] }}</td>
-            </tr>
-            <tr>
-                <td>Espresso g / Coffee g</td>
-                <td>{{ optimal_parameters_dict['espresso_coffee_ratio'] }}</td>
-            </tr>
-            <tr>
-                <td>Extraction Time in Seconds</td>
-                <td>{{ optimal_parameters_dict['extraction_time_seconds'] }}</td>
-            </tr>
-            <tr>
-                <td>Flow Time in Seconds</td>
-                <td>{{ optimal_parameters_dict['flow_time_seconds'] }}</td>
-            </tr>
-            <tr>
-                <td>Espresso g / Flow Seconds</td>
-                <td>{{ optimal_parameters_dict['extract_flow_rate'] }}</td>
-            </tr>
-            <tr>
-                <td>Extraction Seconds / Flow Seconds</td>
-                <td>{{ optimal_parameters_dict['extract_flow_ratio'] }}</td>
-            </tr>
-            <tr>
-                <td>Water Temp F</td>
-                <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
-            </tr>
-        </table>
+        {% if good_run %}
+            <table class="espresso-info">
+                <tr>
+                    <th>Category</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Niche Grind Setting</td>
+                    <td>{{ optimal_parameters_dict['niche_grind_setting'] }}</td>
+                </tr>
+                <tr>
+                    <td>Espresso g / Coffee g</td>
+                    <td>{{ optimal_parameters_dict['espresso_coffee_ratio'] }}</td>
+                </tr>
+                <tr>
+                    <td>Extraction Time in Seconds</td>
+                    <td>{{ optimal_parameters_dict['extraction_time_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Flow Time in Seconds</td>
+                    <td>{{ optimal_parameters_dict['flow_time_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Espresso g / Flow Seconds</td>
+                    <td>{{ optimal_parameters_dict['extract_flow_rate'] }}</td>
+                </tr>
+                <tr>
+                    <td>Extraction Seconds / Flow Seconds</td>
+                    <td>{{ optimal_parameters_dict['extract_flow_ratio'] }}</td>
+                </tr>
+                <tr>
+                    <td>Water Temp F</td>
+                    <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
+                </tr>
+            </table>
+        {% else %}
+            {{ optimal_parameters_dict['niche_grind_setting'] }}
+        {% endif %}
         <!-- <p>TODO: provide an alternate fail message when not enough data are available</p> -->
         <!-- <p>TODO: allow all users' data to join together</p> -->
         <!-- <p>TODO: provide model performance such as rmse, r2, etc</p> -->

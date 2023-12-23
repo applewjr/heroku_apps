@@ -237,7 +237,13 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
     return df_analyze
 
 def find_optimal_espresso_parameters(df_analyze):
-    # Load the dataset
+    # Check if the dataset has enough data
+    min_data_threshold = 10  # Set a threshold for minimum data
+    if df_analyze.shape[0] < min_data_threshold:
+        # Not enough data, return N/A for all parameters
+        return {col: f"Need {min_data_threshold-df_analyze.shape[0]} more data points to complete this analysis" for col in df_analyze.columns if col != 'final_score'}, False
+
+    # Proceed with the analysis
     data = df_analyze.copy()
 
     # Define features and target variable
@@ -269,7 +275,8 @@ def find_optimal_espresso_parameters(df_analyze):
     # Create a dictionary with the optimal parameters
     optimal_parameters_dict = {col: param_value for col, param_value in zip(X.columns, optimal_parameters)}
 
-    return optimal_parameters_dict
+    return optimal_parameters_dict, True
+
 
 def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
 
