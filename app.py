@@ -1059,7 +1059,7 @@ def espresso_route():
             roast_pred_scatter = 'Medium'
         df_analyze_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, df_espresso_initial, df_profile)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_analyze_scatter, espresso_x_col, espresso_y_col)
-        temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
+        temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         valid_user_name_list, valid_roast_list = espresso.get_user_roast_values(df_espresso_initial)
@@ -1090,7 +1090,7 @@ def espresso_route():
         roast_pred_scatter = 'Medium'
         df_analyze_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, df_espresso_initial, df_profile)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_analyze_scatter, espresso_x_col, espresso_y_col)
-        temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
+        temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         valid_user_name_list, valid_roast_list = espresso.get_user_roast_values(df_espresso_initial)
