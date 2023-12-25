@@ -83,6 +83,12 @@
         select option {
             width: auto; /* Allows the dropdown to expand to fit content */
         }
+
+        .dropdown-title {
+            font-weight: bold;
+            /* text-align: center; */
+            font-size: larger;
+        }
     </style>
 </head>
 
@@ -100,54 +106,32 @@
 
     <form name="form2" action="#" method="post">
         <h1 style="text-align: center">Dynamic Scatter Plots</h1>
-        <p>Choose your X and Y axis</p>
-        <div class="flex-container">
-            <p class="pad_lr_30">User</p>
-            <p class="pad_lr_30">Roast</p>
-        </div>
         <div class="flex-container">
             <select name="user_pred_scatter">
-                <option value="{{user_pred_scatter_val}}">{{user_pred_scatter_val}}</option>
-                <option disabled>______</option>
-                <option value="James">James</option>
-                <option value="Justine">Justine</option>
+                <option disabled selected class="dropdown-title">User</option>
+                {% for name in valid_user_name_list %}
+                    <option value="{{ name }}" {% if name == user_pred_scatter_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
             </select>
             <select name="roast_pred_scatter">
-                <option value="{{roast_pred_scatter_val}}">{{roast_pred_scatter_val}}</option>
-                <option disabled>______</option>
-                <option value="Light">Light</option>
-                <option value="Medium">Medium</option>
-                <option value="Dark">Dark</option>
+                <option disabled selected class="dropdown-title">Roast</option>
+                {% for name in valid_roast_list %}
+                    <option value="{{ name }}" {% if name == roast_pred_scatter_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
             </select>
-        </div>
-        <div class="flex-container">
-            <p class="pad_lr_30">X Axis</p>
-            <p class="pad_lr_30">Y Axis</p>
         </div>
         <div class="flex-container">
             <select name="espresso_x_col">
-                <option value="{{espresso_x_col_val}}">{{espresso_x_col_label_val}}</option>
-                <option disabled>______</option>
-                <option value="final_score">Final Score</option>
-                <option value="niche_grind_setting">Niche Grind Setting</option>
-                <option value="espresso_coffee_ratio">Espresso g / Coffee g</option>
-                <option value="extraction_time_seconds">Extraction Time in Seconds</option>
-                <option value="flow_time_seconds">Flow Time in Seconds</option>
-                <option value="extract_flow_ratio">Espresso g / Flow Seconds</option>
-                <option value="extract_flow_rate">Extraction Seconds / Flow Seconds</option>
-                <option value="water_temp_f">Water Temp F</option>
+                <option disabled selected class="dropdown-title">X Axis</option>
+                {% for key, label in espresso_col_labels.items() %}
+                    <option value="{{ key }}" {% if key == espresso_x_col_val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
             </select>
             <select name="espresso_y_col">
-                <option value="{{espresso_y_col_val}}">{{espresso_y_col_label_val}}</option>
-                <option disabled>______</option>
-                <option value="final_score">Final Score</option>
-                <option value="niche_grind_setting">Niche Grind Setting</option>
-                <option value="espresso_coffee_ratio">Espresso g / Coffee g</option>
-                <option value="extraction_time_seconds">Extraction Time in Seconds</option>
-                <option value="flow_time_seconds">Flow Time in Seconds</option>
-                <option value="extract_flow_ratio">Espresso g / Flow Seconds</option>
-                <option value="extract_flow_rate">Extraction Seconds / Flow Seconds</option>
-                <option value="water_temp_f">Water Temp F</option>
+                <option disabled selected class="dropdown-title">Y Axis</option>
+                {% for key, label in espresso_col_labels.items() %}
+                    <option value="{{ key }}" {% if key == espresso_y_col_val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
             </select>
         </div>
         <br>
@@ -164,24 +148,18 @@
     <form name="form3" action="#" method="post">
         <h1 style="text-align: center">KNN Predictive Recommendations</h1>
         <p>KNN, Cross-validation = 5 fold, Based on specific users and roasts</p>
-        <!-- <p>Only James + Medium works while gathering more data</p> -->
-        <div class="flex-container">
-            <p class="pad_lr_30">User</p>
-            <p class="pad_lr_30">Roast</p>
-        </div>
         <div class="flex-container">
             <select name="user_pred">
-                <option value="{{user_pred_val}}">{{user_pred_val}}</option>
-                <option disabled>______</option>
-                <option value="James">James</option>
-                <option value="Justine">Justine</option>
+                <option disabled selected class="dropdown-title">User</option>
+                {% for name in valid_user_name_list %}
+                    <option value="{{ name }}" {% if name == user_pred_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
             </select>
             <select name="roast_pred">
-                <option value="{{roast_pred_val}}">{{roast_pred_val}}</option>
-                <option disabled>______</option>
-                <option value="Light">Light</option>
-                <option value="Medium">Medium</option>
-                <option value="Dark">Dark</option>
+                <option disabled selected class="dropdown-title">Roast</option>
+                {% for name in valid_roast_list %}
+                    <option value="{{ name }}" {% if name == roast_pred_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
             </select>
         </div>
         <br>
@@ -279,23 +257,17 @@
             <h1 style="text-align: center">Baseline Brewing Recommendations</h1>
             <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
             <div class="flex-container">
-                <p class="pad_lr_30">Roast</p>
-                <p class="pad_lr_30">Dose</p> 
-            </div>
-            <div class="flex-container">
                 <select name="roast">
-                    <option value="{{roast_val}}">{{roast_val}}</option>
-                    <option disabled>______</option>
-                    <option value="Light">Light</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Dark">Dark</option>
+                    <option disabled selected class="dropdown-title">Roast</option>
+                    {% for roast_option in roast_options %}
+                        <option value="{{ roast_option }}" {% if roast_option == roast_val %}selected{% endif %}>{{ roast_option }}</option>
+                    {% endfor %}
                 </select>
                 <select name="dose">
-                    <option value="{{dose_val}}">{{dose_val}}</option>
-                    <option disabled>______</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
+                    <option disabled selected class="dropdown-title">Dose</option>
+                    {% for dose_option in dose_options %}
+                        <option value="{{ dose_option }}" {% if dose_option == dose_val %}selected{% endif %}>{{ dose_option }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <br>

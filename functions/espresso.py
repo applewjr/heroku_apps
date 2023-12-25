@@ -71,6 +71,18 @@ def get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO):
     len(df_espresso_initial)
     return df_espresso_initial
 
+
+def get_user_roast_values(df_espresso_initial):
+
+    df_espresso = df_espresso_initial.rename(columns={
+        'User\'s Name': 'user_name',
+        'Coffee Roast': 'coffee_roast'
+    })
+    valid_user_name_list = df_espresso['user_name'].unique().tolist()
+    valid_roast_list = df_espresso['coffee_roast'].unique().tolist()
+
+    return valid_user_name_list, valid_roast_list
+
 def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
 
     # user_pred = str(user_pred)
