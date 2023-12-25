@@ -1012,6 +1012,8 @@ def espresso_route():
         ,'extract_flow_rate': 'Extraction Seconds / Flow Seconds'
         ,'water_temp_f': 'Water Temp F'
         }
+    roast_options = ["Light", "Medium", "Dark"]
+    dose_options = ["1", "2", "3"]
 
     if request.method == "POST":
 
@@ -1043,12 +1045,10 @@ def espresso_route():
             espresso_x_col = request.form['espresso_x_col']
         else:
             espresso_x_col = 'flow_time_seconds'
-        espresso_x_col_label = espresso_col_labels.get(espresso_x_col, espresso_x_col)
         if 'espresso_y_col' in request.form:
             espresso_y_col = request.form['espresso_y_col']
         else:
             espresso_y_col = 'final_score'
-        espresso_y_col_label = espresso_col_labels.get(espresso_y_col, espresso_y_col)
         if 'user_pred_scatter' in request.form:
             user_pred_scatter = request.form['user_pred_scatter']
         else:
@@ -1062,14 +1062,18 @@ def espresso_route():
         temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
-        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
+        valid_user_name_list, valid_roast_list = espresso.get_user_roast_values(df_espresso_initial)
+
+        return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list \
+            ,naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
-            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_x_col_label_val=espresso_x_col_label, espresso_y_col_label_val=espresso_y_col_label \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col \
+            ,espresso_col_labels=espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
     else:
         roast = 'Medium'
-        dose = 2
+        dose = "2"
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 
         user_pred = 'James'
@@ -1081,9 +1085,7 @@ def espresso_route():
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         espresso_x_col = 'flow_time_seconds'
-        espresso_x_col_label = espresso_col_labels.get(espresso_x_col, espresso_x_col)
         espresso_y_col = 'final_score'
-        espresso_y_col_label = espresso_col_labels.get(espresso_y_col, espresso_y_col)
         user_pred_scatter = 'James'
         roast_pred_scatter = 'Medium'
         df_analyze_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, df_espresso_initial, df_profile)
@@ -1091,13 +1093,15 @@ def espresso_route():
         temp_espresso_scatter_plot = 'static/yt_video_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
-        return render_template('espresso.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
+        valid_user_name_list, valid_roast_list = espresso.get_user_roast_values(df_espresso_initial)
+
+        return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list \
+            ,naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred \
-            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_x_col_label_val=espresso_x_col_label, espresso_y_col_label_val=espresso_y_col_label \
-            , user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col \
+            ,espresso_col_labels=espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
+            ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter \
             )
-
-
 
 
 
