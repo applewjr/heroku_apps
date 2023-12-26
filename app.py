@@ -1002,40 +1002,6 @@ def etl_status_dash():
 @app.route('/espresso', methods=['GET', 'POST'])
 def espresso_route():
 
-    # espresso_col_labels = {
-    #     'final_score': 'Final Score'
-    #     ,'niche_grind_setting': 'Niche Grind Setting'
-    #     ,'espresso_coffee_ratio': 'Espresso g / Coffee g'
-    #     ,'extraction_time_seconds': 'Extraction Time in Seconds'
-    #     ,'flow_time_seconds': 'Flow Time in Seconds'
-    #     ,'extract_flow_ratio': 'Espresso g / Flow Seconds'
-    #     ,'extract_flow_rate': 'Extraction Seconds / Flow Seconds'
-    #     ,'water_temp_f': 'Water Temp F'
-    #     }
-    # scatter_espresso_col_labels = {
-    #     'niche_grind_setting': 'Niche Grind Setting'
-    #     ,'ground_coffee_grams': 'Ground Coffee g'
-    #     ,'espresso_out_grams': 'Espresso Out g'
-    #     ,'extraction_time_seconds': 'Extraction Time in Seconds'
-    #     ,'flow_time_seconds': 'Flow Time in Seconds'
-    #     ,'water_temp_f': 'Water Temp F'
-    #     ,'espresso_coffee_ratio': 'Espresso g / Coffee g'
-    #     ,'extract_flow_ratio': 'Espresso g / Flow Seconds'
-    #     ,'extract_flow_rate': 'Extraction Seconds / Flow Seconds'
-    #     ,'standard_tools_wdt': 'WDT'
-    #     ,'standard_tools_tamp': 'Tamp'
-    #     ,'standard_tools_filtered_water': 'Filtered Water'
-    #     ,'standard_tools_wet_beans': 'Pre-wet whole beans'
-    #     ,'standard_tools_prewarm_filter': 'Pre-warm filter'
-    #     ,'outcomes_bitterness': 'Outcome Bitterness'
-    #     ,'outcomes_sourness': 'Outcome Sourness'
-    #     ,'outcomes_channelling': 'Outcome Channelling'
-    #     ,'outcomes_crema': 'Outcome Crema'
-    #     ,'outcomes_sweetness': 'Outcome Sweetness'
-    #     ,'outcomes_mouthfeel': 'Outcome Mouthfeel'
-    #     ,'outcomes_overall_taste': 'Outcome Overall Taste'
-    #     ,'final_score': 'Final Score'
-    #     }
     scatter_espresso_col_labels = espresso.get_scatter_col_labels()
     roast_options = ["Light", "Medium", "Dark"]
     dose_options = ["1", "2", "3"]
