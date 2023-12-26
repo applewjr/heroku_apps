@@ -123,13 +123,13 @@
         <div class="flex-container">
             <select name="espresso_x_col">
                 <option disabled selected class="dropdown-title">X Axis</option>
-                {% for key, label in espresso_col_labels.items() %}
+                {% for key, label in scatter_espresso_col_labels.items() %}
                     <option value="{{ key }}" {% if key == espresso_x_col_val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
             <select name="espresso_y_col">
                 <option disabled selected class="dropdown-title">Y Axis</option>
-                {% for key, label in espresso_col_labels.items() %}
+                {% for key, label in scatter_espresso_col_labels.items() %}
                     <option value="{{ key }}" {% if key == espresso_y_col_val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
