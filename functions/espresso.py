@@ -235,6 +235,33 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
     df_analyze['extract_flow_ratio'] = (df_analyze['extraction_time_seconds'] / df_analyze['flow_time_seconds']).round(4)
     df_analyze['extract_flow_rate'] = (df_analyze['espresso_out_grams'] / df_analyze['flow_time_seconds']).round(4)
 
+    df_scatter = df_analyze.copy()
+    scatter_columns_to_keep = [
+        'niche_grind_setting',
+        'ground_coffee_grams',
+        'espresso_out_grams',
+        'extraction_time_seconds',
+        'flow_time_seconds',
+        'water_temp_f',
+        'espresso_coffee_ratio',
+        'extract_flow_ratio',
+        'extract_flow_rate',
+        'standard_tools_wdt',
+        'standard_tools_tamp',
+        'standard_tools_filtered_water',
+        'standard_tools_wet_beans',
+        'standard_tools_prewarm_filter',
+        'outcomes_bitterness',
+        'outcomes_sourness',
+        'outcomes_channelling',
+        'outcomes_crema',
+        'outcomes_sweetness',
+        'outcomes_mouthfeel',
+        'outcomes_overall_taste',
+        'final_score'
+    ]
+    df_scatter = df_scatter[scatter_columns_to_keep]
+
     columns_to_keep = [
         'niche_grind_setting', 'espresso_coffee_ratio',
         'extraction_time_seconds', 'flow_time_seconds', 'extract_flow_ratio', 'extract_flow_rate',
@@ -247,7 +274,7 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
 
     df_analyze.reset_index(drop=True, inplace=True)
 
-    return df_analyze
+    return df_analyze, df_scatter
 
 def find_optimal_espresso_parameters(df_analyze):
     # Check if the dataset has enough data
@@ -310,12 +337,41 @@ def find_optimal_espresso_parameters(df_analyze):
 
     return optimal_parameters_dict, True, performance_dict
 
+def get_scatter_col_labels():
+    scatter_espresso_col_labels = {
+         'niche_grind_setting': 'Niche Grind Setting'
+        ,'ground_coffee_grams': 'Ground Coffee g'
+        ,'espresso_out_grams': 'Espresso Out g'
+        ,'extraction_time_seconds': 'Extraction Time in Seconds'
+        ,'flow_time_seconds': 'Flow Time in Seconds'
+        ,'water_temp_f': 'Water Temp F'
+        ,'espresso_coffee_ratio': 'Espresso g / Coffee g'
+        ,'extract_flow_ratio': 'Espresso g / Flow Seconds'
+        ,'extract_flow_rate': 'Extraction Seconds / Flow Seconds'
+        ,'standard_tools_wdt': 'WDT'
+        ,'standard_tools_tamp': 'Tamp'
+        ,'standard_tools_filtered_water': 'Filtered Water'
+        ,'standard_tools_wet_beans': 'Pre-wet whole beans'
+        ,'standard_tools_prewarm_filter': 'Pre-warm filter'
+        ,'outcomes_bitterness': 'Outcome Bitterness'
+        ,'outcomes_sourness': 'Outcome Sourness'
+        ,'outcomes_channelling': 'Outcome Channelling'
+        ,'outcomes_crema': 'Outcome Crema'
+        ,'outcomes_sweetness': 'Outcome Sweetness'
+        ,'outcomes_mouthfeel': 'Outcome Mouthfeel'
+        ,'outcomes_overall_taste': 'Outcome Overall Taste'
+        ,'final_score': 'Final Score'
+        }
+    return scatter_espresso_col_labels
+
 def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
+
+    col_labels = get_scatter_col_labels()
+
     # Normalize 'final_score' values to range between 1 and 10
     norm = plt.Normalize(1, 10)
 
     # Create a custom colormap from orange to blue
-    # Note that the mapping starts at 0 (for 1 in 'final_score') and ends at 1 (for 10 in 'final_score')
     colors = [(0, 'orange'), (1, 'blue')]
     cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', colors)
 
@@ -325,9 +381,13 @@ def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
     plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], 
                 c=df_analyze['final_score'], cmap=cmap, norm=norm, alpha=0.8)
 
-    plt.title(f'{espresso_x_col} vs {espresso_y_col}')
-    plt.xlabel(espresso_x_col)
-    plt.ylabel(espresso_y_col)
+    # Use user-friendly labels for axes and title
+    x_label = col_labels.get(espresso_x_col, espresso_x_col)
+    y_label = col_labels.get(espresso_y_col, espresso_y_col)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(f'{x_label} vs {y_label}')
+
     plt.colorbar(label='Final Score')  # Optional: add a colorbar
     plt.show()
 
