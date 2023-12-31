@@ -76,14 +76,16 @@ def get_user_roast_values(df_espresso_initial):
 
     df_espresso = df_espresso_initial.rename(columns={
         'User\'s Name': 'user_name',
-        'Coffee Roast': 'coffee_roast'
+        'Coffee Roast': 'coffee_roast',
+        'Number of Shots': 'number_shots'
     })
     valid_user_name_list = df_espresso['user_name'].unique().tolist()
     valid_roast_list = df_espresso['coffee_roast'].unique().tolist()
+    valid_shots_list = df_espresso['number_shots'].unique().tolist()
 
-    return valid_user_name_list, valid_roast_list
+    return valid_user_name_list, valid_roast_list, valid_shots_list
 
-def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
+def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile):
 
     # user_pred = str(user_pred)
     # roast_pred = str(roast_pred)
@@ -171,6 +173,7 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
         ,'user_name'
         ,'coffee_roast'
         ,'rocket_profile'
+        ,'number_shots'
     ]
     df_analyze = df_analyze[columns_to_keep]
 
@@ -207,12 +210,14 @@ def clean_espresso_df(user_pred, roast_pred, df_espresso_initial, df_profile):
         't4',
         'p4',
         't5',
-        'p5'
+        'p5',
+        'number_shots'
     ]
     df_analyze[float_columns] = df_analyze[float_columns].astype(float)
 
     df_analyze = df_analyze.loc[(df_analyze["user_name"] == user_pred) & \
                                 (df_analyze["coffee_roast"] == roast_pred) & \
+                                (df_analyze["number_shots"] == int(shots_pred)) & \
                                 (df_analyze["rocket_profile"] != 'Custom')
                                 ]
 
