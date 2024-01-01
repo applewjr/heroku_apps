@@ -8,10 +8,11 @@ from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from scipy.spatial.distance import cdist
 
 def get_naive_espresso_points(roast, dose, espresso_points):
 
-    roast = roast.lower()
+    roast = roast.lower().replace(" ", "_")
     dose = int(dose)
 
     roast_cut = espresso_points['roast_variable'][roast]
@@ -394,6 +395,55 @@ def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
     plt.title(f'{x_label} vs {y_label}')
 
     plt.colorbar(label='Final Score')  # Optional: add a colorbar
-    plt.show()
+    # plt.show()
+
+    return plt
+
+def get_furthest_point_multidimensional(df
+    ,distance_grind_min, distance_grind_max, distance_grind_default
+    ,distance_coffee_g_min, distance_coffee_g_max, distance_coffee_g_default
+    ,distance_espresso_g_min, distance_espresso_g_max, distance_espresso_g_default
+    ):
+
+    allowed_ranges = [(float(distance_grind_min), float(distance_grind_max)), \
+        (float(distance_coffee_g_min), float(distance_coffee_g_max)), \
+        (float(distance_espresso_g_min), float(distance_espresso_g_max))
+        ]
+    granularities = [float(distance_grind_default), float(distance_coffee_g_default), float(distance_espresso_g_default)]
+
+    # Check if dimensions match
+    if len(allowed_ranges) != len(granularities) or df.shape[1] != len(allowed_ranges):
+        raise ValueError("Dimensions of allowed_ranges, granularities, and DataFrame columns must match.")
+
+    # Generate a grid of potential points within the allowed ranges with specified granularities
+    grid_ranges = [np.arange(start, stop + gran, gran) for (start, stop), gran in zip(allowed_ranges, granularities)]
+    mesh = np.array(np.meshgrid(*grid_ranges))
+    potential_points = mesh.T.reshape(-1, len(allowed_ranges))
+
+    # Calculate distances between potential points and existing points
+    existing_points = df.to_numpy()
+    distances = cdist(potential_points, existing_points, metric='euclidean')
+
+    # Find the minimum distance to existing points for each potential point
+    min_distances = np.min(distances, axis=1)
+
+    # Identify the potential point with the maximum of these minimum distances
+    furthest_point_index = np.argmax(min_distances)
+    furthest_point = potential_points[furthest_point_index]
+
+    furthest_point_rounded = [round(value, 0) if value.is_integer() else round(value, 1) for value in furthest_point]
+
+    return furthest_point_rounded
+
+def plot_3d_scatter(df):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.scatter(df['niche_grind_setting'], df['ground_coffee_grams'], df['espresso_out_grams'])
+
+    ax.set_xlabel('Grind')
+    ax.set_ylabel('Coffee Grams')
+    ax.set_zlabel('Espresso Grams')
+    # plt.show()
 
     return plt

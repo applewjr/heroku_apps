@@ -88,6 +88,42 @@
 			,"niche_grind_setting": 12.5
 			,"coffee_to_espresso_ratio": 2
 		}
+		,"medium_dark": {
+			"coffee_grams_dose": {
+				"min": 8
+				,"max": 9
+				,"current": 8.5
+			}
+			,"water_temp_f": {
+				"min": 200
+				,"max": 200
+				,"current": 200
+			}
+			,"brew_profile": {
+				"part_1": {
+					"seconds": 3.5
+					,"bar": 2
+				}
+				,"part_2": {
+					"seconds": 6.5
+					,"bar": 6
+				}
+				,"part_3": {
+					"seconds": 9.6
+					,"bar": 9
+				}
+				,"part_4": {
+					"seconds": 5.4
+					,"bar": 6
+				}
+				,"part_5": {
+					"seconds": 2
+					,"bar": 0
+				}
+			}
+			,"niche_grind_setting": 12.5
+			,"coffee_to_espresso_ratio": 2
+		}
 		,"dark": {
 			"coffee_grams_dose": {
 				"min": 8
