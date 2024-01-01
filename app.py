@@ -1002,56 +1002,49 @@ def etl_status_dash():
 @app.route('/espresso', methods=['GET', 'POST'])
 def espresso_route():
 
+    google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
+    df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
+    df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
     scatter_espresso_col_labels = espresso.get_scatter_col_labels()
-    roast_options = ["Light", "Medium", "Dark"]
+    valid_user_name_list, valid_roast_list, valid_shots_list = espresso.get_user_roast_values(df_espresso_initial)
+
+    roast_options = ["Light", "Medium", "Medium Dark", "Dark"]
     dose_options = ["1", "2", "3"]
+
+    user_pred = 'James'
+    roast_pred = 'Medium'
+    shots_pred = '2'
+    espresso_x_col = 'flow_time_seconds'
+    espresso_y_col = 'final_score'
+    user_pred_scatter = 'James'
+    roast_pred_scatter = 'Medium'
+    shots_pred_scatter = '2'
 
     if request.method == "POST":
 
         if 'user_pred' in request.form:
             user_pred = request.form['user_pred']
-        else:
-            user_pred = 'James'
         if 'roast_pred' in request.form:
             roast_pred = request.form['roast_pred']
-        else:
-            roast_pred = 'Medium'
         if 'shots_pred' in request.form:
             shots_pred = request.form['shots_pred']
-        else:
-            shots_pred = '2'
-        google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
-        df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
-        df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
         df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile)
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         if 'espresso_x_col' in request.form:
             espresso_x_col = request.form['espresso_x_col']
-        else:
-            espresso_x_col = 'flow_time_seconds'
         if 'espresso_y_col' in request.form:
             espresso_y_col = request.form['espresso_y_col']
-        else:
-            espresso_y_col = 'final_score'
         if 'user_pred_scatter' in request.form:
             user_pred_scatter = request.form['user_pred_scatter']
-        else:
-            user_pred_scatter = 'James'
         if 'roast_pred_scatter' in request.form:
             roast_pred_scatter = request.form['roast_pred_scatter']
-        else:
-            roast_pred_scatter = 'Medium'
         if 'shots_pred_scatter' in request.form:
             shots_pred_scatter = request.form['shots_pred_scatter']
-        else:
-            shots_pred_scatter = '2'
         df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
-
-        valid_user_name_list, valid_roast_list, valid_shots_list = espresso.get_user_roast_values(df_espresso_initial)
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
@@ -1059,27 +1052,15 @@ def espresso_route():
             ,scatter_espresso_col_labels=scatter_espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter, shots_pred_scatter_val=shots_pred_scatter \
             )
+
     else:
-        user_pred = 'James'
-        roast_pred = 'Medium'
-        shots_pred = '2'
-        google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
-        df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
-        df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
         df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile)
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
-        espresso_x_col = 'flow_time_seconds'
-        espresso_y_col = 'final_score'
-        user_pred_scatter = 'James'
-        roast_pred_scatter = 'Medium'
-        shots_pred_scatter = '2'
         df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
-
-        valid_user_name_list, valid_roast_list, valid_shots_list = espresso.get_user_roast_values(df_espresso_initial)
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
@@ -1087,34 +1068,120 @@ def espresso_route():
             ,scatter_espresso_col_labels=scatter_espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter, shots_pred_scatter_val=shots_pred_scatter \
             )
+
 
 @app.route('/espresso_input', methods=['GET', 'POST'])
 def espresso_input_route():
 
-    roast_options = ["Light", "Medium", "Dark"]
+    google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
+    df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
+    df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
+    valid_user_name_list, valid_roast_list, valid_shots_list = espresso.get_user_roast_values(df_espresso_initial)
+
+    roast_options = ["Light", "Medium", "Medium Dark", "Dark"]
     dose_options = ["1", "2", "3"]
+
+    roast = 'Medium'
+    dose = "2"
+
+    distance_user = "James"
+    distance_roast = "Medium"
+    distance_shots = "2"
+
+    distance_grind_min = "11"
+    distance_grind_max = "13"
+    distance_grind_granularity = "0.5"
+
+    distance_coffee_g_min = "16"
+    distance_coffee_g_max = "18"
+    distance_coffee_g_granularity = "0.1"
+
+    distance_espresso_g_min = "32"
+    distance_espresso_g_max = "42"
+    distance_espresso_g_granularity = "0.1"
 
     if request.method == "POST":
 
         if 'roast' in request.form:
             roast = request.form['roast']
-        else:
-            roast = 'Medium'
         if 'dose' in request.form:
             dose = request.form['dose']
-        else:
-            dose = 2
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 
+
+        if 'distance_user' in request.form:
+            distance_user = request.form['distance_user']
+        if 'distance_roast' in request.form:
+            distance_roast = request.form['distance_roast']
+        if 'distance_shots' in request.form:
+            distance_shots = request.form['distance_shots']
+
+        if 'distance_grind_min' in request.form:
+            distance_grind_min = request.form['distance_grind_min']
+        if 'distance_grind_max' in request.form:
+            distance_grind_max = request.form['distance_grind_max']
+        if 'distance_grind_granularity' in request.form:
+            distance_grind_granularity = request.form['distance_grind_granularity']
+
+        if 'distance_coffee_g_min' in request.form:
+            distance_coffee_g_min = request.form['distance_coffee_g_min']
+        if 'distance_coffee_g_max' in request.form:
+            distance_coffee_g_max = request.form['distance_coffee_g_max']
+        if 'distance_coffee_g_granularity' in request.form:
+            distance_coffee_g_granularity = request.form['distance_coffee_g_granularity']
+
+        if 'distance_espresso_g_min' in request.form:
+            distance_espresso_g_min = request.form['distance_espresso_g_min']
+        if 'distance_espresso_g_max' in request.form:
+            distance_espresso_g_max = request.form['distance_espresso_g_max']
+        if 'distance_espresso_g_granularity' in request.form:
+            distance_espresso_g_granularity = request.form['distance_espresso_g_granularity']
+
+        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile)
+        df_furthest = df_scatter[['niche_grind_setting','ground_coffee_grams','espresso_out_grams']]
+        furthest_point = espresso.get_furthest_point_multidimensional(df_furthest
+            ,distance_grind_min, distance_grind_max, distance_grind_granularity
+            ,distance_coffee_g_min, distance_coffee_g_max, distance_coffee_g_granularity
+            ,distance_espresso_g_min, distance_espresso_g_max, distance_espresso_g_granularity
+            )
+        scatter_3d = espresso.plot_3d_scatter(df_scatter)
+        temp_scatter_3d_plot = 'static/scatter_3d.png'
+        scatter_3d.savefig(temp_scatter_3d_plot)
+
         return render_template('espresso_input.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
-            ,roast_options=roast_options, dose_options=dose_options)
+            ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
+            ,roast_options=roast_options, dose_options=dose_options \
+            ,furthest_point=furthest_point, scatter_3d=temp_scatter_3d_plot \
+            ,distance_user_val=distance_user, distance_roast_val=distance_roast, distance_shots_val=distance_shots \
+            ,distance_grind_min_val=distance_grind_min, distance_grind_max_val=distance_grind_max, distance_grind_granularity_val=distance_grind_granularity \
+            ,distance_coffee_g_min_val=distance_coffee_g_min, distance_coffee_g_max_val=distance_coffee_g_max, distance_coffee_g_granularity_val=distance_coffee_g_granularity \
+            ,distance_espresso_g_min_val=distance_espresso_g_min, distance_espresso_g_max_val=distance_espresso_g_max, distance_espresso_g_granularity_val=distance_espresso_g_granularity)
+
     else:
-        roast = 'Medium'
-        dose = "2"
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 
+        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile)
+        df_furthest = df_scatter[['niche_grind_setting','ground_coffee_grams','espresso_out_grams']]
+        furthest_point = espresso.get_furthest_point_multidimensional(df_furthest
+            ,distance_grind_min, distance_grind_max, distance_grind_granularity
+            ,distance_coffee_g_min, distance_coffee_g_max, distance_coffee_g_granularity
+            ,distance_espresso_g_min, distance_espresso_g_max, distance_espresso_g_granularity
+            )
+        scatter_3d = espresso.plot_3d_scatter(df_scatter)
+        temp_scatter_3d_plot = 'static/scatter_3d.png'
+        scatter_3d.savefig(temp_scatter_3d_plot)
+
         return render_template('espresso_input.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
-            ,roast_options=roast_options, dose_options=dose_options)
+            ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
+            ,roast_options=roast_options, dose_options=dose_options \
+            ,furthest_point=furthest_point, scatter_3d=temp_scatter_3d_plot \
+            ,distance_user_val=distance_user, distance_roast_val=distance_roast, distance_shots_val=distance_shots \
+            ,distance_grind_min_val=distance_grind_min, distance_grind_max_val=distance_grind_max, distance_grind_granularity_val=distance_grind_granularity \
+            ,distance_coffee_g_min_val=distance_coffee_g_min, distance_coffee_g_max_val=distance_coffee_g_max, distance_coffee_g_granularity_val=distance_coffee_g_granularity \
+            ,distance_espresso_g_min_val=distance_espresso_g_min, distance_espresso_g_max_val=distance_espresso_g_max, distance_espresso_g_granularity_val=distance_espresso_g_granularity)
+
+
+
 
 
 

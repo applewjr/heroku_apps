@@ -60,6 +60,20 @@
             margin: 0 10px 0 0; /* Right margin and remove default top and bottom margins */
         }
 
+        .flex-container select, .flex-container input[type=number] {
+            border-radius: 5px; /* Rounded corners */
+            height: 35px; /* Uniform height */
+            width: 200px; /* Uniform width */
+            padding: 5px; /* Padding inside the elements */
+            border: 1px solid #ccc; /* Border style */
+            margin: 5px; /* Spacing around the elements */
+            /* Add any other styles as needed */
+        }
+
+        .flex-container select option {
+            padding: 5px; /* Padding inside the dropdown options for consistency */
+        }
+
         .responsive-image {
             max-width: 100%; /* ensures the image is never wider than its container */
             height: auto; /* maintains the aspect ratio of the image */
@@ -261,7 +275,7 @@
     <hr style="width:60%;border: 1px dashed #d3d6da;">
     <br>
 
-    <a href="/espresso_input" target="_blank">
+    <a href="/espresso_input">
         <button class="custom-button">Input Options</button>
     </a>
 
