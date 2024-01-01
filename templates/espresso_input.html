@@ -103,6 +103,7 @@
             /* text-align: center; */
             font-size: larger;
         }
+
     </style>
 </head>
 
@@ -124,6 +125,7 @@
         <p>Utilizes Euclidean distance to calculate the point furthest from all other points</p>
         <p>This is meant to contribute to varied testing. Don't expect the results to taste amazing</p>
         <br>
+        <p>Source Data Filters</p>
         <div class="flex-container">
             <select name="distance_user">
                 <option disabled selected class="dropdown-title">User</option>
@@ -144,31 +146,25 @@
                 {% endfor %}
             </select>
         </div>
+        <br>
+        <p>Grind (Min/Max/Granularity)</p>
         <div class="flex-container">
-            <label for="distance_grind_min">Grind:</label>
-            <label for="distance_grind_min">Min</label>
             <input type="number" name="distance_grind_min" value="{{distance_grind_min_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Max</label>
             <input type="number" name="distance_grind_max" value="{{distance_grind_max_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Default</label>
             <input type="number" name="distance_grind_granularity" value="{{distance_grind_granularity_val}}" step="0.1" min="0">
         </div>
+        <br>
+        <p>Coffee Grams (Min/Max/Granularity)</p>
         <div class="flex-container">
-            <label for="distance_grind_min">Coffee Grams:</label>
-            <label for="distance_grind_min">Min</label>
             <input type="number" name="distance_coffee_g_min" value="{{distance_coffee_g_min_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Max</label>
             <input type="number" name="distance_coffee_g_max" value="{{distance_coffee_g_max_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Default</label>
             <input type="number" name="distance_coffee_g_granularity" value="{{distance_coffee_g_granularity_val}}" step="0.1" min="0">
         </div>
+        <br>
+        <p>Espresso Grams (Min/Max/Granularity)</p>
         <div class="flex-container">
-            <label for="distance_grind_min">Espresso Grams:</label>
-            <label for="distance_grind_min">Min</label>
             <input type="number" name="distance_espresso_g_min" value="{{distance_espresso_g_min_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Max</label>
             <input type="number" name="distance_espresso_g_max" value="{{distance_espresso_g_max_val}}" step="0.1" min="0">
-            <label for="distance_grind_min">Default</label>
             <input type="number" name="distance_espresso_g_granularity" value="{{distance_espresso_g_granularity_val}}" step="0.1" min="0">
         </div>
         <br>
