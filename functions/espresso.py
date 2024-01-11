@@ -269,7 +269,8 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
     df_scatter = df_scatter[scatter_columns_to_keep]
 
     columns_to_keep = [
-        'niche_grind_setting', 'espresso_coffee_ratio',
+        # 'niche_grind_setting', 
+        'espresso_coffee_ratio',
         'extraction_time_seconds', 'flow_time_seconds', 'extract_flow_ratio', 'extract_flow_rate',
         'water_temp_f',
         # 'standard_tools_wdt', 'standard_tools_tamp','standard_tools_filtered_water','standard_tools_wet_beans','standard_tools_prewarm_filter',
