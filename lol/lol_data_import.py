@@ -443,7 +443,7 @@ else:
         for data in match_data:
             try:
                 df_list.append(pd.DataFrame(data['challenges'], index=[0]))
-            except KeyError:
+            except:
                 df_list.append(pd.DataFrame({'challenges': [np.nan]}))
         df = pd.concat(df_list, ignore_index=True)
         participants_challenges = pd.concat([participants_challenges, df])
