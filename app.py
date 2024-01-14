@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect
+from flask import Flask, redirect, render_template, request, redirect, url_for
 import pandas as pd
 import numpy as np
 import os
@@ -61,6 +61,8 @@ if 'IS_HEROKU' in os.environ:
     GOOGLE_SHEETS_URL_BEAN = os.environ.get('GOOGLE_SHEETS_URL_BEAN')
     GOOGLE_SHEETS_URL_PROFILE = os.environ.get('GOOGLE_SHEETS_URL_PROFILE')
     ESPRESSO_WATER_TEMP_NA_VAL = os.environ.get('ESPRESSO_WATER_TEMP_NA_VAL')
+    GOOGLE_FORM_PASS = os.environ.get('GOOGLE_FORM_PASS')
+    GOOGLE_FORM_URL = os.environ.get('GOOGLE_FORM_URL')
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -76,6 +78,8 @@ else:
     GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
     GOOGLE_SHEETS_URL_PROFILE = secret_pass.GOOGLE_SHEETS_URL_PROFILE
     ESPRESSO_WATER_TEMP_NA_VAL = secret_pass.ESPRESSO_WATER_TEMP_NA_VAL
+    GOOGLE_FORM_PASS = secret_pass.GOOGLE_FORM_PASS
+    GOOGLE_FORM_URL = secret_pass.GOOGLE_FORM_URL
 
 
 ########## Other SQL stuff ##########
@@ -997,6 +1001,19 @@ def etl_status_dash():
 ##### Espresso Optimizer - IP
 ######################################
 ######################################
+
+@app.route('/validate_password', methods=['POST'])
+def validate_password():
+    user_password = request.form['password']
+
+    google_forms_pass = GOOGLE_FORM_PASS
+    google_forms_url = GOOGLE_FORM_URL
+
+    if user_password == google_forms_pass:
+        return redirect(google_forms_url)
+    else:
+        referrer = request.headers.get("Referer")
+        return redirect(referrer if referrer else url_for('index'))
 
 @app.route('/espresso', methods=['GET', 'POST'])
 def espresso_route():
