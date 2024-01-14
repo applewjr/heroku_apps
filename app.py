@@ -86,19 +86,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
-##### SSL / redirect #####
+##### SSL #####
 
 sslify = SSLify(app)
 app.config['SESSION_COOKIE_SECURE'] = True
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-def redirect_nonwww():
-    """Redirect non-www requests to www."""
-    if not request.host.startswith('www.'):
-        new_url = request.url.replace(request.host, 'www.' + request.host, 1)
-        return redirect(new_url, code=301)
-
-
 
 
 
