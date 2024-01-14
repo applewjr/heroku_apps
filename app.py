@@ -43,7 +43,7 @@ df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
 with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_file:
     espresso_points = json.load(json_file)
 
-########## MySQL stuff ##########
+########## global variables ##########
 
 import mysql.connector
 
@@ -86,12 +86,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
-##### SSL #####
+##### SSL / redirect #####
 
 sslify = SSLify(app)
 app.config['SESSION_COOKIE_SECURE'] = True
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+def redirect_nonwww():
+    """Redirect non-www requests to www."""
+    if not request.host.startswith('www.'):
+        new_url = request.url.replace(request.host, 'www.' + request.host, 1)
+        return redirect(new_url, code=301)
 
 
 
