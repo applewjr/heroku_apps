@@ -86,7 +86,7 @@ def get_user_roast_values(df_espresso_initial):
 
     return valid_user_name_list, valid_roast_list, valid_shots_list
 
-def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile):
+def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile, water_temp_na_val):
 
     # user_pred = str(user_pred)
     # roast_pred = str(roast_pred)
@@ -125,7 +125,7 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
     replace_dict = {'Yes': 1, 'No': 0, '': 1}
     df_espresso[columns_to_replace] = df_espresso[columns_to_replace].replace(replace_dict)
 
-    df_espresso['water_temp_f'] = df_espresso['water_temp_f'].replace('', np.nan).fillna(197.6)
+    df_espresso['water_temp_f'] = df_espresso['water_temp_f'].replace('', np.nan).fillna(water_temp_na_val)
 
     # Reorder columns
     column_order = [
