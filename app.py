@@ -60,6 +60,7 @@ if 'IS_HEROKU' in os.environ:
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
     GOOGLE_SHEETS_URL_BEAN = os.environ.get('GOOGLE_SHEETS_URL_BEAN')
     GOOGLE_SHEETS_URL_PROFILE = os.environ.get('GOOGLE_SHEETS_URL_PROFILE')
+    ESPRESSO_WATER_TEMP_NA_VAL = os.environ.get('ESPRESSO_WATER_TEMP_NA_VAL')
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -74,6 +75,7 @@ else:
     GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
     GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
     GOOGLE_SHEETS_URL_PROFILE = secret_pass.GOOGLE_SHEETS_URL_PROFILE
+    ESPRESSO_WATER_TEMP_NA_VAL = secret_pass.ESPRESSO_WATER_TEMP_NA_VAL
 
 
 ########## Other SQL stuff ##########
@@ -1019,6 +1021,7 @@ def espresso_route():
     user_pred_scatter = 'James'
     roast_pred_scatter = 'Medium'
     shots_pred_scatter = '2'
+    water_temp_na_val = ESPRESSO_WATER_TEMP_NA_VAL
 
     if request.method == "POST":
 
@@ -1028,7 +1031,7 @@ def espresso_route():
             roast_pred = request.form['roast_pred']
         if 'shots_pred' in request.form:
             shots_pred = request.form['shots_pred']
-        df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile)
+        df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile, water_temp_na_val)
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         if 'espresso_x_col' in request.form:
@@ -1041,7 +1044,7 @@ def espresso_route():
             roast_pred_scatter = request.form['roast_pred_scatter']
         if 'shots_pred_scatter' in request.form:
             shots_pred_scatter = request.form['shots_pred_scatter']
-        df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile)
+        df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile, water_temp_na_val)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
@@ -1054,10 +1057,10 @@ def espresso_route():
             )
 
     else:
-        df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile)
+        df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile, water_temp_na_val)
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
-        df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile)
+        df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile, water_temp_na_val)
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
@@ -1100,6 +1103,8 @@ def espresso_input_route():
     distance_espresso_g_max = "42"
     distance_espresso_g_granularity = "0.1"
 
+    water_temp_na_val = ESPRESSO_WATER_TEMP_NA_VAL
+
     if request.method == "POST":
 
         if 'roast' in request.form:
@@ -1137,7 +1142,7 @@ def espresso_input_route():
         if 'distance_espresso_g_granularity' in request.form:
             distance_espresso_g_granularity = request.form['distance_espresso_g_granularity']
 
-        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile)
+        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile, water_temp_na_val)
         df_furthest = df_scatter[['niche_grind_setting','ground_coffee_grams','espresso_out_grams']]
         furthest_point = espresso.get_furthest_point_multidimensional(df_furthest
             ,distance_grind_min, distance_grind_max, distance_grind_granularity
@@ -1160,7 +1165,7 @@ def espresso_input_route():
     else:
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 
-        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile)
+        df_analyze, df_scatter = espresso.clean_espresso_df(distance_user, distance_roast, distance_shots, df_espresso_initial, df_profile, water_temp_na_val)
         df_furthest = df_scatter[['niche_grind_setting','ground_coffee_grams','espresso_out_grams']]
         furthest_point = espresso.get_furthest_point_multidimensional(df_furthest
             ,distance_grind_min, distance_grind_max, distance_grind_granularity
