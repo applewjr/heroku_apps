@@ -99,15 +99,15 @@ def write_df_to_mysql(df, config, table_name):
 google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
 
 df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
-print_and_append('pull espresso data to df complete')
+print_and_append(f'pull espresso data to df complete. {len(df_espresso_initial) = }')
 write_df_to_mysql(df_espresso_initial, config, "espresso_data")
 
 df_bean = espresso.get_google_sheets_bean(google_credentials, GOOGLE_SHEETS_URL_BEAN)
-print_and_append('pull bean data to df complete')
+print_and_append(f'pull bean data to df complete. {len(df_bean) = }')
 write_df_to_mysql(df_bean, config, "espresso_bean")
 
 df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
-print_and_append('pull profile data to df complete')
+print_and_append(f'pull profile data to df complete. {len(df_profile) = }')
 write_df_to_mysql(df_profile, config, "espresso_profile")
 
 
