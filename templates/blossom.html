@@ -4,6 +4,23 @@
 
 {% block content %}
 <head>
+  <style>
+    input::-webkit-input-placeholder {
+        color: lightgrey;
+    }
+
+    input:-moz-placeholder { /* Firefox 18- */
+        color: lightgrey;
+    }
+
+    input::-moz-placeholder { /* Firefox 19+ */
+        color: lightgrey;
+    }
+
+    input:-ms-input-placeholder {
+        color: lightgrey;
+    }
+  </style>
 
 </head>
 
@@ -15,12 +32,12 @@
     <br>
 
     <p class="pad_lr_30" style="text-align: center">Must Have Letter (Single Letter)</p>
-    <input type="text" pattern="[A-Za-z]+" required name="must_have" style="text-align: center;width: 55px;" value="{{must_have_val}}" maxlength="1">
+    <input type="text" pattern="[A-Za-z]+" required name="must_have" style="text-align: center;width: 55px;" value="{{must_have_val}}" maxlength="1" placeholder="A">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
     <p class="pad_lr_30" style="text-align: center">May Have Letters (Generally 6 Letters)</p>
-    <input type="text" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="25">
+    <input type="text" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="25" placeholder="BCDEFG">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 

@@ -307,7 +307,7 @@ def find_optimal_espresso_parameters(df_analyze):
     knn = KNeighborsRegressor()
 
     # Create grid search object with cross-validation
-    grid_search = GridSearchCV(knn, param_grid, cv=kf, scoring='neg_mean_squared_error')
+    grid_search = GridSearchCV(knn, param_grid, cv=kf, scoring='r2')
 
     # Fit the grid search to the data
     grid_search.fit(X, y)
