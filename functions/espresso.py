@@ -175,6 +175,7 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
         ,'coffee_roast'
         ,'rocket_profile'
         ,'number_shots'
+        ,'timestamp'
     ]
     df_analyze = df_analyze[columns_to_keep]
 
@@ -264,7 +265,8 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
         'outcomes_sweetness',
         'outcomes_mouthfeel',
         'outcomes_overall_taste',
-        'final_score'
+        'final_score',
+        'timestamp'
     ]
     df_scatter = df_scatter[scatter_columns_to_keep]
 
@@ -275,7 +277,8 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
         'water_temp_f',
         # 'standard_tools_wdt', 'standard_tools_tamp','standard_tools_filtered_water','standard_tools_wet_beans','standard_tools_prewarm_filter',
         # 't1', 'p1', 't2', 'p2', 't3', 'p3', 't4', 'p4', 't5', 'p5',
-        'final_score'
+        'final_score',
+        'timestamp'
     ]
     df_analyze = df_analyze[columns_to_keep]
 
@@ -289,16 +292,37 @@ def find_optimal_espresso_parameters(df_analyze):
     if df_analyze.shape[0] < min_data_threshold:
         return {col: f"Need {min_data_threshold - df_analyze.shape[0]} more data points to complete this analysis" for col in df_analyze.columns if col != 'final_score'}, False, None
 
+    # # Convert 'timestamp' to datetime and compute the age of each observation
+    # df_analyze['timestamp'] = pd.to_datetime(df_analyze['timestamp'])
+    # most_recent_date = df_analyze['timestamp'].max()
+    # df_analyze['data_age'] = (most_recent_date - df_analyze['timestamp']).dt.days
+
+    # # Pre-calculate the weights for each observation
+    # decay_rate = 0.05
+    # weights = np.exp(-decay_rate * df_analyze['data_age'])
+
     # Define features and target variable
-    X = df_analyze.drop('final_score', axis=1)
+    # X = df_analyze.drop(['final_score', 'timestamp', 'data_age'], axis=1)
+    X = df_analyze.drop(['final_score', 'timestamp'], axis=1)
     y = df_analyze['final_score']
 
     # Initialize cross-validator
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
+    # # Custom weight function using closure
+    # def create_weight_function(w):
+    #     def weight_function(distances):
+    #         # Using pre-calculated weights based on sorted indices
+    #         sorted_indices = np.argsort(distances, axis=1)
+    #         return np.array([w[idx] for idx in sorted_indices])
+    #     return weight_function
+
+    # age_weighted_distances = create_weight_function(weights.values)
+
     # Define a range of hyperparameters for tuning
     param_grid = {
         'n_neighbors': range(1, 10),
+        # 'weights': [age_weighted_distances, 'uniform', 'distance'],
         'weights': ['uniform', 'distance'],
         'metric': ['euclidean', 'manhattan']
     }
@@ -321,10 +345,16 @@ def find_optimal_espresso_parameters(df_analyze):
     r2_scores = cross_val_score(best_knn, X, y, cv=kf, scoring='r2')
     mae_scores = cross_val_score(best_knn, X, y, cv=kf, scoring='neg_mean_absolute_error')
 
+    # Compute Adjusted R-squared
+    n = X.shape[0]
+    p = X.shape[1]
+    adj_r2_scores = 1 - (1 - r2_scores) * (n - 1) / (n - p - 1)
+
     # Average performance across folds
     performance_dict = {
         'Mean Squared Error': round(-np.mean(mse_scores), 4),
         'R-squared': round(np.mean(r2_scores), 4),
+        'Adjusted R-squared': round(np.mean(adj_r2_scores), 4),
         'Mean Absolute Error': round(-np.mean(mae_scores), 4),
         'Observations': df_analyze.shape[0],
         'Optimal Number of Neighbors': best_params['n_neighbors'],
@@ -346,7 +376,8 @@ def find_optimal_espresso_parameters(df_analyze):
 
 def get_scatter_col_labels():
     scatter_espresso_col_labels = {
-         'niche_grind_setting': 'Niche Grind Setting'
+         'timestamp': 'Timestamp'
+        ,'niche_grind_setting': 'Niche Grind Setting'
         ,'ground_coffee_grams': 'Ground Coffee g'
         ,'espresso_out_grams': 'Espresso Out g'
         ,'extraction_time_seconds': 'Extraction Time in Seconds'
@@ -376,7 +407,7 @@ def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
     col_labels = get_scatter_col_labels()
 
     # Normalize 'final_score' values to range between 1 and 10
-    norm = plt.Normalize(1, 10)
+    norm = plt.Normalize(min(df_analyze['final_score']), max(df_analyze['final_score']))
 
     # Create a custom colormap from orange to blue
     colors = [(0, 'orange'), (1, 'blue')]
@@ -394,6 +425,13 @@ def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(f'{x_label} vs {y_label}')
+
+    # Check if x-axis or y-axis data are datetime and format accordingly
+    if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_x_col]):
+        plt.gcf().autofmt_xdate()  # Rotate x-axis labels for date
+    if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_y_col]):
+        plt.gcf().autofmt_xdate()  # Rotate y-axis labels for date
+
 
     plt.colorbar(label='Final Score')  # Optional: add a colorbar
     # plt.show()

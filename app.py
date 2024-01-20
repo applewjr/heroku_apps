@@ -1230,6 +1230,8 @@ def feedback():
                 cursor.close()
                 conn.close()
 
+        # TODO - maybe create an email notification as well?
+
         return render_template("feedback_received.html")
     else:
         return render_template("feedback.html")
