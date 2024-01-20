@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Feedback{% endblock %}
+
+{% block content %}
+<head>
+  <script>
+    function validateForm() {
+      var header = document.forms["form1"]["feedback_header"].value;
+      var body = document.forms["form1"]["feedback_body"].value;
+      if (header == "" || body == "") {
+        alert("Both Topic and Input must be filled out");
+        return false;
+      }
+      return true;
+    }
+
+    function setReferrer() {
+      document.forms["form1"]["referrer"].value = document.referrer;
+    }
+
+    window.onload = setReferrer;
+  </script>
+</head>
+
+<body>
+  <form name="form1" action="#" method="post" onsubmit="return validateForm()">
+    <input type="hidden" name="referrer" value="">
+    <center>
+      <br>
+      <h1 style="text-align: center">Feedback</h1>
+      <br>
+      <p class="pad_lr_30" style="text-align: center">Considering this website is a side project of mine, it's cool to see people using it. Any feedback, suggestions, requests, or criticisms are welcome. Maybe I can support some enhancements. Thank you!</p>
+      <br>
+      <h5 class="pad_lr_30" style="text-align: center">Topic</h5>
+      <input type="text" name="feedback_header" style="text-align: center;width: 300px;" maxlength="255">
+      <br>
+      <br>
+      <h5 class="pad_lr_30" style="text-align: center">Your Input Here</h5>
+      <textarea name="feedback_body" style="width: 500px;" maxlength="2000" rows="5"></textarea>
+      <br>
+      <br>
+      <input type="submit" value="Submit">
+      <br>
+      <br>
+      <br>
+    </center>
+  </form>
+</body>
+{% endblock %}
