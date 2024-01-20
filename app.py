@@ -1205,6 +1205,41 @@ def espresso_input_route():
 
 
 
+@app.route("/feedback", methods=["POST", "GET"])
+def feedback():
+    if request.method == "POST":
+
+        feedback_header = request.form['feedback_header']
+        feedback_body = request.form['feedback_body']
+        referrer = request.form['referrer']
+
+        # log inputs
+        try:
+            conn = mysql.connector.connect(**config)
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO feedback (submit_time, referrer, feedback_header, feedback_body) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+            """
+            cursor.execute(query, (referrer, feedback_header, feedback_body))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
+        return render_template("feedback_received.html")
+    else:
+        return render_template("feedback.html")
+
+@app.route("/feedback_received", methods=["GET"])
+def feedback_received():
+    return render_template("feedback_received.html")
+
+
+
 
 
 
