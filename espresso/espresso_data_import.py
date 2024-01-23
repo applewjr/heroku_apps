@@ -55,60 +55,70 @@ def print_and_append(statement):
     print(statement)
     gmail_list.append(statement)
 
-def write_df_to_mysql(df, config, table_name):
-    # Establish connection to MySQL database
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor()
+def write_df_to_mysql(df, config, temp_table_name):
+    connection = None
+    try:
+        connection = mysql.connector.connect(**config)
+        cursor = connection.cursor()
 
-    # Check if the original table exists and create it if not
-    cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
-    result = cursor.fetchone()
-    if not result:
-        # Create table based on DataFrame structure
+        # Define columns and create temp table
         columns = ", ".join([f"`{col}` VARCHAR(255)" for col in df.columns])
-        cursor.execute(f"CREATE TABLE {table_name} ({columns})")
+        cursor.execute(f"CREATE TABLE {temp_table_name} ({columns})")
 
-    # Create a unique temporary table name
-    temp_table_name = f"{table_name}_temp_{int(time.time())}"
+        # Insert data
+        for _, row in df.iterrows():
+            columns = ', '.join(f'`{col}`' for col in df.columns)
+            placeholders = ', '.join(['%s'] * len(row))
+            insert_query = f"INSERT INTO {temp_table_name} ({columns}) VALUES ({placeholders})"
+            cursor.execute(insert_query, tuple(row))
 
-    # Create temporary table with same structure as the original table
-    cursor.execute(f"CREATE TABLE {temp_table_name} LIKE {table_name}")
+        connection.commit()
+        print_and_append(f"Data written to {temp_table_name} successfully.")
+    except mysql.connector.Error as e:
+        print_and_append(f"Error: {e}")
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
 
-    # Insert DataFrame data into the temporary table
-    for _, row in df.iterrows():
-        columns = ', '.join(f'`{col}`' for col in df.columns)
-        placeholders = ', '.join(['%s'] * len(row))
-        insert_query = f"INSERT INTO {temp_table_name} ({columns}) VALUES ({placeholders})"
-        cursor.execute(insert_query, tuple(row))
+def replace_mysql_table(config, table_name, temp_table_name):
+    connection = None
+    try:
+        connection = mysql.connector.connect(**config)
+        cursor = connection.cursor()
 
-    # Rename the existing table and the temporary table
-    old_table_name = f"{table_name}_old"
-    cursor.execute(f"RENAME TABLE {table_name} TO {old_table_name}, {temp_table_name} TO {table_name}")
+        # Backup old table and replace with temp table
+        backup_table_name = f"{table_name}_backup"
+        cursor.execute(f"RENAME TABLE {table_name} TO {backup_table_name}")
+        cursor.execute(f"RENAME TABLE {temp_table_name} TO {table_name}")
+        cursor.execute(f"DROP TABLE IF EXISTS {backup_table_name}")
 
-    # Optionally, drop the previous old table
-    cursor.execute(f"DROP TABLE IF EXISTS {old_table_name}")
-
-    # Commit changes and close the connection
-    connection.commit()
-    cursor.close()
-    connection.close()
-
-    print_and_append(f"write {table_name} to MySQL complete")
+        connection.commit()
+        print_and_append(f"{table_name} replaced with {temp_table_name} successfully.")
+    except mysql.connector.Error as e:
+        print_and_append(f"Error: {e}")
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
 
 
 google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
 
 df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
 print_and_append(f'pull espresso data to df complete. {len(df_espresso_initial) = }')
-write_df_to_mysql(df_espresso_initial, config, "espresso_data")
+write_df_to_mysql(df_espresso_initial, config, "temp_espresso_data")
+replace_mysql_table(config, "espresso_data", "temp_espresso_data")
 
 df_bean = espresso.get_google_sheets_bean(google_credentials, GOOGLE_SHEETS_URL_BEAN)
 print_and_append(f'pull bean data to df complete. {len(df_bean) = }')
-write_df_to_mysql(df_bean, config, "espresso_bean")
+write_df_to_mysql(df_bean, config, "temp_espresso_bean")
+replace_mysql_table(config, "espresso_bean", "temp_espresso_bean")
 
 df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
 print_and_append(f'pull profile data to df complete. {len(df_profile) = }')
-write_df_to_mysql(df_profile, config, "espresso_profile")
+write_df_to_mysql(df_profile, config, "temp_espresso_profile")
+replace_mysql_table(config, "espresso_profile", "temp_espresso_profile")
 
 
 gmail_message = '\n'.join(gmail_list)
