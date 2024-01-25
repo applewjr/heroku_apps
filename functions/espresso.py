@@ -9,7 +9,6 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.spatial.distance import cdist
-
 from sklearn.inspection import permutation_importance
 
 def get_naive_espresso_points(roast, dose, espresso_points):
@@ -366,7 +365,6 @@ def find_optimal_espresso_parameters(df_analyze):
     optimal_parameters = scaler.inverse_transform([optimal_parameters_scaled])[0]
     optimal_parameters_dict = {col: param_value for col, param_value in zip(X.columns, optimal_parameters)}
 
-    print(performance_dict)
 
     return optimal_parameters_dict, True, performance_dict
 
