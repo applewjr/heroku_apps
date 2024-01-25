@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.spatial.distance import cdist
 
+from sklearn.inspection import permutation_importance
+
 def get_naive_espresso_points(roast, dose, espresso_points):
 
     roast = roast.lower().replace(" ", "_")
@@ -271,12 +273,17 @@ def clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df
     df_scatter = df_scatter[scatter_columns_to_keep]
 
     columns_to_keep = [
-        # 'niche_grind_setting', 
+        'niche_grind_setting', 
+        # 'ground_coffee_grams',
+        # 'espresso_out_grams',
+
         'espresso_coffee_ratio',
-        'extraction_time_seconds', 'flow_time_seconds', 'extract_flow_ratio', 'extract_flow_rate',
+        'extraction_time_seconds',
+        'flow_time_seconds',
+        'extract_flow_ratio',
+        'extract_flow_rate',
         'water_temp_f',
-        # 'standard_tools_wdt', 'standard_tools_tamp','standard_tools_filtered_water','standard_tools_wet_beans','standard_tools_prewarm_filter',
-        # 't1', 'p1', 't2', 'p2', 't3', 'p3', 't4', 'p4', 't5', 'p5',
+
         'final_score',
         'timestamp'
     ]
@@ -292,37 +299,16 @@ def find_optimal_espresso_parameters(df_analyze):
     if df_analyze.shape[0] < min_data_threshold:
         return {col: f"Need {min_data_threshold - df_analyze.shape[0]} more data points to complete this analysis" for col in df_analyze.columns if col != 'final_score'}, False, None
 
-    # # Convert 'timestamp' to datetime and compute the age of each observation
-    # df_analyze['timestamp'] = pd.to_datetime(df_analyze['timestamp'])
-    # most_recent_date = df_analyze['timestamp'].max()
-    # df_analyze['data_age'] = (most_recent_date - df_analyze['timestamp']).dt.days
-
-    # # Pre-calculate the weights for each observation
-    # decay_rate = 0.05
-    # weights = np.exp(-decay_rate * df_analyze['data_age'])
-
     # Define features and target variable
-    # X = df_analyze.drop(['final_score', 'timestamp', 'data_age'], axis=1)
     X = df_analyze.drop(['final_score', 'timestamp'], axis=1)
     y = df_analyze['final_score']
 
     # Initialize cross-validator
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
-    # # Custom weight function using closure
-    # def create_weight_function(w):
-    #     def weight_function(distances):
-    #         # Using pre-calculated weights based on sorted indices
-    #         sorted_indices = np.argsort(distances, axis=1)
-    #         return np.array([w[idx] for idx in sorted_indices])
-    #     return weight_function
-
-    # age_weighted_distances = create_weight_function(weights.values)
-
     # Define a range of hyperparameters for tuning
     param_grid = {
         'n_neighbors': range(1, 10),
-        # 'weights': [age_weighted_distances, 'uniform', 'distance'],
         'weights': ['uniform', 'distance'],
         'metric': ['euclidean', 'manhattan']
     }
@@ -362,15 +348,25 @@ def find_optimal_espresso_parameters(df_analyze):
         'Optimal Metric': best_params['metric']
     }
 
-    # Find optimal parameters with the best model
+    # Compute feature importance using permutation importance
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     best_knn.fit(X_scaled, y)
+    
+    perm_importance = permutation_importance(best_knn, X_scaled, y, n_repeats=30, random_state=42)
+    feature_importance = perm_importance.importances_mean
+
+    # Add feature importance to the performance dictionary
+    performance_dict['Feature Importance'] = {col: round(imp, 4) for col, imp in zip(X.columns, feature_importance)}
+
+    # Find optimal parameters with the best model
     predicted_scores = best_knn.predict(X_scaled)
     highest_score_index = predicted_scores.argmax()
     optimal_parameters_scaled = X_scaled[highest_score_index]
     optimal_parameters = scaler.inverse_transform([optimal_parameters_scaled])[0]
     optimal_parameters_dict = {col: param_value for col, param_value in zip(X.columns, optimal_parameters)}
+
+    print(performance_dict)
 
     return optimal_parameters_dict, True, performance_dict
 

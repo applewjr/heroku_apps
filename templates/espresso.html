@@ -25,7 +25,7 @@
 
         /* Default style for larger screens */
         table.espresso-info {
-            width: 40%; /* Set table width to 40% of the parent element */
+            width: 50%; /* Set table width to 40% of the parent element */
             margin-left: auto; /* Center the table horizontally */
             margin-right: auto;
             border-collapse: collapse; /* Remove gaps between cells */
@@ -200,34 +200,42 @@
                 <tr>
                     <th>Recommendations</th>
                     <th>Value</th>
+                    <th>Feature Importance</th>                    
                 </tr>
-                <!-- <tr>
+                <tr>
                     <td>Niche Grind Setting</td>
                     <td>{{ optimal_parameters_dict['niche_grind_setting'] }}</td>
-                </tr> -->
+                    <td>{{ performance_dict['Feature Importance']['niche_grind_setting'] }}</td>
+                </tr>
                 <tr>
                     <td>Espresso g / Coffee g</td>
                     <td>{{ optimal_parameters_dict['espresso_coffee_ratio'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['espresso_coffee_ratio'] }}</td>
                 </tr>
                 <tr>
                     <td>Extraction Time in Seconds</td>
                     <td>{{ optimal_parameters_dict['extraction_time_seconds'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extraction_time_seconds'] }}</td>
                 </tr>
                 <tr>
                     <td>Flow Time in Seconds</td>
                     <td>{{ optimal_parameters_dict['flow_time_seconds'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['flow_time_seconds'] }}</td>
                 </tr>
                 <tr>
                     <td>Espresso g / Flow Seconds</td>
                     <td>{{ optimal_parameters_dict['extract_flow_rate'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extract_flow_rate'] }}</td>
                 </tr>
                 <tr>
                     <td>Extraction Seconds / Flow Seconds</td>
                     <td>{{ optimal_parameters_dict['extract_flow_ratio'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extract_flow_ratio'] }}</td>
                 </tr>
                 <tr>
                     <td>Water Temp F</td>
                     <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['water_temp_f'] }}</td>
                 </tr>
             </table>
             <br>
