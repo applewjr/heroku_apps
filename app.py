@@ -292,6 +292,34 @@ def run_wordle():
         not_present5 = request.form["not_present5"]
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.wordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
+
+        try:
+            conn = mysql.connector.connect(**config)
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO wordle_clicks (
+                solver_name, present1, present2, present3, present4, present5,
+                not_present1, not_present2, not_present3, not_present4, not_present5,
+                must_not_be_present
+                ) 
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            );
+            """
+            cursor.execute(query, (
+                'wordle',
+                present1, present2, present3, present4, present5,
+                not_present1, not_present2, not_present3, not_present4, not_present5,
+                must_not_be_present
+            ))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
             not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5, \
@@ -315,6 +343,34 @@ def run_antiwordle():
         not_present5 = request.form["not_present5"]
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.antiwordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
+
+        try:
+            conn = mysql.connector.connect(**config)
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO wordle_clicks (
+                solver_name, present1, present2, present3, present4, present5,
+                not_present1, not_present2, not_present3, not_present4, not_present5,
+                must_not_be_present
+                ) 
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            );
+            """
+            cursor.execute(query, (
+                'antiwordle',
+                present1, present2, present3, present4, present5,
+                not_present1, not_present2, not_present3, not_present4, not_present5,
+                must_not_be_present
+            ))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
             not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5, \
@@ -381,6 +437,54 @@ def run_quordle():
         must_not_be_present2, present2_1, present2_2, present2_3, present2_4, present2_5, not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5, \
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
+
+        try:
+            conn = mysql.connector.connect(**config)
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO quordle_clicks (
+                solver_name,
+                present1_1, present1_2, present1_3, present1_4, present1_5,
+                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
+                must_not_be_present1,
+                present2_1, present2_2, present2_3, present2_4, present2_5,
+                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
+                must_not_be_present2,
+                present3_1, present3_2, present3_3, present3_4, present3_5,
+                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
+                must_not_be_present3,
+                present4_1, present4_2, present4_3, present4_4, present4_5,
+                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
+                must_not_be_present4
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            );
+            """
+            cursor.execute(query, (
+                'quordle'
+                ,present1_1, present1_2, present1_3, present1_4, present1_5
+                ,not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5
+                ,must_not_be_present1
+                ,present2_1, present2_2, present2_3, present2_4, present2_5
+                ,not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5
+                ,must_not_be_present2
+                ,present3_1, present3_2, present3_3, present3_4, present3_5
+                ,not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5
+                ,must_not_be_present3
+                ,present4_1, present4_2, present4_3, present4_4, present4_5
+                ,not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5
+                ,must_not_be_present4
+            ))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
 
         return render_template("quordle.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -461,6 +565,54 @@ def run_quordle_mobile():
         must_not_be_present2, present2_1, present2_2, present2_3, present2_4, present2_5, not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5, \
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
+
+        try:
+            conn = mysql.connector.connect(**config)
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO quordle_clicks (
+                solver_name,
+                present1_1, present1_2, present1_3, present1_4, present1_5,
+                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
+                must_not_be_present1,
+                present2_1, present2_2, present2_3, present2_4, present2_5,
+                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
+                must_not_be_present2,
+                present3_1, present3_2, present3_3, present3_4, present3_5,
+                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
+                must_not_be_present3,
+                present4_1, present4_2, present4_3, present4_4, present4_5,
+                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
+                must_not_be_present4
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            );
+            """
+            cursor.execute(query, (
+                'quordle_mobile'
+                ,present1_1, present1_2, present1_3, present1_4, present1_5
+                ,not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5
+                ,must_not_be_present1
+                ,present2_1, present2_2, present2_3, present2_4, present2_5
+                ,not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5
+                ,must_not_be_present2
+                ,present3_1, present3_2, present3_3, present3_4, present3_5
+                ,not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5
+                ,must_not_be_present3
+                ,present4_1, present4_2, present4_3, present4_4, present4_5
+                ,not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5
+                ,must_not_be_present4
+            ))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
 
         return render_template("quordle_mobile.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -602,7 +754,6 @@ def blossom():
         try:
             conn = mysql.connector.connect(**config)
             cursor = conn.cursor()
-            # cursor.execute("INSERT INTO blossom_clicks (click_time) VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));")
             query = """
             INSERT INTO blossom_clicks (click_time, must_have, may_have, list_len) 
             VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
