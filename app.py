@@ -298,12 +298,12 @@ def run_wordle():
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
-                solver_name, present1, present2, present3, present4, present5,
+                click_time, solver_name, present1, present2, present3, present4, present5,
                 not_present1, not_present2, not_present3, not_present4, not_present5,
                 must_not_be_present
-                ) 
+            ) 
             VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             );
             """
             cursor.execute(query, (
@@ -349,12 +349,12 @@ def run_antiwordle():
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
-                solver_name, present1, present2, present3, present4, present5,
+                click_time, solver_name, present1, present2, present3, present4, present5,
                 not_present1, not_present2, not_present3, not_present4, not_present5,
                 must_not_be_present
-                ) 
+            ) 
             VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             );
             """
             cursor.execute(query, (
@@ -443,7 +443,7 @@ def run_quordle():
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
-                solver_name,
+                click_time, solver_name,
                 present1_1, present1_2, present1_3, present1_4, present1_5,
                 not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
                 must_not_be_present1,
@@ -457,26 +457,27 @@ def run_quordle():
                 not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
                 must_not_be_present4
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             );
             """
             cursor.execute(query, (
-                'quordle'
-                ,present1_1, present1_2, present1_3, present1_4, present1_5
-                ,not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5
-                ,must_not_be_present1
-                ,present2_1, present2_2, present2_3, present2_4, present2_5
-                ,not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5
-                ,must_not_be_present2
-                ,present3_1, present3_2, present3_3, present3_4, present3_5
-                ,not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5
-                ,must_not_be_present3
-                ,present4_1, present4_2, present4_3, present4_4, present4_5
-                ,not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5
-                ,must_not_be_present4
+                'quordle',
+                present1_1, present1_2, present1_3, present1_4, present1_5,
+                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
+                must_not_be_present1,
+                present2_1, present2_2, present2_3, present2_4, present2_5,
+                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
+                must_not_be_present2,
+                present3_1, present3_2, present3_3, present3_4, present3_5,
+                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
+                must_not_be_present3,
+                present4_1, present4_2, present4_3, present4_4, present4_5,
+                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
+                must_not_be_present4
             ))
             conn.commit()
         except mysql.connector.Error as err:
@@ -571,7 +572,7 @@ def run_quordle_mobile():
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
-                solver_name,
+                click_time, solver_name,
                 present1_1, present1_2, present1_3, present1_4, present1_5,
                 not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
                 must_not_be_present1,
@@ -585,26 +586,27 @@ def run_quordle_mobile():
                 not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
                 must_not_be_present4
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             );
             """
             cursor.execute(query, (
-                'quordle_mobile'
-                ,present1_1, present1_2, present1_3, present1_4, present1_5
-                ,not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5
-                ,must_not_be_present1
-                ,present2_1, present2_2, present2_3, present2_4, present2_5
-                ,not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5
-                ,must_not_be_present2
-                ,present3_1, present3_2, present3_3, present3_4, present3_5
-                ,not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5
-                ,must_not_be_present3
-                ,present4_1, present4_2, present4_3, present4_4, present4_5
-                ,not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5
-                ,must_not_be_present4
+                'quordle_mobile',
+                present1_1, present1_2, present1_3, present1_4, present1_5,
+                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
+                must_not_be_present1,
+                present2_1, present2_2, present2_3, present2_4, present2_5,
+                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
+                must_not_be_present2,
+                present3_1, present3_2, present3_3, present3_4, present3_5,
+                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
+                must_not_be_present3,
+                present4_1, present4_2, present4_3, present4_4, present4_5,
+                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
+                must_not_be_present4
             ))
             conn.commit()
         except mysql.connector.Error as err:
