@@ -650,8 +650,10 @@ if df['date'][len(df)-1] == today:
     api.create_tweet(text=update)
 
     print_and_append(f'{segment_name} complete')
+    print_and_append(update)
 
-else: print_and_append(f'{segment_name} not open (most recent date pull != today)')
+else:
+    print_and_append(f'{segment_name} not open (most recent date pull != today)')
 
 gmail_message = '\n'.join(gmail_list)
 msg = MIMEText(gmail_message)
