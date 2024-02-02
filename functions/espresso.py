@@ -396,39 +396,44 @@ def get_scatter_col_labels():
         }
     return scatter_espresso_col_labels
 
-def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col):
-
+def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col, espresso_z_col):
     col_labels = get_scatter_col_labels()
 
-    # Normalize 'final_score' values to range between 1 and 10
-    norm = plt.Normalize(min(df_analyze['final_score']), max(df_analyze['final_score']))
+    # Check if z-column contains timestamps
+    if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_z_col]):
+        # Convert timestamps to seconds since the epoch, aligning with DataFrame's index
+        z_values = (df_analyze[espresso_z_col] - pd.Timestamp(min(df_analyze[espresso_z_col]))) / pd.Timedelta(days=1)
+    else:
+        # Use the column as is if it's not a timestamp
+        z_values = df_analyze[espresso_z_col]
 
-    # Create a custom colormap from orange to blue
+    # Normalize the z-values
+    norm = plt.Normalize(z_values.min(), z_values.max())
+
+    # Create a custom colormap
     colors = [(0, 'orange'), (1, 'blue')]
     cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', colors)
 
     plt.clf()
 
-    # Scatter plot with color based on 'final_score'
-    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], 
-                c=df_analyze['final_score'], cmap=cmap, norm=norm, alpha=0.8)
+    # Generate the scatter plot
+    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], c=z_values, cmap=cmap, norm=norm, alpha=0.8)
 
-    # Use user-friendly labels for axes and title
+    # Set labels and title
     x_label = col_labels.get(espresso_x_col, espresso_x_col)
     y_label = col_labels.get(espresso_y_col, espresso_y_col)
+    z_label = col_labels.get(espresso_z_col, espresso_z_col)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(f'{x_label} vs {y_label}')
 
-    # Check if x-axis or y-axis data are datetime and format accordingly
+    # Format date axes if necessary
     if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_x_col]):
-        plt.gcf().autofmt_xdate()  # Rotate x-axis labels for date
+        plt.gcf().autofmt_xdate()
     if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_y_col]):
-        plt.gcf().autofmt_xdate()  # Rotate y-axis labels for date
+        plt.gcf().autofmt_xdate()
 
-
-    plt.colorbar(label='Final Score')  # Optional: add a colorbar
-    # plt.show()
+    plt.colorbar(label=z_label)  # Add a colorbar for context
 
     return plt
 

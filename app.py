@@ -33,7 +33,7 @@ data_folder = os.path.join(APP_ROOT, 'datasets')
 df = pd.read_csv(os.path.join(data_folder, 'word_data_created.csv'))
 
 # word_df = pd.read_csv(os.path.join(data_folder, 'all_words.csv'))
-word_df = pd.read_csv(os.path.join(data_folder, 'all_words_scrabble.csv'))
+word_df = pd.read_csv(os.path.join(data_folder, 'all_words_scrabble.csv')) # changed to main "word_df" on 1/20/2024
 words = word_df['0'].to_list()
 words = set(words)
 
@@ -1363,6 +1363,7 @@ def espresso_route():
     shots_pred = '2'
     espresso_x_col = 'flow_time_seconds'
     espresso_y_col = 'final_score'
+    espresso_z_col = 'final_score'
     user_pred_scatter = 'James'
     roast_pred_scatter = 'Medium'
     shots_pred_scatter = '2'
@@ -1383,6 +1384,8 @@ def espresso_route():
             espresso_x_col = request.form['espresso_x_col']
         if 'espresso_y_col' in request.form:
             espresso_y_col = request.form['espresso_y_col']
+        if 'espresso_z_col' in request.form:
+            espresso_z_col = request.form['espresso_z_col']
         if 'user_pred_scatter' in request.form:
             user_pred_scatter = request.form['user_pred_scatter']
         if 'roast_pred_scatter' in request.form:
@@ -1390,13 +1393,13 @@ def espresso_route():
         if 'shots_pred_scatter' in request.form:
             shots_pred_scatter = request.form['shots_pred_scatter']
         df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile, water_temp_na_val)
-        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
+        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
-            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col \
             ,scatter_espresso_col_labels=scatter_espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter, shots_pred_scatter_val=shots_pred_scatter \
             )
@@ -1406,13 +1409,13 @@ def espresso_route():
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
         df_analyze_blank, df_scatter = espresso.clean_espresso_df(user_pred_scatter, roast_pred_scatter, shots_pred_scatter, df_espresso_initial, df_profile, water_temp_na_val)
-        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col)
+        espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
-            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col \
+            ,espresso_scatter_plot=temp_espresso_scatter_plot, espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col \
             ,scatter_espresso_col_labels=scatter_espresso_col_labels, roast_options=roast_options, dose_options=dose_options \
             ,user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter, shots_pred_scatter_val=shots_pred_scatter \
             )
