@@ -156,6 +156,12 @@
                     <option value="{{ key }}" {% if key == espresso_y_col_val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
+            <select name="espresso_z_col">
+                <option disabled selected class="dropdown-title">Z (Color) Axis</option>
+                {% for key, label in scatter_espresso_col_labels.items() %}
+                    <option value="{{ key }}" {% if key == espresso_z_col_val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
         </div>
         <br>
         <input type="submit" value="Calculate">
