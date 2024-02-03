@@ -47,16 +47,18 @@ with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_f
 ########## global variables ##########
 
 import mysql.connector
+import mysql.connector.pooling
 
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
-    config = {
-        'user': os.environ.get('jawsdb_user'),
-        'password': os.environ.get('jawsdb_pass'),
-        'host': os.environ.get('jawsdb_host'),
-        'database': os.environ.get('jawsdb_db'),
-        'raise_on_warnings': True
-        }
+    pool_config = {
+        "database": os.environ.get('jawsdb_db'),
+        "user": os.environ.get('jawsdb_user'),
+        "password": os.environ.get('jawsdb_pass'),
+        "host": os.environ.get('jawsdb_host'),
+        "pool_name": "mypool",
+        "pool_size": 3
+    }
     GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
     GOOGLE_SHEETS_URL_BEAN = os.environ.get('GOOGLE_SHEETS_URL_BEAN')
@@ -67,13 +69,14 @@ if 'IS_HEROKU' in os.environ:
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
-    config = {
-        'user': secret_pass.mysql_user,
-        'password': secret_pass.mysql_pass,
-        'host': secret_pass.mysql_host,
-        'database': secret_pass.mysql_bd,
-        'raise_on_warnings': True
-        }
+    pool_config = {
+        "database": secret_pass.mysql_db,
+        "user": secret_pass.mysql_user,
+        "password": secret_pass.mysql_pass,
+        "host": secret_pass.mysql_host,
+        "pool_name": "mypool",
+        "pool_size": 3
+    }
     GOOGLE_SHEETS_JSON = secret_pass.GOOGLE_SHEETS_JSON
     GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
     GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
@@ -82,6 +85,12 @@ else:
     GOOGLE_FORM_PASS = secret_pass.GOOGLE_FORM_PASS
     GOOGLE_FORM_URL = secret_pass.GOOGLE_FORM_URL
 
+
+# Creating a connection pool
+cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
+
+def get_pool_db_connection():
+    return cnxpool.get_connection()
 
 ########## Other SQL stuff ##########
 
@@ -115,6 +124,26 @@ def run_index():
     if request.method == "POST":
         return render_template("index.html")
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'front_page'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("index.html")
 
 
@@ -128,7 +157,7 @@ def run_index():
 @app.route('/high_score', methods=['GET', 'POST'])
 def game():
 
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
 
     if request.method == 'POST':
@@ -137,7 +166,7 @@ def game():
         cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
         conn.commit()
 
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT hs.initials, hs.score FROM high_scores hs ORDER BY score DESC LIMIT 5")
     scores = cursor.fetchall()
@@ -157,7 +186,7 @@ def game():
 
 @app.route('/task_mysql')
 def task():
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     # Retrieve tasks from the database
     cursor.execute('SELECT * FROM tasks')
@@ -168,7 +197,7 @@ def task():
 
 @app.route('/add_task', methods=['POST'])
 def add_task():
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     task = request.form['task']
     # Insert the new task into the database
@@ -180,7 +209,7 @@ def add_task():
 
 @app.route('/delete_task/<int:task_id>', methods=['POST'])
 def delete_task(task_id):
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     # Delete the task from the database
     cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
@@ -191,7 +220,7 @@ def delete_task(task_id):
 
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 def edit_task(task_id):
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     if request.method == 'POST':
         new_task = request.form['task']
@@ -294,7 +323,7 @@ def run_wordle():
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
@@ -339,6 +368,25 @@ def run_wordle():
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.wordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'wordle'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
             not_present1_val=not_present1, not_present2_val=not_present2, not_present3_val=not_present3, not_present4_val=not_present4, not_present5_val=not_present5, \
@@ -363,7 +411,7 @@ def run_antiwordle():
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
@@ -407,6 +455,25 @@ def run_antiwordle():
         not_present5 = ""
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.antiwordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'antiwordle'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
 
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
@@ -474,7 +541,7 @@ def run_quordle():
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
@@ -596,6 +663,25 @@ def run_quordle():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'quordle'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("quordle.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
             ,final_out1_1=final_out1_1, final_out1_2=final_out1_2, final_out1_3=final_out1_3, final_out1_4=final_out1_4, final_out1_5=final_out1_5, final_out_end1=final_out_end1 \
@@ -674,7 +760,7 @@ def run_quordle_mobile():
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
@@ -796,6 +882,25 @@ def run_quordle_mobile():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'quordle_mobile'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("quordle_mobile.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
             ,final_out1_1=final_out1_1, final_out1_2=final_out1_2, final_out1_3=final_out1_3, final_out1_4=final_out1_4, final_out1_5=final_out1_5, final_out_end1=final_out_end1 \
@@ -820,6 +925,26 @@ def run_wordle_fixer():
         final_out1, final_out2, final_out3, final_out4, final_out5 = wordle.find_word_with_letters(df, must_be_present)
         return render_template("fixer.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, must_be_present=must_be_present)
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'last_letter_solver'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("fixer.html")
 
 
@@ -828,6 +953,26 @@ def run_wordle_example():
     if request.method == "POST":
         return render_template("wordle_example.html")
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'wordle_example'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("wordle_example.html")
 
 
@@ -865,6 +1010,26 @@ def home():
             # stock_list_init_val=stock_list_init, contrib_amt_init_val=contrib_amt_init, \
             total_weeks_val=total_weeks, buyvalue_val=buyvalue, multiplier_val=multiplier, nth_week_val=nth_week, roll_days_val=roll_days, trade_dow_val=trade_dow)
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'stock_analysis'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("stock_analysis.html", \
             stock_list_init_val='AAPL', trade_type_val='stock', contrib_amt_init_val=100, \
             # stock_list_init_val='AAPL', contrib_amt_init_val=100, \
@@ -880,6 +1045,26 @@ def home():
 
 @app.route('/dogs')
 def dogs():
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    page_name = 'dog_counter'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO page_visits (submit_time, referrer, page_name)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        """
+        cursor.execute(query, (referrer, page_name))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
     return render_template('dog_count.html')
 
 
@@ -917,6 +1102,26 @@ def run_common_denominator():
             final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
             num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'common_denominator'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
@@ -931,7 +1136,7 @@ def blossom():
 
         # log clicks and inputs
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO blossom_clicks (click_time, must_have, may_have, list_len) 
@@ -949,6 +1154,26 @@ def blossom():
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
 
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'blossom'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("blossom.html", list_len_val=25)
 
 @app.route("/any_word", methods=["POST", "GET"])
@@ -968,6 +1193,26 @@ def any_word():
             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len, \
             min_length_val=min_length, max_length_val=max_length)#, required_substrings_val=required_substrings, forbidden_substrings_val=forbidden_substrings)
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'any_word_finder'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
 
@@ -1017,6 +1262,26 @@ def data_summ():
 
 @app.route('/resume')
 def resume():
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    page_name = 'resume'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO page_visits (submit_time, referrer, page_name)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        """
+        cursor.execute(query, (referrer, page_name))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
     return render_template('resume.html')
 
 
@@ -1035,7 +1300,7 @@ def resume():
 @app.route("/youtube_trending", methods=["POST", "GET"])
 def youtube_trending():
 
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     # today = date.today().strftime("%Y-%m-%d")
 
@@ -1139,6 +1404,25 @@ def youtube_trending():
     temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
     yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    page_name = 'youtube_trending'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO page_visits (submit_time, referrer, page_name)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        """
+        cursor.execute(query, (referrer, page_name))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
     return render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
@@ -1160,7 +1444,7 @@ def youtube_trending():
 @app.route("/etl_dash", methods=["POST", "GET"])
 def etl_status_dash():
 
-    conn = mysql.connector.connect(**config)
+    conn = get_pool_db_connection()
     cursor = conn.cursor()
     today = date.today().strftime("%Y-%m-%d")
 
@@ -1248,6 +1532,25 @@ def etl_status_dash():
     cursor.close()
     conn.close()
 
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    page_name = 'etl_dashboard'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO page_visits (submit_time, referrer, page_name)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        """
+        cursor.execute(query, (referrer, page_name))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
     return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash, all_dash=all_dash)
 
 
@@ -1306,7 +1609,7 @@ def etl_status_dash():
 #         # Get the SQL query from the form
 #         query = request.form['query']
 
-#         conn = mysql.connector.connect(**config)
+#         conn = get_pool_db_connection()
 #         cursor = conn.cursor()
 #         # Execute the query
 #         cursor.execute(f"SELECT words FROM all_words {query}")
@@ -1412,6 +1715,25 @@ def espresso_route():
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'espresso'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
@@ -1524,6 +1846,25 @@ def espresso_input_route():
         temp_scatter_3d_plot = 'static/scatter_3d.png'
         scatter_3d.savefig(temp_scatter_3d_plot)
 
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'espresso_input'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template('espresso_input.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,roast_options=roast_options, dose_options=dose_options \
@@ -1548,7 +1889,7 @@ def feedback():
 
         # log inputs
         try:
-            conn = mysql.connector.connect(**config)
+            conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO feedback (submit_time, referrer, feedback_header, feedback_body) 
@@ -1567,6 +1908,26 @@ def feedback():
 
         return render_template("feedback_received.html")
     else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        page_name = 'feedback'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO page_visits (submit_time, referrer, page_name)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, page_name))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
         return render_template("feedback.html")
 
 @app.route("/feedback_received", methods=["GET"])

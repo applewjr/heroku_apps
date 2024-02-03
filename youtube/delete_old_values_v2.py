@@ -26,7 +26,7 @@ else:
         'user': secret_pass.mysql_user,
         'password': secret_pass.mysql_pass,
         'host': secret_pass.mysql_host,
-        'database': secret_pass.mysql_bd,
+        'database': secret_pass.mysql_db,
         'raise_on_warnings': True
         }
     GMAIL_PASS = secret_pass.GMAIL_PASS
