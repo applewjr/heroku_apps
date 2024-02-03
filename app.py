@@ -75,7 +75,7 @@ else:
         "password": secret_pass.mysql_pass,
         "host": secret_pass.mysql_host,
         "pool_name": "mypool",
-        "pool_size": 3
+        "pool_size": 1 # more than 1 not needed for local
     }
     GOOGLE_SHEETS_JSON = secret_pass.GOOGLE_SHEETS_JSON
     GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
@@ -127,21 +127,23 @@ def run_index():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'front_page'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'index.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("index.html")
@@ -345,8 +347,9 @@ def run_wordle():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
@@ -370,21 +373,23 @@ def run_wordle():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'wordle'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'wordle.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
@@ -433,8 +438,9 @@ def run_antiwordle():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
@@ -458,21 +464,23 @@ def run_antiwordle():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'antiwordle'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'antiwordle.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
@@ -585,8 +593,9 @@ def run_quordle():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("quordle.html", \
@@ -665,21 +674,23 @@ def run_quordle():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'quordle'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'quordle.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("quordle.html", \
@@ -804,8 +815,9 @@ def run_quordle_mobile():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("quordle_mobile.html", \
@@ -884,21 +896,23 @@ def run_quordle_mobile():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'quordle_mobile'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'quordle_mobile.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("quordle_mobile.html", \
@@ -928,21 +942,23 @@ def run_wordle_fixer():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'last_letter_solver'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'fixer.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("fixer.html")
@@ -956,21 +972,23 @@ def run_wordle_example():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'wordle_example'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'wordle_example.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("wordle_example.html")
@@ -1013,21 +1031,23 @@ def home():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'stock_analysis'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'stock_analysis.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("stock_analysis.html", \
@@ -1048,21 +1068,23 @@ def dogs():
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
-    page_name = 'dog_counter'
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'dog_count.html'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
         query = """
-        INSERT INTO page_visits (submit_time, referrer, page_name)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
         """
-        cursor.execute(query, (referrer, page_name))
+        cursor.execute(query, (page_name, referrer, user_agent))
         conn.commit()
     except mysql.connector.Error as err:
         print("Error:", err)
     finally:
-        if conn.is_connected():
+        if cursor is not None:
             cursor.close()
+        if conn is not None and conn.is_connected():
             conn.close()
 
     return render_template('dog_count.html')
@@ -1105,21 +1127,23 @@ def run_common_denominator():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'common_denominator'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'common_denominator.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
@@ -1147,8 +1171,9 @@ def blossom():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
@@ -1157,21 +1182,23 @@ def blossom():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'blossom'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'blossom.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("blossom.html", list_len_val=25)
@@ -1196,21 +1223,23 @@ def any_word():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'any_word_finder'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'any_word.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
@@ -1265,21 +1294,23 @@ def resume():
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
-    page_name = 'resume'
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'resume.html'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
         query = """
-        INSERT INTO page_visits (submit_time, referrer, page_name)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
         """
-        cursor.execute(query, (referrer, page_name))
+        cursor.execute(query, (page_name, referrer, user_agent))
         conn.commit()
     except mysql.connector.Error as err:
         print("Error:", err)
     finally:
-        if conn.is_connected():
+        if cursor is not None:
             cursor.close()
+        if conn is not None and conn.is_connected():
             conn.close()
 
     return render_template('resume.html')
@@ -1406,21 +1437,23 @@ def youtube_trending():
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
-    page_name = 'youtube_trending'
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'youtube_trending.html'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
         query = """
-        INSERT INTO page_visits (submit_time, referrer, page_name)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
         """
-        cursor.execute(query, (referrer, page_name))
+        cursor.execute(query, (page_name, referrer, user_agent))
         conn.commit()
     except mysql.connector.Error as err:
         print("Error:", err)
     finally:
-        if conn.is_connected():
+        if cursor is not None:
             cursor.close()
+        if conn is not None and conn.is_connected():
             conn.close()
 
     return render_template("youtube_trending.html", top_10_today=top_10_today, \
@@ -1534,21 +1567,23 @@ def etl_status_dash():
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
-    page_name = 'etl_dashboard'
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'etl_dash.html'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
         query = """
-        INSERT INTO page_visits (submit_time, referrer, page_name)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
         """
-        cursor.execute(query, (referrer, page_name))
+        cursor.execute(query, (page_name, referrer, user_agent))
         conn.commit()
     except mysql.connector.Error as err:
         print("Error:", err)
     finally:
-        if conn.is_connected():
+        if cursor is not None:
             cursor.close()
+        if conn is not None and conn.is_connected():
             conn.close()
 
     return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash, all_dash=all_dash)
@@ -1718,21 +1753,23 @@ def espresso_route():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'espresso'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'espresso.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
@@ -1848,21 +1885,23 @@ def espresso_input_route():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'espresso_input'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'espresso_input.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template('espresso_input.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
@@ -1900,8 +1939,9 @@ def feedback():
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         # TODO - maybe create an email notification as well?
@@ -1911,21 +1951,23 @@ def feedback():
 
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
-        page_name = 'feedback'
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'feedback.html'
         try:
             conn = get_pool_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO page_visits (submit_time, referrer, page_name)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
-            cursor.execute(query, (referrer, page_name))
+            cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
         finally:
-            if conn.is_connected():
+            if cursor is not None:
                 cursor.close()
+            if conn is not None and conn.is_connected():
                 conn.close()
 
         return render_template("feedback.html")
