@@ -1002,7 +1002,20 @@ def run_wordle_example():
 ######################################
 
 @app.route("/stock_analysis", methods=["POST", "GET"])
-def home():
+def stock_analysis():
+
+    stock_default_values = {
+        'stock_list_init_val': 'AAPL',
+        'trade_type_val': 'stock',
+        'contrib_amt_init_val': 10,
+        'total_weeks_val': 52,
+        'buyvalue_val': 1.2,
+        'multiplier_val': 3,
+        'nth_week_val': 1,
+        'roll_days_val': 'quarter',
+        'trade_dow_val': 'Monday'
+    }
+
     if request.method == "POST":
         stock_list_init = request.form["stock_list_init"]
 
@@ -1029,6 +1042,11 @@ def home():
             total_weeks_val=total_weeks, buyvalue_val=buyvalue, multiplier_val=multiplier, nth_week_val=nth_week, roll_days_val=roll_days, trade_dow_val=trade_dow)
     else:
 
+        # For GET requests, use query parameters
+        for key in stock_default_values.keys():
+            stock_default_values[key] = request.args.get(key, stock_default_values[key])
+
+
         # log visits
         referrer = request.headers.get('Referer', 'No referrer')
         user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
@@ -1050,10 +1068,7 @@ def home():
             if conn is not None and conn.is_connected():
                 conn.close()
 
-        return render_template("stock_analysis.html", \
-            stock_list_init_val='AAPL', trade_type_val='stock', contrib_amt_init_val=100, \
-            # stock_list_init_val='AAPL', contrib_amt_init_val=100, \
-            total_weeks_val=104, buyvalue_val=1.2, multiplier_val=5, nth_week_val=1, roll_days_val='quarter', trade_dow_val='Monday')
+        return render_template("stock_analysis.html", **stock_default_values)
 
 
 
