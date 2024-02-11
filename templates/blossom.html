@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}B/S Solver{% endblock %}
+{% block title %}Blossom Solver{% endblock %}
 
 {% block content %}
 <head>
@@ -20,42 +20,110 @@
     input:-ms-input-placeholder {
         color: lightgrey;
     }
-  </style>
 
+    /* Default style for larger screens */
+    table.blossom-info {
+        width: 50%; /* Set table width to 40% of the parent element */
+        margin-left: auto; /* Center the table horizontally */
+        margin-right: auto;
+        border-collapse: collapse; /* Remove gaps between cells */
+    }
+
+    /* Style for smaller screens (e.g., mobile devices) */
+    @media (max-width: 768px) {
+        table.blossom-info {
+            width: 100%; /* Set table width to 100% for smaller screens */
+        }
+    }
+
+    table.blossom-info, th, td {
+        border: 1px solid black; /* Add border to table, th, and td */
+        padding: 8px; /* Add padding inside cells */
+        text-align: center; /* Center text in th and td */
+    }
+
+  </style>
+  <script>
+    // Updated function to accept selectedLetter as an argument
+    function updateButtons(selectedLetter = '') {
+      const mayHaveValue = document.getElementById('may_have').value;
+      const buttonsContainer = document.getElementById('buttons-container');
+      buttonsContainer.innerHTML = ''; // Clear existing buttons
+      
+      // Create new buttons based on input
+      for (let char of mayHaveValue) {
+        const button = document.createElement('button');
+        button.type = 'submit';
+        button.name = 'petal_letter'; // Use this name to identify the button in Flask
+        button.value = char; // The value of the button is the character
+        button.textContent = char.toUpperCase(); // Display letter as uppercase
+
+        // Apply styles directly to each button
+        button.style.width = '60px';
+        button.style.backgroundColor = '#02484d';
+        button.style.color = 'white';
+        button.style.padding = '10px 20px'; // Default padding
+        button.style.border = '2px solid transparent'; // Default transparent border to maintain size
+        button.style.borderRadius = '4px';
+        button.style.cursor = 'pointer';
+        button.style.margin = '5px'; // Add a margin around each button
+
+        if (char === selectedLetter) {
+            button.style.border = '3px solid #ca9546'; // Highlighted state
+        }
+
+        buttonsContainer.appendChild(button);
+      }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      updateButtons('{{ petal_letter }}');
+  });
+
+  const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'button-container';
+
+    // Create and style your button here
+
+    buttonContainer.appendChild(button);
+    buttonsContainer.appendChild(buttonContainer);
+
+    </script>
 </head>
 
 <body>
   <form name="form1" action="#" method="post">
     <center>
     <br>
-    <h1 style="text-align: center">Blossom/Spelling Bee Solver</h1>
+    <h1 style="text-align: center">Blossom Game Solver</h1>
     <br>
 
-    <p class="pad_lr_30" style="text-align: center">Must Have Letter (Single Letter)</p>
+    <p class="pad_lr_30" style="text-align: center">Center Letter (Single Letter)</p>
     <input type="text" pattern="[A-Za-z]+" required name="must_have" style="text-align: center;width: 55px;" value="{{must_have_val}}" maxlength="1" placeholder="A">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
-    <p class="pad_lr_30" style="text-align: center">May Have Letters (Generally 6 Letters)</p>
-    <input type="text" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="25" placeholder="BCDEFG">
+    <p class="pad_lr_30" style="text-align: center">Petal Letters (6 Letters)</p>
+    <input type="text" id="may_have" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="6" minlength="6" pattern="[A-Za-z]{6}" title="Please enter 6 letters. No spaces, numbers, or special characters." placeholder="BCDEFG" oninput="updateButtons()">
 
     <hr style="width:50%;border: 1px dashed #d3d6da;">
 
     <p class="pad_lr_30" style="text-align: center">Count of Words to Produce (Number)</p>
     <input type="text" pattern="[0-9]*" name="list_len" style="text-align: center;width: 75px;" value="{{list_len_val}}" maxlength="25">
+
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+
+    <p class="pad_lr_30" style="text-align: center">Select the Bonus Petal Letter (Yellow Outline)</p>
+    <div id="buttons-container">
+      <!-- Dynamic buttons will be added here -->
+    </div>
+    <script>updateButtons();</script> <!-- Initial call to populate buttons based on the current input value -->
+
     <br>
+    <p class="pad_lr_30" style="text-align: center">Choose a new Bonus Petal Letter after each word. This affects which words have the highest scores</p>
     <br>
 
-    <input type="submit" value="Calculate">
-    <br>
-    <br>
-    <br>
-    <!-- <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p> -->
-    <ul>
-      {% for item in list_out %}
-      <li>{{ item }}</li>
-      {% endfor %}
-    </ul>
+    {{blossom_table|safe}}
+
     <br>
     <br>
     <br>
@@ -65,11 +133,11 @@
       </div>
     </a>
     <br>
-    <!-- <p>Note: I have no idea what body of words these games are working with. The list of words used comes from the <a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package and does not always align with the valid words in the games.</p> -->
     <p class="pad_lr_30" style="text-align: center">Note: I have no idea what body of words these games are working with. The list of words used comes from the 2019 Collins Scrabble Words list and does not always align with the valid words in the games.</p>
-    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank">Blossom Game Here</a>
+    <a href="/blossom_bee">Go To Original Blossom/Spelling Bee Solver</a>
     <br>
-    <a href="https://www.nytimes.com/puzzles/spelling-bee" target="_blank">Spelling Bee Game Here</a>
+    <br>
+    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank">Go To Blossom Game</a>
     <br>
     <br>
     <a href="/feedback">Give Feedback Here</a>

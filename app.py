@@ -1164,7 +1164,7 @@ def run_common_denominator():
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
-@app.route("/blossom", methods=["POST", "GET"])
+@app.route("/blossom_bee", methods=["POST", "GET"])
 def blossom():
     if request.method == "POST":
 
@@ -1191,7 +1191,64 @@ def blossom():
             if conn is not None and conn.is_connected():
                 conn.close()
 
-        return render_template("blossom.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
+        return render_template("blossom_bee.html", list_out=list_out, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len)
+
+    else:
+
+        # log visits
+        referrer = request.headers.get('Referer', 'No referrer')
+        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+        page_name = 'blossom_bee.html'
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+            """
+            cursor.execute(query, (page_name, referrer, user_agent))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conn is not None and conn.is_connected():
+                conn.close()
+
+        return render_template("blossom_bee.html", list_len_val=25)
+
+
+@app.route("/blossom", methods=["POST", "GET"])
+def blossom_solver():
+    if request.method == "POST":
+
+        must_have = request.form["must_have"]
+        may_have = request.form["may_have"]
+        petal_letter = request.form["petal_letter"]
+        list_len = request.form["list_len"]
+        list_len = int(list_len)
+        blossom_table = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words)
+
+        # log clicks and inputs
+        try:
+            conn = get_pool_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
+            """
+            cursor.execute(query, (must_have, may_have, petal_letter, list_len))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conn is not None and conn.is_connected():
+                conn.close()
+
+        return render_template("blossom.html", blossom_table=blossom_table, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len, petal_letter=petal_letter)
 
     else:
 
@@ -1217,6 +1274,29 @@ def blossom():
                 conn.close()
 
         return render_template("blossom.html", list_len_val=25)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @app.route("/any_word", methods=["POST", "GET"])
 def any_word():
