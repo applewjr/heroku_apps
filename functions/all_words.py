@@ -287,68 +287,37 @@ def filter_words_all(required_letters, forbidden_letters, first_letter, sort_ord
 
     return valid_words[:list_len]
 
-# def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length, required_substrings, forbidden_substrings):
-#     """
-#     Filter a list of words by required and forbidden letters, required and forbidden substrings, and an optional first letter.
+def unused_letters_revamp(must_have, may_have, petal):
+    called_out = (must_have + may_have + petal).lower()
+    unused = set('abcdefghijklmnopqrstuvwxyz') - set(called_out)
+    return [''.join(unused)]
 
-#     Args:
-#         words (list): A list of words to filter.
-#         required_letters (list): A list of letters that must be present in the words.
-#         forbidden_letters (list): A list of letters that must not be present in the words.
-#         required_substrings (list): A list of substrings that must be present as a contiguous sequence in the words.
-#         forbidden_substrings (list): A list of substrings that must not be present in the words.
-#         first_letter (str): An optional letter that must be the first letter of the words.
-#         sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', 'max-min', and 'random'.
-#         min_length (int): The minimum length of the words to return.
-#         max_length (int): The maximum length of the words to return.
-                
-#     Returns:
-#         list: A list of valid words that meet all the criteria.
-#     """
+def is_pangram_revamp(word, required_letters):
+    return 7 if set(word.lower()) >= required_letters else 0
 
-#     required_letters = [char.lower() for char in required_letters]
-#     forbidden_letters = [char.lower() for char in forbidden_letters]
-#     first_letter = first_letter.lower() if first_letter else None
-#     min_length = int(min_length)
-#     max_length = int(max_length)
-#     list_len = int(list_len)
-
-#     valid_words = []
-#     for word in words:
-#         word = str(word).lower()
-#         if (all(letter in word for letter in required_letters) and 
-#             all(letter not in word for letter in forbidden_letters) and
-#             all(substring in word for substring in required_substrings) and
-#             all(substring not in word for substring in forbidden_substrings) and
-#             (first_letter is None or word.startswith(first_letter)) and 
-#             (min_length is None or len(word) >= min_length) and 
-#             (max_length is None or len(word) <= max_length)):
-
-#             # Check if all required substrings are present as contiguous sequences
-#             valid_for_substrings = True
-#             current_position = 0
-#             for substring in required_substrings:
-#                 found_position = word.find(substring, current_position)
-#                 if found_position == -1:
-#                     valid_for_substrings = False
-#                     break
-#                 else:
-#                     current_position = found_position + len(substring)
-#             if valid_for_substrings:
-#                 valid_words.append(word)
-
-#     if sort_order == 'A-Z':
-#         valid_words.sort()
-#     elif sort_order == 'Z-A':
-#         valid_words.sort(reverse=True)
-#     elif sort_order == 'Min-Max':
-#         valid_words.sort(key=len)
-#     elif sort_order == 'Max-Min':
-#         valid_words.sort(key=len, reverse=True)
-#     elif sort_order == 'Random':
-#         import random
-#         random.shuffle(valid_words)
-
-#     return valid_words[:list_len]
-
-
+def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
+    required_letters = set((must_have + may_have + petal).lower())
+    forbidden_letters = set(unused_letters_revamp(must_have, may_have, petal)[0])
+    must_have_set = set(must_have.lower())
+    
+    # Precompute length scores to avoid redundant calculations
+    len_scores = {i: max(0, (i-3)*3) for i in range(1, 16)}
+    
+    # Combine all calculations into a single list comprehension with added str() conversion
+    valid_words_scores = [
+        (
+            word,
+            len_scores[len(word)] + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters)
+        )
+        for word in words
+        if must_have_set.issubset(str(word).lower()) and not set(str(word).lower()) & forbidden_letters and len(word) >= 4
+    ]
+    
+    # Create DataFrame directly with 'word' and 'Score'
+    df = pd.DataFrame(valid_words_scores, columns=['Word', 'Score'])
+    df.sort_values(by='Score', ascending=False, inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    top_df = df.head(list_len)
+    blossom_table = top_df.to_html(index=False, columns=['Word', 'Score'])
+        
+    return blossom_table
