@@ -306,11 +306,11 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
     # Combine all calculations into a single list comprehension with added str() conversion
     valid_words_scores = [
         (
-            word,
-            len_scores[len(word)] + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters)
+            str(word),
+            len_scores[len(str(word))] + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters)
         )
         for word in words
-        if must_have_set.issubset(str(word).lower()) and not set(str(word).lower()) & forbidden_letters and len(word) >= 4
+        if must_have_set.issubset(str(word).lower()) and not set(str(word).lower()) & forbidden_letters and len(str(word)) >= 4
     ]
     
     # Create DataFrame directly with 'word' and 'Score'
