@@ -317,7 +317,8 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
     df = pd.DataFrame(valid_words_scores, columns=['Word', 'Score'])
     df.sort_values(by='Score', ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
+    valid_word_count = len(df)
     top_df = df.head(list_len)
     blossom_table = top_df.to_html(index=False, columns=['Word', 'Score'])
         
-    return blossom_table
+    return blossom_table, valid_word_count
