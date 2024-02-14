@@ -77,7 +77,7 @@ dict_policy = df_policy.to_dict()
 ######################################
 ######################################
 
-stock_list = ['AAPL', 'AMD', 'NVDA', 'TSLA']
+stock_list = ['AAPL', 'AMD', 'GOOG', 'INTC', 'NVDA', 'TSLA']
 contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 trade_type = 'stock'
 roll_days = 'quarter'
@@ -229,7 +229,7 @@ for i, j, k, m in zip(stock_list, final_buy_list, pred_open_list, contrib_amt):
     if j == m:
         stocks.append(f'\n{i} ({round(k, 2)}): {m}')
     else:
-        stocks.append(f'\n{i} ({round(k, 2)}): {m} + *{round(j-m,2)}*')
+        stocks.append(f'\n{i} ({round(k, 2)}): {m} + {round(j-m,2)}')
 
 file_ymdt = file_ymd + '_' + datetime.now().strftime('%H%M%S')
 text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M:%S')
@@ -257,3 +257,6 @@ with smtplib.SMTP('smtp.gmail.com', 587) as server:
     server.login(gmail_sender_email, GMAIL_PASS)
     server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
     print('email sent')
+
+# URL example
+# https://www.jamesapplewhite.com/stock_analysis?stock_list_init_val=AAPL&trade_type_val=stock&contrib_amt_init_val=10&total_weeks_val=52&buyvalue_val=1.2&multiplier_val=3&nth_week_val=1&roll_days_val=quarter&trade_dow_val=Monday
