@@ -9,6 +9,7 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_socketio import SocketIO, emit
 
 
 ########## local functions ##########
@@ -66,6 +67,7 @@ if 'IS_HEROKU' in os.environ:
     ESPRESSO_WATER_TEMP_NA_VAL = os.environ.get('ESPRESSO_WATER_TEMP_NA_VAL')
     GOOGLE_FORM_PASS = os.environ.get('GOOGLE_FORM_PASS')
     GOOGLE_FORM_URL = os.environ.get('GOOGLE_FORM_URL')
+    QUILL_SECRET = os.environ.get('QUILL_SECRET')
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -84,6 +86,7 @@ else:
     ESPRESSO_WATER_TEMP_NA_VAL = secret_pass.ESPRESSO_WATER_TEMP_NA_VAL
     GOOGLE_FORM_PASS = secret_pass.GOOGLE_FORM_PASS
     GOOGLE_FORM_URL = secret_pass.GOOGLE_FORM_URL
+    QUILL_SECRET = secret_pass.QUILL_SECRET
 
 
 # Creating a connection pool
@@ -106,6 +109,11 @@ sslify = SSLify(app)
 app.config['SESSION_COOKIE_SECURE'] = True
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+
+##### socket quill #####
+
+app.config['SECRET_KEY'] = QUILL_SECRET
+socketio = SocketIO(app)
 
 
 
@@ -1116,6 +1124,9 @@ def dogs():
 def quill():
     return render_template('quill.html')
 
+@socketio.on('send_change')
+def handle_change(data):
+    emit('receive_change', data, broadcast=True, include_self=False)
 
 
 ######################################
@@ -1228,7 +1239,8 @@ def blossom_solver():
         petal_letter = request.form["petal_letter"]
         list_len = request.form["list_len"]
         list_len = int(list_len)
-        blossom_table = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words)
+        blossom_table, valid_word_count = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words)
+        valid_word_count = f'Valid Word Count: {valid_word_count}'
 
         # log clicks and inputs
         try:
@@ -1248,7 +1260,7 @@ def blossom_solver():
             if conn is not None and conn.is_connected():
                 conn.close()
 
-        return render_template("blossom.html", blossom_table=blossom_table, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len, petal_letter=petal_letter)
+        return render_template("blossom.html", blossom_table=blossom_table, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len, petal_letter=petal_letter, valid_word_count=valid_word_count)
 
     else:
 
@@ -1274,29 +1286,6 @@ def blossom_solver():
                 conn.close()
 
         return render_template("blossom.html", list_len_val=25)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 @app.route("/any_word", methods=["POST", "GET"])
 def any_word():

@@ -1,37 +1,38 @@
 {% extends 'base.html' %}
 
-{% block title %}Main{% endblock %}
+{% block title %}Quill{% endblock %}
 
 {% block content %}
-
 <head>
     <meta charset="UTF-8">
     <title>Quill.js Example</title>
-    <!-- Include the Quill.js stylesheet -->
     <link href="//cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="//cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <!-- Include Socket.IO -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
-    <!-- Create a container for the editor -->
     <div id="editor"></div>
-    
-    <!-- Include the Quill.js library and initialize the editor -->
-    <script src="//cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <script>
+      var socket = io();  // Initialize Socket.IO
       var editor = new Quill('#editor', {
         theme: 'snow',
         modules: {
-          toolbar: [
-            ['bold', 'italic', 'underline', 'strike'],
-            ['blockquote', 'code-block'],
-            [{'list': 'ordered'}, {'list': 'bullet'}],
-            [{'header': [1, 2, 3, 4, 5, 6, false]}],
-            [{'color': []}, {'background': []}],
-            [{'align': []}],
-            ['clean']
-          ]
+          toolbar: [/* Toolbar options */]
         }
+      });
+
+      // Listen for text change events
+      editor.on('text-change', function(delta, oldDelta, source) {
+        if (source === 'user') {
+          socket.emit('send_change', delta);
+        }
+      });
+
+      // Apply changes received from server
+      socket.on('receive_change', function(delta) {
+        editor.updateContents(delta);
       });
     </script>
 </body>
-
 {% endblock %}
