@@ -80,7 +80,7 @@ dict_policy = df_policy.to_dict()
 stock_list = ['AAPL', 'AMD', 'GOOG', 'INTC', 'NVDA', 'TSLA']
 contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 trade_type = 'stock'
-roll_days = 'quarter'
+roll_days_base = 'quarter'
 buyvalue = 1.2
 multiplier = 3
 segment_name = 'stock1'
@@ -88,7 +88,7 @@ segment_name = 'stock1'
 # stock_list = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'] # just for weekend testing. not for prod deploy
 # contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 # trade_type = 'crypto'
-# roll_days = 'quarter'
+# roll_days_base = 'quarter'
 # buyvalue = 1.2
 # multiplier = 3
 # segment_name = 'crypto1'
@@ -98,7 +98,7 @@ roll_stock_index = {'month': 21, 'quarter': 65, '2_quarter': 130, 'year': 260}
 roll_crypto = {'month': 30, 'quarter': 90, '2_quarter': 180, 'year': 365}
 roll_dict = {'stock': roll_stock_index, 'index': roll_stock_index, 'crypto': roll_crypto}
 
-roll_days = roll_dict[trade_type][roll_days]
+roll_days = roll_dict[trade_type][roll_days_base]
 
 ### duplicate contrib_amt for all stocks if only 1 listed
 if len(contrib_amt) == len(stock_list):
@@ -110,6 +110,7 @@ else:
     exit()
 
 ### pull most recent day
+sleep_count = 0
 if trade_type == 'crypto' or trade_type == 'index':
     pass
 else:
@@ -137,6 +138,7 @@ else:
 
         if x == 0: # wait 15 seconds if data aren't complete
             time.sleep(15)
+            sleep_count += 1
 
 # Overly complex way to pull data, but I have found that 'Open' prices are just a 
 # copy of the previous day for the first few minutes of the trading day
@@ -247,6 +249,16 @@ if df['date'][len(df)-1] == today:
 else:
     print_and_append(f'{segment_name} not open (most recent date pull != today)')
 
+print_and_append(f'')
+print_and_append(f'{sleep_count = }')
+print_and_append(f'')
+
+total_weeks_val = 52
+for stock, contrib_amt in zip(stock_list, contrib_amt):
+    print_and_append(stock)
+    print_and_append(f"https://www.jamesapplewhite.com/stock_analysis?stock_list_init_val={stock}&trade_type_val={trade_type}&contrib_amt_init_val={int(contrib_amt)}&total_weeks_val={total_weeks_val}&buyvalue_val={buyvalue}&multiplier_val={multiplier}&nth_week_val=1&roll_days_val={roll_days_base}&trade_dow_val={datetime.now().strftime('%A')}")
+    print_and_append("")
+
 gmail_message = '\n'.join(gmail_list)
 msg = MIMEText(gmail_message)
 msg['Subject'] = gmail_subject
@@ -256,7 +268,4 @@ with smtplib.SMTP('smtp.gmail.com', 587) as server:
     server.starttls()
     server.login(gmail_sender_email, GMAIL_PASS)
     server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-    print('email sent')
-
-# URL example
-# https://www.jamesapplewhite.com/stock_analysis?stock_list_init_val=AAPL&trade_type_val=stock&contrib_amt_init_val=10&total_weeks_val=52&buyvalue_val=1.2&multiplier_val=3&nth_week_val=1&roll_days_val=quarter&trade_dow_val=Monday
+    print('email sent')    
