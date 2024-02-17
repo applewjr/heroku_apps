@@ -77,21 +77,21 @@ dict_policy = df_policy.to_dict()
 ######################################
 ######################################
 
-stock_list = ['AAPL', 'AMD', 'AMZN', 'GOOG']
-contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
-trade_type = 'stock'
-roll_days_base = 'quarter'
-buyvalue = 1.2
-multiplier = 3
-segment_name = 'stock1'
-
-# stock_list = ['INTC', 'MSFT', 'NVDA', 'TSLA']
+# stock_list = ['AAPL', 'AMD', 'AMZN', 'GOOG']
 # contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 # trade_type = 'stock'
 # roll_days_base = 'quarter'
 # buyvalue = 1.2
 # multiplier = 3
-# segment_name = 'stock2'
+# segment_name = 'stock1'
+
+stock_list = ['INTC', 'MSFT', 'NVDA', 'TSLA']
+contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
+trade_type = 'stock'
+roll_days_base = 'quarter'
+buyvalue = 1.2
+multiplier = 3
+segment_name = 'stock2'
 
 # stock_list = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'] # just for weekend testing. not for prod deploy
 # contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
