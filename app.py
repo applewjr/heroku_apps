@@ -2071,6 +2071,59 @@ def feedback_received():
 
 
 
+# Error handler for 404 Not Found
+@app.errorhandler(404)
+def page_not_found(e):
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'error.html (404)'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+        """
+        cursor.execute(query, (page_name, referrer, user_agent))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
+    return render_template('error.html'), 404
+
+# Optional: Catch-all route for undefined paths
+@app.route('/<path:path>')
+def catch_all(path):
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'error.html (undefined)'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+        """
+        cursor.execute(query, (page_name, referrer, user_agent))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
+    return render_template('error.html'), 404
 
 if __name__ == "__main__":
     app.run(debug=True)
