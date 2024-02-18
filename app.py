@@ -2098,6 +2098,32 @@ def page_not_found(e):
 
     return render_template('error.html'), 404
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'error.html (500)'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+        """
+        cursor.execute(query, (page_name, referrer, user_agent))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
+    return render_template('error.html'), 500
+
 # Optional: Catch-all route for undefined paths
 @app.route('/<path:path>')
 def catch_all(path):
