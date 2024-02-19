@@ -2074,6 +2074,7 @@ def feedback_received():
 # Error handler for 404 Not Found
 @app.errorhandler(404)
 def page_not_found(e):
+    return_type = '404 - Page Not Found'
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
@@ -2096,10 +2097,11 @@ def page_not_found(e):
         if conn is not None and conn.is_connected():
             conn.close()
 
-    return render_template('error.html'), 404
+    return render_template('error.html', return_type=return_type), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    return_type = '500 - Error'
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
@@ -2122,11 +2124,12 @@ def handle_exception(e):
         if conn is not None and conn.is_connected():
             conn.close()
 
-    return render_template('error.html'), 500
+    return render_template('error.html', return_type=return_type), 500
 
 # Optional: Catch-all route for undefined paths
 @app.route('/<path:path>')
 def catch_all(path):
+    return_type = '404 - Undefined Path'
 
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
@@ -2149,7 +2152,7 @@ def catch_all(path):
         if conn is not None and conn.is_connected():
             conn.close()
 
-    return render_template('error.html'), 404
+    return render_template('error.html', return_type=return_type), 404
 
 if __name__ == "__main__":
     app.run(debug=True)
