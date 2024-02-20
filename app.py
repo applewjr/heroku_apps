@@ -2134,7 +2134,7 @@ def catch_all(path):
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'error.html (undefined)'
+    page_name = f'error.html (undefined path: {path})'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
