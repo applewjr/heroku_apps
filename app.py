@@ -2079,7 +2079,7 @@ def page_not_found(e):
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'error.html (404)'
+    page_name = f'error.html (404: {e})'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
@@ -2106,7 +2106,7 @@ def handle_exception(e):
     # log visits
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'error.html (500)'
+    page_name = f'error.html (500: {e})'
     try:
         conn = get_pool_db_connection()
         cursor = conn.cursor()
