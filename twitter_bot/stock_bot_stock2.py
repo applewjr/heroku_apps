@@ -50,7 +50,7 @@ text_ymdt = current_time_pst.strftime('%Y-%m-%d %H:%M:%S')
 
 gmail_sender_email = 'james.r.applewhite@gmail.com'
 gmail_receiver_email = 'james.r.applewhite@gmail.com'
-gmail_subject = 'stock_bot_stock1.py'
+gmail_subject = 'stock_bot_stock2.py'
 gmail_list = []
 
 def print_and_append(statement):
@@ -66,7 +66,7 @@ def print_and_append(statement):
 ######################################
 
 df_policy = pd.DataFrame({'fund': ['AAPL', 'AMD', 'AMZN', 'GOOG', 'INTC', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'], \
-    'amt': [10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00, 10.00]})
+    'amt': [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]})
 df_policy = df_policy.set_index('fund')
 df_policy = df_policy[['amt']]
 dict_policy = df_policy.to_dict()
@@ -237,9 +237,9 @@ trade_day_date = df.tail(1)['date'].item().strftime('%Y.%m.%d')
 stocks = []
 for i, j, k, m in zip(stock_list, final_buy_list, pred_open_list, contrib_amt):
     if j == m:
-        stocks.append(f'\n{i} ({round(k, 2)}): {m}')
+        stocks.append(f'\n{i} ({round(k, 2)}): {int(m)}')
     else:
-        stocks.append(f'\n{i} ({round(k, 2)}): {m} + {round(j-m,2)}')
+        stocks.append(f'\n{i} ({round(k, 2)}): {int(m)} + {int(round(j-m,0))}')
 
 file_ymdt = file_ymd + '_' + datetime.now().strftime('%H%M%S')
 text_ymdt = text_ymd + ' ' + datetime.now().strftime('%H:%M:%S')
