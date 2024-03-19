@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}ETL Status Dashboard 2{% endblock %}
+
+{% block content %}
+
+<head>
+</head>
+<body>
+    {% for table_name, df in query_dict.items() %}
+        <h3>{{ table_name }}</h3>
+        <table>
+            <thead>
+                <tr>
+                    {% for column in df.columns %}
+                        <th>{{ column }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in df.iterrows() %}
+                    <tr>
+                        {% for cell in row %}
+                            <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endfor %}
+</body>
+
+{% endblock %}
