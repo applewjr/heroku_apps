@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for
+from flask import Flask, redirect, render_template, request, redirect, url_for, Response
 import pandas as pd
 import numpy as np
 import os
@@ -10,6 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_socketio import SocketIO, emit
+from flask_httpauth import HTTPBasicAuth
 
 
 ########## local functions ##########
@@ -116,8 +117,20 @@ app.config['SECRET_KEY'] = QUILL_SECRET
 socketio = SocketIO(app)
 
 
+##### logins #####
 
+auth = HTTPBasicAuth()
 
+@auth.verify_password
+def verify_password(username, password):
+    return password == GOOGLE_FORM_PASS
+
+@auth.error_handler
+def custom_error():
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 
 
@@ -1672,6 +1685,138 @@ def etl_status_dash():
 
     return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash, all_dash=all_dash)
 
+
+@app.route("/etl_dash2", methods=["POST", "GET"])
+@auth.login_required
+def etl_status_dash2():
+
+    conn = get_pool_db_connection()
+    cursor = conn.cursor()
+
+    queries = {
+         'Blossom':
+            """
+            WITH all_clicks AS (
+                SELECT 
+                    DATE(click_time) AS calendar_day,
+                    COUNT(*) AS clicks
+                FROM blossom_solver_clicks
+                WHERE DATE(click_time) NOT IN ('2024-02-11', '2024-02-12', '2024-02-13')
+                GROUP BY DATE(click_time)
+            ),
+            timed_clicks AS (
+                SELECT 
+                    DATE(click_time) AS calendar_day,
+                    COUNT(*) AS clicks
+                FROM blossom_solver_clicks
+                WHERE TIME(click_time) <= TIME(CONVERT_TZ(CURTIME(), 'UTC', 'America/Los_Angeles'))
+                GROUP BY DATE(click_time)
+            ),
+            clicks_combined AS (
+                SELECT 
+                    all_clicks.calendar_day,
+                    timed_clicks.clicks AS clicks_by_time,
+                    all_clicks.clicks AS total_clicks
+                FROM all_clicks
+                LEFT JOIN timed_clicks ON all_clicks.calendar_day = timed_clicks.calendar_day
+            ),
+            minmax_values AS (
+                SELECT
+                    MIN(clicks_by_time) AS min_clicks_by_time,
+                    MAX(clicks_by_time) AS max_clicks_by_time,
+                    MIN(total_clicks) AS min_total_clicks,
+                    MAX(total_clicks) AS max_total_clicks
+                FROM clicks_combined
+            )
+            SELECT 
+                c.calendar_day,
+                SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week, -- Extracts the three-letter abbreviation of the weekday
+                c.clicks_by_time,
+                CASE 
+                    WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
+                    ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
+                END AS clicks_by_time_minmax,
+                c.total_clicks,
+                CASE 
+                    WHEN m.max_total_clicks = m.min_total_clicks THEN 1
+                    ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
+                END AS total_clicks_minmax
+            FROM clicks_combined c, minmax_values m
+            ORDER BY c.calendar_day DESC
+            LIMIT 25;
+            """
+
+        ,'Blossom Bee':
+            """
+            SELECT 
+            DATE(click_time) AS calendar_day
+            ,COUNT(*) AS clicks
+            FROM blossom_clicks
+            GROUP BY DATE(click_time)
+            ORDER BY calendar_day desc
+            LIMIT 10;
+            """
+
+        ,'Errors (Last 24 Hours)':
+            """
+            SELECT
+            av.submit_time
+            ,av.page_name
+            ,av.referrer
+            FROM app_visits AS av
+            where page_name LIKE 'error.html%'
+                AND page_name NOT LIKE 'error.html (undefined%'
+                AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 24 HOUR, '+00:00', '-08:00')
+            ORDER BY page_name;
+            """
+
+        # ,'Espresso Shot Count':
+        #     """
+        #     SELECT COUNT(*) FROM espresso_data;
+        #     """
+        # ,'Espresso Bean Count':
+        #     """
+        #     SELECT COUNT(*) FROM espresso_bean;
+        #     """
+        # ,'Espresso Profile Count':
+        #     """
+        #     SELECT COUNT(*) FROM espresso_profile;
+        #     """
+    }
+
+    query_dict = {}
+    for name, query in queries.items():
+        cursor.execute(query)
+        result = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        query_df = pd.DataFrame(result, columns=columns)
+        query_dict[name] = query_df
+
+    cursor.close()
+    conn.close()
+
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = 'etl_dash2.html'
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+        """
+        cursor.execute(query, (page_name, referrer, user_agent))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
+    return render_template("etl_dash2.html", query_dict=query_dict)
 
 
 
