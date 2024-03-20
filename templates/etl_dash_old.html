@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}ETL Status Dashboard{% endblock %}
+
+{% block content %}
+
+<head>
+    <title>ETL Status Dashboard</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            margin: 10px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+        }
+        th {
+            background-color: lightgray;
+        }
+        /* .data-table {
+            width: 50%;
+            margin-left: 25%;
+            margin-right: 25%;
+        } */
+
+        .data-table th,
+        .data-table td {
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }        
+    </style>
+    
+    
+</head>
+<body>
+    <br>
+    <h1>ETL Status Dashboard</h1>
+    <br>
+    
+    <div class="dashboard-section">
+        <h3>High Level Info for All ETL</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Table Name</th>
+                    <th>Min Datetime</th>
+                    <th>Max Datetime</th>
+                    <th>Row Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in all_dash.iterrows() %}
+                <tr>
+                    <td>{{ row['Table Name'] }}</td>
+                    <td>{{ row['Min Datetime'] }}</td>
+                    <td>{{ row['Max Datetime'] }}</td>
+                    <td>{{ row['Row Count'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <br> 
+
+    <div class="dashboard-section">
+        <h3>YouTube</h3>
+        <p>10 most recent days</p>
+        <p>Expect: New date daily with 50 "Count of Rows"</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Collected Datetime</th>
+                    <th>Collected Date</th>
+                    <th>Count of Rows</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in youtube_dash.iterrows() %}
+                <tr>
+                    <td>{{ row['Collected Datetime'] }}</td>
+                    <td>{{ row['Collected Date'] }}</td>
+                    <td>{{ row['Count of Rows'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p>Updates daily at 12 am PST</p>
+    <br> 
+
+    <div class="dashboard-section">
+        <h3>Spotify</h3>
+        <p>10 most recent days</p>
+        <p>Expect: New date daily with 600+ playlist, mostly new artist, varying new track</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Collected Date</th>
+                    <th>Playlist Count</th>
+                    <th>Artist Count</th>
+                    <th>Track Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in spotify_dash.iterrows() %}
+                <tr>
+                    <td>{{ row['Collected Date'] }}</td>
+                    <td>{{ row['Playlist Count'] }}</td>
+                    <td>{{ row['Artist Count'] }}</td>
+                    <td>{{ row['Track Count'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p>Updates daily at 1 am PST</p>
+    <br>
+
+    <div class="dashboard-section">
+        <h3>LoL</h3>
+        <p>Expect: Expect Cnt aligns with Row Cnt</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Table Name</th>
+                    <th>Row Cnt</th>
+                    <th>Expect Cnt</th>
+                    <th>Min Datetime</th>
+                    <th>Max Datetime</th>
+                    <th>Min ID</th>
+                    <th>Max ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in lol_dash.iterrows() %}
+                <tr>
+                    <td>{{ row['Table Name'] }}</td>
+                    <td>{{ row['Row Cnt'] }}</td>
+                    <td>{{ row['Expect Cnt'] }}</td>
+                    <td>{{ row['Min Datetime'] }}</td>
+                    <td>{{ row['Max Datetime'] }}</td>
+                    <td>{{ row['Min ID'] }}</td>
+                    <td>{{ row['Max ID'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p>Updates daily at 4 am PST</p>
+
+    <br>
+    <br>
+    <br>
+
+</body>
+
+{% endblock %}
