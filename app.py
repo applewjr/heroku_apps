@@ -1701,7 +1701,7 @@ def etl_status_dash():
                     DATE(click_time) AS calendar_day,
                     COUNT(*) AS clicks
                 FROM blossom_solver_clicks
-                WHERE DATE(click_time) NOT IN ('2024-02-11', '2024-02-12', '2024-02-13')
+                WHERE DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
                 GROUP BY DATE(click_time)
             ),
             timed_clicks AS (
@@ -1710,6 +1710,7 @@ def etl_status_dash():
                     COUNT(*) AS clicks
                 FROM blossom_solver_clicks
                 WHERE TIME(click_time) <= TIME(CONVERT_TZ(CURTIME(), 'UTC', 'America/Los_Angeles'))
+                AND DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
                 GROUP BY DATE(click_time)
             ),
             clicks_combined AS (
@@ -1730,7 +1731,7 @@ def etl_status_dash():
             )
             SELECT 
                 c.calendar_day,
-                SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week, -- Extracts the three-letter abbreviation of the weekday
+                SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week,
                 c.clicks_by_time,
                 CASE 
                     WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
@@ -1742,25 +1743,32 @@ def etl_status_dash():
                     ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
                 END AS total_clicks_minmax
             FROM clicks_combined c, minmax_values m
-            ORDER BY c.calendar_day DESC
-            LIMIT 25;
+            ORDER BY c.calendar_day DESC;
             """
 
         ,'Blossom Most Recent':
             """
             SELECT
-            99999 AS id,
-            CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles') AS click_time,
-            TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles')) AS lag_minute
+            99999 AS id
+            ,CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles') AS click_time
+            ,TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles')) AS lag_minute
+            ,'-' AS must_have
+            ,'-' AS may_have
+            ,'-' AS petal_letter
+            ,'-' AS list_len
             FROM blossom_solver_clicks
             UNION ALL
             SELECT
-            id,
-            click_time,
-            TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
+            id
+            ,click_time
+            ,TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
+            ,must_have
+            ,may_have
+            ,petal_letter
+            ,list_len
             FROM blossom_solver_clicks
             ORDER BY click_time DESC, id DESC
-            LIMIT 11;
+            LIMIT 26;
             """
 
         ,'Blossom Bee':
@@ -1774,7 +1782,7 @@ def etl_status_dash():
             LIMIT 10;
             """
 
-        ,'Errors (Last 24 Hours)':
+        ,'Errors (Last 48 Hours)':
             """
             SELECT
             av.submit_time
@@ -1783,7 +1791,7 @@ def etl_status_dash():
             FROM app_visits AS av
             where page_name LIKE 'error.html%'
                 AND page_name NOT LIKE 'error.html (undefined%'
-                AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 24 HOUR, '+00:00', '-08:00')
+                AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, '+00:00', '-08:00')
             ORDER BY page_name;
             """
     }

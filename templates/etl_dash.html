@@ -2,6 +2,37 @@
 
 {% block title %}ETL Status Dashboard{% endblock %}
 
+{% block head %}
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        text-align: center; /* Center text by default */
+    }
+    h3 {
+        margin-top: 20px; /* Add space above each table header */
+    }
+    table {
+        margin-left: auto; /* Center the table */
+        margin-right: auto; /* Center the table */
+        border-collapse: collapse; /* Collapse borders for a more compact design */
+        table-layout: auto; /* Allow the table to adjust column widths based on content */
+    }
+    th, td {
+        border: 1px solid #ddd; /* Add a border to each cell */
+        text-align: left; /* Align text to the left inside the table */
+        padding: 8px; /* Add some padding for text inside cells */
+        white-space: nowrap; /* Keep the content in a single line */
+        overflow: hidden; /* Hide the content that overflows the cell */
+        text-overflow: ellipsis; /* Add ellipsis (...) for overflowed content */
+    }
+    th {
+        background-color: #f2f2f2; /* Add background color to header cells */
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <head>
