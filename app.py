@@ -4,6 +4,7 @@ import numpy as np
 import os
 import datetime
 import json
+import yaml
 from datetime import date
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -45,6 +46,10 @@ df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
 
 with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_file:
     espresso_points = json.load(json_file)
+
+yaml_file_path = os.path.join(data_folder, 'etl_dash_queries.yaml')
+with open(yaml_file_path, 'r') as file:
+    etl_dash_queries = yaml.safe_load(file)
 
 ########## global variables ##########
 
@@ -96,6 +101,28 @@ cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, *
 def get_pool_db_connection():
     return cnxpool.get_connection()
 
+def log_page_visit(page_name_value):
+    # log visits
+    referrer = request.headers.get('Referer', 'No referrer')
+    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    page_name = page_name_value
+    try:
+        conn = get_pool_db_connection()
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+        """
+        cursor.execute(query, (page_name, referrer, user_agent))
+        conn.commit()
+    except mysql.connector.Error as err:
+        print("Error:", err)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
 ########## Other SQL stuff ##########
 
 app = Flask(__name__)
@@ -142,31 +169,11 @@ def custom_error():
 
 @app.route("/", methods=["POST", "GET"])
 def run_index():
+
     if request.method == "POST":
         return render_template("index.html")
     else:
-
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'index.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
-
+        log_page_visit('index.html')
         return render_template("index.html")
 
 
@@ -392,26 +399,7 @@ def run_wordle():
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.wordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'wordle.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('wordle.html')
 
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
@@ -483,26 +471,7 @@ def run_antiwordle():
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.antiwordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'antiwordle.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('antiwordle.html')
 
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
@@ -693,26 +662,7 @@ def run_quordle():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'quordle.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('quordle.html')
 
         return render_template("quordle.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -915,26 +865,7 @@ def run_quordle_mobile():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'quordle_mobile.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('quordle_mobile.html')
 
         return render_template("quordle_mobile.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -961,26 +892,7 @@ def run_wordle_fixer():
         return render_template("fixer.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, must_be_present=must_be_present)
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'fixer.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('fixer.html')
 
         return render_template("fixer.html")
 
@@ -991,26 +903,7 @@ def run_wordle_example():
         return render_template("wordle_example.html")
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'wordle_example.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('wordle_example.html')
 
         return render_template("wordle_example.html")
 
@@ -1067,27 +960,7 @@ def stock_analysis():
         for key in stock_default_values.keys():
             stock_default_values[key] = request.args.get(key, stock_default_values[key])
 
-
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'stock_analysis.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('stock_analysis.html')
 
         return render_template("stock_analysis.html", **stock_default_values)
 
@@ -1102,26 +975,7 @@ def stock_analysis():
 @app.route('/dogs')
 def dogs():
 
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'dog_count.html'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+    log_page_visit('dog_count.html')
 
     return render_template('dog_count.html')
 
@@ -1164,26 +1018,7 @@ def run_common_denominator():
             num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'common_denominator.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('common_denominator.html')
 
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
@@ -1219,26 +1054,7 @@ def blossom():
 
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'blossom_bee.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('blossom_bee.html')
 
         return render_template("blossom_bee.html", list_len_val=25)
 
@@ -1277,26 +1093,7 @@ def blossom_solver():
 
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'blossom.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('blossom.html')
 
         return render_template("blossom.html", list_len_val=25)
 
@@ -1318,26 +1115,7 @@ def any_word():
             min_length_val=min_length, max_length_val=max_length)#, required_substrings_val=required_substrings, forbidden_substrings_val=forbidden_substrings)
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'any_word.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('any_word.html')
 
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
@@ -1389,26 +1167,7 @@ def data_summ():
 @app.route('/resume')
 def resume():
 
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'resume.html'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+    log_page_visit('resume.html')
 
     return render_template('resume.html')
 
@@ -1532,33 +1291,12 @@ def youtube_trending():
     temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
     yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'youtube_trending.html'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+    log_page_visit('youtube_trending.html')
 
     return render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
         )
-
-
 
 
 
@@ -1571,121 +1309,6 @@ def youtube_trending():
 ######################################
 ######################################
 
-# @app.route("/etl_dash", methods=["POST", "GET"])
-# def etl_status_dash():
-
-#     conn = get_pool_db_connection()
-#     cursor = conn.cursor()
-#     today = date.today().strftime("%Y-%m-%d")
-
-#     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
-
-#     all_dash = """
-#     SELECT 'YouTube' AS table_name, MIN(collected_dt) AS min, MAX(collected_dt) AS max, COUNT(*) AS rows_count FROM youtube_trending
-#     UNION ALL SELECT 'Spotify Playlists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_playlists
-#     UNION ALL SELECT 'Spotify Artists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_artists
-#     UNION ALL SELECT 'Spotify Tracks', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_tracks
-#     UNION ALL SELECT 'LoL Summoner', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_summoner
-#     UNION ALL SELECT 'LoL Champion', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_champion
-#     UNION ALL SELECT 'LoL Match',
-#         CONVERT_TZ(MIN(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS min_pst,
-#         CONVERT_TZ(MAX(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS max_pst,
-#         COUNT(*)
-#     FROM lol_match;
-#     """
-#     cursor.execute(all_dash)
-#     all_dash = cursor.fetchall()
-#     all_dash = pd.DataFrame(all_dash, columns=['Table Name', 'Min Datetime', 'Max Datetime', 'Row Count'])
-
-#     youtube_dash = """
-#     SELECT
-#     collected_dt
-#     ,collected_date
-#     ,count(1) cnt
-#     FROM youtube_trending
-#     GROUP BY collected_dt, collected_date
-#     ORDER BY collected_dt DESC
-#     LIMIT 10;
-#     """
-#     cursor.execute(youtube_dash)
-#     youtube_dash = cursor.fetchall()
-#     youtube_dash = pd.DataFrame(youtube_dash, columns=['Collected Datetime', 'Collected Date', 'Count of Rows'])
-
-
-#     lol_dash = """
-#     SELECT 'lol_summoner' AS table_name,  COUNT(1) AS row_count, (DATEDIFF(CURDATE(), MIN(pulled_date)) + 1) * 2 AS expected_cnt, MIN(pulled_dt) AS min_pulled_dt, MAX(pulled_dt) AS max_pulled_dt, NULL AS min_matchId, NULL AS max_matchId FROM lol_summoner
-#         UNION ALL SELECT 'lol_champion' AS table_name, COUNT(1), 163, MIN(pulled_dt), MAX(pulled_dt), NULL, NULL FROM lol_champion
-#         UNION ALL SELECT 'lol_all_match' AS table_name, COUNT(1), NULL, NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_all_match
-#         UNION ALL SELECT 'lol_match' AS table_name, COUNT(1), (SELECT COUNT(1) FROM lol_all_match), MIN(gameCreation), MAX(gameCreation), MIN(matchId), MAX(matchId) FROM lol_match
-#         UNION ALL SELECT 'lol_participants_info' AS table_name, COUNT(1), (SELECT COUNT(1) * 10 FROM lol_all_match), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_info
-#         UNION ALL SELECT 'lol_participants_challenges' AS table_name, COUNT(1), (SELECT COUNT(1) * 10 FROM lol_all_match), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_challenges;
-#     """
-#     cursor.execute(lol_dash)
-#     lol_dash = cursor.fetchall()
-#     lol_dash = pd.DataFrame(lol_dash, columns=['Table Name', 'Row Cnt', 'Expect Cnt', 'Min Datetime', 'Max Datetime', 'Min ID', 'Max ID'])
-
-
-#     spotify_dash = """
-#     WITH all_dates AS (
-#         SELECT collected_date FROM spotify_playlists
-#         UNION SELECT collected_date FROM spotify_artists
-#         UNION SELECT collected_date FROM spotify_tracks
-#         )
-#     SELECT
-#      all_dates.collected_date
-#     ,COALESCE(p.playlist_count, 0) AS playlist_count
-#     ,COALESCE(a.artist_count, 0) AS artist_count
-#     ,COALESCE(t.track_count, 0) AS track_count
-#     FROM all_dates
-#     LEFT JOIN (
-#         SELECT collected_date, COUNT(*) AS playlist_count
-#         FROM spotify_playlists
-#         GROUP BY collected_date
-#         ) p ON all_dates.collected_date = p.collected_date
-#     LEFT JOIN (
-#         SELECT collected_date, COUNT(*) AS artist_count
-#         FROM spotify_artists
-#         GROUP BY collected_date
-#         ) a ON all_dates.collected_date = a.collected_date
-#     LEFT JOIN (
-#         SELECT collected_date, COUNT(*) AS track_count
-#         FROM spotify_tracks
-#         GROUP BY collected_date
-#         ) t ON all_dates.collected_date = t.collected_date
-#     ORDER BY all_dates.collected_date DESC
-#     LIMIT 10;
-#     """
-#     cursor.execute(spotify_dash)
-#     spotify_dash = cursor.fetchall()
-#     spotify_dash = pd.DataFrame(spotify_dash, columns=['Collected Date', 'Playlist Count', 'Artist Count', 'Track Count'])
-
-#     cursor.close()
-#     conn.close()
-
-#     # log visits
-#     referrer = request.headers.get('Referer', 'No referrer')
-#     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-#     page_name = 'etl_dash.html'
-#     try:
-#         conn = get_pool_db_connection()
-#         cursor = conn.cursor()
-#         query = """
-#         INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-#         VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-#         """
-#         cursor.execute(query, (page_name, referrer, user_agent))
-#         conn.commit()
-#     except mysql.connector.Error as err:
-#         print("Error:", err)
-#     finally:
-#         if cursor is not None:
-#             cursor.close()
-#         if conn is not None and conn.is_connected():
-#             conn.close()
-
-#     return render_template("etl_dash.html", youtube_dash=youtube_dash, lol_dash=lol_dash, spotify_dash=spotify_dash, all_dash=all_dash)
-
-
 @app.route("/etl_dash", methods=["POST", "GET"])
 @auth.login_required
 def etl_status_dash():
@@ -1693,143 +1316,24 @@ def etl_status_dash():
     conn = get_pool_db_connection()
     cursor = conn.cursor()
 
-    queries = {
-         'Blossom':
-            """
-            WITH all_clicks AS (
-                SELECT 
-                    DATE(click_time) AS calendar_day,
-                    COUNT(*) AS clicks
-                FROM blossom_solver_clicks
-                WHERE DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
-                GROUP BY DATE(click_time)
-            ),
-            timed_clicks AS (
-                SELECT 
-                    DATE(click_time) AS calendar_day,
-                    COUNT(*) AS clicks
-                FROM blossom_solver_clicks
-                WHERE TIME(click_time) <= TIME(CONVERT_TZ(CURTIME(), 'UTC', 'America/Los_Angeles'))
-                AND DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
-                GROUP BY DATE(click_time)
-            ),
-            clicks_combined AS (
-                SELECT 
-                    all_clicks.calendar_day,
-                    timed_clicks.clicks AS clicks_by_time,
-                    all_clicks.clicks AS total_clicks
-                FROM all_clicks
-                LEFT JOIN timed_clicks ON all_clicks.calendar_day = timed_clicks.calendar_day
-            ),
-            minmax_values AS (
-                SELECT
-                    MIN(clicks_by_time) AS min_clicks_by_time,
-                    MAX(clicks_by_time) AS max_clicks_by_time,
-                    MIN(total_clicks) AS min_total_clicks,
-                    MAX(total_clicks) AS max_total_clicks
-                FROM clicks_combined
-            )
-            SELECT 
-                c.calendar_day,
-                SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week,
-                c.clicks_by_time,
-                CASE 
-                    WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
-                    ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
-                END AS clicks_by_time_minmax,
-                c.total_clicks,
-                CASE 
-                    WHEN m.max_total_clicks = m.min_total_clicks THEN 1
-                    ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
-                END AS total_clicks_minmax
-            FROM clicks_combined c, minmax_values m
-            ORDER BY c.calendar_day DESC;
-            """
-
-        ,'Blossom Most Recent':
-            """
-            SELECT
-            99999 AS id
-            ,CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles') AS click_time
-            ,TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), @@session.time_zone, 'America/Los_Angeles')) AS lag_minute
-            ,'-' AS must_have
-            ,'-' AS may_have
-            ,'-' AS petal_letter
-            ,'-' AS list_len
-            FROM blossom_solver_clicks
-            UNION ALL
-            SELECT
-            id
-            ,click_time
-            ,TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
-            ,must_have
-            ,may_have
-            ,petal_letter
-            ,list_len
-            FROM blossom_solver_clicks
-            ORDER BY click_time DESC, id DESC
-            LIMIT 26;
-            """
-
-        ,'Blossom Bee':
-            """
-            SELECT 
-            DATE(click_time) AS calendar_day
-            ,COUNT(*) AS clicks
-            FROM blossom_clicks
-            GROUP BY DATE(click_time)
-            ORDER BY calendar_day desc
-            LIMIT 10;
-            """
-
-        ,'Errors (Last 48 Hours)':
-            """
-            SELECT
-            av.submit_time
-            ,av.page_name
-            ,av.referrer
-            FROM app_visits AS av
-            where page_name LIKE 'error.html%'
-                AND page_name NOT LIKE 'error.html (undefined%'
-                AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, '+00:00', '-08:00')
-            ORDER BY page_name;
-            """
-    }
-
     query_dict = {}
-    for name, query in queries.items():
-        try:
-            cursor.execute(query)
-            result = cursor.fetchall()
-            columns = [desc[0] for desc in cursor.description]
-            query_df = pd.DataFrame(result, columns=columns)
-            query_dict[name] = query_df
-        except:
-            print(f'{name} not run')
+    for name, details in etl_dash_queries.items():
+        # Check if 'round' exists and equals 1 before proceeding
+        if details.get('round') == 1:
+            try:
+                query = details['query']  # Access the 'query' part of the structure
+                cursor.execute(query)
+                result = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                query_df = pd.DataFrame(result, columns=columns)
+                query_dict[name] = query_df
+            except Exception as e:
+                print(f'{name} not run due to error: {e}')
 
     cursor.close()
     conn.close()
 
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'etl_dash.html'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+    log_page_visit('etl_dash.html')
 
     return render_template("etl_dash.html", query_dict=query_dict)
 
@@ -1841,111 +1345,24 @@ def etl_status_dash2():
     conn = get_pool_db_connection()
     cursor = conn.cursor()
 
-    queries = {
-         'High Level ETL':
-            """
-            SELECT 'YouTube' AS table_name, MIN(collected_dt) AS min, MAX(collected_dt) AS max, COUNT(*) AS rows_count FROM youtube_trending
-            UNION ALL SELECT 'Spotify Playlists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_playlists
-            UNION ALL SELECT 'Spotify Artists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_artists
-            UNION ALL SELECT 'Spotify Tracks', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_tracks
-            UNION ALL SELECT 'LoL Summoner', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_summoner
-            UNION ALL SELECT 'LoL Champion', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_champion
-            UNION ALL SELECT 'LoL Match',
-                CONVERT_TZ(MIN(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS min_pst,
-                CONVERT_TZ(MAX(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS max_pst,
-                COUNT(*)
-            FROM lol_match;
-            """
-
-        ,'Youtube Trending':
-            """
-            SELECT
-            collected_dt
-            ,collected_date
-            ,count(1) cnt
-            FROM youtube_trending
-            GROUP BY collected_dt, collected_date
-            ORDER BY collected_dt DESC
-            LIMIT 10;
-            """
-
-        ,'Spotify':
-            """
-            WITH all_dates AS (
-                SELECT collected_date FROM spotify_playlists
-                UNION SELECT collected_date FROM spotify_artists
-                UNION SELECT collected_date FROM spotify_tracks
-                )
-            SELECT
-            all_dates.collected_date
-            ,COALESCE(p.playlist_count, 0) AS playlist_count
-            ,COALESCE(a.artist_count, 0) AS artist_count
-            ,COALESCE(t.track_count, 0) AS track_count
-            FROM all_dates
-            LEFT JOIN (
-                SELECT collected_date, COUNT(*) AS playlist_count
-                FROM spotify_playlists
-                GROUP BY collected_date
-                ) p ON all_dates.collected_date = p.collected_date
-            LEFT JOIN (
-                SELECT collected_date, COUNT(*) AS artist_count
-                FROM spotify_artists
-                GROUP BY collected_date
-                ) a ON all_dates.collected_date = a.collected_date
-            LEFT JOIN (
-                SELECT collected_date, COUNT(*) AS track_count
-                FROM spotify_tracks
-                GROUP BY collected_date
-                ) t ON all_dates.collected_date = t.collected_date
-            ORDER BY all_dates.collected_date DESC
-            LIMIT 10;
-            """
-
-        ,'LoL':
-            """
-            SELECT 'lol_summoner' AS table_name,  COUNT(1) AS row_count, MIN(pulled_dt) AS min_pulled_dt, MAX(pulled_dt) AS max_pulled_dt, NULL AS min_matchId, NULL AS max_matchId FROM lol_summoner
-                UNION ALL SELECT 'lol_champion' AS table_name, COUNT(1), MIN(pulled_dt), MAX(pulled_dt), NULL, NULL FROM lol_champion
-                UNION ALL SELECT 'lol_all_match' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_all_match
-                UNION ALL SELECT 'lol_match' AS table_name, COUNT(1), MIN(gameCreation), MAX(gameCreation), MIN(matchId), MAX(matchId) FROM lol_match
-                UNION ALL SELECT 'lol_participants_info' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_info
-                UNION ALL SELECT 'lol_participants_challenges' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_challenges;
-            """
-    }
-
     query_dict = {}
-    for name, query in queries.items():
-        try:
-            cursor.execute(query)
-            result = cursor.fetchall()
-            columns = [desc[0] for desc in cursor.description]
-            query_df = pd.DataFrame(result, columns=columns)
-            query_dict[name] = query_df
-        except:
-            print(f'{name} not run')
+    for name, details in etl_dash_queries.items():
+        # Check if 'round' exists and equals 1 before proceeding
+        if details.get('round') == 2:
+            try:
+                query = details['query']  # Access the 'query' part of the structure
+                cursor.execute(query)
+                result = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                query_df = pd.DataFrame(result, columns=columns)
+                query_dict[name] = query_df
+            except Exception as e:
+                print(f'{name} not run due to error: {e}')
 
     cursor.close()
     conn.close()
 
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = 'etl_dash.html'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+    log_page_visit('etl_dash.html')
 
     return render_template("etl_dash.html", query_dict=query_dict)
 
@@ -2110,26 +1527,7 @@ def espresso_route():
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'espresso.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('espresso.html')
 
         return render_template('espresso.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
@@ -2242,26 +1640,7 @@ def espresso_input_route():
         temp_scatter_3d_plot = 'static/scatter_3d.png'
         scatter_3d.savefig(temp_scatter_3d_plot)
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'espresso_input.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('espresso_input.html')
 
         return render_template('espresso_input.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
@@ -2308,26 +1687,7 @@ def feedback():
         return render_template("feedback_received.html")
     else:
 
-        # log visits
-        referrer = request.headers.get('Referer', 'No referrer')
-        user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-        page_name = 'feedback.html'
-        try:
-            conn = get_pool_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+        log_page_visit('feedback.html')
 
         return render_template("feedback.html")
 
