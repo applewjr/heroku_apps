@@ -30,6 +30,22 @@
     th {
         background-color: #f2f2f2; /* Add background color to header cells */
     }
+    .round-button {
+        width: 50px; /* Added 'px' to make the CSS valid. Adjust this as needed, perhaps to min-width for better responsiveness */
+        background-color: #02484d;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none; /* Remove underline from link */
+        display: inline-block; /* Allows width and height for <a> */
+        text-align: center; /* Centers text within button */
+    }
+    .round-button:hover {
+        background-color: #03282b;
+        color: gray;
+    }
 </style>
 {% endblock %}
 
@@ -38,18 +54,19 @@
 <head>
 </head>
 <body>
-    {% for table_name, df in query_dict.items() %}
+    {% for table_name, details in query_dict.items() %}
         <h3>{{ table_name }}</h3>
+        <p>{{ details.description }}</p> <!-- Displaying the description -->
         <table>
             <thead>
                 <tr>
-                    {% for column in df.columns %}
+                    {% for column in details.data.columns %} <!-- Adjusted for nested structure -->
                         <th>{{ column }}</th>
                     {% endfor %}
                 </tr>
             </thead>
             <tbody>
-                {% for index, row in df.iterrows() %}
+                {% for index, row in details.data.iterrows() %} <!-- Adjusted for nested structure -->
                     <tr>
                         {% for cell in row %}
                             <td>{{ cell }}</td>
@@ -61,6 +78,17 @@
         <br>
         <br>
     {% endfor %}
+    <div>
+        {% for round_num in valid_rounds %}
+            {% if round_num != round %}
+                <a href="/etl_dash/{{ round_num }}" class="round-button">{{ round_num }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <br>
+    <br>
+    <br>
 </body>
+
 
 {% endblock %}

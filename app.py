@@ -1309,63 +1309,50 @@ def youtube_trending():
 ######################################
 ######################################
 
-@app.route("/etl_dash", methods=["POST", "GET"])
+def get_valid_rounds():
+    rounds = {details.get('round') for _, details in etl_dash_queries.items() if 'round' in details}
+    return rounds
+
+@app.route("/etl_dash")
+def etl_dash_redirect():
+    return redirect(url_for('etl_status_dash', round=1))
+
+@app.route("/etl_dash/<int:round>", methods=["POST", "GET"])
 @auth.login_required
-def etl_status_dash():
+def etl_status_dash(round):
+
+    valid_rounds = get_valid_rounds()
+    
+    if round not in valid_rounds:
+        return f"Invalid round parameter. Return only: {valid_rounds}", 400
 
     conn = get_pool_db_connection()
     cursor = conn.cursor()
 
     query_dict = {}
     for name, details in etl_dash_queries.items():
-        # Check if 'round' exists and equals 1 before proceeding
-        if details.get('round') == 1:
+        if details.get('round') == round:
             try:
-                query = details['query']  # Access the 'query' part of the structure
+                query = details['query']
                 cursor.execute(query)
                 result = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
                 query_df = pd.DataFrame(result, columns=columns)
-                query_dict[name] = query_df
+                
+                # Here we add the description to the dictionary entry for this name
+                query_dict[name] = {
+                    'description': details['description'],
+                    'data': query_df
+                }
             except Exception as e:
                 print(f'{name} not run due to error: {e}')
 
     cursor.close()
     conn.close()
 
-    log_page_visit('etl_dash.html')
+    log_page_visit(f'etl_dash_{round}.html')
 
-    return render_template("etl_dash.html", query_dict=query_dict)
-
-
-@app.route("/etl_dash2", methods=["POST", "GET"])
-@auth.login_required
-def etl_status_dash2():
-
-    conn = get_pool_db_connection()
-    cursor = conn.cursor()
-
-    query_dict = {}
-    for name, details in etl_dash_queries.items():
-        # Check if 'round' exists and equals 1 before proceeding
-        if details.get('round') == 2:
-            try:
-                query = details['query']  # Access the 'query' part of the structure
-                cursor.execute(query)
-                result = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-                query_df = pd.DataFrame(result, columns=columns)
-                query_dict[name] = query_df
-            except Exception as e:
-                print(f'{name} not run due to error: {e}')
-
-    cursor.close()
-    conn.close()
-
-    log_page_visit('etl_dash.html')
-
-    return render_template("etl_dash.html", query_dict=query_dict)
-
+    return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
 
 
 

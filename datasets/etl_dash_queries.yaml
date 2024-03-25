@@ -1,7 +1,7 @@
 Blossom:
     round: 1
     label: "Blossom"
-    description: "This query fetches the total number of clicks and clicks by time for the last 28 days, grouping them by day."
+    description: "Click counts by current time PST, total day, minmax. Last 28 days"
     query: |
         WITH all_clicks AS (
             SELECT 
@@ -55,7 +55,7 @@ Blossom:
 Blossom Most Recent:
     round: 1
     label: "Blossom Most Recent"
-    description: "Retrieves the most recent clicks from the blossom_solver_clicks table, including a time lag calculation for each click."
+    description: "Most recent 25 clicks"
     query: |
         SELECT
          99999 AS id
@@ -79,10 +79,26 @@ Blossom Most Recent:
         ORDER BY click_time DESC, id DESC
         LIMIT 26;
 
-Blossom Search Source:
+Errors (Last 48 Hours):
     round: 1
+    label: "Errors (Last 48 Hours)"
+    description: "Errors in the last 48 hours"
+    query: |
+        SELECT
+         av.submit_time
+        ,av.page_name
+        ,av.referrer
+        FROM app_visits AS av
+        where page_name LIKE 'error.html%'
+            AND page_name NOT LIKE 'error.html (undefined%'
+            AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, '+00:00', '-08:00')
+        ORDER BY page_name;
+
+
+Blossom Search Source:
+    round: 2
     label: "Blossom Search Source"
-    description: "Placeholder"
+    description: "Referrer sources, minmaxed"
     query: |
         WITH counts AS (
             SELECT
@@ -123,10 +139,23 @@ Blossom Search Source:
         ,minmax AS m
         ORDER BY counts.cnt_56 DESC;
 
+Blossom Hourly Average:
+    round: 2
+    label: "Blossom Hourly Average"
+    description: "Clicks averaged by hour, last 28 days"
+    query: |
+        SELECT 
+        HOUR(click_time) AS hour
+        ,ROUND(COUNT(*)/28,2) AS avg_hr_cnt
+        FROM blossom_solver_clicks
+        WHERE click_time >= NOW() - INTERVAL 28 DAY
+        GROUP BY HOUR(click_time)
+        ORDER BY hour;
+
 Blossom Bee:
-    round: 1
+    round: 2
     label: "Blossom Bee"
-    description: "Fetches the total number of clicks from the blossom_clicks table for the last 10 days."
+    description: "Blossom Bee clicks"
     query: |
         SELECT 
          DATE(click_time) AS calendar_day
@@ -136,25 +165,39 @@ Blossom Bee:
         ORDER BY calendar_day desc
         LIMIT 10;
 
-Errors (Last 48 Hours):
-    round: 1
-    label: "Errors (Last 48 Hours)"
-    description: "Selects entries from the app_visits table where the page_name indicates an error, within the last 48 hours."
+Wordle, Quordle, Antiwordle:
+    round: 2
+    label: "Wordle, Quordle, Antiwordle"
+    description: "The other ones"
     query: |
         SELECT
-         av.submit_time
-        ,av.page_name
-        ,av.referrer
-        FROM app_visits AS av
-        where page_name LIKE 'error.html%'
-            AND page_name NOT LIKE 'error.html (undefined%'
-            AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, '+00:00', '-08:00')
-        ORDER BY page_name;
+        date
+        ,SUM(CASE WHEN solver_name = 'wordle' THEN 1 ELSE 0 END) AS wordle_count
+        ,SUM(CASE WHEN solver_name = 'quordle' THEN 1 ELSE 0 END) AS quordle_count
+        ,SUM(CASE WHEN solver_name = 'quordle_mobile' THEN 1 ELSE 0 END) AS quordle_mobile_count
+        ,SUM(CASE WHEN solver_name = 'antiwordle' THEN 1 ELSE 0 END) AS antiwordle_count
+        FROM (
+            SELECT
+            DATE(click_time) AS date
+            ,solver_name
+            FROM wordle_clicks
+            WHERE must_not_be_present <> 'test'
+            UNION ALL
+            SELECT
+            DATE(click_time) AS date
+            ,solver_name
+            FROM quordle_clicks
+            WHERE must_not_be_present1 <> 'test'
+            ) AS combined_clicks
+        GROUP BY date
+        ORDER BY date DESC
+        LIMIT 10;
+
 
 High Level ETL:
-    round: 2
+    round: 3
     label: 'High Level ETL'
-    description: "placeholder"
+    description: "Min and max dates for various ETL"
     query: |
         SELECT 'YouTube' AS table_name, MIN(collected_dt) AS min, MAX(collected_dt) AS max, COUNT(*) AS rows_count FROM youtube_trending
         UNION ALL SELECT 'Spotify Playlists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_playlists
@@ -169,9 +212,9 @@ High Level ETL:
         FROM lol_match;
 
 Youtube Trending:
-    round: 2
+    round: 3
     label: 'Youtube Trending'
-    description: "placeholder"
+    description: "Last 10 days of data"
     query: |
         SELECT
          collected_dt
@@ -183,9 +226,9 @@ Youtube Trending:
         LIMIT 10;
 
 Spotify:
-    round: 2
+    round: 3
     label: 'Spotify'
-    description: "placeholder"
+    description: "Last 10 days of data"
     query: |
         WITH all_dates AS (
             SELECT collected_date FROM spotify_playlists
@@ -217,9 +260,9 @@ Spotify:
         LIMIT 10;
 
 LoL:
-    round: 2
+    round: 3
     label: 'LoL'
-    description: "placeholder"
+    description: "High level summary info"
     query: |
         SELECT 'lol_summoner' AS table_name,  COUNT(1) AS row_count, MIN(pulled_dt) AS min_pulled_dt, MAX(pulled_dt) AS max_pulled_dt, NULL AS min_matchId, NULL AS max_matchId FROM lol_summoner
             UNION ALL SELECT 'lol_champion' AS table_name, COUNT(1), MIN(pulled_dt), MAX(pulled_dt), NULL, NULL FROM lol_champion
