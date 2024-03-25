@@ -20,8 +20,37 @@
     input:-ms-input-placeholder {
         color: lightgrey;
     }
-  </style>
+    .browse-button {
+        background-color: #02484d;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none; /* Remove underline from link */
+        display: inline-block; /* Allows width and height for <a> */
+        text-align: center; /* Centers text within button */
+    }
+    .browse-button:hover {
+        background-color: #03282b;
+        color: gray;
+    }
+    /* Media query for mobile devices to adjust buttons' layout */
+    @media (max-width: 768px) {
+        .browse-button {
+            flex: 1 0 46%; /* Adjust the flex basis to allow two buttons per row and ensure they don't overlap */
+            margin: 5px; /* Add margin around each button for spacing */
+            padding: 10px; /* Adjust padding if needed */
+        }
 
+        #buttons-container {
+            display: flex;
+            flex-direction: row; /* Ensure buttons are laid out in a row */
+            flex-wrap: wrap; /* Allow wrapping */
+            justify-content: space-around; /* Distribute space around items for even spacing */
+        }
+    }
+  </style>
 </head>
 
 <body>
@@ -77,6 +106,14 @@
     <br>
     <br>
     <a href="/feedback">Give Feedback Here</a>
+    <br>
+    <br>
+    <a href="/blossom" class="browse-button">Blossom Solver</a>
+    <a href="/wordle" class="browse-button">Wordle Solver</a>
+    <a href="/quordle" class="browse-button">Quordle Solver</a>
+    <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
+    <!-- <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a> -->
+    <!-- <a href="/quordle_mobile" class="browse-button">Quordle Mobile Solver</a> -->
     <br>
     <br>
     <br>
