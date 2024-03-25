@@ -1067,6 +1067,8 @@ def blossom_solver():
         may_have = request.form["may_have"]
         petal_letter = request.form["petal_letter"]
         list_len = request.form["list_len"]
+        if list_len == '':
+            list_len = 25
         list_len = int(list_len)
         blossom_table, valid_word_count = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words)
         valid_word_count = f'Valid Word Count: {valid_word_count}'
