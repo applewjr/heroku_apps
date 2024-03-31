@@ -352,7 +352,7 @@ def run_wordle_revamp():
         return render_template("wordle_revamp.html")
     
 
-@app.route("/wordle_old", methods=["POST", "GET"])
+@app.route("/wordle_og", methods=["POST", "GET"])
 def run_wordle():
     if request.method == "POST":
         must_not_be_present = request.form["must_not_be_present"]

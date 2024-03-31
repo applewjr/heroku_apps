@@ -181,23 +181,23 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
     df = df.sort_values(by = 'word_score', ascending = False)
 
     try:
-        final_out1 = df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+        final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out1 = 'No words found'
     try:
-        final_out2 = df.iat[1, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+        final_out2 = 'Pick 2: ' + df.iat[1, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out2 = ''
     try:
-        final_out3 = df.iat[2, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+        final_out3 = 'Pick 3: ' + df.iat[2, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out3 = ''
     try:
-        final_out4 = df.iat[3, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+        final_out4 = 'Pick 4: ' + df.iat[3, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out4 = ''
     try:
-        final_out5 = df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+        final_out5 = 'Pick 5: ' + df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out5 = ''
     final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'

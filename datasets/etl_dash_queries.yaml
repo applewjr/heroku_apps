@@ -172,7 +172,7 @@ Blossom Hourly Average:
                 THEN 1 ELSE 0 END) AS today
         FROM blossom_solver_clicks
         WHERE click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 29 DAY
-        GROUP BY HOUR(CONVERT_TZ(click_time, 'UTC', 'America/Los_Angeles'))
+        GROUP BY HOUR(click_time)
         UNION ALL
         SELECT 
             'All' AS hour,
@@ -200,46 +200,27 @@ Blossom Hourly Average:
         WHERE click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 29 DAY
         ORDER BY hour;
 
-Blossom Bee:
+Word Solver Page Visits:
     round: 2
-    label: "Blossom Bee"
-    description: "Blossom Bee clicks"
-    query: |
-        SELECT 
-         DATE(click_time) AS calendar_day
-        ,COUNT(*) AS clicks
-        FROM blossom_clicks
-        GROUP BY DATE(click_time)
-        ORDER BY calendar_day desc
-        LIMIT 10;
-
-Wordle, Quordle, Antiwordle:
-    round: 2
-    label: "Wordle, Quordle, Antiwordle"
-    description: "The other ones"
+    label: "Word Solver Page Visits"
+    description: "(Not individual clicks)"
     query: |
         SELECT
-        date
-        ,SUM(CASE WHEN solver_name = 'wordle' THEN 1 ELSE 0 END) AS wordle_count
-        ,SUM(CASE WHEN solver_name = 'quordle' THEN 1 ELSE 0 END) AS quordle_count
-        ,SUM(CASE WHEN solver_name = 'quordle_mobile' THEN 1 ELSE 0 END) AS quordle_mobile_count
-        ,SUM(CASE WHEN solver_name = 'antiwordle' THEN 1 ELSE 0 END) AS antiwordle_count
-        FROM (
-            SELECT
-            DATE(click_time) AS date
-            ,solver_name
-            FROM wordle_clicks
-            WHERE must_not_be_present <> 'test'
-            UNION ALL
-            SELECT
-            DATE(click_time) AS date
-            ,solver_name
-            FROM quordle_clicks
-            WHERE must_not_be_present1 <> 'test'
-            ) AS combined_clicks
+            DATE(submit_time) AS date,
+            SUM(CASE WHEN page_name = 'blossom.html' THEN 1 ELSE 0 END) AS blossom,
+            SUM(CASE WHEN page_name = 'blossom_bee.html' THEN 1 ELSE 0 END) AS blossom_bee,
+            SUM(CASE WHEN page_name = 'wordle_revamp.html' THEN 1 ELSE 0 END) AS wordle_revamp,
+            SUM(CASE WHEN page_name = 'wordle.html' THEN 1 ELSE 0 END) AS wordle,
+            SUM(CASE WHEN page_name = 'wordle_example.html' THEN 1 ELSE 0 END) AS wordle_example,
+            SUM(CASE WHEN page_name = 'antiwordle.html' THEN 1 ELSE 0 END) AS antiwordle,
+            SUM(CASE WHEN page_name = 'quordle.html' THEN 1 ELSE 0 END) AS quordle,
+            SUM(CASE WHEN page_name = 'quordle_mobile.html' THEN 1 ELSE 0 END) AS quordle_mobile
+        FROM app_visits
+        WHERE page_name IN ('antiwordle.html', 'quordle.html', 'quordle_mobile.html', 'wordle.html', 'wordle_example.html', 'wordle_revamp.html', 'blossom.html', 'blossom_bee.html')
+            AND referrer NOT LIKE '%127.0.0.1:5000%'
         GROUP BY date
         ORDER BY date DESC
-        LIMIT 10;
+        LIMIT 14;
 
 
 High Level ETL:
