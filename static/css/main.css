@@ -43,7 +43,7 @@ input[type=text], select {
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  background-color: white;
+  /* background-color: white; */
   color:white;
   /* margin-right: 40px; */
 
@@ -132,7 +132,7 @@ input[type=text], select {
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  background-color: white;
+  /* background-color: white; */
   color:black;
   /* margin-right: 40px; */
 

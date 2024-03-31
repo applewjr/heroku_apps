@@ -92,6 +92,7 @@ Errors (Last 48 Hours):
         where page_name LIKE 'error.html%'
             AND page_name NOT LIKE 'error.html (undefined%'
             AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, 'UTC', 'America/Los_Angeles')
+            AND referrer NOT LIKE '%127.0.0.1:5000%'
         ORDER BY page_name;
 
 

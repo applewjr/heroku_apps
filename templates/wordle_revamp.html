@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordle Solver{% endblock %}
+
+{% block content %}
+<form id="wordle-form" method="post" action="/wordle">
+  <br>
+  <div id="wordle-grid">
+      {% for row in range(6) %}
+      <div class="wordle-row">
+          {% for col in range(5) %}
+          <input type="text" maxlength="1" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
+          {% endfor %}
+      </div>
+      {% endfor %}
+  </div>
+  <input type="hidden" name="wordle_data" id="wordle-data">
+  <br>
+  <div id="recommendations"></div>
+</form>
+
+<style>
+  #wordle-grid .wordle-row {
+      display: flex;
+      justify-content: center;
+  }
+
+  #wordle-grid .wordle-box {
+      width: 60px;
+      height: 60px;
+      font-size: 18px;
+      text-align: center;
+      margin: 5px;
+      border: 2px solid #777;
+      outline: none;
+      transition: background-color 0.3s;
+  }
+
+  /* Define color states */
+  .color-0 { background-color: #fff; }
+  .color-1 { background-color: #787c7e; }
+  .color-2 { background-color: #c9b458; }
+  .color-3 { background-color: #6aaa64; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const boxes = document.querySelectorAll('#wordle-grid .wordle-box');
+    
+    // Set focus to the first box as soon as the page loads
+    if (boxes.length > 0) {
+        boxes[0].focus();
+    }
+    
+    boxes.forEach((box, index) => {
+        box.addEventListener('input', (event) => {
+            box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
+            triggerUpdate();
+
+            if (box.value && index < boxes.length - 1) {
+                boxes[index + 1].focus();
+            }
+        });
+
+        box.addEventListener('click', (event) => {
+            event.preventDefault(); 
+
+            let currentState = parseInt(box.dataset.state);
+            let newState = (currentState + 1) % 4;
+            box.dataset.state = newState;
+            box.className = `wordle-box color-${newState}`;
+
+            triggerUpdate();
+        });
+
+        box.addEventListener('keydown', (event) => {
+            if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 1)) {
+                event.preventDefault();
+                if (index > 0) {
+                    boxes[index - 1].focus();
+                    boxes[index - 1].value = ''; // Optional: clear the previous box value
+                    triggerUpdate();
+                }
+            }
+        });
+    });
+});
+  
+  function triggerUpdate() {
+      const data = collectData(); // Collects data from all boxes
+  
+      // Consider adding a debounce or throttle method here to avoid too many requests
+      fetch('/wordle', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({wordle_data: data}), // Send data as JSON
+      })
+      .then(response => response.json())
+      .then(data => {
+          updateUI(data); // Function to update UI with recommendations
+      })
+      .catch((error) => {
+          console.error('Error:', error);
+      });
+  }
+  
+  function collectData() {
+      // Similar logic to prepareData(), but returns the data array
+      const data = [];
+      document.querySelectorAll('#wordle-grid .wordle-box').forEach((box, index) => {
+          const row = box.getAttribute('data-row');
+          const position = box.getAttribute('data-position');
+          const letter = box.value.toUpperCase();
+          const color = box.dataset.state;
+  
+          data.push({ letter, position, color, row });
+      });
+      return data;
+  }
+  
+  function updateUI(recommendations) {
+      // Implement logic to update your page with the recommendations
+      console.log(recommendations); // Placeholder for demonstration
+  }
+
+
+function updateUI(data) {
+    console.log("Updating UI with data:", data); // Add logging to debug
+
+    // Clear existing content
+    const recommendationsContainer = document.getElementById('recommendations');
+    recommendationsContainer.innerHTML = '';
+
+    // Update the UI with all new recommendations except 'final_out1'
+    // ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5', 'final_out_end', 'first_incomplete_row', 'complete_rows'].forEach(key => {
+    ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5', 'final_out_end'].forEach(key => {
+        if (data[key]) {
+            const para = document.createElement("p");
+            para.textContent = data[key];
+            recommendationsContainer.appendChild(para);
+        }
+    });
+
+}
+
+</script>
+
+{% endblock %}

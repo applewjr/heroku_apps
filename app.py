@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for, Response
+from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify
 import pandas as pd
 import numpy as np
 import os
@@ -336,6 +336,23 @@ def update(id):
 ######################################
 
 @app.route("/wordle", methods=["POST", "GET"])
+def run_wordle_revamp():
+    if request.method == "POST":
+        wordle_data_dict = request.get_json().get('wordle_data')
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
+        first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
+        complete_rows = 'Complete Rows: ' + str(complete_rows)
+
+        return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
+            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
+    else:
+
+        log_page_visit('wordle_revamp.html')
+
+        return render_template("wordle_revamp.html")
+    
+
+@app.route("/wordle_old", methods=["POST", "GET"])
 def run_wordle():
     if request.method == "POST":
         must_not_be_present = request.form["must_not_be_present"]
@@ -906,6 +923,9 @@ def run_wordle_example():
         log_page_visit('wordle_example.html')
 
         return render_template("wordle_example.html")
+
+
+
 
 
 
