@@ -5,6 +5,8 @@ import os
 import datetime
 import json
 import yaml
+import redis
+import pytz
 from datetime import date
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -74,6 +76,9 @@ if 'IS_HEROKU' in os.environ:
     GOOGLE_FORM_PASS = os.environ.get('GOOGLE_FORM_PASS')
     GOOGLE_FORM_URL = os.environ.get('GOOGLE_FORM_URL')
     QUILL_SECRET = os.environ.get('QUILL_SECRET')
+    REDIS_HOST = os.environ.get('REDIS_HOST')
+    REDIS_PORT = os.environ.get('REDIS_PORT')
+    REDIS_PASS = os.environ.get('REDIS_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -93,6 +98,9 @@ else:
     GOOGLE_FORM_PASS = secret_pass.GOOGLE_FORM_PASS
     GOOGLE_FORM_URL = secret_pass.GOOGLE_FORM_URL
     QUILL_SECRET = secret_pass.QUILL_SECRET
+    REDIS_HOST = secret_pass.REDIS_HOST
+    REDIS_PORT = secret_pass.REDIS_PORT
+    REDIS_PASS = secret_pass.REDIS_PASS
 
 
 # Creating a connection pool
@@ -158,6 +166,23 @@ def custom_error():
     'Could not verify your access level for that URL.\n'
     'You have to login with proper credentials', 401,
     {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+
+##### redis #####
+
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
+
+def add_data_to_stream(stream_name, data):
+    # Current datetime as a string
+    pst_timezone = pytz.timezone('America/Los_Angeles')
+    current_datetime_pst = datetime.now(pst_timezone).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Serialize data to JSON format
+    json_text = json.dumps(data)
+    
+    # Add data to Redis stream with auto-generated ID
+    r.xadd(stream_name, {'datetime': current_datetime_pst, 'json': json_text})
+
 
 
 
@@ -335,6 +360,13 @@ def update(id):
 ######################################
 ######################################
 
+def abbreviate_keys(data):
+
+    key_map = {'letter': 'l', 'position': 'p', 'color': 'c', 'row': 'r'}
+    abbreviated_data = [{key_map[key]: value for key, value in d.items()} for d in data]    
+
+    return abbreviated_data
+
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
     if request.method == "POST":
@@ -343,6 +375,16 @@ def run_wordle_revamp():
         first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
         complete_rows = 'Complete Rows: ' + str(complete_rows)
 
+        wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
+
+        stream_name = 'wordle_logging'
+
+        # insert into a redis cloud instance
+        try:
+            add_data_to_stream(stream_name, wordle_data_dict_abbr)
+        except:
+            print('wordle_logging_failed')
+
         return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
     else:
@@ -350,6 +392,7 @@ def run_wordle_revamp():
         log_page_visit('wordle_revamp.html')
 
         return render_template("wordle_revamp.html")
+
     
 
 @app.route("/wordle_og", methods=["POST", "GET"])
