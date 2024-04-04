@@ -51,11 +51,13 @@ def print_and_append(statement):
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
 
 
+
 ##### pull the data from redis #####
 
 stream_name = 'wordle_logging'
 
 stream_entries = r.xrevrange(stream_name)
+
 
 
 ##### transform the data #####
@@ -74,6 +76,8 @@ for entry in stream_entries:
         'data': json_parsed
     })
 
+wordle_redis_insert_count = len(parsed_data_list)
+print_and_append(f'{wordle_redis_insert_count = }')
 
 
 
@@ -83,28 +87,28 @@ try:
     # Establish database connection
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
+
+    # pre row count
+    cursor.execute("SELECT COUNT(*) FROM wordle_revamp_clicks")
+    wordle_mysql_row_pre_count = cursor.fetchone()[0]
+    conn.commit()
+    print_and_append(f'{wordle_mysql_row_pre_count = }')
     
     # Prepare insert query
     insert_query = "INSERT INTO wordle_revamp_clicks (click_time, data_dict) VALUES (%s, %s)"
     insert_data = [(datetime.strptime(entry['datetime'], "%Y-%m-%d %H:%M:%S"), json.dumps(entry['data'])) for entry in parsed_data_list]
-
-    # Insert data into MySQL
     cursor.executemany(insert_query, insert_data)
     conn.commit()
     print_and_append(f"Inserted {len(insert_data)} rows into MySQL.")
 
-    # Assuming 'stream_name' contains the name of your Redis stream
-    stream_name = 'wordle_logging'
-    # Delete the data from Redis
-    # Note: Adjust this part according to how you want to handle the deletion,
-    # e.g., deleting specific entries or the entire stream.
-    r.delete(stream_name)
-    print_and_append(f"Cleared the Redis stream: {stream_name}")
+    # post row count
+    cursor.execute("SELECT COUNT(*) FROM wordle_revamp_clicks")
+    wordle_mysql_row_post_count = cursor.fetchone()[0]
+    conn.commit()
+    print_and_append(f'{wordle_mysql_row_post_count = }')
 
 except mysql.connector.Error as err:
     print_and_append(f"MySQL Error: {err}")
-except redis.RedisError as err:
-    print_and_append(f"Redis Error: {err}")
 finally:
     if conn.is_connected():
         cursor.close()
@@ -113,6 +117,20 @@ finally:
 
 
 
+##### Delete the data from Redis #####
+
+if wordle_mysql_row_pre_count + wordle_redis_insert_count == wordle_mysql_row_post_count:
+    try:
+        r.delete(stream_name)
+        print_and_append(f"Cleared the Redis stream: {stream_name}")
+    except redis.RedisError as err:
+        print_and_append(f"Redis Error: {err}")
+else:
+    print_and_append('redis data not deleted. row counts do not align')
+
+
+
+##### prep email #####
 
 print_and_append("wordle data from Redis are inserted into MySQL. Redis data are deleted")
 
@@ -127,3 +145,7 @@ with smtplib.SMTP('smtp.gmail.com', 587) as server:
     server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
     print('email sent')
 
+
+# TODO - handle 0 rows seen in redis better. lots of stuff can be skipped
+# TODO - intermittend redis connections issues? redis.exceptions.ConnectionError: Error 11002 connecting to ***REDIS_HOST*** getaddrinfo failed.
+# TODO - handle the possibility of inserting duplicate data into mysql
