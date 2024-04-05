@@ -7,6 +7,7 @@ import json
 import yaml
 import redis
 import pytz
+import time
 from datetime import date
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
@@ -170,7 +171,23 @@ def custom_error():
 
 ##### redis #####
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
+# r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
+                
+max_retries = 5
+retry_delay = 2  # seconds
+
+for attempt in range(max_retries):
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True, socket_timeout=10)
+        print(r.ping())  # Test the connection
+        break  # Connection was successful, exit the loop
+    except Exception as e:
+        print(f"Attempt {attempt+1}: Error connecting to Redis: {e}")
+        if attempt < max_retries - 1:
+            print(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        else:
+            print("Failed to connect after several attempts.")
 
 def add_data_to_stream(stream_name, data):
     # Current datetime as a string

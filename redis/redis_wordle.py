@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 import redis
 import json
 from datetime import datetime
+import time
 
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
@@ -48,8 +49,21 @@ def print_and_append(statement):
     print(statement)
     gmail_list.append(statement)
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True)
+max_retries = 5
+retry_delay = 2  # seconds
 
+for attempt in range(max_retries):
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASS, decode_responses=True, socket_timeout=10)
+        print(r.ping())  # Test the connection
+        break  # Connection was successful, exit the loop
+    except Exception as e:
+        print(f"Attempt {attempt+1}: Error connecting to Redis: {e}")
+        if attempt < max_retries - 1:
+            print(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        else:
+            print("Failed to connect after several attempts.")
 
 
 ##### pull the data from redis #####
