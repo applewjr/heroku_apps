@@ -485,6 +485,33 @@ def run_wordle():
 
 
 @app.route("/antiwordle", methods=["POST", "GET"])
+def run_antiwordle_revamp():
+    if request.method == "POST":
+        wordle_data_dict = request.get_json().get('wordle_data')
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
+        first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
+        complete_rows = 'Complete Rows: ' + str(complete_rows)
+
+        wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
+
+        stream_name = 'antiwordle_logging'
+
+        # insert into a redis cloud instance
+        try:
+            add_data_to_stream(stream_name, wordle_data_dict_abbr)
+        except:
+            print('antiwordle_logging_failed')
+
+        return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
+            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
+    else:
+
+        log_page_visit('antiwordle_revamp.html')
+
+        return render_template("antiwordle_revamp.html")
+
+
+@app.route("/antiwordle_og", methods=["POST", "GET"])
 def run_antiwordle():
     if request.method == "POST":
         must_not_be_present = request.form["must_not_be_present"]

@@ -652,12 +652,6 @@ def quordle_solver_split(import_df,
      ,final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4
 
 
-
-
-
-
-
-
 # last letter solver
 def find_word_with_letters(import_df, must_be_present: str):
 
@@ -782,3 +776,123 @@ def antiwordle_solver_split(import_df, must_not_be_present: str,
     final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
 
     return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end
+
+
+def antiwordle_solver_split_revamp(import_df, wordle_data_dict):
+
+    row_letters = {}
+    for entry in wordle_data_dict:
+        if entry['letter']:  # Check if 'letter' is not empty
+            row_letters[entry['row']] = row_letters.get(entry['row'], 0) + 1
+    complete_rows = [row for row, count in row_letters.items() if count == 5]
+    complete_rows = [int(row) for row in complete_rows]
+    # print(complete_rows) # possibly use to make a visual indicator of rows that are considered to be complete
+
+    first_incomplete_row = None
+    if complete_rows:
+        for i in range(1, max(complete_rows) + 2):  # Check up to one row beyond the last complete row
+            if i not in complete_rows:
+                first_incomplete_row = i
+                break  # Exit the loop once the first incomplete row is found
+    else:
+        first_incomplete_row = 1
+    if first_incomplete_row >= 7:
+        first_incomplete_row = None
+    # print(first_incomplete_row) # use as a marker of where to populate the chosen word
+
+    must_not_be_present = set()
+    present = {i: set() for i in range(1, 6)}  # Use sets for present letters by position
+    not_present = {i: set() for i in range(1, 6)}  # Use sets for not present letters by position
+
+    # Populate the sets based on conditions
+    for entry in wordle_data_dict:
+        letter = entry['letter'].lower()  # Ensure consistent casing
+        position = int(entry['position'])
+        color = entry['color']
+        
+        # Letters that must not be present anywhere
+        if color == '1' and letter: # grey
+            must_not_be_present.add(letter)
+        # Letters present in specific positions
+        elif color == '3' and letter: # green
+            present[position].add(letter)
+        # Letters that are not present in specific positions but are in the word
+        elif color == '2' and letter: # yellow
+            not_present[position].add(letter)
+
+    # Convert the sets back to strings without duplicates
+    must_not_be_present = ''.join(sorted(must_not_be_present))
+    present1, present2, present3, present4, present5 = (''.join(sorted(present[i])) for i in range(1, 6))
+    not_present1, not_present2, not_present3, not_present4, not_present5 = (''.join(sorted(not_present[i])) for i in range(1, 6))
+
+    all_present = present1 + present2 + present3 + present4 + present5 + not_present1 + not_present2 + not_present3 + not_present4 + not_present5
+    for letter in all_present:
+        must_not_be_present = must_not_be_present.replace(letter, "")
+        # account for a letter used twice. one is grey, one is yellow or green
+
+    must_not_be_present, present1, present2, present3, present4, present5, \
+    not_present1, not_present2, not_present3, not_present4, not_present5 = \
+    map(str.lower, [must_not_be_present, present1, present2, present3, present4, present5,
+                    not_present1, not_present2, not_present3, not_present4, not_present5])
+
+    places = ['one', 'two', 'three', 'four', 'five']
+    df = import_df.copy()
+    total_len = len(df)
+
+    # gray - letters not in the work
+    must_not_be_present = list(must_not_be_present)
+    for i in places:
+        for j in must_not_be_present:
+            df = df[df[i] != j]
+
+    # green - letters contained with a known position
+    present = [present1, present2, present3, present4, present5]
+    for i, v in enumerate(places):
+        if present[i] != '':
+            df = df[df[v] == present[i]]
+
+    # yellow - letter contained with an unknown position
+    not_present = [not_present1, not_present2, not_present3, not_present4, not_present5]
+
+    must_be_present = (''.join(not_present))
+    not_present_joined = ''.join(filter(lambda x: x != '', not_present))
+
+    # yellow round 1 - toss any words that do not have the letter
+    df = df[df['word'].apply(lambda x: all(letter in x for letter in not_present_joined))]
+
+    # yellow round 2 - give a bonus if the letter is in the same position
+    bonus = 0.75
+
+    for i in range(5):
+        condition = locals().get(f'not_present{i + 1}')
+        if condition:
+            df.loc[df['word'].str[i].isin(list(condition)), 'word_score'] *= bonus
+
+
+    # finalize
+    df = df.sort_values(by = 'word_score', ascending =  True)
+
+
+    try:
+        final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out1 = 'No words found'
+    try:
+        final_out2 = 'Pick 2: ' + df.iat[1, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out2 = ''
+    try:
+        final_out3 = 'Pick 3: ' + df.iat[2, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out3 = ''
+    try:
+        final_out4 = 'Pick 4: ' + df.iat[3, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out4 = ''
+    try:
+        final_out5 = 'Pick 5: ' + df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
+    except:
+        final_out5 = ''
+    final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
+
+    return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows

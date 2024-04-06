@@ -42,6 +42,7 @@ else:
 
 gmail_sender_email = 'james.r.applewhite@gmail.com'
 gmail_receiver_email = 'james.r.applewhite@gmail.com'
+
 gmail_subject = 'redis_wordle.py'
 gmail_list = []
 
@@ -147,6 +148,110 @@ else:
 ##### prep email #####
 
 print_and_append("wordle data from Redis are inserted into MySQL. Redis data are deleted")
+
+gmail_message = '\n'.join(gmail_list)
+msg = MIMEText(gmail_message)
+msg['Subject'] = gmail_subject
+msg['From'] = gmail_sender_email
+msg['To'] = gmail_receiver_email
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login(gmail_sender_email, GMAIL_PASS)
+    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+    print('email sent')
+
+
+
+
+
+######################
+##### antiwordle #####
+######################
+
+gmail_subject = 'redis_antiwordle.py'
+gmail_list = []
+
+##### pull the data from redis #####
+
+stream_name = 'antiwordle_logging'
+
+stream_entries = r.xrevrange(stream_name)
+
+
+
+##### transform the data #####
+
+parsed_data_list = []
+
+for entry in stream_entries:
+    entry_id, entry_data = entry  # Unpack the tuple
+    
+    datetime_value = entry_data['datetime']
+    json_value = entry_data['json']
+    json_parsed = json.loads(json_value)
+    
+    parsed_data_list.append({
+        'datetime': datetime_value,
+        'data': json_parsed
+    })
+
+antiwordle_redis_insert_count = len(parsed_data_list)
+print_and_append(f'{antiwordle_redis_insert_count = }')
+
+
+
+##### import the data into MySQL #####
+
+try:
+    # Establish database connection
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # pre row count
+    cursor.execute("SELECT COUNT(*) FROM antiwordle_revamp_clicks")
+    antiwordle_mysql_row_pre_count = cursor.fetchone()[0]
+    conn.commit()
+    print_and_append(f'{antiwordle_mysql_row_pre_count = }')
+    
+    # Prepare insert query
+    insert_query = "INSERT INTO antiwordle_revamp_clicks (click_time, data_dict) VALUES (%s, %s)"
+    insert_data = [(datetime.strptime(entry['datetime'], "%Y-%m-%d %H:%M:%S"), json.dumps(entry['data'])) for entry in parsed_data_list]
+    cursor.executemany(insert_query, insert_data)
+    conn.commit()
+    print_and_append(f"Inserted {len(insert_data)} rows into MySQL.")
+
+    # post row count
+    cursor.execute("SELECT COUNT(*) FROM antiwordle_revamp_clicks")
+    antiwordle_mysql_row_post_count = cursor.fetchone()[0]
+    conn.commit()
+    print_and_append(f'{antiwordle_mysql_row_post_count = }')
+
+except mysql.connector.Error as err:
+    print_and_append(f"MySQL Error: {err}")
+finally:
+    if conn.is_connected():
+        cursor.close()
+        conn.close()
+        print_and_append("MySQL connection is closed.")
+
+
+
+##### Delete the data from Redis #####
+
+if antiwordle_mysql_row_pre_count + antiwordle_redis_insert_count == antiwordle_mysql_row_post_count:
+    try:
+        r.delete(stream_name)
+        print_and_append(f"Cleared the Redis stream: {stream_name}")
+    except redis.RedisError as err:
+        print_and_append(f"Redis Error: {err}")
+else:
+    print_and_append('redis data not deleted. row counts do not align')
+
+
+
+##### prep email #####
+
+print_and_append("antiwordle data from Redis are inserted into MySQL. Redis data are deleted")
 
 gmail_message = '\n'.join(gmail_list)
 msg = MIMEText(gmail_message)
