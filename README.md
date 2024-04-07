@@ -20,17 +20,19 @@ This is my central hub where I practice:
   - Redis Cloud
   - Heroku
   - Git
+  - JSON/YAML
 
 
 ### Notable sections
 
 [Espresso Optimizer](https://www.jamesapplewhite.com/espresso)
-- Implemented Google Sheets API integration for real-time data import to allow for immediate analysis
+- Implemented Google Forms and Google Sheets API integration for real-time data import to allow for immediate analysis
 - Applied data cleaning techniques to prepare espresso brewing data from Google Sheets, ensuring high-quality inputs for model training and analysis
 - Utilized the K-Nearest Neighbors (KNN) machine learning algorithm, including tuning hyperparameters and evaluating model performance, to predict optimal espresso brewing parameters
 - Engineered a system for dynamic data visualization, including 3D scatter plots, to facilitate in-depth exploratory data analysis and insights discovery
 - Designed and implemented a data pipeline that incorporates data import, cleaning, analysis, and visualization
 - Long term data storage managed in MySQL
+- In case anyone curious, my ideal medium roast espresso as of this writing is 17.1 grams in, 32.9 grams out, in 27 seconds
 
 [Wordle Game Solver](https://www.jamesapplewhite.com/wordle)
 - Python function used to input Wordle guesses and find the ideal next guess
