@@ -32,7 +32,7 @@ This is my central hub where I practice:
 - Engineered a system for dynamic data visualization, including 3D scatter plots, to facilitate in-depth exploratory data analysis and insights discovery
 - Designed and implemented a data pipeline that incorporates data import, cleaning, analysis, and visualization
 - Long term data storage managed in MySQL
-- In case anyone curious, my ideal medium roast espresso as of this writing is 17.1 grams in, 32.9 grams out, in 27 seconds
+- In case anyone is curious, my ideal medium roast espresso as of this writing is 17.1 grams in, 32.9 grams out, in 27 seconds
 
 [Wordle Game Solver](https://www.jamesapplewhite.com/wordle)
 - Python function used to input Wordle guesses and find the ideal next guess
@@ -41,7 +41,7 @@ This is my central hub where I practice:
 - Daily transfer of logging data from Redis to MySQL to long term storage
 
 [Blossom Game Solver](https://www.jamesapplewhite.com/blossom)
-- Another Python function that ingests all english words to find the largest words based on inclusion criteria
+- Another Python function that ingests all English words to find the largest words based on inclusion criteria
 - Implemented a revamped UI that dynamically calculates the final scores based on the current game dynamics
 - As of April 2024, this page has driven my website usage through Google to up 2,000 clicks in 28 days
 
