@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Optimizer{% endblock %}
+
+{% block content %}
+
+<head>
+    <style>
+        /* Style the button */
+        .custom-button {
+            background-color: #02484d; /* Blue background color */
+            color: white;
+            padding: 10px 20px;
+            /* margin: 8px 0; */
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+                    }
+
+        /* Hover effect */
+        .custom-button:hover {
+            background-color: #03282b; /* Darker blue on hover */
+            color:gray;
+        }
+
+        /* Default style for larger screens */
+        table.espresso-info {
+            width: 50%; /* Set table width to 40% of the parent element */
+            margin-left: auto; /* Center the table horizontally */
+            margin-right: auto;
+            border-collapse: collapse; /* Remove gaps between cells */
+        }
+
+        /* Style for smaller screens (e.g., mobile devices) */
+        @media (max-width: 768px) {
+            table.espresso-info {
+                width: 100%; /* Set table width to 100% for smaller screens */
+            }
+        }
+
+        table.espresso-info, th, td {
+            border: 1px solid black; /* Add border to table, th, and td */
+            padding: 8px; /* Add padding inside cells */
+            text-align: center; /* Center text in th and td */
+        }
+
+        th {
+            background-color: #f2f2f2; /* Light grey background for header */
+        }
+
+        .flex-container {
+            display: flex; /* Enables Flexbox */
+            justify-content: center; /* Centers items horizontally */
+            align-items: center; /* Centers items vertically */
+            height: 50px; /* Adjust height as needed for better alignment */
+            gap: 10px; /* Adds a 10px gap between child elements */
+        }
+
+        .flex-container p {
+            margin: 0 10px 0 0; /* Right margin and remove default top and bottom margins */
+        }
+
+        .flex-container select, .flex-container input[type=number] {
+            border-radius: 5px; /* Rounded corners */
+            height: 35px; /* Uniform height */
+            width: 200px; /* Uniform width */
+            padding: 5px; /* Padding inside the elements */
+            border: 1px solid #ccc; /* Border style */
+            margin: 5px; /* Spacing around the elements */
+            /* Add any other styles as needed */
+        }
+
+        .flex-container select option {
+            padding: 5px; /* Padding inside the dropdown options for consistency */
+        }
+
+        .responsive-image {
+            max-width: 100%; /* ensures the image is never wider than its container */
+            height: auto; /* maintains the aspect ratio of the image */
+            display: block; /* ensures there are no extra spaces around the image */
+            margin-left: auto; /* center align image horizontally */
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .responsive-image {
+                max-width: 80%; /* or any other percentage/fixed width as per your design */
+            }
+        }
+
+        select {
+            width: 175px; /* Adjust this value as needed */
+            overflow: hidden; /* Prevents text from spilling out */
+            text-overflow: ellipsis; /* Adds an ellipsis for overflowed text */
+        }
+
+        select option {
+            width: auto; /* Allows the dropdown to expand to fit content */
+        }
+
+        .dropdown-title {
+            font-weight: bold;
+            /* text-align: center; */
+            font-size: larger;
+        }
+    </style>
+</head>
+
+<body>
+    <center>
+    <br>
+    <form name="form3" action="#" method="post">
+        <h1 style="text-align: center">KNN Predictive Recommendations</h1>
+        <p>KNN, Cross-validation = 5 fold, Based on specific users and roasts</p>
+        <div class="flex-container">
+            <select name="user_pred">
+                <option disabled selected class="dropdown-title">User</option>
+                {% for name in valid_user_name_list %}
+                    <option value="{{ name }}" {% if name == user_pred_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <select name="roast_pred">
+                <option disabled selected class="dropdown-title">Roast</option>
+                {% for name in valid_roast_list %}
+                    <option value="{{ name }}" {% if name == roast_pred_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <select name="shots_pred">
+                <option disabled selected class="dropdown-title">Shots</option>
+                {% for name in valid_shots_list %}
+                    <option value="{{ name }}" {% if name == shots_pred_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <br>
+        <input type="submit" value="Calculate">
+        <br>
+        <br>
+        {% if good_run %}
+            <table class="espresso-info">
+                <tr>
+                    <th>Recommendations</th>
+                    <th>Value</th>
+                    <th>Feature Importance</th>                    
+                </tr>
+                <!-- <tr>
+                    <td>Niche Grind Setting</td>
+                    <td>{{ optimal_parameters_dict['niche_grind_setting'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['niche_grind_setting'] }}</td>
+                </tr> -->
+                <tr>
+                    <td>Ground Coffee Grams</td>
+                    <td>{{ optimal_parameters_dict['ground_coffee_grams'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['ground_coffee_grams'] }}</td>
+                </tr>     
+                <tr>
+                    <td>Espresso Out Grams</td>
+                    <td>{{ optimal_parameters_dict['espresso_out_grams'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['espresso_out_grams'] }}</td>
+                </tr>   
+
+                <tr>
+                    <td>Espresso g / Coffee g</td>
+                    <td>{{ optimal_parameters_dict['espresso_coffee_ratio'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['espresso_coffee_ratio'] }}</td>
+                </tr>
+                <tr>
+                    <td>Extraction Time in Seconds</td>
+                    <td>{{ optimal_parameters_dict['extraction_time_seconds'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extraction_time_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Flow Time in Seconds</td>
+                    <td>{{ optimal_parameters_dict['flow_time_seconds'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['flow_time_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Time to Flow in Seconds</td>
+                    <td>{{ optimal_parameters_dict['time_to_flow_seconds'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['time_to_flow_seconds'] }}</td>
+                </tr>
+                <!-- <tr>
+                    <td>Espresso g / Flow Seconds</td>
+                    <td>{{ optimal_parameters_dict['extract_flow_rate'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extract_flow_rate'] }}</td>
+                </tr> -->
+                <!-- <tr>
+                    <td>Extraction Seconds / Flow Seconds</td>
+                    <td>{{ optimal_parameters_dict['extract_flow_ratio'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['extract_flow_ratio'] }}</td>
+                </tr> -->
+                <tr>
+                    <td>Water Temp F</td>
+                    <td>{{ optimal_parameters_dict['water_temp_f'] }}</td>
+                    <td>{{ performance_dict['Feature Importance']['water_temp_f'] }}</td>
+                </tr>
+            </table>
+            <br>
+            <table class="espresso-info">
+                <tr>
+                    <th>Parameters</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Optimal Number of Neighbors</td>
+                    <td>{{ performance_dict['Optimal Number of Neighbors'] }}</td>
+                </tr>
+                <tr>
+                    <td>Optimal Weight Method</td>
+                    <td>{{ performance_dict['Optimal Weight Method'] }}</td>
+                </tr>
+                <tr>
+                    <td>Optimal Metric</td>
+                    <td>{{ performance_dict['Optimal Metric'] }}</td>
+                </tr>
+            </table>
+            <br>
+            <table class="espresso-info">
+                <tr>
+                    <th>Performance</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Observations</td>
+                    <td>{{ performance_dict['Observations'] }}</td>
+                </tr>
+                <tr>
+                    <td>Mean Squared Error</td>
+                    <td>{{ performance_dict['Mean Squared Error'] }}</td>
+                </tr>
+                <tr>
+                    <td>R-squared</td>
+                    <td>{{ performance_dict['R-squared'] }}</td>
+                </tr>
+                <tr>
+                    <td>Adjusted R-squared</td>
+                    <td>{{ performance_dict['Adjusted R-squared'] }}</td>
+                </tr>
+                <tr>
+                    <td>Mean Absolute Error</td>
+                    <td>{{ performance_dict['Mean Absolute Error'] }}</td>
+                </tr>
+            </table>
+        {% else %}
+            {{ optimal_parameters_dict['espresso_coffee_ratio'] }}
+        {% endif %}
+    </form>
+
+    <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
+    <br>
+
+    <a href="/espresso/home">
+        <button class="custom-button">Home</button>
+    </a>
+
+    <br>
+    <br>
+    <br>
+
+</center>
+
+<script>
+    // Check if the section was previously opened and maintain its state
+    window.onload = function() {
+        var section = document.getElementById("toggleSection");
+        if (localStorage.getItem("sectionVisible") === "true") {
+            section.style.display = "block";
+        } else {
+            section.style.display = "none";
+        }
+    };
+
+    // JavaScript to toggle the visibility and store the state in localStorage
+    document.getElementById("toggleButton").addEventListener("click", function() {
+        var section = document.getElementById("toggleSection");
+        if (section.style.display === "none") {
+            section.style.display = "block";
+            localStorage.setItem("sectionVisible", "true"); // Store the state
+        } else {
+            section.style.display = "none";
+            localStorage.setItem("sectionVisible", "false"); // Store the state
+        }
+    });
+</script>
+
+</body>
+
+{% endblock %}

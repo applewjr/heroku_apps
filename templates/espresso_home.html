@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Home{% endblock %}
+
+{% block content %}
+<head>
+    <style>
+        .button-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px; /* Space from form */
+            max-width: 460px; /* Slightly wider to accommodate longer text */
+        }
+        .browse-button {
+            background-color: #02484d; /* Button background color */
+            color: white; /* Text color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 200px; /* Increased width for better fit */
+            height: 180px; /* Adjust height for square shape */
+            margin: 10px; /* Margin between buttons */
+            font-size: 14px; /* Reduced font size for better text fitting */
+            text-align: center;
+            border-radius: 10px; /* Rounded corners */
+            text-decoration: none; /* Remove underline from link */
+            transition: background-color 0.3s, color 0.3s, transform 0.3s; /* Smooth transition for hover effects */
+            flex-direction: column; /* Stack text vertically */
+            padding: 10px; /* Padding for text inside button */
+        }
+        .browse-button:hover {
+            background-color: #03282b; /* Darken button on hover */
+            color: gray; /* Change text color to gray on hover */
+            transform: scale(1.025); /* Less dramatic increase size on hover */
+            text-decoration: none; /* Ensure no underline appears on hover */
+        }
+    </style>
+</head>
+
+<body>
+    <center>
+        <h1>Espresso Home</h1>
+        <p>Enter your brew data to populate results below</p>
+        <form action="/validate_password" method="post">
+            <input type="password" name="password" placeholder="Enter Password"/>
+            <input type="submit" value="Submit"/>
+        </form>
+
+        <hr style="width:60%; border: 1px dashed #d3d6da;">
+
+        <div class="button-container">
+            <a href="/espresso/recommendation" class="browse-button">Recommendations</a>
+            <a href="/espresso/plot" class="browse-button">Plots</a>
+            <a href="/espresso/explore" class="browse-button">Exploration</a>
+            <a href="/espresso/baseline" class="browse-button">Baseline Recommendations</a>
+        </div>
+    </center>
+</body>
+
+{% endblock %}

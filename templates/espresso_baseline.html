@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Optimizer{% endblock %}
+
+{% block content %}
+
+<head>
+    <style>
+        /* Style the button */
+        .custom-button {
+            background-color: #02484d; /* Blue background color */
+            color: white;
+            padding: 10px 20px;
+            /* margin: 8px 0; */
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+                    }
+
+        /* Hover effect */
+        .custom-button:hover {
+            background-color: #03282b; /* Darker blue on hover */
+            color:gray;
+        }
+
+        /* Default style for larger screens */
+        table.espresso-info {
+            width: 40%; /* Set table width to 40% of the parent element */
+            margin-left: auto; /* Center the table horizontally */
+            margin-right: auto;
+            border-collapse: collapse; /* Remove gaps between cells */
+        }
+
+        /* Style for smaller screens (e.g., mobile devices) */
+        @media (max-width: 768px) {
+            table.espresso-info {
+                width: 100%; /* Set table width to 100% for smaller screens */
+            }
+        }
+
+        table.espresso-info, th, td {
+            border: 1px solid black; /* Add border to table, th, and td */
+            padding: 8px; /* Add padding inside cells */
+            text-align: center; /* Center text in th and td */
+        }
+
+        th {
+            background-color: #f2f2f2; /* Light grey background for header */
+        }
+
+        .flex-container {
+            display: flex; /* Enables Flexbox */
+            justify-content: center; /* Centers items horizontally */
+            align-items: center; /* Centers items vertically */
+            height: 50px; /* Adjust height as needed for better alignment */
+            gap: 10px; /* Adds a 10px gap between child elements */
+        }
+
+        .flex-container p {
+            margin: 0 10px 0 0; /* Right margin and remove default top and bottom margins */
+        }
+
+        .flex-container select, .flex-container input[type=number] {
+            border-radius: 5px; /* Rounded corners */
+            height: 35px; /* Uniform height */
+            padding: 5px; /* Padding inside the elements */
+            border: 1px solid #ccc; /* Border style */
+            margin: 5px; /* Spacing around the elements */
+            width: 150px;
+            /* Add any other styles as needed */
+        }
+
+        .flex-container select option {
+            padding: 5px; /* Padding inside the dropdown options for consistency */
+        }
+
+        .responsive-image {
+            max-width: 100%; /* ensures the image is never wider than its container */
+            height: auto; /* maintains the aspect ratio of the image */
+            display: block; /* ensures there are no extra spaces around the image */
+            margin-left: auto; /* center align image horizontally */
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .responsive-image {
+                max-width: 80%; /* or any other percentage/fixed width as per your design */
+            }
+        }
+
+        select {
+            width: 175px; /* Adjust this value as needed */
+            overflow: hidden; /* Prevents text from spilling out */
+            text-overflow: ellipsis; /* Adds an ellipsis for overflowed text */
+        }
+
+        select option {
+            width: auto; /* Allows the dropdown to expand to fit content */
+        }
+
+        .dropdown-title {
+            font-weight: bold;
+            /* text-align: center; */
+            font-size: larger;
+        }
+
+    </style>
+</head>
+
+<body>
+    <center>
+    <br>
+    <button id="toggleButton" class="custom-button">Show/Hide Baseline Brewing Recommendations</button>
+    <br>
+    <br>
+    <div id="toggleSection" style="display: none;">
+        <form name="form1" action="#" method="post">
+            <h1 style="text-align: center">Baseline Brewing Recommendations</h1>
+            <p>Based on broad research for the ideal starting point, before accounting for individual tastes</p>
+            <div class="flex-container">
+                <select name="roast">
+                    <option disabled selected class="dropdown-title">Roast</option>
+                    {% for roast_option in roast_options %}
+                        <option value="{{ roast_option }}" {% if roast_option == roast_val %}selected{% endif %}>{{ roast_option }}</option>
+                    {% endfor %}
+                </select>
+                <select name="dose">
+                    <option disabled selected class="dropdown-title">Dose</option>
+                    {% for dose_option in dose_options %}
+                        <option value="{{ dose_option }}" {% if dose_option == dose_val %}selected{% endif %}>{{ dose_option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <br>
+            <input type="submit" value="Calculate">
+            <br>
+            <br>
+            <table class="espresso-info">
+                <tr>
+                    <th>Category</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Style</td>
+                    <td>{{ naive_espresso_info['style'] }}</td>
+                </tr>
+                <tr>
+                    <td>Coffee Grams In</td>
+                    <td>{{ naive_espresso_info['coffee_grams_in'] }}</td>
+                </tr>
+                <tr>
+                    <td>Water Temp F</td>
+                    <td>{{ naive_espresso_info['water_temp_f'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 1</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part1'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 2</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part2'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 3</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part3'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 4</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part4'] }}</td>
+                </tr>
+                <tr>
+                    <td>Brew Profile Part 5</td>
+                    <td>{{ naive_espresso_info['brew_profile']['part5'] }}</td>
+                </tr>
+                <tr>
+                    <td>Total Brew Seconds</td>
+                    <td>{{ naive_espresso_info['brew_profile']['total_seconds'] }}</td>
+                </tr>
+                <tr>
+                    <td>Niche Grind Setting</td>
+                    <td>{{ naive_espresso_info['niche_grind_setting'] }}</td>
+                </tr>
+                <tr>
+                    <td>Coffee to Espresso Ratio</td>
+                    <td>{{ naive_espresso_info['coffee_to_espresso_ratio'] }}</td>
+                </tr>
+                <tr>
+                    <td>Espresso Grams Out</td>
+                    <td>{{ naive_espresso_info['espresso_grams_out'] }}</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+
+    <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
+    <br>
+
+    <a href="/espresso/home">
+        <button class="custom-button">Home</button>
+    </a>
+
+    <br>
+    <br>
+    <br>
+
+</center>
+
+<script>
+    // Check if the section was previously opened and maintain its state
+    window.onload = function() {
+        var section = document.getElementById("toggleSection");
+        if (localStorage.getItem("sectionVisible") === "true") {
+            section.style.display = "block";
+        } else {
+            section.style.display = "none";
+        }
+    };
+
+    // JavaScript to toggle the visibility and store the state in localStorage
+    document.getElementById("toggleButton").addEventListener("click", function() {
+        var section = document.getElementById("toggleSection");
+        if (section.style.display === "none") {
+            section.style.display = "block";
+            localStorage.setItem("sectionVisible", "true"); // Store the state
+        } else {
+            section.style.display = "none";
+            localStorage.setItem("sectionVisible", "false"); // Store the state
+        }
+    });
+</script>
+
+</body>
+
+{% endblock %}

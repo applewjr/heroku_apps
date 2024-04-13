@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Optimizer{% endblock %}
+
+{% block content %}
+
+<head>
+    <style>
+        /* Style the button */
+        .custom-button {
+            background-color: #02484d; /* Blue background color */
+            color: white;
+            padding: 10px 20px;
+            /* margin: 8px 0; */
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+                    }
+
+        /* Hover effect */
+        .custom-button:hover {
+            background-color: #03282b; /* Darker blue on hover */
+            color:gray;
+        }
+
+        /* Default style for larger screens */
+        table.espresso-info {
+            width: 40%; /* Set table width to 40% of the parent element */
+            margin-left: auto; /* Center the table horizontally */
+            margin-right: auto;
+            border-collapse: collapse; /* Remove gaps between cells */
+        }
+
+        /* Style for smaller screens (e.g., mobile devices) */
+        @media (max-width: 768px) {
+            table.espresso-info {
+                width: 100%; /* Set table width to 100% for smaller screens */
+            }
+        }
+
+        table.espresso-info, th, td {
+            border: 1px solid black; /* Add border to table, th, and td */
+            padding: 8px; /* Add padding inside cells */
+            text-align: center; /* Center text in th and td */
+        }
+
+        th {
+            background-color: #f2f2f2; /* Light grey background for header */
+        }
+
+        .flex-container {
+            display: flex; /* Enables Flexbox */
+            justify-content: center; /* Centers items horizontally */
+            align-items: center; /* Centers items vertically */
+            height: 50px; /* Adjust height as needed for better alignment */
+            gap: 10px; /* Adds a 10px gap between child elements */
+        }
+
+        .flex-container p {
+            margin: 0 10px 0 0; /* Right margin and remove default top and bottom margins */
+        }
+
+        .flex-container select, .flex-container input[type=number] {
+            border-radius: 5px; /* Rounded corners */
+            height: 35px; /* Uniform height */
+            padding: 5px; /* Padding inside the elements */
+            border: 1px solid #ccc; /* Border style */
+            margin: 5px; /* Spacing around the elements */
+            width: 150px;
+            /* Add any other styles as needed */
+        }
+
+        .flex-container select option {
+            padding: 5px; /* Padding inside the dropdown options for consistency */
+        }
+
+        .responsive-image {
+            max-width: 100%; /* ensures the image is never wider than its container */
+            height: auto; /* maintains the aspect ratio of the image */
+            display: block; /* ensures there are no extra spaces around the image */
+            margin-left: auto; /* center align image horizontally */
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .responsive-image {
+                max-width: 80%; /* or any other percentage/fixed width as per your design */
+            }
+        }
+
+        select {
+            width: 175px; /* Adjust this value as needed */
+            overflow: hidden; /* Prevents text from spilling out */
+            text-overflow: ellipsis; /* Adds an ellipsis for overflowed text */
+        }
+
+        select option {
+            width: auto; /* Allows the dropdown to expand to fit content */
+        }
+
+        .dropdown-title {
+            font-weight: bold;
+            /* text-align: center; */
+            font-size: larger;
+        }
+
+    </style>
+</head>
+
+<body>
+    <center>
+    <br>
+    <form name="form5" action="#" method="post">
+        <h1 style="text-align: center">Exploration Recommendations</h1>
+        <p>Based on the input parameters, this will provide the most unique recipe that has not been tried</p>
+        <p>Utilizes Euclidean distance to calculate the point furthest from all other points</p>
+        <p>This is meant to contribute to varied testing. Don't expect the results to taste amazing</p>
+        <br>
+        <p>Source Data Filters</p>
+        <div class="flex-container">
+            <select name="distance_user">
+                <option disabled selected class="dropdown-title">User</option>
+                {% for name in valid_user_name_list %}
+                    <option value="{{ name }}" {% if name == distance_user_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <select name="distance_roast">
+                <option disabled selected class="dropdown-title">Roast</option>
+                {% for name in valid_roast_list %}
+                    <option value="{{ name }}" {% if name == distance_roast_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <select name="distance_shots">
+                <option disabled selected class="dropdown-title">Shots</option>
+                {% for name in valid_shots_list %}
+                    <option value="{{ name }}" {% if name == distance_shots_val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <br>
+        <p>Grind (Min/Max/Granularity)</p>
+        <div class="flex-container">
+            <input type="number" name="distance_grind_min" value="{{distance_grind_min_val}}" step="0.1" min="0">
+            <input type="number" name="distance_grind_max" value="{{distance_grind_max_val}}" step="0.1" min="0">
+            <input type="number" name="distance_grind_granularity" value="{{distance_grind_granularity_val}}" step="0.1" min="0">
+        </div>
+        <br>
+        <p>Coffee Grams (Min/Max/Granularity)</p>
+        <div class="flex-container">
+            <input type="number" name="distance_coffee_g_min" value="{{distance_coffee_g_min_val}}" step="0.1" min="0">
+            <input type="number" name="distance_coffee_g_max" value="{{distance_coffee_g_max_val}}" step="0.1" min="0">
+            <input type="number" name="distance_coffee_g_granularity" value="{{distance_coffee_g_granularity_val}}" step="0.1" min="0">
+        </div>
+        <br>
+        <p>Espresso Grams (Min/Max/Granularity)</p>
+        <div class="flex-container">
+            <input type="number" name="distance_espresso_g_min" value="{{distance_espresso_g_min_val}}" step="0.1" min="0">
+            <input type="number" name="distance_espresso_g_max" value="{{distance_espresso_g_max_val}}" step="0.1" min="0">
+            <input type="number" name="distance_espresso_g_granularity" value="{{distance_espresso_g_granularity_val}}" step="0.1" min="0">
+        </div>
+        <br>
+        <input type="submit" value="Calculate">
+        <br>
+        <br>
+        <table class="espresso-info">
+            <tr>
+                <th>Variable</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Grind Setting</td>
+                <td>{{ furthest_point[0] }}</td>
+            </tr>
+            <tr>
+                <td>Coffee Grams In</td>
+                <td>{{ furthest_point[1] }}</td>
+            </tr>
+            <tr>
+                <td>Espresso Grams Out</td>
+                <td>{{ furthest_point[2] }}</td>
+            </tr>
+            </tr>
+        </table>
+        <img src="{{ url_for('static', filename='scatter_3d.png') }}" alt="Plot" class="responsive-image">
+    </form>
+
+    <br>
+    <hr style="width:60%;border: 1px dashed #d3d6da;">
+    <br>
+
+    <a href="/espresso/home">
+        <button class="custom-button">Home</button>
+    </a>
+
+    <br>
+    <br>
+    <br>
+
+</center>
+
+<script>
+    // Check if the section was previously opened and maintain its state
+    window.onload = function() {
+        var section = document.getElementById("toggleSection");
+        if (localStorage.getItem("sectionVisible") === "true") {
+            section.style.display = "block";
+        } else {
+            section.style.display = "none";
+        }
+    };
+
+    // JavaScript to toggle the visibility and store the state in localStorage
+    document.getElementById("toggleButton").addEventListener("click", function() {
+        var section = document.getElementById("toggleSection");
+        if (section.style.display === "none") {
+            section.style.display = "block";
+            localStorage.setItem("sectionVisible", "true"); // Store the state
+        } else {
+            section.style.display = "none";
+            localStorage.setItem("sectionVisible", "false"); // Store the state
+        }
+    });
+</script>
+
+</body>
+
+{% endblock %}
