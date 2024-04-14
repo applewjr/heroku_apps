@@ -45,7 +45,10 @@ Blossom:
                 WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
                 ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
             END AS clicks_by_time_minmax,
-            c.total_clicks,
+            CASE
+                WHEN c.calendar_day = CURRENT_DATE THEN "-"				
+                ELSE c.total_clicks
+                END AS total_clicks,
             -- Set total_clicks_minmax for today's date as NULL
             CASE 
                 WHEN c.calendar_day = CURRENT_DATE THEN "-"
