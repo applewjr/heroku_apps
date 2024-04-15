@@ -33,8 +33,8 @@ Blossom:
                 MIN(clicks_by_time) AS min_clicks_by_time,
                 MAX(clicks_by_time) AS max_clicks_by_time,
                 -- Adjust the min and max calculation to exclude today's date
-                MIN(CASE WHEN calendar_day <> CURRENT_DATE THEN total_clicks END) AS min_total_clicks,
-                MAX(CASE WHEN calendar_day <> CURRENT_DATE THEN total_clicks END) AS max_total_clicks
+                MIN(CASE WHEN calendar_day <> DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN total_clicks END) AS min_total_clicks,
+                MAX(CASE WHEN calendar_day <> DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN total_clicks END) AS max_total_clicks
             FROM clicks_combined
         )
         SELECT 
@@ -46,18 +46,17 @@ Blossom:
                 ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
             END AS clicks_by_time_minmax,
             CASE
-                WHEN c.calendar_day = CURRENT_DATE THEN "-"				
+                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"				
                 ELSE c.total_clicks
                 END AS total_clicks,
             -- Set total_clicks_minmax for today's date as NULL
             CASE 
-                WHEN c.calendar_day = CURRENT_DATE THEN "-"
+                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"
                 WHEN m.max_total_clicks = m.min_total_clicks THEN 1
                 ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
             END AS total_clicks_minmax
         FROM clicks_combined c, minmax_values m
         ORDER BY c.calendar_day DESC;
-
 
 Blossom Most Recent:
     round: 1
