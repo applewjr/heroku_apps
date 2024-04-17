@@ -385,7 +385,7 @@ def abbreviate_keys(data):
     key_map = {'letter': 'l', 'position': 'p', 'color': 'c', 'row': 'r'}
     abbreviated_data = [{key_map[key]: value for key, value in d.items()} for d in data]    
 
-    return abbreviated_data
+    return abbreviated_data 
 
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
@@ -1877,6 +1877,26 @@ def feedback_received():
 
 
 
+
+
+
+@app.route('/robots.txt')
+def robots_txt():
+
+    log_page_visit('robots.txt')
+
+    text = """
+    User-agent: *
+    Disallow: /etl_dash
+    Disallow: /data_summary
+    Disallow: /fixer
+    Disallow: /stock_analysis
+    Disallow: /task_mysql
+    Disallow: /task_db
+    Disallow: /high_score
+    Disallow: /quill
+    """
+    return Response(text, mimetype="text/plain")
 
 
 # Error handler for 404 Not Found

@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /etl_dash
+Disallow: /data_summary
+Disallow: /fixer
+Disallow: /stock_analysis
+Disallow: /task_mysql
+Disallow: /task_db
+Disallow: /high_score
+Disallow: /quill
