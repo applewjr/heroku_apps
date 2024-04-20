@@ -2,313 +2,68 @@ Blossom:
     round: 1
     label: "Blossom"
     description: "Click counts by current time PST, total day, minmax. Last 28 days"
-    query: |
-        WITH all_clicks AS (
-            SELECT 
-                DATE(click_time) AS calendar_day,
-                COUNT(*) AS clicks
-            FROM blossom_solver_clicks
-            WHERE DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
-            GROUP BY DATE(click_time)
-        ),
-        timed_clicks AS (
-            SELECT 
-                DATE(click_time) AS calendar_day,
-                COUNT(*) AS clicks
-            FROM blossom_solver_clicks
-            WHERE TIME(click_time) <= TIME(CONVERT_TZ(CURTIME(), 'UTC', 'America/Los_Angeles'))
-                AND DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
-            GROUP BY DATE(click_time)
-        ),
-        clicks_combined AS (
-            SELECT 
-                all_clicks.calendar_day,
-                timed_clicks.clicks AS clicks_by_time,
-                all_clicks.clicks AS total_clicks
-            FROM all_clicks
-            LEFT JOIN timed_clicks ON all_clicks.calendar_day = timed_clicks.calendar_day
-        ),
-        minmax_values AS (
-            SELECT
-                MIN(clicks_by_time) AS min_clicks_by_time,
-                MAX(clicks_by_time) AS max_clicks_by_time,
-                -- Adjust the min and max calculation to exclude today's date
-                MIN(CASE WHEN calendar_day <> DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN total_clicks END) AS min_total_clicks,
-                MAX(CASE WHEN calendar_day <> DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN total_clicks END) AS max_total_clicks
-            FROM clicks_combined
-        )
-        SELECT 
-            c.calendar_day,
-            SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week,
-            c.clicks_by_time,
-            ROUND(c.clicks_by_time / (HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) + MINUTE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))/60) /60,4) AS cpm_by_time,
-            CASE 
-                WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
-                ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
-                END AS clicks_by_time_minmax,
-            CASE
-                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"				
-                ELSE c.total_clicks
-                END AS total_clicks,
-            CASE
-                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"             
-                ELSE ROUND(c.total_clicks/24/60,4)
-                END AS total_cpm,
-            CASE 
-                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"
-                WHEN m.max_total_clicks = m.min_total_clicks THEN 1
-                ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
-                END AS total_clicks_minmax
-        FROM clicks_combined c, minmax_values m
-        ORDER BY c.calendar_day DESC;
+    query: SELECT * FROM vw_prod_blossom;
 
 Blossom Most Recent:
     round: 1
     label: "Blossom Most Recent"
     description: "Most recent 25 clicks"
-    query: |
-        SELECT
-         99999 AS id
-        ,CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') AS click_time
-        ,TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS lag_minute
-        ,'-' AS must_have
-        ,'-' AS may_have
-        ,'-' AS petal_letter
-        ,'-' AS list_len
-        FROM blossom_solver_clicks
-        UNION ALL
-        SELECT
-         id
-        ,click_time
-        ,TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
-        ,must_have
-        ,may_have
-        ,petal_letter
-        ,list_len
-        FROM blossom_solver_clicks
-        ORDER BY click_time DESC, id DESC
-        LIMIT 26;
-
+    query: SELECT * FROM vw_prod_blossom_most_recent;
 
 Blossom Hourly Average:
     round: 1
     label: "Blossom Hourly Average"
     description: "Clicks averaged by hour, last 28 days"
-    query: |
-        SELECT 
-            LPAD(HOUR(click_time), 2, '0') AS hour,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 28 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 21 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS avg_4_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 21 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 14 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS avg_3_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 14 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 7 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS avg_2_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 7 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME)
-                THEN 1 ELSE 0 END)/7, 2) AS avg_1_week_ago,
-            SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) + INTERVAL 1 DAY 
-                THEN 1 ELSE 0 END) AS today
-        FROM blossom_solver_clicks
-        WHERE click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 29 DAY
-        GROUP BY HOUR(click_time)
-        UNION ALL
-        SELECT 
-            'All' AS hour,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 28 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 21 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS total_avg_4_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 21 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 14 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS total_avg_3_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 14 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 7 DAY 
-                THEN 1 ELSE 0 END)/7, 2) AS total_avg_2_week_ago,
-            ROUND(SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 7 DAY 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME)
-                THEN 1 ELSE 0 END)/7, 2) AS total_avg_1_week_ago,
-            SUM(CASE 
-                WHEN click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) 
-                AND click_time < CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) + INTERVAL 1 DAY 
-                THEN 1 ELSE 0 END) AS total_today
-        FROM blossom_solver_clicks
-        WHERE click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 29 DAY
-        ORDER BY hour;
-
+    query: SELECT * FROM vw_prod_blossom_hourly_average;
 
 Blossom Search Source:
     round: 1
     label: "Blossom Search Source"
     description: "Referrer sources, minmaxed"
-    query: |
-        WITH counts AS (
-            SELECT
-            referrer
-            ,COUNT(*) AS cnt_56
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_28
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_14
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_7
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_1
-            FROM app_visits
-            WHERE page_name = 'blossom.html'
-                AND DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 56 DAY) AND CURRENT_DATE
-                AND referrer not like '%blossom%'
-                AND referrer not like '%127.0.0.1:5000%'
-                AND referrer not like '%jamesapplewhite%'
-            GROUP BY referrer
-            HAVING cnt_56 >= 10
-            )
-        ,minmax AS (
-            SELECT
-            MIN(cnt_56) AS min_56, MAX(cnt_56) AS max_56
-            ,MIN(cnt_28) AS min_28, MAX(cnt_28) AS max_28
-            ,MIN(cnt_14) AS min_14, MAX(cnt_14) AS max_14
-            ,MIN(cnt_7) AS min_7, MAX(cnt_7) AS max_7
-            ,MIN(cnt_1) AS min_1, MAX(cnt_1) AS max_1
-            FROM counts
-            )
-        SELECT
-        counts.referrer
-        ,counts.cnt_56
-        ,ROUND((counts.cnt_56 - m.min_56) / NULLIF(m.max_56 - m.min_56, 0),2) AS minmax_56
-        ,counts.cnt_28
-        ,ROUND((counts.cnt_28 - m.min_28) / NULLIF(m.max_28 - m.min_28, 0),2) AS minmax_28
-        ,counts.cnt_14
-        ,ROUND((counts.cnt_14 - m.min_14) / NULLIF(m.max_14 - m.min_14, 0),2) AS minmax_14
-        ,counts.cnt_7
-        ,ROUND((counts.cnt_7 - m.min_7) / NULLIF(m.max_7 - m.min_7, 0),2) AS minmax_7
-        ,counts.cnt_1
-        ,ROUND((counts.cnt_1 - m.min_1) / NULLIF(m.max_1 - m.min_1, 0),2) AS minmax_1
-        FROM counts AS counts
-        ,minmax AS m
-        ORDER BY counts.cnt_56 DESC;
+    query: SELECT * FROM vw_prod_blossom_search_source;
 
 
 Errors (Last 48 Hours):
     round: 2
     label: "Errors (Last 48 Hours)"
     description: "Errors in the last 48 hours, most recent 25"
-    query: |
-        SELECT
-         av.submit_time
-        ,av.page_name
-        ,av.referrer
-        FROM app_visits AS av
-        where page_name LIKE 'error.html%'
-            AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, 'UTC', 'America/Los_Angeles')
-            AND referrer NOT LIKE '%127.0.0.1:5000%'
-        ORDER BY submit_time DESC
-        LIMIT 25;
+    query: SELECT * FROM vw_prod_errors;
 
 Word Solver Page Visits:
     round: 2
     label: "Word Solver Page Visits"
     description: "(Not individual clicks)"
-    query: |
-        SELECT
-            DATE(submit_time) AS date,
-            SUM(CASE WHEN page_name = 'blossom.html' THEN 1 ELSE 0 END) AS blossom,
-            SUM(CASE WHEN page_name = 'blossom_bee.html' THEN 1 ELSE 0 END) AS blossom_bee,
-            SUM(CASE WHEN page_name = 'wordle_revamp.html' THEN 1 ELSE 0 END) AS wordle_revamp,
-            SUM(CASE WHEN page_name = 'wordle.html' THEN 1 ELSE 0 END) AS wordle,
-            SUM(CASE WHEN page_name = 'wordle_example.html' THEN 1 ELSE 0 END) AS wordle_example,
-            SUM(CASE WHEN page_name = 'antiwordle_revamp.html' THEN 1 ELSE 0 END) AS antiwordle_revamp,
-            SUM(CASE WHEN page_name = 'antiwordle.html' THEN 1 ELSE 0 END) AS antiwordle,
-            SUM(CASE WHEN page_name = 'quordle.html' THEN 1 ELSE 0 END) AS quordle,
-            SUM(CASE WHEN page_name = 'quordle_mobile.html' THEN 1 ELSE 0 END) AS quordle_mobile
-        FROM app_visits
-        WHERE page_name IN ('antiwordle.html', 'antiwordle_revamp.html', 'quordle.html', 'quordle_mobile.html', 'wordle.html', 'wordle_example.html', 'wordle_revamp.html', 'blossom.html', 'blossom_bee.html')
-            AND referrer NOT LIKE '%127.0.0.1:5000%'
-        GROUP BY date
-        ORDER BY date DESC
-        LIMIT 14;
+    query: SELECT * FROM vw_prod_word_solver_page_visits;
 
 
 High Level ETL:
     round: 3
     label: 'High Level ETL'
     description: "Min and max dates for various ETL"
-    query: |
-        SELECT 'YouTube' AS table_name, MIN(collected_dt) AS min, MAX(collected_dt) AS max, COUNT(*) AS rows_count FROM youtube_trending
-        UNION ALL SELECT 'Spotify Playlists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_playlists
-        UNION ALL SELECT 'Spotify Artists', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_artists
-        UNION ALL SELECT 'Spotify Tracks', MIN(collected_dt), MAX(collected_dt), COUNT(*) FROM spotify_tracks
-        UNION ALL SELECT 'LoL Summoner', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_summoner
-        UNION ALL SELECT 'LoL Champion', MIN(pulled_dt), MAX(pulled_dt), COUNT(*) FROM lol_champion
-        UNION ALL SELECT 'LoL Match',
-            CONVERT_TZ(MIN(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS min_pst,
-            CONVERT_TZ(MAX(gameStartTimestamp), 'UTC', 'America/Los_Angeles') AS max_pst,
-            COUNT(*)
-        FROM lol_match;
+    query: SELECT * FROM vw_prod_high_level_etl;
 
 Youtube Trending:
     round: 3
     label: 'Youtube Trending'
     description: "Last 10 days of data"
-    query: |
-        SELECT
-         collected_dt
-        ,collected_date
-        ,count(1) cnt
-        FROM youtube_trending
-        GROUP BY collected_dt, collected_date
-        ORDER BY collected_dt DESC
-        LIMIT 10;
+    query: SELECT * FROM vw_prod_youtube_trending;
 
 Spotify:
     round: 3
     label: 'Spotify'
     description: "Last 10 days of data"
-    query: |
-        WITH all_dates AS (
-            SELECT collected_date FROM spotify_playlists
-            UNION SELECT collected_date FROM spotify_artists
-            UNION SELECT collected_date FROM spotify_tracks
-            )
-        SELECT
-         all_dates.collected_date
-        ,COALESCE(p.playlist_count, 0) AS playlist_count
-        ,COALESCE(a.artist_count, 0) AS artist_count
-        ,COALESCE(t.track_count, 0) AS track_count
-        FROM all_dates
-        LEFT JOIN (
-            SELECT collected_date, COUNT(*) AS playlist_count
-            FROM spotify_playlists
-            GROUP BY collected_date
-            ) p ON all_dates.collected_date = p.collected_date
-        LEFT JOIN (
-            SELECT collected_date, COUNT(*) AS artist_count
-            FROM spotify_artists
-            GROUP BY collected_date
-            ) a ON all_dates.collected_date = a.collected_date
-        LEFT JOIN (
-            SELECT collected_date, COUNT(*) AS track_count
-            FROM spotify_tracks
-            GROUP BY collected_date
-            ) t ON all_dates.collected_date = t.collected_date
-        ORDER BY all_dates.collected_date DESC
-        LIMIT 10;
+    query: SELECT * FROM vw_prod_spotify;
 
 LoL:
     round: 3
     label: 'LoL'
     description: "High level summary info"
-    query: |
-        SELECT 'lol_summoner' AS table_name,  COUNT(1) AS row_count, MIN(pulled_dt) AS min_pulled_dt, MAX(pulled_dt) AS max_pulled_dt, NULL AS min_matchId, NULL AS max_matchId FROM lol_summoner
-            UNION ALL SELECT 'lol_champion' AS table_name, COUNT(1), MIN(pulled_dt), MAX(pulled_dt), NULL, NULL FROM lol_champion
-            UNION ALL SELECT 'lol_all_match' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_all_match
-            UNION ALL SELECT 'lol_match' AS table_name, COUNT(1), MIN(gameCreation), MAX(gameCreation), MIN(matchId), MAX(matchId) FROM lol_match
-            UNION ALL SELECT 'lol_participants_info' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_info
-            UNION ALL SELECT 'lol_participants_challenges' AS table_name, COUNT(1), NULL, NULL, MIN(matchId), MAX(matchId) FROM lol_participants_challenges;
+    query: SELECT * FROM vw_prod_lol;
+
+
+View Test:
+    round: 4
+    label: 'View Test'
+    description: "Run a view test"
+    query: SELECT * FROM vw_prod_demo;
+
