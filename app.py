@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify
+from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory
 from flask_caching import Cache
 from flask_socketio import SocketIO, emit
 from flask_httpauth import HTTPBasicAuth
@@ -1880,23 +1880,14 @@ def feedback_received():
 
 
 
+
+
 @app.route('/robots.txt')
 def robots_txt():
 
     log_page_visit('robots.txt')
 
-    text = """
-    User-agent: *
-    Disallow: /etl_dash
-    Disallow: /data_summary
-    Disallow: /fixer
-    Disallow: /stock_analysis
-    Disallow: /task_mysql
-    Disallow: /task_db
-    Disallow: /high_score
-    Disallow: /quill
-    """
-    return Response(text, mimetype="text/plain")
+    return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
 
 
 # Error handler for 404 Not Found
