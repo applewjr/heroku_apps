@@ -41,20 +41,24 @@ Blossom:
             c.calendar_day,
             SUBSTRING(DAYNAME(c.calendar_day), 1, 3) AS day_of_week,
             c.clicks_by_time,
+            ROUND(c.clicks_by_time / (HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) + MINUTE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))/60) /60,4) AS cpm_by_time,
             CASE 
                 WHEN m.max_clicks_by_time = m.min_clicks_by_time THEN 1
                 ELSE ROUND((c.clicks_by_time - m.min_clicks_by_time) / (m.max_clicks_by_time - m.min_clicks_by_time), 2)
-            END AS clicks_by_time_minmax,
+                END AS clicks_by_time_minmax,
             CASE
                 WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"				
                 ELSE c.total_clicks
                 END AS total_clicks,
-            -- Set total_clicks_minmax for today's date as NULL
+            CASE
+                WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"             
+                ELSE ROUND(c.total_clicks/24/60,4)
+                END AS total_cpm,
             CASE 
                 WHEN c.calendar_day = DATE_FORMAT(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), '%Y-%m-%d') THEN "-"
                 WHEN m.max_total_clicks = m.min_total_clicks THEN 1
                 ELSE ROUND((c.total_clicks - m.min_total_clicks) / (m.max_total_clicks - m.min_total_clicks), 2)
-            END AS total_clicks_minmax
+                END AS total_clicks_minmax
         FROM clicks_combined c, minmax_values m
         ORDER BY c.calendar_day DESC;
 
@@ -85,72 +89,9 @@ Blossom Most Recent:
         ORDER BY click_time DESC, id DESC
         LIMIT 26;
 
-Errors (Last 48 Hours):
-    round: 1
-    label: "Errors (Last 48 Hours)"
-    description: "Errors in the last 48 hours"
-    query: |
-        SELECT
-         av.submit_time
-        ,av.page_name
-        ,av.referrer
-        FROM app_visits AS av
-        where page_name LIKE 'error.html%'
-            AND page_name NOT LIKE 'error.html (undefined%'
-            AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, 'UTC', 'America/Los_Angeles')
-            AND referrer NOT LIKE '%127.0.0.1:5000%'
-        ORDER BY page_name;
-
-
-Blossom Search Source:
-    round: 2
-    label: "Blossom Search Source"
-    description: "Referrer sources, minmaxed"
-    query: |
-        WITH counts AS (
-            SELECT
-            referrer
-            ,COUNT(*) AS cnt_56
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_28
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_14
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_7
-            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_1
-            FROM app_visits
-            WHERE page_name = 'blossom.html'
-                AND DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 56 DAY) AND CURRENT_DATE
-                AND referrer not like '%blossom%'
-                AND referrer not like '%127.0.0.1:5000%'
-                AND referrer not like '%jamesapplewhite%'
-            GROUP BY referrer
-            HAVING cnt_56 >= 10
-            )
-        ,minmax AS (
-            SELECT
-            MIN(cnt_56) AS min_56, MAX(cnt_56) AS max_56
-            ,MIN(cnt_28) AS min_28, MAX(cnt_28) AS max_28
-            ,MIN(cnt_14) AS min_14, MAX(cnt_14) AS max_14
-            ,MIN(cnt_7) AS min_7, MAX(cnt_7) AS max_7
-            ,MIN(cnt_1) AS min_1, MAX(cnt_1) AS max_1
-            FROM counts
-            )
-        SELECT
-        counts.referrer
-        ,counts.cnt_56
-        ,ROUND((counts.cnt_56 - m.min_56) / NULLIF(m.max_56 - m.min_56, 0),2) AS minmax_56
-        ,counts.cnt_28
-        ,ROUND((counts.cnt_28 - m.min_28) / NULLIF(m.max_28 - m.min_28, 0),2) AS minmax_28
-        ,counts.cnt_14
-        ,ROUND((counts.cnt_14 - m.min_14) / NULLIF(m.max_14 - m.min_14, 0),2) AS minmax_14
-        ,counts.cnt_7
-        ,ROUND((counts.cnt_7 - m.min_7) / NULLIF(m.max_7 - m.min_7, 0),2) AS minmax_7
-        ,counts.cnt_1
-        ,ROUND((counts.cnt_1 - m.min_1) / NULLIF(m.max_1 - m.min_1, 0),2) AS minmax_1
-        FROM counts AS counts
-        ,minmax AS m
-        ORDER BY counts.cnt_56 DESC;
 
 Blossom Hourly Average:
-    round: 2
+    round: 1
     label: "Blossom Hourly Average"
     description: "Clicks averaged by hour, last 28 days"
     query: |
@@ -205,6 +146,71 @@ Blossom Hourly Average:
         FROM blossom_solver_clicks
         WHERE click_time >= CAST(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS DATETIME) - INTERVAL 29 DAY
         ORDER BY hour;
+
+
+Blossom Search Source:
+    round: 1
+    label: "Blossom Search Source"
+    description: "Referrer sources, minmaxed"
+    query: |
+        WITH counts AS (
+            SELECT
+            referrer
+            ,COUNT(*) AS cnt_56
+            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_28
+            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_14
+            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_7
+            ,COUNT(CASE WHEN DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY) AND CURRENT_DATE THEN 1 END) AS cnt_1
+            FROM app_visits
+            WHERE page_name = 'blossom.html'
+                AND DATE(submit_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 56 DAY) AND CURRENT_DATE
+                AND referrer not like '%blossom%'
+                AND referrer not like '%127.0.0.1:5000%'
+                AND referrer not like '%jamesapplewhite%'
+            GROUP BY referrer
+            HAVING cnt_56 >= 10
+            )
+        ,minmax AS (
+            SELECT
+            MIN(cnt_56) AS min_56, MAX(cnt_56) AS max_56
+            ,MIN(cnt_28) AS min_28, MAX(cnt_28) AS max_28
+            ,MIN(cnt_14) AS min_14, MAX(cnt_14) AS max_14
+            ,MIN(cnt_7) AS min_7, MAX(cnt_7) AS max_7
+            ,MIN(cnt_1) AS min_1, MAX(cnt_1) AS max_1
+            FROM counts
+            )
+        SELECT
+        counts.referrer
+        ,counts.cnt_56
+        ,ROUND((counts.cnt_56 - m.min_56) / NULLIF(m.max_56 - m.min_56, 0),2) AS minmax_56
+        ,counts.cnt_28
+        ,ROUND((counts.cnt_28 - m.min_28) / NULLIF(m.max_28 - m.min_28, 0),2) AS minmax_28
+        ,counts.cnt_14
+        ,ROUND((counts.cnt_14 - m.min_14) / NULLIF(m.max_14 - m.min_14, 0),2) AS minmax_14
+        ,counts.cnt_7
+        ,ROUND((counts.cnt_7 - m.min_7) / NULLIF(m.max_7 - m.min_7, 0),2) AS minmax_7
+        ,counts.cnt_1
+        ,ROUND((counts.cnt_1 - m.min_1) / NULLIF(m.max_1 - m.min_1, 0),2) AS minmax_1
+        FROM counts AS counts
+        ,minmax AS m
+        ORDER BY counts.cnt_56 DESC;
+
+
+Errors (Last 48 Hours):
+    round: 2
+    label: "Errors (Last 48 Hours)"
+    description: "Errors in the last 48 hours, most recent 25"
+    query: |
+        SELECT
+         av.submit_time
+        ,av.page_name
+        ,av.referrer
+        FROM app_visits AS av
+        where page_name LIKE 'error.html%'
+            AND submit_time >= CONVERT_TZ(NOW() - INTERVAL 48 HOUR, 'UTC', 'America/Los_Angeles')
+            AND referrer NOT LIKE '%127.0.0.1:5000%'
+        ORDER BY submit_time DESC
+        LIMIT 25;
 
 Word Solver Page Visits:
     round: 2
