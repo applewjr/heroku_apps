@@ -81,23 +81,23 @@
             </li>
 
             <li class="nav-item">
-              <a class="nav-link" href="https://github.com/applewjr/heroku_apps" target="_blank">
+              <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank">
                 <div class="pulsing-image25">
                   <img alt="GitHub" src="/static/github_logo4.png" width=25 height=25>
                 </div>
               </a>
             </li>
-
+            
             <li class="nav-item">
-              <a class="nav-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank">
+              <a class="nav-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank">
                 <div class="pulsing-image27">
                   <img alt="LinkedIn" src="/static/linkedin_logo.jpg" width=27 height=27>
                 </div>
               </a>
             </li>
-
+            
             <li class="nav-item">
-              <a class="nav-link" href="https://twitter.com/J_R_Applewhite" target="_blank">
+              <a class="nav-link tracked-link" href="https://twitter.com/J_R_Applewhite" target="_blank">
                 <div class="pulsing-image27">
                     <img alt="Twitter" src="/static/twitter_logo.png" width=27 height=27>
                 </div>
@@ -121,6 +121,27 @@
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
     </body>
 </html>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const trackedLinks = document.querySelectorAll('.tracked-link');
+    trackedLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        const target = e.target.closest('a'); // Capture the closest anchor element
+        fetch('/log-click', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: target.href // Send only the URL of the clicked link
+          })
+        });
+      });
+    });
+  });
+</script>
+
 
 <!DOCTYPE html>
 <html lang="en">

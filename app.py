@@ -205,6 +205,17 @@ def add_data_to_stream(stream_name, data):
 cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})  # SimpleCache is fine for single-process environments
 
 
+##### base.html icons click #####
+
+@app.route('/log-click', methods=['POST'])
+def log_click():
+    data = request.get_json()
+    clicked_url = data.get('url')
+    log_page_visit(clicked_url)
+    return jsonify({"status": "success"}), 200
+
+
+
 
 ######################################
 ######################################
@@ -1887,30 +1898,35 @@ def robots_txt():
     log_page_visit('robots.txt')
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
 
-@app.route('/apple-touch-icon.png')
-def apple_touch_icon():
-    log_page_visit('apple-touch-icon.png')
-    return redirect(url_for('static', filename='apple-touch-icon.png'), code=302)
+# @app.route('/apple-touch-icon.png')
+# def apple_touch_icon():
+#     log_page_visit('apple-touch-icon.png')
+#     return redirect(url_for('static', filename='apple-touch-icon.png'), code=302)
 
-@app.route('/apple-touch-icon-120x120.png')
-def apple_touch_icon_120():
-    log_page_visit('apple-touch-icon-120x120.png')
-    return redirect(url_for('static', filename='apple-touch-icon-120x120.png'), code=302)
+# @app.route('/apple-touch-icon-120x120.png')
+# def apple_touch_icon_120():
+#     log_page_visit('apple-touch-icon-120x120.png')
+#     return redirect(url_for('static', filename='apple-touch-icon-120x120.png'), code=302)
 
-@app.route('/apple-touch-icon-152x152.png')
-def apple_touch_icon_152():
-    log_page_visit('apple-touch-icon-152x152.png')
-    return redirect(url_for('static', filename='apple-touch-icon-152x152.png'), code=302)
+# @app.route('/apple-touch-icon-152x152.png')
+# def apple_touch_icon_152():
+#     log_page_visit('apple-touch-icon-152x152.png')
+#     return redirect(url_for('static', filename='apple-touch-icon-152x152.png'), code=302)
 
-@app.route('/apple-touch-icon-precomposed.png')
-def apple_touch_icon_pre():
-    log_page_visit('apple-touch-icon-precomposed.png')
-    return redirect(url_for('static', filename='apple-touch-icon-precomposed.png'), code=302)
+# @app.route('/apple-touch-icon-precomposed.png')
+# def apple_touch_icon_pre():
+#     log_page_visit('apple-touch-icon-precomposed.png')
+#     return redirect(url_for('static', filename='apple-touch-icon-precomposed.png'), code=302)
 
-@app.route('/apple-touch-icon-120x120-precomposed.png')
-def apple_touch_icon_120_pre():
-    log_page_visit('apple-touch-icon-120x120-precomposed.png')
-    return redirect(url_for('static', filename='apple-touch-icon-120x120-precomposed.png'), code=302)
+# @app.route('/apple-touch-icon-120x120-precomposed.png')
+# def apple_touch_icon_120_pre():
+#     log_page_visit('apple-touch-icon-120x120-precomposed.png')
+#     return redirect(url_for('static', filename='apple-touch-icon-120x120-precomposed.png'), code=302)
+
+@app.route('/<path:icon_name>.png')
+def serve_png_icon(icon_name):
+    log_page_visit(f'{icon_name}.png')
+    return redirect(url_for('static', filename=f'{icon_name}.png'), code=302)
 
 @app.route('/favicon.ico')
 def favicon_ico():
