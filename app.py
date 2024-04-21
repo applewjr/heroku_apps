@@ -1888,40 +1888,10 @@ def feedback_received():
 
 
 
-
-
-
-
-
 @app.route('/robots.txt')
 def robots_txt():
     log_page_visit('robots.txt')
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
-
-# @app.route('/apple-touch-icon.png')
-# def apple_touch_icon():
-#     log_page_visit('apple-touch-icon.png')
-#     return redirect(url_for('static', filename='apple-touch-icon.png'), code=302)
-
-# @app.route('/apple-touch-icon-120x120.png')
-# def apple_touch_icon_120():
-#     log_page_visit('apple-touch-icon-120x120.png')
-#     return redirect(url_for('static', filename='apple-touch-icon-120x120.png'), code=302)
-
-# @app.route('/apple-touch-icon-152x152.png')
-# def apple_touch_icon_152():
-#     log_page_visit('apple-touch-icon-152x152.png')
-#     return redirect(url_for('static', filename='apple-touch-icon-152x152.png'), code=302)
-
-# @app.route('/apple-touch-icon-precomposed.png')
-# def apple_touch_icon_pre():
-#     log_page_visit('apple-touch-icon-precomposed.png')
-#     return redirect(url_for('static', filename='apple-touch-icon-precomposed.png'), code=302)
-
-# @app.route('/apple-touch-icon-120x120-precomposed.png')
-# def apple_touch_icon_120_pre():
-#     log_page_visit('apple-touch-icon-120x120-precomposed.png')
-#     return redirect(url_for('static', filename='apple-touch-icon-120x120-precomposed.png'), code=302)
 
 @app.route('/<path:icon_name>.png')
 def serve_png_icon(icon_name):
@@ -1938,92 +1908,25 @@ def favicon_ico():
 @app.errorhandler(404)
 def page_not_found(e):
     return_type = '404 - Page Not Found'
-
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = f'error.html (404: {e})'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
-
+    log_page_visit(f'error.html (404: {e})')
     return render_template('error.html', return_type=return_type), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     return_type = '500 - Error'
-
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = f'error.html (500: {e})'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
-
+    log_page_visit(f'error.html (500: {e})')
     return render_template('error.html', return_type=return_type), 500
 
 # Optional: Catch-all route for undefined paths
 @app.route('/<path:path>')
 def catch_all(path):
     return_type = '404 - Undefined Path'
-
-    # log visits
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-    page_name = f'error.html (undefined path: {path})'
-    try:
-        conn = get_pool_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
-    except mysql.connector.Error as err:
-        print("Error:", err)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
-
+    log_page_visit(f'error.html (undefined path: {path})')
     return render_template('error.html', return_type=return_type), 404
+
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
-
 
 # env\Scripts\activate
 # pip freeze > requirements.txt
@@ -2031,5 +1934,3 @@ if __name__ == "__main__":
 ### buildpacks previously used, currently removed
 # https://github.com/heroku/heroku-buildpack-google-chrome
 # https://github.com/heroku/heroku-buildpack-chromedriver
-
-
