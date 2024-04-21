@@ -90,7 +90,7 @@ contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 trade_type = 'stock'
 roll_days_base = 'quarter'
 buyvalue = 1.2
-multiplier = 3
+multiplier = 1.5
 segment_name = 'stock2'
 
 # stock_list = ['BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'] # just for weekend testing. not for prod deploy
