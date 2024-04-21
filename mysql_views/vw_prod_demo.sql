@@ -1,5 +1,5 @@
 CREATE OR REPLACE VIEW vw_prod_demo AS
 
-SELECT * FROM app_visits
-LIMIT 10
+SELECT * FROM feedback
+LIMIT 25
 ;
