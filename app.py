@@ -1889,6 +1889,30 @@ def robots_txt():
 
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
 
+@app.route('/apple-touch-icon.png')
+def apple_touch_icon():
+    return redirect(url_for('static', filename='apple-touch-icon.png'), code=302)
+
+@app.route('/apple-touch-icon-120x120.png')
+def apple_touch_icon_120():
+    return redirect(url_for('static', filename='apple-touch-icon-120x120.png'), code=302)
+
+@app.route('/apple-touch-icon-152x152.png')
+def apple_touch_icon_152():
+    return redirect(url_for('static', filename='apple-touch-icon-152x152.png'), code=302)
+
+@app.route('/apple-touch-icon-precomposed.png')
+def apple_touch_icon_pre():
+    return redirect(url_for('static', filename='apple-touch-icon-precomposed.png'), code=302)
+
+@app.route('/apple-touch-icon-120x120-precomposed.png')
+def apple_touch_icon_120_pre():
+    return redirect(url_for('static', filename='apple-touch-icon-120x120-precomposed.png'), code=302)
+
+@app.route('/favicon.ico')
+def favicon_ico():
+    return redirect(url_for('static', filename='favicon.ico'), code=302)
+
 
 # Error handler for 404 Not Found
 @app.errorhandler(404)

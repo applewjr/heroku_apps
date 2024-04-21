@@ -29,8 +29,10 @@ This is my central hub where I practice:
 - Implemented Google Forms and Google Sheets API integration for real-time data import to allow for immediate analysis
 - Applied data cleaning techniques to prepare espresso brewing data from Google Sheets, ensuring high-quality inputs for model training and analysis
 - Utilized the K-Nearest Neighbors (KNN) machine learning algorithm, including tuning hyperparameters and evaluating model performance, to predict optimal espresso brewing parameters
+  - KNN was chosen because it is lightweight (I want to run the model live), non-linear, good for small sample sizes
 - Engineered a system for dynamic data visualization, including 3D scatter plots, to facilitate in-depth exploratory data analysis and insights discovery
 - Designed and implemented a data pipeline that incorporates data import, cleaning, analysis, and visualization
+- Data cached for short term use to minimize Google API calls
 - Long term data storage managed in MySQL
 - In case anyone is curious, my ideal medium roast espresso as of this writing is 17.1 grams in, 32.9 grams out, in 27 seconds
 
@@ -43,7 +45,7 @@ This is my central hub where I practice:
 [Blossom Game Solver](https://www.jamesapplewhite.com/blossom)
 - Another Python function that ingests all English words to find the largest words based on inclusion criteria
 - Implemented a revamped UI that dynamically calculates the final scores based on the current game dynamics
-- As of April 2024, this page has driven my website usage through Google up to 2,000 clicks in 28 days
+- As of April 2024, this page has driven my website usage through Google up to 2,200 clicks in 28 days
 
 [API to MySQL Automated ETL](https://github.com/applewjr/heroku_apps/blob/main/lol/lol_data_import.py)
 - Pulls fresh data each morning from Riot Games' API and inserts or replaces into a MySQL instance. Used for interfacing with a Power BI dashboard
