@@ -1,7 +1,7 @@
 CREATE OR REPLACE VIEW vw_prod_blossom_most_recent AS
 
 SELECT
- 99999 AS id
+ '-' AS id
 ,CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') AS click_time
 ,TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS lag_minute
 ,'-' AS must_have
