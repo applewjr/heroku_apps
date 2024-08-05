@@ -18,7 +18,8 @@ if 'IS_HEROKU' in os.environ:
         'password': os.environ.get('jawsdb_pass'),
         'host': os.environ.get('jawsdb_host'),
         'database': os.environ.get('jawsdb_db'),
-        'raise_on_warnings': True
+        'raise_on_warnings': True,
+        'connection_timeout': 600
         }
     GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
@@ -33,7 +34,8 @@ else:
         'password': secret_pass.mysql_pass,
         'host': secret_pass.mysql_host,
         'database': secret_pass.mysql_db,
-        'raise_on_warnings': True
+        'raise_on_warnings': True,
+        'connection_timeout': 600
         }
     GMAIL_PASS = secret_pass.GMAIL_PASS
 
