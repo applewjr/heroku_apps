@@ -57,6 +57,7 @@ with open(yaml_file_path, 'r') as file:
 
 import mysql.connector
 import mysql.connector.pooling
+from mysql.connector import Error
 
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
@@ -75,20 +76,24 @@ if 'IS_HEROKU' in os.environ:
     ESPRESSO_WATER_TEMP_NA_VAL = os.environ.get('ESPRESSO_WATER_TEMP_NA_VAL')
     GOOGLE_FORM_PASS = os.environ.get('GOOGLE_FORM_PASS')
     GOOGLE_FORM_URL = os.environ.get('GOOGLE_FORM_URL')
-    QUILL_SECRET = os.environ.get('QUILL_SECRET')
+    # QUILL_SECRET = os.environ.get('QUILL_SECRET')
     REDIS_HOST = os.environ.get('REDIS_HOST')
     REDIS_PORT = os.environ.get('REDIS_PORT')
     REDIS_PASS = os.environ.get('REDIS_PASS')
+
+    # Creating a connection pool
+    cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
+
+    def get_db_connection():
+        return cnxpool.get_connection()
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
-    pool_config = {
+    mysql_config = {
         "database": secret_pass.mysql_db,
         "user": secret_pass.mysql_user,
         "password": secret_pass.mysql_pass,
-        "host": secret_pass.mysql_host,
-        "pool_name": "mypool",
-        "pool_size": 1 # more than 1 not needed for local
+        "host": secret_pass.mysql_host
     }
     GOOGLE_SHEETS_JSON = secret_pass.GOOGLE_SHEETS_JSON
     GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
@@ -97,17 +102,20 @@ else:
     ESPRESSO_WATER_TEMP_NA_VAL = secret_pass.ESPRESSO_WATER_TEMP_NA_VAL
     GOOGLE_FORM_PASS = secret_pass.GOOGLE_FORM_PASS
     GOOGLE_FORM_URL = secret_pass.GOOGLE_FORM_URL
-    QUILL_SECRET = secret_pass.QUILL_SECRET
+    # QUILL_SECRET = secret_pass.QUILL_SECRET
     REDIS_HOST = secret_pass.REDIS_HOST
     REDIS_PORT = secret_pass.REDIS_PORT
     REDIS_PASS = secret_pass.REDIS_PASS
 
+    def get_db_connection():
+        try:
+            connection = mysql.connector.connect(**mysql_config)
+            if connection.is_connected():
+                return connection
+        except Error as e:
+            print(f"Error connecting to MySQL: {e}")
+            return None
 
-# Creating a connection pool
-cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
-
-def get_pool_db_connection():
-    return cnxpool.get_connection()
 
 def log_page_visit(page_name_value):
     # log visits
@@ -115,7 +123,7 @@ def log_page_visit(page_name_value):
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
     page_name = page_name_value
     try:
-        conn = get_pool_db_connection()
+        conn = get_db_connection()
         cursor = conn.cursor()
         query = """
         INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
@@ -148,8 +156,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 ##### socket quill #####
 
-app.config['SECRET_KEY'] = QUILL_SECRET
-socketio = SocketIO(app)
+# app.config['SECRET_KEY'] = QUILL_SECRET
+# socketio = SocketIO(app)
 
 
 ##### logins #####
@@ -243,7 +251,7 @@ def run_index():
 @app.route('/high_score', methods=['GET', 'POST'])
 def game():
 
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if request.method == 'POST':
@@ -252,7 +260,7 @@ def game():
         cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
         conn.commit()
 
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT hs.initials, hs.score FROM high_scores hs ORDER BY score DESC LIMIT 5")
     scores = cursor.fetchall()
@@ -272,7 +280,7 @@ def game():
 
 @app.route('/task_mysql')
 def task():
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     # Retrieve tasks from the database
     cursor.execute('SELECT * FROM tasks')
@@ -283,7 +291,7 @@ def task():
 
 @app.route('/add_task', methods=['POST'])
 def add_task():
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     task = request.form['task']
     # Insert the new task into the database
@@ -295,7 +303,7 @@ def add_task():
 
 @app.route('/delete_task/<int:task_id>', methods=['POST'])
 def delete_task(task_id):
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     # Delete the task from the database
     cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
@@ -306,7 +314,7 @@ def delete_task(task_id):
 
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 def edit_task(task_id):
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     if request.method == 'POST':
         new_task = request.form['task']
@@ -444,7 +452,7 @@ def run_wordle():
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
@@ -543,7 +551,7 @@ def run_antiwordle():
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO wordle_clicks (
@@ -657,7 +665,7 @@ def run_quordle():
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
@@ -860,7 +868,7 @@ def run_quordle_mobile():
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO quordle_clicks (
@@ -1108,13 +1116,13 @@ def dogs():
 ######################################
 ######################################
 
-@app.route('/quill')
-def quill():
-    return render_template('quill.html')
+# @app.route('/quill')
+# def quill():
+#     return render_template('quill.html')
 
-@socketio.on('send_change')
-def handle_change(data):
-    emit('receive_change', data, broadcast=True, include_self=False)
+# @socketio.on('send_change')
+# def handle_change(data):
+#     emit('receive_change', data, broadcast=True, include_self=False)
 
 
 ######################################
@@ -1155,7 +1163,7 @@ def blossom():
 
         # log clicks and inputs
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO blossom_clicks (click_time, must_have, may_have, list_len) 
@@ -1196,7 +1204,7 @@ def blossom_solver():
 
         # log clicks and inputs
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
@@ -1310,7 +1318,7 @@ def resume():
 @app.route("/youtube_trending", methods=["POST", "GET"])
 def youtube_trending():
 
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
     # today = date.today().strftime("%Y-%m-%d")
 
@@ -1449,7 +1457,7 @@ def etl_status_dash(round):
     if round not in valid_rounds:
         return f"Invalid round parameter. Return only: {valid_rounds}", 400
 
-    conn = get_pool_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query_dict = {}
@@ -1530,7 +1538,7 @@ def etl_status_dash(round):
 #         # Get the SQL query from the form
 #         query = request.form['query']
 
-#         conn = get_pool_db_connection()
+#         conn = get_db_connection()
 #         cursor = conn.cursor()
 #         # Execute the query
 #         cursor.execute(f"SELECT words FROM all_words {query}")
@@ -1850,7 +1858,7 @@ def feedback():
 
         # log inputs
         try:
-            conn = get_pool_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = """
             INSERT INTO feedback (submit_time, referrer, feedback_header, feedback_body) 
@@ -1928,7 +1936,14 @@ def catch_all(path):
 if __name__ == "__main__":
     app.run(debug=True)
 
+# venv
+
+# Activate the virtual environment on Windows
 # env\Scripts\activate
+
+# Install dependencies (from requirements.txt)
+# pip install -r requirements.txt
+
 # pip freeze > requirements.txt
 
 ### buildpacks previously used, currently removed
