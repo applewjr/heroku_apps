@@ -38,7 +38,8 @@ data_folder = os.path.join(APP_ROOT, 'datasets')
 df = pd.read_csv(os.path.join(data_folder, 'word_data_created.csv'))
 
 # word_df = pd.read_csv(os.path.join(data_folder, 'all_words.csv'))
-word_df = pd.read_csv(os.path.join(data_folder, 'all_words_scrabble.csv')) # changed to main "word_df" on 1/20/2024
+# word_df = pd.read_csv(os.path.join(data_folder, 'all_words_scrabble.csv')) # changed to main "word_df" on 1/20/2024
+word_df = pd.read_csv(os.path.join(data_folder, 'all_words_blossom.csv')) # changed to main "word_df" on 8/24/2024
 words = word_df['0'].to_list()
 words = set(words)
 
