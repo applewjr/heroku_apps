@@ -47,7 +47,7 @@ This is my central hub where I practice:
 - Implemented a revamped UI that dynamically calculates the final scores based on the current game dynamics
 - As of April 2024, this page has driven my website usage through Google up to 2,200 clicks in 28 days
 
-[API to MySQL Automated ETL](https://github.com/applewjr/heroku_apps/blob/main/lol/lol_data_import.py)
+[API to MySQL Automated ETL](https://github.com/applewjr/heroku_apps/blob/main/scheduled_tasks_lol/lol_data_import.py)
 - Pulls fresh data each morning from Riot Games' API and inserts or replaces into a MySQL instance. Used for interfacing with a Power BI dashboard
 - Pulls player (summoner), character (champion), and match data
 - Parse all data from source JSON into a series of dataframes, taking care to replace values that don't always show up
