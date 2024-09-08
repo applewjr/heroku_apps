@@ -81,6 +81,7 @@ if 'IS_HEROKU' in os.environ:
     REDIS_HOST = os.environ.get('REDIS_HOST')
     REDIS_PORT = os.environ.get('REDIS_PORT')
     REDIS_PASS = os.environ.get('REDIS_PASS')
+    MTG_PATH = os.environ.get('MTG_PATH')
 
     # Creating a connection pool
     cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
@@ -107,6 +108,7 @@ else:
     REDIS_HOST = secret_pass.REDIS_HOST
     REDIS_PORT = secret_pass.REDIS_PORT
     REDIS_PASS = secret_pass.REDIS_PASS
+    MTG_PATH = secret_pass.MTG_PATH
 
     def get_db_connection():
         try:
@@ -211,7 +213,7 @@ def add_data_to_stream(stream_name, data):
 
 ##### cache #####
 
-cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})  # SimpleCache is fine for single-process environments
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'}) # SimpleCache is fine for single-process environments
 
 
 ##### base.html icons click #####
@@ -1842,7 +1844,32 @@ def espresso_baseline():
 
 
 
+######################################
+######################################
+##### MTG Price Trends
+######################################
+######################################
 
+@app.route("/mtg", methods=["POST", "GET"])
+@cache.cached()  # Cache the entire view for the default timeout
+def mtg_prices():
+    df = pd.read_csv(MTG_PATH)
+
+    today_price_date_str = df['today_price_date'].head(1).values[0]
+
+    df = df[df['tcgplayer_id'].notnull()]
+    df = df[df['1wk_diff'].notnull()]
+    df = df[['name', 'set_name', 'set_type', 'released_at', 'today_price', '1wk_diff', '2wk_diff', '4wk_diff', 'tcgplayer_id']]
+    df.columns = ['Card Name', 'Set Name', 'Set Type', 'Release Date', 'Current Price', '1 Week Change', '2 Week Change', '4 Week Change', 'TCG Link']
+    df['TCG Link'] = df['TCG Link'].apply(lambda x: f'<a href="{x}" target="_blank" style="color:blue; text-decoration:underline;">Link</a>')
+
+    df_increase = df.sort_values(by='1 Week Change', ascending=False).head(10).copy()
+    df_increase = df_increase.reset_index(drop=True)
+
+    df_decrease = df.sort_values(by='1 Week Change', ascending=True).head(10).copy()
+    df_decrease = df_decrease.reset_index(drop=True)
+
+    return render_template('mtg_prices.html', tables_increase=[df_increase.to_html(escape=False)], tables_decrease=[df_decrease.to_html(escape=False)], titles=df.columns.values, today_price_date_str=today_price_date_str)
 
 
 

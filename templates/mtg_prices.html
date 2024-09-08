@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+
+{% block title %}MTG Prices{% endblock %}
+
+{% block content %}
+<head>
+  <style>
+    input::-webkit-input-placeholder {
+        color: lightgrey;
+    }
+
+    input:-moz-placeholder { /* Firefox 18- */
+        color: lightgrey;
+    }
+
+    input::-moz-placeholder { /* Firefox 19+ */
+        color: lightgrey;
+    }
+
+    input:-ms-input-placeholder {
+        color: lightgrey;
+    }
+
+    /* Default style for larger screens */
+    table.blossom-info {
+        width: 50%; /* Set table width to 40% of the parent element */
+        margin-left: auto; /* Center the table horizontally */
+        margin-right: auto;
+        border-collapse: collapse; /* Remove gaps between cells */
+    }
+
+    /* Style for smaller screens (e.g., mobile devices) */
+    @media (max-width: 768px) {
+        table.blossom-info {
+            width: 100%; /* Set table width to 100% for smaller screens */
+        }
+    }
+
+    table.blossom-info, th, td {
+        border: 1px solid black; /* Add border to table, th, and td */
+        padding: 8px; /* Add padding inside cells */
+        text-align: center; /* Center text in th and td */
+    }
+
+    #buttons-container {
+        display: flex;
+        flex-wrap: wrap; /* Allow items to wrap as needed */
+        justify-content: center; /* Center items horizontally */
+        gap: 10px; /* Space between buttons */
+        padding: 10px; /* Padding around the container */
+    }
+
+    /* Additional media query for very small screens if needed */
+    @media (max-width: 480px) {
+        #buttons-container button {
+            flex: 0 0 30%; /* Reduce button width to ensure 3 buttons per row */
+        }
+    }
+
+    .browse-button {
+        background-color: #02484d;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none; /* Remove underline from link */
+        display: inline-block; /* Allows width and height for <a> */
+        text-align: center; /* Centers text within button */
+    }
+    .browse-button:hover {
+        background-color: #03282b;
+        color: gray;
+    }
+    /* Media query for mobile devices to adjust buttons' layout */
+    @media (max-width: 768px) {
+        .browse-button {
+            flex: 1 0 46%; /* Adjust the flex basis to allow two buttons per row and ensure they don't overlap */
+            margin: 5px; /* Add margin around each button for spacing */
+            padding: 10px; /* Adjust padding if needed */
+        }
+
+        #buttons-container {
+            display: flex;
+            flex-direction: row; /* Ensure buttons are laid out in a row */
+            flex-wrap: wrap; /* Allow wrapping */
+            justify-content: space-around; /* Distribute space around items for even spacing */
+        }
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    table, th, td {
+        border: 1px solid black;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Magic the Gathering Prices</h1>
+  <br>
+  <h3>Notable 1 Week Increases</h3>
+  {% for table in tables_increase %}
+    {{ table|safe }}
+  {% endfor %}
+  <br>
+  <br>
+  <h3>Notable 1 Week Decreases</h3>
+  {% for table in tables_decrease %}
+    {{ table|safe }}
+  {% endfor %}
+  <br>
+  <p>Includes: Cards released in the last 10 years, whose current price is at least $1, non-foil</p>
+  <p>Current Date: {{ today_price_date_str }}</p>
+  <br>
+  <br>
+  <br>
+</body>
+{% endblock %}
