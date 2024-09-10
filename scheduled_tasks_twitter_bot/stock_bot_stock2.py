@@ -65,8 +65,8 @@ def print_and_append(statement):
 ######################################
 ######################################
 
-df_policy = pd.DataFrame({'fund': ['AAPL', 'AMD', 'AMZN', 'GOOG', 'INTC', 'MSFT', 'NVDA', 'TSLA', 'BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'], \
-    'amt': [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]})
+df_policy = pd.DataFrame({'fund': ['AAPL', 'AMD', 'AMZN', 'ASML', 'GOOG', 'INTC', 'MSFT', 'NVDA', 'TSLA', 'TSM', 'BTC-USD', 'ETH-USD', 'BNB-USD', 'DOGE-USD'], \
+    'amt': [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]})
 df_policy = df_policy.set_index('fund')
 df_policy = df_policy[['amt']]
 dict_policy = df_policy.to_dict()
@@ -77,7 +77,7 @@ dict_policy = df_policy.to_dict()
 ######################################
 ######################################
 
-# stock_list = ['AAPL', 'AMD', 'AMZN', 'GOOG']
+# stock_list = ['AAPL', 'AMD', 'AMZN', 'ASML', 'GOOG']
 # contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 # trade_type = 'stock'
 # roll_days_base = 'quarter'
@@ -85,7 +85,7 @@ dict_policy = df_policy.to_dict()
 # multiplier = 3
 # segment_name = 'stock1'
 
-stock_list = ['INTC', 'MSFT', 'NVDA', 'TSLA']
+stock_list = ['INTC', 'MSFT', 'NVDA', 'TSLA', 'TSM']
 contrib_amt = [dict_policy['amt'][amt] for amt in stock_list]
 trade_type = 'stock'
 roll_days_base = 'quarter'
