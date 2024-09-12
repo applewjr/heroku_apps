@@ -1869,6 +1869,8 @@ def mtg_prices():
     df_decrease = df.sort_values(by='1 Week Change', ascending=True).head(10).copy()
     df_decrease = df_decrease.reset_index(drop=True)
 
+    log_page_visit('mtg_prices.html')
+
     return render_template('mtg_prices.html', tables_increase=[df_increase.to_html(escape=False)], tables_decrease=[df_decrease.to_html(escape=False)], titles=df.columns.values, today_price_date_str=today_price_date_str)
 
 
