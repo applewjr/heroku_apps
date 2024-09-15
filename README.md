@@ -21,9 +21,17 @@ This is my central hub where I practice:
   - Heroku
   - Git
   - JSON/YAML
+- AWS (Flask as the frontend)
 
 
 ### Notable sections
+
+[Magic: The Gathering Price Fluctuations](https://www.jamesapplewhite.com/mtg)
+- Ingest daily Magic: The Gathering card price data from the Scryfall API
+- Convert data into Parquet files, partitioned in Athena for efficient querying
+- Use Lambda and Step Functions to automate data processing and storage in S3
+- Query transformed data for notable price changes and export to CSV
+- Publish daily updates to a web app via CloudFront, with SNS for notifications
 
 [Espresso Optimizer](https://www.jamesapplewhite.com/espresso)
 - Implemented Google Forms and Google Sheets API integration for real-time data import to allow for immediate analysis

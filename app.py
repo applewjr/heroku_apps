@@ -1878,6 +1878,7 @@ def mtg_prices():
 
 
 
+
 @app.route("/feedback", methods=["POST", "GET"])
 def feedback():
     if request.method == "POST":
