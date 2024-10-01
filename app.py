@@ -68,7 +68,7 @@ if 'IS_HEROKU' in os.environ:
         "password": os.environ.get('jawsdb_pass'),
         "host": os.environ.get('jawsdb_host'),
         "pool_name": "mypool",
-        "pool_size": 3
+        "pool_size": 2
     }
     GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
