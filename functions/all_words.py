@@ -301,7 +301,7 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
     must_have_set = set(must_have.lower())
     
     # Precompute length scores to avoid redundant calculations
-    len_scores = {i: max(0, (i-3)*3) for i in range(1, 16)}
+    len_scores = {i: max(0, (i-3)*3) for i in range(1, 29)}
     
     # Combine all calculations into a single list comprehension with added str() conversion
     valid_words_scores = [
@@ -312,7 +312,7 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
         for word in words
         if must_have_set.issubset(str(word).lower()) and not set(str(word).lower()) & forbidden_letters and len(str(word)) >= 4
     ]
-    
+
     # Create DataFrame directly with 'word' and 'Score'
     df = pd.DataFrame(valid_words_scores, columns=['Word', 'Score'])
     df.sort_values(by='Score', ascending=False, inplace=True)
