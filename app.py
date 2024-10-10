@@ -1,6 +1,6 @@
 from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory
 from flask_caching import Cache
-from flask_socketio import SocketIO, emit
+# from flask_socketio import SocketIO, emit
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
@@ -1965,7 +1965,8 @@ def catch_all(path):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, load_dotenv=False)
+
 
 # venv
 
