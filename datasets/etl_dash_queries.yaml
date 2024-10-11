@@ -23,6 +23,12 @@ Blossom Search Source:
     query: SELECT * FROM vw_prod_blossom_search_source;
 
 
+Blossom Errors (Last 10 Days):
+    round: 2
+    label: "Blossom Errors (Last 10 Days)"
+    description: "Error page returns from referrer Blossom"
+    query: SELECT * FROM vw_prod_blossom_errors;
+
 Errors (Last 48 Hours):
     round: 2
     label: "Errors (Last 48 Hours)"
