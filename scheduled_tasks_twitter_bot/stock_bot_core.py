@@ -184,10 +184,10 @@ def prepare_stocks_output(stock_list, final_buy_list, pred_open_list, contrib_am
     stocks_output = []
     for stock, final_buy, ratio, c_amt in zip(stock_list, final_buy_list, pred_open_list, contrib_amt):
         if final_buy == c_amt:
-            stocks_output.append(f'\n{stock} ({round(ratio, 2)}): {int(c_amt)}')
+            stocks_output.append(f'\n#{stock} ({round(ratio, 2)}): {int(c_amt)}')
         else:
             additional = int(round(final_buy - c_amt, 0))
-            stocks_output.append(f'\n{stock} ({round(ratio, 2)}): {int(c_amt)} + {additional}')
+            stocks_output.append(f'\n#{stock} ({round(ratio, 2)}): {int(c_amt)} + {additional}')
     return ''.join(stocks_output)
 
 
