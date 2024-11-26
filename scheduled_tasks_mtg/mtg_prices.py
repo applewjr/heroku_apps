@@ -115,7 +115,7 @@ decrease_4wk = get_price_change_summary(df, '4wk_diff', '4Wk', ascending=True, m
 
 # Post MTG decrease
 tweet_text_decrease =f"""
-Magic: The Gathering - Top Price Decreases ({current_date})
+#MagicTheGathering - Top Price Decreases ({current_date})
 
 {decrease_4wk}
 {decrease_2wk}
@@ -128,7 +128,7 @@ post_tweet(api, tweet_text_decrease)
 
 # Post MTG increase
 tweet_text_increase =f"""
-Magic: The Gathering - Top Price Increases ({current_date})
+#MagicTheGathering - Top Price Increases ({current_date})
 
 {increase_4wk}
 {increase_2wk}
