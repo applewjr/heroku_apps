@@ -7,8 +7,6 @@ from datetime import datetime
 import time
 pd.options.mode.chained_assignment = None  # default='warn'
 
-
-
 def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, total_weeks: int, buyvalue: float, multiplier: float, nth_week: int, roll_days: str, trade_dow: str):
 
     stock_list_init = str(stock_list_init)
@@ -21,11 +19,11 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
     roll_days = str(roll_days)
     trade_dow = str(trade_dow)
 
+    pull_years = math.ceil(total_weeks/52)+1
+
     # convert a multi stock function into a single stock function
     stock_list = [stock_list_init]
     contrib_amt = [contrib_amt_init]
-
-
 
     invest = float('inf')
 
@@ -61,9 +59,9 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
         x = 0
         while x < 1:
             df_now = yf.download(
-            tickers = stock_list
-            ,period = '1d' # set for 'today' instead
-            ,interval = '1m'
+                tickers=stock_list,
+                period='1d',  # set for 'today' instead
+                interval='1m'
             )
             # ensures a single stock can pass through, not just 2+ 
             if len(stock_list) == 1:
@@ -71,14 +69,13 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
                 df_now = df_now[[stock_list[0]]]
             else:
                 df_now = df_now['Open']
-            df_now = df_now.head(1) # open for today
+            df_now = df_now.head(1)  # open for today
             df_now = df_now.fillna(0)
-            # df_now['Open', 'AAPL'] = 0 # force a 0 for testing
             x = 1
             for i in stock_list:
-                # x = x * int(df_now['Open'][i])
-                x = x * int(df_now[i])
-            if x == 0: # wait 15 seconds if data aren't complete
+                # Use iloc[0] to explicitly access the first element of the Series
+                x = x * int(df_now[i].iloc[0])
+            if x == 0:  # wait 15 seconds if data aren't complete
                 time.sleep(15)
             else:
                 if df_now.index.day == date.today().day:
@@ -91,19 +88,18 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
         tickers = stock_list
         # ,start = '2022-01-15'
         # ,end = '2022-01-18'
-        ,period = str(day_hist) + 'd'
+        # ,period = str(day_hist) + 'd'
+        ,period = f"{pull_years}y"
     )
 
     ### Overly complex way to pull data, but I have found that 'Open' prices are just a copy of the previous day for the first few minutes of the trading day
     ### This method pulls in the true Open prices for today much quicker (a couple minutes after 6:30am PST)
     if trade_type == 'crypto' or trade_type == 'index':
         df = yf.download(
-            tickers = stock_list
-            # ,start = '2022-01-15'
-            # ,end = '2022-01-18'
-            ,period = str(day_hist) + 'd'
+            tickers=stock_list,
+            period=f"{pull_years}y"
         )
-        # ensures a single crypto or index can pass through, not just 2+
+        # Ensures a single crypto or index can pass through, not just 2+ 
         if len(stock_list) == 1:
             df[stock_list[0]] = df['Open']
             df = df[[stock_list[0]]]
@@ -112,77 +108,75 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
     else:
         # Pull all data except for today
         df_bulk = yf.download(
-                tickers = stock_list
-                # ,start = '2022-01-15'
-                # ,end = '2022-01-18'
-                ,period = str(day_hist) + 'd'
-            )
-        # ensures a single stock can pass through, not just 2+ 
+            tickers=stock_list,
+            period=f"{pull_years}y"
+        )
+        # Ensures a single stock can pass through, not just 2+ 
         if len(stock_list) == 1:
             df_bulk[stock_list[0]] = df_bulk['Open']
             df_bulk = df_bulk[[stock_list[0]]]
         else:
             df_bulk = df_bulk['Open']
-        df_good_index = df_bulk.copy() # used to grab the ideal index
-        df_bulk.drop(df_bulk.tail(1).index,inplace=True) # bulk w/o the most recent day
-        # join the data (index is still bad)
+        
+        df_good_index = df_bulk.copy()  # Used to grab the ideal index
+        df_bulk.drop(df_bulk.tail(1).index, inplace=True)  # Bulk w/o the most recent day
+        
+        # Join the data (index is still bad)
         df = pd.concat([df_bulk, df_now])
-        # sub in a good index
+        
+        # Sub in a good index
         df = df.reindex_like(df_good_index)
-        # sub in good open data for today
+        
+        # Sub in good open data for today
         for i in stock_list:
-            df[i][len(df)-1] = df_now[i].copy()
+            # Use .iloc for setting values explicitly by position
+            df.iloc[-1, df.columns.get_loc(i)] = df_now[i].iloc[0]
 
-    # add an index and useable date
-    df['Index'] = np.arange(1,len(df)+1)
+    # Add an index and useable date
+    df['Index'] = np.arange(1, len(df) + 1)
     df['date'] = df.index
-    # error checking, if a stock doesn't have enough history based on the current needs
+
+    # Error checking for insufficient history
     nlist = []
     for i in stock_list:
-        if pd.isna(df[i].iloc[0]) == True:
+        if pd.isna(df[i].iloc[0]):
             nlist.append(i)
-    if len(nlist) >0:
+    if nlist:
         print('Stocks with not enough history', nlist)
         for j in nlist:
-            print(j, 'missing days:', df['Index'].count()-df[j].count())
+            print(j, 'missing days:', df['Index'].count() - df[j].count())
 
-    # establishing day of week, week number, trading day
+    # Establishing day of week, week number, trading day
     dow_dict = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6}
-    # convert 'Today' to actual listed day of the week
+
+    # Convert 'Today' to actual listed day of the week
     if trade_dow == 'Today':
         trade_dow = list(dow_dict.keys())[date.today().weekday()]
+
     df['dow'] = df['date'].dt.dayofweek
+
     if trade_type == 'crypto':
-        trade_day_list = []
-        for i in range(len(df)):
-            if df['dow'][i] == dow_dict[trade_dow]:
-                trade_day_list.append(1)
-            else:
-                trade_day_list.append(0)
-        df['trade_day'] = trade_day_list
-    elif trade_type != 'crypto' and (trade_dow == 'Saturday' or trade_dow == 'Sunday'):
-        print('error - stocks not open on the weekend')
+        df['trade_day'] = (df['dow'] == dow_dict[trade_dow]).astype(int)
+    elif trade_type != 'crypto' and trade_dow in ['Saturday', 'Sunday']:
+        print('Error - stocks not open on the weekend')
     else:
-        for i in range(len(df)):
-            df['dow_dynamic'] = df['dow']-dow_dict[trade_dow]
-        for i in range(len(df)):
-            if df['dow_dynamic'][i] < 0:
-                df['dow_dynamic'][i] = df['dow_dynamic'][i]+5
-        week_no_list = []
-        trade_day_list = []
+        df['dow_dynamic'] = (df['dow'] - dow_dict[trade_dow]) % 5
         week_no_var = 1
         trade_day_var = 0
+
+        week_no_list = []
+        trade_day_list = []
+
         for i in range(len(df)):
-            if i == 0:
-                1
-            elif df['dow_dynamic'].iloc[i] > df['dow_dynamic'].iloc[i-1]:
-                week_no_var
-                trade_day_var = 0
-            else:
+            if i > 0 and df['dow_dynamic'].iloc[i] < df['dow_dynamic'].iloc[i - 1]:
                 week_no_var += 1
                 trade_day_var = 1
+            else:
+                trade_day_var = 0
+
             week_no_list.append(week_no_var)
             trade_day_list.append(trade_day_var)
+
         df['week_no'] = week_no_list
         df['trade_day'] = trade_day_list
 
@@ -266,87 +260,106 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
     for j in stock_list:
         df[j +' pred/open2'] = df[j +' pred/open']**2 # make the value differences a little more pronounced
 
-    # Create all of the strategies to test 
+    # Create all of the strategies to test
     for j, z in zip(stock_list, contrib_amt):
-    # opt5
-        df[j +' opt5'] = 0
-        df[j +' opt5_stk'] = 0
-        v = invest
+        # Initialize the strategy columns
+        df[f"{j} opt5"] = 0.0
+        df[f"{j} opt5_stk"] = 0.0
+        
+        v = invest  # Variable for investment tracking
+        
         for i in range(len(df)):
-            if df[j +' pred/open2'].iloc[i] < buyvalue:
-                df[j +' opt5'].iloc[i] = z
+            # Calculate `opt5` value
+            if df[f"{j} pred/open2"].iloc[i] < buyvalue:
+                opt5_val = z
             else:
-                df[j +' opt5'].iloc[i] = round(z * df[j +' pred/open2'].iloc[i] * multiplier,2)
-            df[j +' opt5_stk'].iloc[i] = df[j +' opt5'].iloc[i]/df[j].iloc[i]
-            v -= z*df[j +' pred/open2'].iloc[i] ### isn't correct for this algorithm, don't worry about it while I'm going with inf invest
-            if i == (len(df)-1):
+                opt5_val = round(z * df[f"{j} pred/open2"].iloc[i] * multiplier, 2)
+            
+            # Assign `opt5` value
+            df.loc[i, f"{j} opt5"] = opt5_val
+            
+            # Calculate `opt5_stk` value
+            stock_price = df[j].iloc[i]
+            if stock_price != 0:  # Avoid division by zero
+                opt5_stk_val = opt5_val / stock_price
+            else:
+                opt5_stk_val = 0  # Handle zero stock price gracefully
+            
+            # Assign `opt5_stk` value
+            df.loc[i, f"{j} opt5_stk"] = opt5_stk_val
+            
+            # Decrement investment for next iteration
+            v -= z * df[f"{j} pred/open2"].iloc[i]
+            
+            # Check for investment availability for the next iteration
+            if i == (len(df) - 1):
                 t = i
             else:
-                t = i+1
-            if v < z*df[j +' pred/open2'].iloc[t]:
+                t = i + 1
+            if v < z * df[f"{j} pred/open2"].iloc[t]:
                 break
 
+    # Create graph data for plotting
     graph_data = {}
     test_df = pd.DataFrame()
     for j in stock_list:
-        graph_data[j] = pd.DataFrame(data={'date': df['date'], 'val': df[str(j)], 'pred': df[str(j) + ' pred']})
+        graph_data[j] = pd.DataFrame(data={
+            "date": df["date"], 
+            "val": df[j], 
+            "pred": df[f"{j} pred"]
+        })
 
-
-
-
-
-
-
-
-    ### duplicate contrib_amt for all stocks if only 1 listed
+    ### Duplicate contrib_amt for all stocks if only 1 listed
     if len(contrib_amt) == len(stock_list):
         pass
     elif len(contrib_amt) == 1: 
-        contrib_amt = [contrib_amt[0] for x in enumerate(stock_list)]
+        contrib_amt = [contrib_amt[0] for _ in stock_list]
     else:
         print('Incorrect length of contrib_amt. Make it match the length of the stock list or be 1 value')
         exit()
 
-    ### pull most recent day
+    ### Pull most recent day
     if trade_type == 'crypto' or trade_type == 'index':
         pass
     else:
         x = 0
         while x < 1:
             df_now = yf.download(
-            tickers = stock_list
-            ,period = '1d' # set for 'today' instead
-            ,interval = '1m'
+                tickers=stock_list,
+                period='1d',  # set for 'today' instead
+                interval='1m'
             )
 
-            # ensures a single stock can pass through, not just 2+ 
+            # Ensure a single stock can pass through, not just 2+
             if len(stock_list) == 1:
                 df_now[stock_list[0]] = df_now['Open']
                 df_now = df_now[[stock_list[0]]]
             else:
                 df_now = df_now['Open']
 
-            df_now = df_now.head(1) # open for today
+            df_now = df_now.head(1)  # open for today
             df_now = df_now.fillna(0)
 
             x = 1
             for i in stock_list:
-                x = x * int(df_now[i])
+                # Use iloc[0] to explicitly access the first value
+                x = x * int(df_now[i].iloc[0])
 
-            if x == 0: # wait 15 seconds if data aren't complete
+            if x == 0:  # wait 15 seconds if data aren't complete
                 time.sleep(15)
 
     # Overly complex way to pull data, but I have found that 'Open' prices are just a 
-    # copy of the previous day for the first few minutes of the trading day
+    # copy of the previous day for the first few minutes of the trading day.
     # This method pulls in the true Open prices for today much quicker (a couple minutes after 6:30am PST)
 
     if trade_type == 'crypto' or trade_type == 'index':
         df = yf.download(
-            tickers = stock_list
-            ,period = str(roll_days) + 'd'
+            tickers=stock_list
+            # period=f"{roll_days}d"
+            ,period = f"{pull_years}y"
         )
 
-        # ensures a single crypto or index can pass through, not just 2+ 
+        # Ensure a single crypto or index can pass through, not just 2+ 
         if len(stock_list) == 1:
             df[stock_list[0]] = df['Open']
             df = df[[stock_list[0]]]
@@ -355,56 +368,67 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
     else:
         # Pull all data except for today
         df_bulk = yf.download(
-                tickers = stock_list
-                ,period = str(roll_days) + 'd'
-            )
+            tickers=stock_list
+            # period=f"{roll_days}d"
+            ,period = f"{pull_years}y"
+        )
 
-        # ensures a single stock can pass through, not just 2+ 
+        # Ensure a single stock can pass through, not just 2+ 
         if len(stock_list) == 1:
             df_bulk[stock_list[0]] = df_bulk['Open']
             df_bulk = df_bulk[[stock_list[0]]]
         else:
             df_bulk = df_bulk['Open']
 
-        df_good_index = df_bulk.copy() # used to grab the ideal index
-        df_bulk.drop(df_bulk.tail(1).index,inplace=True) # bulk w/o the most recent day
+        # Ensure df_bulk and df_now are not empty
+        if df_bulk.empty or df_now.empty:
+            raise ValueError("No data returned from yfinance. Check your stock_list or internet connection.")
 
-        # join the data (index is still bad)
+        # Copy for index correction and drop the last row (most recent day)
+        df_good_index = df_bulk.copy()
+        df_bulk.drop(df_bulk.tail(1).index, inplace=True)
+
+        # Join the data (index may still need adjustment)
         df = pd.concat([df_bulk, df_now])
 
-        # sub in a good index
+        # Reindex to match the ideal index
         df = df.reindex_like(df_good_index)
 
-        # sub in good open data for today
+        # Substitute good open data for today
         for i in stock_list:
-            df[i][len(df)-1] = df_now[i].copy()
-        
+            if not df_now.empty and i in df_now.columns:
+                # Explicitly access and assign the last row
+                df.loc[df.index[-1], i] = df_now[i].iloc[0]
 
-    # add an index and useable date
-    df['Index'] = np.arange(1,len(df)+1)
+    # Add an index and useable date
+    df['Index'] = np.arange(1, len(df) + 1)
     df['date'] = df.index
 
-    # error checking, if a stock doesn't have enough history based on the current needs
+    # Error checking for stocks with insufficient history
     nlist = []
     for i in stock_list:
-        if pd.isna(df[i].iloc[0]) == True:
+        if pd.isna(df[i].iloc[0]):
             nlist.append(i)
 
-    if len(nlist) >0:
-        print('Stocks with not enough history', nlist)
+    if len(nlist) > 0:
+        print('Stocks with not enough history:', nlist)
         for j in nlist:
-            print(j, 'missing days:', df['Index'].count()-df[j].count())
-        exit() # Maybe not the best to add this. I still want to see the data
+            print(j, 'missing days:', df['Index'].count() - df[j].count())
+        # Optionally, continue without exiting:
+        # pass
+        exit()
 
-    # create pred and pred/open list for each of the n dataframes
+    # Create pred and pred/open list for each of the stocks
     pred_open_list = []
     for j in stock_list:
-        x = range(1,len(df[j])+1) # range must be 1-roll_days, not the auto implied 0-(roll_days-1)
+        x = range(1, len(df[j]) + 1)  # range must be 1-roll_days
         y = df[j]
         m, b = np.polyfit(x, y, 1)
-        d = m*len(df[j])+b
+        d = m * len(df[j]) + b
 
-        pred_open_list.append(d / df[j][len(df[j])-1] * d / df[j][len(df[j])-1])
+        # Accessing the last element explicitly using .iloc
+        last_value = df[j].iloc[-1]
+        pred_open_list.append((d / last_value) * (d / last_value))
 
     multiplier_list = []
     for i, j in enumerate(stock_list):
@@ -426,8 +450,7 @@ def stock_pred(stock_list_init: str, trade_type: str, contrib_amt_init: float, t
     # this call to the dict df is not dynamic for multiple stock tickers
     data_out = graph_data[stock_list[0]]
 
+    pred_open_out = round(float((data_out['pred'].iloc[-1]/data_out['val'].iloc[-1])**2),4)
+    
     return pred_open_out, final_buy_out, data_out, 1
-
-
-
 

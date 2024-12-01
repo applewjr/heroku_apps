@@ -1948,12 +1948,14 @@ def favicon_ico():
 def page_not_found(e):
     return_type = '404 - Page Not Found'
     log_page_visit(f'error.html (404: {e})')
+    print(e)
     return render_template('error.html', return_type=return_type), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     return_type = '500 - Error'
     log_page_visit(f'error.html (500: {e})')
+    print(e)
     return render_template('error.html', return_type=return_type), 500
 
 # Optional: Catch-all route for undefined paths

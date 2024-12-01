@@ -57,17 +57,18 @@ def summarize_df(df):
     summary['pairwise_correlations'] = corr_dict
     summary['pairwise_correlations'] = dict(sorted(summary['pairwise_correlations'].items(), key=lambda x: abs(x[1]), reverse=True)[:10])
         # top 10, highest absolute value
-    
+
     return summary
-
-
 
 
 def generate_heatmap(df):
     df = pd.DataFrame(df)
+    
+    # Select only numeric columns
+    numeric_df = df.select_dtypes(include=[np.number])
 
     # Calculate the correlation matrix
-    corr_matrix = df.corr()
+    corr_matrix = numeric_df.corr()
 
     # Create the heatmap
     plt.figure(figsize=(8, 6))
