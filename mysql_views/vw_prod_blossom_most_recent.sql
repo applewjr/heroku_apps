@@ -11,7 +11,7 @@ WITH recent_clicks AS (
     SELECT
      id
     ,click_time
-    ,TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
+    ,ROUND(TIMESTAMPDIFF(SECOND, LAG(click_time) OVER (ORDER BY click_time), click_time)/60,2) AS lag_minute
     ,must_have
     ,may_have
     ,petal_letter
@@ -21,7 +21,7 @@ WITH recent_clicks AS (
 SELECT
  '-' AS id
 ,CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') AS click_time
-,TIMESTAMPDIFF(MINUTE, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS lag_minute
+,ROUND(TIMESTAMPDIFF(SECOND, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))/60,2) AS lag_minute
 ,'-' AS must_have
 ,'-' AS may_have
 ,'-' AS petal_letter
