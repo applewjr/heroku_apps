@@ -5,19 +5,19 @@ WITH recent_clicks AS (
     FROM blossom_solver_clicks
     WHERE click_time <= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')
     ORDER BY click_time DESC
-    LIMIT 25
-	)
+    LIMIT 26
+    )
 ,lag_computation AS (
     SELECT
-	 id
-	,click_time
+     id
+    ,click_time
     ,TIMESTAMPDIFF(MINUTE, LAG(click_time) OVER (ORDER BY click_time), click_time) AS lag_minute
     ,must_have
     ,may_have
     ,petal_letter
     ,list_len
     FROM recent_clicks
-	)
+    )
 SELECT
  '-' AS id
 ,CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') AS click_time
@@ -29,4 +29,5 @@ SELECT
 FROM recent_clicks
 UNION ALL
 SELECT * FROM lag_computation
-ORDER BY click_time DESC, id DESC;
+ORDER BY click_time DESC, id DESC
+LIMIT 26;
