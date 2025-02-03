@@ -315,7 +315,7 @@ def process_stock_list(
     print_and_append(f"df_date: {df_date} (tzinfo: {df_date.tzinfo})")
     print_and_append(f"today_date: {today_date} (tzinfo: {today_date.tzinfo})")
 
-    if df_date == today_date:
+    if df_date == today_date or trade_type == 'crypto':
         # Post tweet
         post_tweet(api, update)
 
