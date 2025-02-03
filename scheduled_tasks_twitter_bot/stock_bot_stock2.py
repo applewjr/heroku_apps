@@ -2,7 +2,7 @@ from stock_bot_core import process_stock_list, get_dict_policy
 
 def main():
     dict_policy = get_dict_policy()
-    stock_list = ['INTC', 'MSFT', 'NVDA', 'TSLA', 'TSM']
+    stock_list = ['MSFT', 'NVDA', 'ORCL', 'QCOM', 'TSLA', 'TSM']
     contrib_amt = [dict_policy[amt] for amt in stock_list]
     trade_type = 'stock'
     roll_days_base = 'quarter'

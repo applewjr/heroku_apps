@@ -71,6 +71,8 @@ def get_dict_policy():
                 'INTC',
                 'MSFT',
                 'NVDA',
+                'ORCL',
+                'QCOM',
                 'TSLA',
                 'TSM',
                 'BTC-USD',
@@ -78,7 +80,7 @@ def get_dict_policy():
                 'BNB-USD',
                 'DOGE-USD',
             ],
-            'amt': [5] * 14,
+            'amt': [5] * 16,
         }
     )
     df_policy = df_policy.set_index('fund')
@@ -106,7 +108,8 @@ def ensure_contrib_amt_length(stock_list, contrib_amt):
 
 def retrieve_data(stock_list, trade_type, roll_days):
     if trade_type in ('crypto', 'index'):
-        df = yf.download(tickers=stock_list, period=f'{roll_days}d')
+        df = yf.download(tickers=stock_list, period='1y')
+        df = df.tail(roll_days)
         if len(stock_list) == 1:
             df[stock_list[0]] = df['Open']
             df = df[[stock_list[0]]]
@@ -127,7 +130,8 @@ def retrieve_data(stock_list, trade_type, roll_days):
                 break
             time.sleep(15)
             sleep_count += 1
-        df_bulk = yf.download(tickers=stock_list, period=f'{roll_days}d')
+        df_bulk = yf.download(tickers=stock_list, period='1y')
+        df_bulk = df_bulk.tail(roll_days)
         if len(stock_list) == 1:
             df_bulk[stock_list[0]] = df_bulk['Open']
             df_bulk = df_bulk[[stock_list[0]]]
