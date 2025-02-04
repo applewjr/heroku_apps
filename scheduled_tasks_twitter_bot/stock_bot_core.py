@@ -71,6 +71,8 @@ def get_dict_policy():
                 'INTC',
                 'MSFT',
                 'NVDA',
+                'ORCL',
+                'QCOM',
                 'TSLA',
                 'TSM',
                 'BTC-USD',
@@ -78,7 +80,7 @@ def get_dict_policy():
                 'BNB-USD',
                 'DOGE-USD',
             ],
-            'amt': [5] * 14,
+            'amt': [5] * 16,
         }
     )
     df_policy = df_policy.set_index('fund')
@@ -106,8 +108,8 @@ def ensure_contrib_amt_length(stock_list, contrib_amt):
 
 def retrieve_data(stock_list, trade_type, roll_days):
     if trade_type in ('crypto', 'index'):
-        df = df.tail(roll_days)
         df = yf.download(tickers=stock_list, period='1y')
+        df = df.tail(roll_days)
         if len(stock_list) == 1:
             df[stock_list[0]] = df['Open']
             df = df[[stock_list[0]]]
@@ -313,7 +315,7 @@ def process_stock_list(
     print_and_append(f"df_date: {df_date} (tzinfo: {df_date.tzinfo})")
     print_and_append(f"today_date: {today_date} (tzinfo: {today_date.tzinfo})")
 
-    if df_date == today_date:
+    if df_date == today_date or trade_type == 'crypto':
         # Post tweet
         post_tweet(api, update)
 
