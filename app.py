@@ -1903,6 +1903,23 @@ def mtg_prices():
 
 
 
+######################################
+######################################
+##### Hex Game
+######################################
+######################################
+
+@app.route("/hex")
+def hex_game():
+
+    log_page_visit('hex.html')
+
+    return render_template("hex.html")
+
+
+
+
+
 @app.route("/feedback", methods=["POST", "GET"])
 def feedback():
     if request.method == "POST":
