@@ -295,23 +295,34 @@ def unused_letters_revamp(must_have, may_have, petal):
 def is_pangram_revamp(word, required_letters):
     return 7 if set(word.lower()) >= required_letters else 0
 
+def length_score(word_length):
+    if word_length == 4:
+        return 2
+    elif word_length == 5:
+        return 4
+    elif word_length == 6:
+        return 6
+    elif word_length == 7:
+        return 12
+    else:
+        return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
+    
 def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
     required_letters = set((must_have + may_have + petal).lower())
     forbidden_letters = set(unused_letters_revamp(must_have, may_have, petal)[0])
     must_have_set = set(must_have.lower())
-    
-    # Precompute length scores to avoid redundant calculations
-    len_scores = {i: max(0, (i-3)*3) for i in range(1, 29)}
-    
+        
     # Create a list of tuples with word, score, and pangram status
     valid_words_scores = [
         (
             str(word),
-            len_scores[len(str(word))] + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters),
+            length_score(len(str(word))) + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters),
             'Yes' if is_pangram_revamp(str(word), required_letters) > 0 else 'No'
         )
         for word in words
-        if must_have_set.issubset(str(word).lower()) and not set(str(word).lower()) & forbidden_letters and len(str(word)) >= 4
+        if must_have_set.issubset(str(word).lower()) 
+        and not set(str(word).lower()) & forbidden_letters 
+        and len(str(word)) >= 4
     ]
 
     # Create DataFrame with 'Word', 'Score', and 'Pangram' columns
