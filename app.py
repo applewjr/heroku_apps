@@ -68,7 +68,7 @@ if 'IS_HEROKU' in os.environ:
         "password": os.environ.get('jawsdb_pass'),
         "host": os.environ.get('jawsdb_host'),
         "pool_name": "mypool",
-        "pool_size": 2
+        "pool_size": 3
     }
     GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
@@ -120,25 +120,49 @@ else:
             return None
 
 
+# def log_page_visit(page_name_value):
+#     # log visits
+#     referrer = request.headers.get('Referer', 'No referrer')
+#     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+#     page_name = page_name_value
+#     try:
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+#         query = """
+#         INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+#         VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+#         """
+#         cursor.execute(query, (page_name, referrer, user_agent))
+#         conn.commit()
+#     except mysql.connector.Error as err:
+#         print("Error:", err)
+#     finally:
+#         if cursor is not None:
+#             cursor.close()
+#         if conn is not None and conn.is_connected():
+#             conn.close()
+
 def log_page_visit(page_name_value):
-    # log visits
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
     page_name = page_name_value
+
+    conn = None
+    cursor = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-        VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-        """
-        cursor.execute(query, (page_name, referrer, user_agent))
-        conn.commit()
+        conn = get_db_connection()  # Ensure this uses connection pooling
+        with conn.cursor() as cursor:  # Context manager ensures closing
+            query = """
+            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+            """
+            cursor.execute(query, (page_name, referrer, user_agent))
+            conn.commit()
     except mysql.connector.Error as err:
-        print("Error:", err)
+        print("MySQL Error:", err)
+    except Exception as e:
+        print("Unexpected Error:", e)
     finally:
-        if cursor is not None:
-            cursor.close()
         if conn is not None and conn.is_connected():
             conn.close()
 
@@ -1874,6 +1898,23 @@ def mtg_prices():
     return render_template('mtg_prices.html', tables_increase=[df_increase.to_html(escape=False)], tables_decrease=[df_decrease.to_html(escape=False)], titles=df.columns.values, today_price_date_str=today_price_date_str)
 
 
+
+
+
+
+
+######################################
+######################################
+##### Hex Game
+######################################
+######################################
+
+@app.route("/hex")
+def hex_game():
+
+    log_page_visit('hex.html')
+
+    return render_template("hex.html")
 
 
 

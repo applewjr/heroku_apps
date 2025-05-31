@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+
+{% block title %}Hex Game{% endblock %}
+
+{% block content %}
+
+<head>
+  <meta charset="utf-8" />
+  <title>Hex Toggle Game - Flask Version</title>
+  <style>
+      body {
+          background-color: rgb(30, 30, 30);
+          color: white;
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+      }
+      #game-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+      }
+      #gameCanvas {
+          background-color: rgb(30, 30, 30);
+          border: 1px solid #333;
+          margin-top: 20px;
+      }
+      #buttons {
+          margin: 10px;
+      }
+      button {
+          background-color: rgb(100, 100, 100);
+          border: 2px solid rgb(50, 50, 50);
+          color: white;
+          font-size: 16px;
+          padding: 6px 12px;
+          margin: 5px;
+          cursor: pointer;
+      }
+      button:hover {
+          background-color: rgb(150, 150, 150);
+      }
+      #status {
+          margin-top: 10px;
+          font-size: 20px;
+          color: red;
+      }
+      /* Adjust the top offsets for these two so they don't overlap your navbar */
+      #clickCount {
+          position: absolute;
+          left: 10px;
+          top: 80px;   /* Increased from 10px -> 80px */
+          font-size: 24px;
+          color: red;
+      }
+      #modeInfo {
+          position: absolute;
+          right: 10px;
+          top: 80px;   /* Increased from 10px -> 80px */
+          font-size: 24px;
+          color: red;
+      }
+  </style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas" width="900" height="600"></canvas>
+
+  <div id="buttons">
+      <button id="restartButton">Restart</button>
+      <button id="modeButton">Switch Mode</button>
+  </div>
+  
+  <div id="status"></div>
+</div>
+
+<div id="clickCount"></div>
+<div id="modeInfo"></div>
+
+<script>
+/*
+  Replicating your hex game logic in JavaScript
+  - We will draw the hex board on an HTML canvas
+  - We'll handle clicks and color toggling in JS
+*/
+
+/* ---------------- Configuration --------------- */
+
+const SCREEN_WIDTH = 900;
+const SCREEN_HEIGHT = 600;
+const HEX_RADIUS = 30;
+const HEX_SPACING_X = HEX_RADIUS * 1.75;
+const HEX_SPACING_Y = HEX_RADIUS * 1.5;
+const TOGGLES = 100;
+const FPS = 30;
+
+const WHITE = "white";
+const BLACK = "black";
+const RED   = "red";
+const GREY  = "grey";
+
+let colorMode = "2color";  // "2color" or "3color"
+
+let canvas = document.getElementById("gameCanvas");
+let ctx = canvas.getContext("2d");
+
+let board = [];
+let won = false;
+let clickCount = 0;
+let animationFrameId;
+
+/* ---------------- Helper Functions --------------- */
+
+/**
+* Generate the corners (vertices) for a regular hexagon
+* given its center (x, y) and radius.
+* Returns array of (x, y) pairs.
+*/
+function hexCorners(center_x, center_y, radius) {
+  let corners = [];
+  for (let i = 0; i < 6; i++) {
+      // using the same "60 * i - 30" approach
+      let angleRad = (Math.PI / 180) * (60 * i - 30);
+      let x = center_x + radius * Math.cos(angleRad);
+      let y = center_y + radius * Math.sin(angleRad);
+      corners.push({x, y});
+  }
+  return corners;
+}
+
+/**
+* Determine if a point (px, py) is inside a polygon (array of {x, y}).
+* Using the ray-casting method.
+*/
+function pointInPolygon(px, py, polygon) {
+  let inside = false;
+  let n = polygon.length;
+  for (let i = 0; i < n; i++) {
+      let x1 = polygon[i].x;
+      let y1 = polygon[i].y;
+      let x2 = polygon[(i + 1) % n].x;
+      let y2 = polygon[(i + 1) % n].y;
+      
+      let intersect = false;
+      // Check if the line from (px,py) horizontally intersects
+      // with polygon edge from (x1,y1) to (x2,y2)
+      if ((y1 > py) !== (y2 > py)) {
+          let xIntersect = (py - y1) * (x2 - x1) / (y2 - y1) + x1;
+          if (px < xIntersect) {
+              intersect = true;
+          }
+      }
+      if (intersect) {
+          inside = !inside;
+      }
+  }
+  return inside;
+}
+
+/* ------------------ Tile Class  ------------------ */
+
+class HexTile {
+  constructor(row, col, center, radius, color) {
+      this.row = row;
+      this.col = col;
+      this.center = center; // {x, y}
+      this.radius = radius;
+      this.color = color;
+      this.corners = hexCorners(center.x, center.y, radius);
+  }
+  
+  draw(ctx) {
+      // Fill polygon
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.moveTo(this.corners[0].x, this.corners[0].y);
+      for (let i = 1; i < this.corners.length; i++) {
+          ctx.lineTo(this.corners[i].x, this.corners[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Draw outline in grey
+      ctx.strokeStyle = "grey";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+  }
+}
+
+/* ------------------ Board Logic  ------------------ */
+
+/**
+* Returns the next tile color for 2color mode: White -> Black -> White...
+*/
+function nextTileColor2color(current) {
+  return (current === WHITE) ? BLACK : WHITE;
+}
+
+/**
+* Returns the next tile color for 3color mode: White -> Red -> Black -> White...
+*/
+function nextTileColor3color(current) {
+  if (current === WHITE) return RED;
+  if (current === RED)   return BLACK;
+  return WHITE;
+}
+
+/**
+* Decide which color-cycling to use based on 'colorMode'.
+*/
+function nextTileColor(currentColor) {
+  if (colorMode === "2color") {
+      return nextTileColor2color(currentColor);
+  } else {
+      return nextTileColor3color(currentColor);
+  }
+}
+
+/**
+* Create the hex-shaped board using row lengths [2,3,4,5,6,7,6,5,4,3,2].
+* Default all tiles to black (like original).
+*/
+function createHexShapedBoard(tileColor = BLACK) {
+  let row_lengths = [2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2];
+  let newBoard = [];
+
+  let center_x = SCREEN_WIDTH / 2;
+  let center_y = SCREEN_HEIGHT / 2;
+  
+  let total_rows = row_lengths.length;
+  for (let r = 0; r < total_rows; r++) {
+      let num_cols = row_lengths[r];
+      let row_center_y = center_y + (r - (total_rows - 1) / 2) * HEX_SPACING_Y;
+      let offset_x = (num_cols - 1) * HEX_SPACING_X / 2;
+      
+      let row_tiles = [];
+      for (let c = 0; c < num_cols; c++) {
+          let cx = center_x - offset_x + c * HEX_SPACING_X;
+          let cy = row_center_y;
+          let tile = new HexTile(r, c, {x: cx, y: cy}, HEX_RADIUS, tileColor);
+          row_tiles.push(tile);
+      }
+      newBoard.push(row_tiles);
+  }
+  return newBoard;
+}
+
+/**
+* Get neighbors for a given tile by checking if the distance between centers is < threshold.
+*/
+function getNeighbors(board, row, col) {
+  let neighbors = [];
+  let tile = board[row][col];
+  let threshold = 2 * HEX_RADIUS * 1.1; // same as in the original
+
+  for (let r = 0; r < board.length; r++) {
+      for (let c = 0; c < board[r].length; c++) {
+          if (r === row && c === col) continue;
+          let otherTile = board[r][c];
+          let dist = distance(tile.center.x, tile.center.y, otherTile.center.x, otherTile.center.y);
+          if (dist < threshold) {
+              neighbors.push({r, c});
+          }
+      }
+  }
+  return neighbors;
+}
+
+/**
+* Toggle a given tile and its neighbors.
+*/
+function toggleTileAndNeighbors(board, row, col) {
+  let tile = board[row][col];
+  tile.color = nextTileColor(tile.color);
+
+  let nbrs = getNeighbors(board, row, col);
+  nbrs.forEach(({r, c}) => {
+      let neighborTile = board[r][c];
+      neighborTile.color = nextTileColor(neighborTile.color);
+  });
+}
+
+/**
+* Randomly scramble the board by toggling random tiles.
+*/
+function scrambleBoard(board, toggles = TOGGLES) {
+  let allTiles = [];
+  for (let r = 0; r < board.length; r++) {
+      for (let c = 0; c < board[r].length; c++) {
+          allTiles.push({r, c});
+      }
+  }
+  for (let i = 0; i < toggles; i++) {
+      let randomIndex = Math.floor(Math.random() * allTiles.length);
+      let {r, c} = allTiles[randomIndex];
+      toggleTileAndNeighbors(board, r, c);
+  }
+}
+
+/**
+* Distance helper
+*/
+function distance(x1, y1, x2, y2) {
+  let dx = x1 - x2;
+  let dy = y1 - y2;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+/* ------------------ Game Flow  ------------------ */
+
+/**
+* Check if all tiles are black => you win.
+*/
+function checkWin(board) {
+  for (let r = 0; r < board.length; r++) {
+      for (let c = 0; c < board[r].length; c++) {
+          if (board[r][c].color !== BLACK) {
+              return false;
+          }
+      }
+  }
+  return true;
+}
+
+function restartGame() {
+  board = createHexShapedBoard(BLACK);
+  scrambleBoard(board, TOGGLES);
+  won = false;
+  clickCount = 0;
+}
+
+/**
+* Switch color mode between "2color" and "3color",
+* then restart the game to reflect the new mode.
+*/
+function switchMode() {
+  if (colorMode === "2color") {
+      colorMode = "3color";
+  } else {
+      colorMode = "2color";
+  }
+  restartGame();
+}
+
+/**
+* Initialize the game for the first time.
+*/
+function initGame() {
+  restartGame();
+
+  // Hook up button clicks
+  document.getElementById("restartButton").addEventListener("click", () => {
+      restartGame();
+  });
+  document.getElementById("modeButton").addEventListener("click", () => {
+      switchMode();
+  });
+
+  // Listen for clicks on the canvas
+  canvas.addEventListener("mousedown", (evt) => {
+      if (evt.button === 0 && !won) {
+          let rect = canvas.getBoundingClientRect();
+          let mx = evt.clientX - rect.left;
+          let my = evt.clientY - rect.top;
+
+          // Check which tile was clicked
+          for (let r = 0; r < board.length; r++) {
+              for (let c = 0; c < board[r].length; c++) {
+                  let tile = board[r][c];
+                  if (pointInPolygon(mx, my, tile.corners)) {
+                      toggleTileAndNeighbors(board, r, c);
+                      clickCount++;
+                      if (checkWin(board)) {
+                          won = true;
+                      }
+                      break; // only toggle one tile per click
+                  }
+              }
+          }
+      }
+  });
+
+  // Start draw loop
+  gameLoop();
+}
+
+/**
+* Main game loop: handle drawing and updating UI.
+*/
+function gameLoop() {
+  drawGame();
+  animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+/**
+* Render the board and status on the canvas.
+*/
+function drawGame() {
+  ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+  // Draw all tiles
+  for (let r = 0; r < board.length; r++) {
+      for (let c = 0; board[r] && c < board[r].length; c++) {
+          board[r][c].draw(ctx);
+      }
+  }
+
+  // Show click count in top-left corner
+  document.getElementById("clickCount").textContent = "Clicks: " + clickCount;
+
+  // Show mode in top-right corner
+  let modeText = (colorMode === "2color") ? "Mode: Black/White" : "Mode: Black/White/Red";
+  document.getElementById("modeInfo").textContent = modeText;
+
+  // Display "You win" if won
+  let statusDiv = document.getElementById("status");
+  if (won) {
+      statusDiv.textContent = "You win! Score: " + clickCount;
+  } else {
+      statusDiv.textContent = "";
+  }
+}
+
+/* ------------------ Start Everything  ------------------ */
+initGame();
+</script>
+<p>Win by making all the tiles black</p>
+</body>
+
+{% endblock %}
