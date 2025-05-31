@@ -28,10 +28,10 @@ This is my central hub where I practice:
 
 [Magic: The Gathering Price Fluctuations](https://www.jamesapplewhite.com/mtg)
 - Ingest daily Magic: The Gathering card price data from the Scryfall API
-- Convert data into Parquet files, partitioned in Athena for efficient querying
-- Use Lambda and Step Functions to automate data processing and storage in S3
-- Query transformed data for notable price changes and export to CSV
-- Publish daily updates to a web app via CloudFront, with SNS for notifications
+- Convert the data into Parquet format and store it in S3, partitioned using Apache Iceberg tables for efficient querying in Athena
+- Use AWS Lambda and Step Functions to automate the end-to-end data processing and ingestion into Athena tables
+- Query the Iceberg tables in Athena to detect notable daily price changes, and export the results to CSV
+- Publish daily price updates to a web app via CloudFront, and send notifications through SNS
 
 [Espresso Optimizer](https://www.jamesapplewhite.com/espresso)
 - Implemented Google Forms and Google Sheets API integration for real-time data import to allow for immediate analysis
