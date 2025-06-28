@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory
+from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory, session
 from flask_caching import Cache
 # from flask_socketio import SocketIO, emit
 from flask_httpauth import HTTPBasicAuth
@@ -7,14 +7,14 @@ from flask_sslify import SSLify
 import pandas as pd
 import os
 import datetime
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import yaml
 import redis
 import pytz
 import time
 from werkzeug.middleware.proxy_fix import ProxyFix
-
+import secrets
 
 ########## local functions ##########
 
@@ -82,6 +82,7 @@ if 'IS_HEROKU' in os.environ:
     REDIS_PORT = os.environ.get('REDIS_PORT')
     REDIS_PASS = os.environ.get('REDIS_PASS')
     MTG_PATH = os.environ.get('MTG_PATH')
+    SESSION_KEY = os.environ.get('SESSION_KEY')
 
     # Creating a connection pool
     cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
@@ -109,6 +110,7 @@ else:
     REDIS_PORT = secret_pass.REDIS_PORT
     REDIS_PASS = secret_pass.REDIS_PASS
     MTG_PATH = secret_pass.MTG_PATH
+    SESSION_KEY = secret_pass.SESSION_KEY
 
     def get_db_connection():
         try:
@@ -119,6 +121,14 @@ else:
             print(f"Error connecting to MySQL: {e}")
             return None
 
+if not SESSION_KEY:
+    if os.environ.get('IS_HEROKU'):
+        # Production environment missing session key - this is an error
+        raise ValueError("SESSION_KEY environment variable must be set in production")
+    else:
+        # Development environment - use a fixed dev key
+        SESSION_KEY = 'dev-key-change-for-production-' + secrets.token_hex(16)
+        print(f"Using development session key. Set SESSION_KEY env var for production.")
 
 # def log_page_visit(page_name_value):
 #     # log visits
@@ -172,7 +182,8 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-
+app.secret_key = SESSION_KEY
+app.permanent_session_lifetime = timedelta(hours=4)  # Sessions last 4 hours
 
 ##### SSL #####
 
@@ -1218,7 +1229,23 @@ def blossom():
 @app.route("/blossom", methods=["POST", "GET"])
 def blossom_solver():
     if request.method == "POST":
-
+        # Handle checkbox updates via AJAX
+        if request.is_json:
+            data = request.get_json()
+            if data.get('action') == 'toggle_word':
+                word = data.get('word')
+                if 'used_words' not in session:
+                    session['used_words'] = []
+                
+                if word in session['used_words']:
+                    session['used_words'].remove(word)
+                else:
+                    session['used_words'].append(word)
+                
+                session.modified = True  # Mark session as modified
+                return jsonify({'status': 'success', 'used_words': session['used_words']})
+        
+        # Handle form submission for word search
         must_have = request.form["must_have"]
         may_have = request.form["may_have"]
         petal_letter = request.form["petal_letter"]
@@ -1226,8 +1253,16 @@ def blossom_solver():
         if list_len == '':
             list_len = 25
         list_len = int(list_len)
-        blossom_table, valid_word_count = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words)
+        
+        # Get used words from session
+        used_words = session.get('used_words', [])
+        
+        # Get the blossom table and modify it to include checkboxes
+        blossom_table, valid_word_count = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words, used_words)
         valid_word_count = f'Valid Word Count: {valid_word_count}'
+
+        # Make session permanent (4 hours)
+        session.permanent = True
 
         # log clicks and inputs
         try:
@@ -1247,13 +1282,40 @@ def blossom_solver():
             if conn is not None and conn.is_connected():
                 conn.close()
 
-        return render_template("blossom.html", blossom_table=blossom_table, must_have_val=must_have, may_have_val=may_have, list_len_val=list_len, petal_letter=petal_letter, valid_word_count=valid_word_count)
+        return render_template("blossom.html", 
+                             blossom_table=blossom_table, 
+                             must_have_val=must_have, 
+                             may_have_val=may_have, 
+                             list_len_val=list_len, 
+                             petal_letter=petal_letter, 
+                             valid_word_count=valid_word_count,
+                             used_words=used_words)
 
     else:
-
+        # Initialize session for used words if it doesn't exist
+        if 'used_words' not in session:
+            session['used_words'] = []
+        
+        # Make session permanent (4 hours)
+        session.permanent = True
+        
+        used_words = session.get('used_words', [])
         log_page_visit('blossom.html')
 
-        return render_template("blossom.html", list_len_val=25)
+        return render_template("blossom.html", 
+                             list_len_val=25, 
+                             used_words=used_words)
+
+# Add this new route for clearing session data
+@app.route("/blossom/reset")
+def blossom_reset():
+    # Clear the used_words from session
+    session.pop('used_words', None)
+    session.modified = True
+    
+    # Redirect back to the main blossom page
+    return redirect(url_for('blossom_solver'))
+
 
 @app.route("/any_word", methods=["POST", "GET"])
 def any_word():

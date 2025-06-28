@@ -307,7 +307,14 @@ def length_score(word_length):
     else:
         return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
     
-def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
+
+def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None):
+    """
+    Enhanced version that includes checkbox column for session-based word tracking
+    """
+    if used_words is None:
+        used_words = []
+        
     required_letters = set((must_have + may_have + petal).lower())
     forbidden_letters = set(unused_letters_revamp(must_have, may_have, petal)[0])
     must_have_set = set(must_have.lower())
@@ -331,6 +338,16 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words):
     df.reset_index(drop=True, inplace=True)
     valid_word_count = len(df)
     top_df = df.head(list_len)
-    blossom_table = top_df.to_html(index=False, columns=['Word', 'Score', 'Pangram'])
+    
+    # Add checkbox column with session-based checking
+    checkbox_html = []
+    for word in top_df['Word']:
+        checked = 'checked' if word in used_words else ''
+        checkbox_html.append(f'<input type="checkbox" class="word-checkbox" data-word="{word}" {checked}>')
+    
+    top_df.insert(0, 'Used', checkbox_html)
+    
+    # Convert to HTML with escape=False to render HTML checkboxes
+    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', 'Pangram'], escape=False)
         
     return blossom_table, valid_word_count
