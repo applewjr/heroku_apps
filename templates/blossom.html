@@ -90,7 +90,27 @@
           justify-content: space-around; /* Distribute space around items for even spacing */
       }
   }
+
+  /* Styling for used words */
+  .used-word {
+      background-color: #f0f0f0;
+      text-decoration: line-through;
+      opacity: 0.6;
+  }
+
+  /* Checkbox styling */
+  .word-checkbox {
+      transform: scale(1.2);
+      cursor: pointer;
+  }
+
+  /* Table styling for better checkbox alignment */
+  table td:first-child {
+      width: 50px;
+      text-align: center;
+  }
 </style>
+
 <script>
   // Updated function to accept selectedLetter as an argument
   function updateButtons(selectedLetter = '') {
@@ -123,11 +143,75 @@
       buttonsContainer.appendChild(button);
     }
   }
+
+  // Function to handle checkbox changes
+  function handleCheckboxChange(checkbox) {
+    const word = checkbox.getAttribute('data-word');
+    const row = checkbox.closest('tr');
+    
+    // Toggle visual styling
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    } else {
+      row.classList.remove('used-word');
+    }
+
+    // Send AJAX request to update session
+    fetch('/blossom', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'toggle_word',
+        word: word
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status !== 'success') {
+        console.error('Failed to update word status');
+        // Revert checkbox state if server update failed
+        checkbox.checked = !checkbox.checked;
+        if (checkbox.checked) {
+          row.classList.add('used-word');
+        } else {
+          row.classList.remove('used-word');
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      // Revert checkbox state if request failed
+      checkbox.checked = !checkbox.checked;
+      if (checkbox.checked) {
+        row.classList.add('used-word');
+      } else {
+        row.classList.remove('used-word');
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     updateButtons('{{ petal_letter }}');
-});
+    
+    // Add event listeners to checkboxes
+    const checkboxes = document.querySelectorAll('.word-checkbox');
+    checkboxes.forEach(checkbox => {
+      // Apply initial styling based on checkbox state
+      const row = checkbox.closest('tr');
+      if (checkbox.checked) {
+        row.classList.add('used-word');
+      }
+      
+      // Add change event listener
+      checkbox.addEventListener('change', function() {
+        handleCheckboxChange(this);
+      });
+    });
+  });
 
-const buttonContainer = document.createElement('div');
+  const buttonContainer = document.createElement('div');
   buttonContainer.className = 'button-container';
 
   // Create and style your button here
@@ -141,9 +225,6 @@ const buttonContainer = document.createElement('div');
   <center>
   <br>
   <h1 style="text-align: center">Blossom Word Finder & Solver</h1>
-  <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
-    Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters below to find all possible words and solve today's puzzle instantly.
-  </p>
   <br>
   <br>
 
@@ -179,13 +260,20 @@ const buttonContainer = document.createElement('div');
   <br>
   <br>
   <br>
-  <a href="/blossom">
+  <a href="/blossom/reset">
     <div class="spinning-image">
       <img alt="Reset" src="/static/reset_logo.png">
     </div>
   </a>
+  <p style="text-align: center; font-size: 12px; margin-top: 5px; color: #666;">
+    Reset checked words
+  </p>
   <br>
-  <p class="pad_lr_30" style="text-align: center">Note: I have no idea what body of words these games are working with. The list of words used comes from this <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer">GitHub</a> and does not always align with the valid words in the games.</p>
+  <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
+    Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters below to find all possible words and solve today's puzzle instantly.
+  </p>
+  <br>
+  <p class="pad_lr_30" style="text-align: center; max-width: 800px;">Note: I have no idea what body of words these games are working with. The list of words used comes from this <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer">GitHub</a> and does not always align with the valid words in the games.</p>
   <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank">Go To Blossom Game</a>
   <br>
   <br>
