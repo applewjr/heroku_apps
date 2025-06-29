@@ -112,50 +112,110 @@
 </style>
 
 <script>
+// Safe gtag function that won't crash if GA isn't loaded
+function safeTrack(eventName, properties = {}) {
+  try {
+    if (typeof gtag !== 'undefined') {
+      gtag('event', eventName, properties);
+    }
+  } catch (error) {
+    // Silently fail - analytics shouldn't break functionality
+  }
+}
 
-// Updated function to accept selectedLetter as an argument
+// Enhanced function to accept selectedLetter as an argument
 function updateButtons(selectedLetter = '') {
   const mayHaveValue = document.getElementById('may_have').value;
   const buttonsContainer = document.getElementById('buttons-container');
+  const previousButtonCount = buttonsContainer.children.length;
+  
   buttonsContainer.innerHTML = ''; // Clear existing buttons
+  
+  // Track input changes
+  if (mayHaveValue.length === 6) {
+    safeTrack('input_complete', {
+      'event_category': 'blossom_solver',
+      'event_label': 'petal_letters_entered',
+      'custom_parameters': {
+        'input_length': mayHaveValue.length,
+        'letters': mayHaveValue.toLowerCase()
+      }
+    });
+  }
   
   // Create new buttons based on input
   for (let char of mayHaveValue) {
     const button = document.createElement('button');
     button.type = 'submit';
-    button.name = 'petal_letter'; // Use this name to identify the button in Flask
-    button.value = char; // The value of the button is the character
-    button.textContent = char.toUpperCase(); // Display letter as uppercase
+    button.name = 'petal_letter';
+    button.value = char;
+    button.textContent = char.toUpperCase();
 
     // Apply styles directly to each button
     button.style.width = '60px';
     button.style.backgroundColor = '#02484d';
     button.style.color = 'white';
-    button.style.padding = '10px 20px'; // Default padding
-    button.style.border = '2px solid transparent'; // Default transparent border to maintain size
+    button.style.padding = '10px 20px';
+    button.style.border = '2px solid transparent';
     button.style.borderRadius = '4px';
     button.style.cursor = 'pointer';
-    button.style.margin = '5px'; // Add a margin around each button
+    button.style.margin = '5px';
 
+    // Highlight selected letter
     if (char === selectedLetter) {
-        button.style.border = '3px solid #ca9546'; // Highlighted state
+      button.style.border = '3px solid #ca9546';
     }
+
+    // Add click tracking for petal letter selection
+    button.addEventListener('click', function(event) {
+      safeTrack('petal_letter_selected', {
+        'event_category': 'blossom_solver',
+        'event_label': 'letter_' + char.toLowerCase(),
+        'custom_parameters': {
+          'selected_letter': char.toLowerCase(),
+          'total_letters': mayHaveValue.length,
+          'is_reselection': char === selectedLetter
+        }
+      });
+    });
 
     buttonsContainer.appendChild(button);
   }
+
+  // Track button generation
+  if (mayHaveValue.length > 0) {
+    safeTrack('buttons_generated', {
+      'event_category': 'blossom_solver',
+      'event_label': 'petal_buttons_created',
+      'value': mayHaveValue.length
+    });
+  }
 }
 
-// Function to handle checkbox changes
+// Enhanced function to handle checkbox changes with better tracking
 function handleCheckboxChange(checkbox) {
   const word = checkbox.getAttribute('data-word');
   const row = checkbox.closest('tr');
+  const isChecking = checkbox.checked;
+  const wordLength = word ? word.length : 0;
   
   // Toggle visual styling
-  if (checkbox.checked) {
+  if (isChecking) {
     row.classList.add('used-word');
   } else {
     row.classList.remove('used-word');
   }
+
+  // Track word interaction immediately
+  safeTrack('word_interaction', {
+    'event_category': 'blossom_solver',
+    'event_label': isChecking ? 'word_marked_used' : 'word_unmarked',
+    'custom_parameters': {
+      'word_length': wordLength,
+      'word': word,
+      'action': isChecking ? 'mark' : 'unmark'
+    }
+  });
 
   // Send AJAX request to update session
   fetch('/blossom', {
@@ -168,22 +228,41 @@ function handleCheckboxChange(checkbox) {
       word: word
     })
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.json();
+  })
   .then(data => {
-    if (data.status !== 'success') {
-      console.error('Failed to update word status');
-      // Revert checkbox state if server update failed
-      checkbox.checked = !checkbox.checked;
-      if (checkbox.checked) {
-        row.classList.add('used-word');
-      } else {
-        row.classList.remove('used-word');
-      }
+    if (data.status === 'success') {
+      // Track successful word status update
+      safeTrack('word_status_updated', {
+        'event_category': 'blossom_solver',
+        'event_label': 'server_sync_success',
+        'custom_parameters': {
+          'word': word,
+          'new_status': isChecking ? 'used' : 'available'
+        }
+      });
+    } else {
+      throw new Error('Server returned error status');
     }
   })
   .catch(error => {
-    console.error('Error:', error);
-    // Revert checkbox state if request failed
+    console.error('Error updating word status:', error);
+    
+    // Track error
+    safeTrack('word_update_error', {
+      'event_category': 'blossom_solver',
+      'event_label': 'server_sync_failed',
+      'custom_parameters': {
+        'error_type': error.message,
+        'word': word
+      }
+    });
+    
+    // Revert checkbox state if server update failed
     checkbox.checked = !checkbox.checked;
     if (checkbox.checked) {
       row.classList.add('used-word');
@@ -193,7 +272,163 @@ function handleCheckboxChange(checkbox) {
   });
 }
 
+// Track user engagement and session metrics
+function trackUserEngagement() {
+  let startTime = Date.now();
+  let wordsFound = 0;
+  let interactionCount = 0;
+
+  // Track time spent on page
+  window.addEventListener('beforeunload', function() {
+    const timeSpent = Math.round((Date.now() - startTime) / 1000);
+    safeTrack('session_end', {
+      'event_category': 'blossom_solver',
+      'event_label': 'page_exit',
+      'value': timeSpent,
+      'custom_parameters': {
+        'time_spent_seconds': timeSpent,
+        'words_interacted': wordsFound,
+        'total_interactions': interactionCount
+      }
+    });
+  });
+
+  // Track periodic engagement
+  setInterval(function() {
+    const timeSpent = Math.round((Date.now() - startTime) / 1000);
+    if (timeSpent % 30 === 0 && timeSpent > 0) { // Every 30 seconds
+      safeTrack('engagement_milestone', {
+        'event_category': 'blossom_solver',
+        'event_label': 'time_milestone_' + timeSpent + 's',
+        'value': timeSpent
+      });
+    }
+  }, 1000);
+
+  return {
+    incrementWords: () => wordsFound++,
+    incrementInteractions: () => interactionCount++
+  };
+}
+
+// Track external link clicks
+function trackExternalLinks() {
+  const externalLinks = document.querySelectorAll('a[href^="http"], a[target="_blank"]');
+  externalLinks.forEach(link => {
+    link.addEventListener('click', function(event) {
+      const href = this.href;
+      const linkText = this.textContent.trim();
+      
+      safeTrack('external_link_click', {
+        'event_category': 'blossom_solver',
+        'event_label': 'external_navigation',
+        'custom_parameters': {
+          'destination_url': href,
+          'link_text': linkText,
+          'link_type': href.includes('merriam-webster') ? 'game_site' : 'other'
+        }
+      });
+    });
+  });
+}
+
+// Track internal navigation
+function trackInternalNavigation() {
+  const internalLinks = document.querySelectorAll('a.browse-button, a[href^="/"]');
+  internalLinks.forEach(link => {
+    link.addEventListener('click', function(event) {
+      const href = this.href;
+      const linkText = this.textContent.trim();
+      
+      safeTrack('internal_navigation', {
+        'event_category': 'blossom_solver',
+        'event_label': 'tool_navigation',
+        'custom_parameters': {
+          'destination_path': href,
+          'tool_name': linkText.toLowerCase(),
+          'navigation_type': this.classList.contains('browse-button') ? 'tool_button' : 'text_link'
+        }
+      });
+    });
+  });
+}
+
+// Track form input interactions
+function trackFormInputs() {
+  const centerLetterInput = document.querySelector('input[name="must_have"]');
+  const petalLettersInput = document.querySelector('input[name="may_have"]');
+  const countInput = document.querySelector('input[name="list_len"]');
+
+  // Track center letter changes
+  if (centerLetterInput) {
+    centerLetterInput.addEventListener('input', function() {
+      if (this.value.length === 1) {
+        safeTrack('center_letter_entered', {
+          'event_category': 'blossom_solver',
+          'event_label': 'center_letter_complete',
+          'custom_parameters': {
+            'letter': this.value.toLowerCase()
+          }
+        });
+      }
+    });
+  }
+
+  // Track word count changes
+  if (countInput) {
+    countInput.addEventListener('change', function() {
+      const count = parseInt(this.value) || 0;
+      safeTrack('word_count_changed', {
+        'event_category': 'blossom_solver',
+        'event_label': 'result_limit_set',
+        'value': count,
+        'custom_parameters': {
+          'requested_count': count
+        }
+      });
+    });
+  }
+}
+
+// Track reset functionality
+function trackResetActions() {
+  const resetLink = document.querySelector('a[href="/blossom/reset"]');
+  if (resetLink) {
+    resetLink.addEventListener('click', function(event) {
+      const checkedWords = document.querySelectorAll('.word-checkbox:checked').length;
+      
+      safeTrack('reset_clicked', {
+        'event_category': 'blossom_solver',
+        'event_label': 'reset_checked_words',
+        'value': checkedWords,
+        'custom_parameters': {
+          'words_to_reset': checkedWords
+        }
+      });
+    });
+  }
+}
+
+// Enhanced error tracking
+function trackErrors() {
+  window.addEventListener('error', function(event) {
+    safeTrack('javascript_error', {
+      'event_category': 'blossom_solver',
+      'event_label': 'client_side_error',
+      'custom_parameters': {
+        'error_message': event.message,
+        'error_source': event.filename,
+        'error_line': event.lineno
+      }
+    });
+  });
+}
+
+// Main initialization function
 document.addEventListener('DOMContentLoaded', function() {
+  // Initialize engagement tracking
+  const engagement = trackUserEngagement();
+  
   // Initialize buttons
   updateButtons('{{ petal_letter }}');
   
@@ -206,41 +441,74 @@ document.addEventListener('DOMContentLoaded', function() {
       row.classList.add('used-word');
     }
     
-    // Add change event listener
+    // Add change event listener with engagement tracking
     checkbox.addEventListener('change', function() {
       handleCheckboxChange(this);
+      engagement.incrementWords();
+      engagement.incrementInteractions();
     });
   });
 
-  // Safe gtag function that won't crash if GA isn't loaded
-  function safeTrack(eventName, properties) {
-    try {
-      if (typeof gtag !== 'undefined') {
-        gtag('event', eventName, properties);
-      }
-    } catch (error) {
-      // Silently fail - no console logs to avoid noise
-    }
-  }
+  // Initialize all tracking
+  trackExternalLinks();
+  trackInternalNavigation();
+  trackFormInputs();
+  trackResetActions();
+  trackErrors();
 
-  // Track page view
+  // Track initial page view with context
+  const centerLetter = document.querySelector('input[name="must_have"]')?.value || '';
+  const petalLetters = document.querySelector('input[name="may_have"]')?.value || '';
+  const hasExistingData = centerLetter.length > 0 || petalLetters.length > 0;
+  
   safeTrack('page_view', {
-    'event_category': 'game_solver',
-    'event_label': 'blossom_solver'
+    'event_category': 'blossom_solver',
+    'event_label': 'solver_loaded',
+    'custom_parameters': {
+      'has_existing_data': hasExistingData,
+      'center_letter_present': centerLetter.length > 0,
+      'petal_letters_complete': petalLetters.length === 6,
+      'page_type': 'blossom_solver'
+    }
   });
 
-  // Track form submissions
+  // Track form submissions with enhanced data
   const form = document.querySelector('form[name="form1"]');
   if (form) {
     form.addEventListener('submit', function(event) {
+      const centerLetter = document.querySelector('input[name="must_have"]')?.value || '';
+      const petalLetters = document.querySelector('input[name="may_have"]')?.value || '';
+      const wordCount = document.querySelector('input[name="list_len"]')?.value || '';
+      const selectedPetal = document.querySelector('button[name="petal_letter"]')?.value || '';
+      
       safeTrack('form_submit', {
         'event_category': 'blossom_solver',
-        'event_label': 'word_search'
+        'event_label': 'word_search_submitted',
+        'custom_parameters': {
+          'center_letter': centerLetter.toLowerCase(),
+          'petal_letters': petalLetters.toLowerCase(),
+          'requested_word_count': parseInt(wordCount) || 0,
+          'selected_bonus_petal': selectedPetal.toLowerCase(),
+          'form_complete': centerLetter.length === 1 && petalLetters.length === 6
+        }
       });
     });
   }
-});
 
+  // Track successful results display
+  const resultsTable = document.querySelector('table.blossom-info');
+  if (resultsTable) {
+    const wordCount = document.querySelectorAll('.word-checkbox').length;
+    safeTrack('results_displayed', {
+      'event_category': 'blossom_solver',
+      'event_label': 'words_found',
+      'value': wordCount,
+      'custom_parameters': {
+        'total_words_found': wordCount
+      }
+    });
+  }
+});
 </script>
 
 <form name="form1" action="/blossom" method="post">

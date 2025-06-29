@@ -23,7 +23,7 @@ sys.path.append('/functions')
 
 from functions import wordle
 
-from functions import stocks
+# from functions import stocks
 from functions import all_words
 from functions import data_analysis
 from functions import plot_viz
@@ -1085,54 +1085,54 @@ def run_wordle_example():
 ######################################
 ######################################
 
-@app.route("/stock_analysis", methods=["POST", "GET"])
-def stock_analysis():
+# @app.route("/stock_analysis", methods=["POST", "GET"])
+# def stock_analysis():
 
-    stock_default_values = {
-        'stock_list_init_val': 'AAPL',
-        'trade_type_val': 'stock',
-        'contrib_amt_init_val': 10,
-        'total_weeks_val': 52,
-        'buyvalue_val': 1.2,
-        'multiplier_val': 3,
-        'nth_week_val': 1,
-        'roll_days_val': 'quarter',
-        'trade_dow_val': 'Monday'
-    }
+#     stock_default_values = {
+#         'stock_list_init_val': 'AAPL',
+#         'trade_type_val': 'stock',
+#         'contrib_amt_init_val': 10,
+#         'total_weeks_val': 52,
+#         'buyvalue_val': 1.2,
+#         'multiplier_val': 3,
+#         'nth_week_val': 1,
+#         'roll_days_val': 'quarter',
+#         'trade_dow_val': 'Monday'
+#     }
 
-    if request.method == "POST":
-        stock_list_init = request.form["stock_list_init"]
+#     if request.method == "POST":
+#         stock_list_init = request.form["stock_list_init"]
 
-        trade_type = request.form["trade_type"]
-        # trade_type = ['stock', 'crypto', 'index']
-        # colour_return = request.form["colour_return"]
+#         trade_type = request.form["trade_type"]
+#         # trade_type = ['stock', 'crypto', 'index']
+#         # colour_return = request.form["colour_return"]
 
-        contrib_amt_init = request.form["contrib_amt_init"]
-        total_weeks = request.form["total_weeks"]
-        buyvalue = request.form["buyvalue"]
-        multiplier = request.form["multiplier"]
-        nth_week = request.form["nth_week"]
-        roll_days = request.form["roll_days"]
-        trade_dow = request.form["trade_dow"]
-        pred_open_out, final_buy_out, data_out, valid_graph = stocks.stock_pred(stock_list_init, trade_type, contrib_amt_init, total_weeks, buyvalue, multiplier, nth_week, roll_days, trade_dow)
-        date = list(str(data_out['date']))
-        date = list(range(1, len(data_out)+1))
-        val = list(round(data_out['val'],2))
-        pred = list(round(data_out['pred'],2))
+#         contrib_amt_init = request.form["contrib_amt_init"]
+#         total_weeks = request.form["total_weeks"]
+#         buyvalue = request.form["buyvalue"]
+#         multiplier = request.form["multiplier"]
+#         nth_week = request.form["nth_week"]
+#         roll_days = request.form["roll_days"]
+#         trade_dow = request.form["trade_dow"]
+#         pred_open_out, final_buy_out, data_out, valid_graph = stocks.stock_pred(stock_list_init, trade_type, contrib_amt_init, total_weeks, buyvalue, multiplier, nth_week, roll_days, trade_dow)
+#         date = list(str(data_out['date']))
+#         date = list(range(1, len(data_out)+1))
+#         val = list(round(data_out['val'],2))
+#         pred = list(round(data_out['pred'],2))
 
-        return render_template("stock_analysis.html", pred_open_out=pred_open_out, final_buy_out=final_buy_out, date=date, val=val, pred=pred, valid_graph=valid_graph, data_out=data_out, \
-            stock_list_init_val=stock_list_init, trade_type_val=trade_type, contrib_amt_init_val=contrib_amt_init, \
-            # stock_list_init_val=stock_list_init, contrib_amt_init_val=contrib_amt_init, \
-            total_weeks_val=total_weeks, buyvalue_val=buyvalue, multiplier_val=multiplier, nth_week_val=nth_week, roll_days_val=roll_days, trade_dow_val=trade_dow)
-    else:
+#         return render_template("stock_analysis.html", pred_open_out=pred_open_out, final_buy_out=final_buy_out, date=date, val=val, pred=pred, valid_graph=valid_graph, data_out=data_out, \
+#             stock_list_init_val=stock_list_init, trade_type_val=trade_type, contrib_amt_init_val=contrib_amt_init, \
+#             # stock_list_init_val=stock_list_init, contrib_amt_init_val=contrib_amt_init, \
+#             total_weeks_val=total_weeks, buyvalue_val=buyvalue, multiplier_val=multiplier, nth_week_val=nth_week, roll_days_val=roll_days, trade_dow_val=trade_dow)
+#     else:
 
-        # For GET requests, use query parameters
-        for key in stock_default_values.keys():
-            stock_default_values[key] = request.args.get(key, stock_default_values[key])
+#         # For GET requests, use query parameters
+#         for key in stock_default_values.keys():
+#             stock_default_values[key] = request.args.get(key, stock_default_values[key])
 
-        log_page_visit('stock_analysis.html')
+#         log_page_visit('stock_analysis.html')
 
-        return render_template("stock_analysis.html", **stock_default_values)
+#         return render_template("stock_analysis.html", **stock_default_values)
 
 
 
@@ -1980,6 +1980,23 @@ def hex_game():
     log_page_visit('hex.html')
 
     return render_template("hex.html")
+
+
+
+
+######################################
+######################################
+##### privacy policy
+######################################
+######################################
+
+@app.route('/privacy-policy')
+def privacy_policy():
+
+    log_page_visit('privacy_policy.html')
+
+    return render_template('privacy_policy.html')
+
 
 
 
