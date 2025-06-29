@@ -68,7 +68,9 @@ if 'IS_HEROKU' in os.environ:
         "password": os.environ.get('jawsdb_pass'),
         "host": os.environ.get('jawsdb_host'),
         "pool_name": "mypool",
-        "pool_size": 3
+        "pool_size": 3,
+        "pool_reset_session": True,
+        "autocommit": True           # Add this to reduce connection time
     }
     GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
@@ -85,7 +87,7 @@ if 'IS_HEROKU' in os.environ:
     SESSION_KEY = os.environ.get('SESSION_KEY')
 
     # Creating a connection pool
-    cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_reset_session=True, **pool_config)
+    cnxpool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
 
     def get_db_connection():
         return cnxpool.get_connection()
@@ -130,28 +132,6 @@ if not SESSION_KEY:
         SESSION_KEY = 'dev-key-change-for-production-' + secrets.token_hex(16)
         print(f"Using development session key. Set SESSION_KEY env var for production.")
 
-# def log_page_visit(page_name_value):
-#     # log visits
-#     referrer = request.headers.get('Referer', 'No referrer')
-#     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-#     page_name = page_name_value
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         query = """
-#         INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-#         VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-#         """
-#         cursor.execute(query, (page_name, referrer, user_agent))
-#         conn.commit()
-#     except mysql.connector.Error as err:
-#         print("Error:", err)
-#     finally:
-#         if cursor is not None:
-#             cursor.close()
-#         if conn is not None and conn.is_connected():
-#             conn.close()
-
 def log_page_visit(page_name_value):
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
@@ -168,6 +148,9 @@ def log_page_visit(page_name_value):
             """
             cursor.execute(query, (page_name, referrer, user_agent))
             conn.commit()
+    except mysql.connector.PoolError:
+        # Pool exhausted - just skip logging, don't break the app
+        print("Skipping page visit log - connection pool busy")
     except mysql.connector.Error as err:
         print("MySQL Error:", err)
     except Exception as e:
@@ -175,6 +158,7 @@ def log_page_visit(page_name_value):
     finally:
         if conn is not None and conn.is_connected():
             conn.close()
+
 
 ########## Other SQL stuff ##########
 
