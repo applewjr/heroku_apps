@@ -112,116 +112,138 @@
 </style>
 
 <script>
-  // Updated function to accept selectedLetter as an argument
-  function updateButtons(selectedLetter = '') {
-    const mayHaveValue = document.getElementById('may_have').value;
-    const buttonsContainer = document.getElementById('buttons-container');
-    buttonsContainer.innerHTML = ''; // Clear existing buttons
-    
-    // Create new buttons based on input
-    for (let char of mayHaveValue) {
-      const button = document.createElement('button');
-      button.type = 'submit';
-      button.name = 'petal_letter'; // Use this name to identify the button in Flask
-      button.value = char; // The value of the button is the character
-      button.textContent = char.toUpperCase(); // Display letter as uppercase
 
-      // Apply styles directly to each button
-      button.style.width = '60px';
-      button.style.backgroundColor = '#02484d';
-      button.style.color = 'white';
-      button.style.padding = '10px 20px'; // Default padding
-      button.style.border = '2px solid transparent'; // Default transparent border to maintain size
-      button.style.borderRadius = '4px';
-      button.style.cursor = 'pointer';
-      button.style.margin = '5px'; // Add a margin around each button
+// Updated function to accept selectedLetter as an argument
+function updateButtons(selectedLetter = '') {
+  const mayHaveValue = document.getElementById('may_have').value;
+  const buttonsContainer = document.getElementById('buttons-container');
+  buttonsContainer.innerHTML = ''; // Clear existing buttons
+  
+  // Create new buttons based on input
+  for (let char of mayHaveValue) {
+    const button = document.createElement('button');
+    button.type = 'submit';
+    button.name = 'petal_letter'; // Use this name to identify the button in Flask
+    button.value = char; // The value of the button is the character
+    button.textContent = char.toUpperCase(); // Display letter as uppercase
 
-      if (char === selectedLetter) {
-          button.style.border = '3px solid #ca9546'; // Highlighted state
-      }
+    // Apply styles directly to each button
+    button.style.width = '60px';
+    button.style.backgroundColor = '#02484d';
+    button.style.color = 'white';
+    button.style.padding = '10px 20px'; // Default padding
+    button.style.border = '2px solid transparent'; // Default transparent border to maintain size
+    button.style.borderRadius = '4px';
+    button.style.cursor = 'pointer';
+    button.style.margin = '5px'; // Add a margin around each button
 
-      buttonsContainer.appendChild(button);
+    if (char === selectedLetter) {
+        button.style.border = '3px solid #ca9546'; // Highlighted state
     }
+
+    buttonsContainer.appendChild(button);
+  }
+}
+
+// Function to handle checkbox changes
+function handleCheckboxChange(checkbox) {
+  const word = checkbox.getAttribute('data-word');
+  const row = checkbox.closest('tr');
+  
+  // Toggle visual styling
+  if (checkbox.checked) {
+    row.classList.add('used-word');
+  } else {
+    row.classList.remove('used-word');
   }
 
-  // Function to handle checkbox changes
-  function handleCheckboxChange(checkbox) {
-    const word = checkbox.getAttribute('data-word');
-    const row = checkbox.closest('tr');
-    
-    // Toggle visual styling
-    if (checkbox.checked) {
-      row.classList.add('used-word');
-    } else {
-      row.classList.remove('used-word');
-    }
-
-    // Send AJAX request to update session
-    fetch('/blossom', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'toggle_word',
-        word: word
-      })
+  // Send AJAX request to update session
+  fetch('/blossom', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'toggle_word',
+      word: word
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status !== 'success') {
-        console.error('Failed to update word status');
-        // Revert checkbox state if server update failed
-        checkbox.checked = !checkbox.checked;
-        if (checkbox.checked) {
-          row.classList.add('used-word');
-        } else {
-          row.classList.remove('used-word');
-        }
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      // Revert checkbox state if request failed
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status !== 'success') {
+      console.error('Failed to update word status');
+      // Revert checkbox state if server update failed
       checkbox.checked = !checkbox.checked;
       if (checkbox.checked) {
         row.classList.add('used-word');
       } else {
         row.classList.remove('used-word');
       }
-    });
-  }
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    // Revert checkbox state if request failed
+    checkbox.checked = !checkbox.checked;
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    } else {
+      row.classList.remove('used-word');
+    }
+  });
+}
 
-  document.addEventListener('DOMContentLoaded', function() {
-    updateButtons('{{ petal_letter }}');
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize buttons
+  updateButtons('{{ petal_letter }}');
+  
+  // Add event listeners to checkboxes
+  const checkboxes = document.querySelectorAll('.word-checkbox');
+  checkboxes.forEach(checkbox => {
+    // Apply initial styling based on checkbox state
+    const row = checkbox.closest('tr');
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    }
     
-    // Add event listeners to checkboxes
-    const checkboxes = document.querySelectorAll('.word-checkbox');
-    checkboxes.forEach(checkbox => {
-      // Apply initial styling based on checkbox state
-      const row = checkbox.closest('tr');
-      if (checkbox.checked) {
-        row.classList.add('used-word');
-      }
-      
-      // Add change event listener
-      checkbox.addEventListener('change', function() {
-        handleCheckboxChange(this);
-      });
+    // Add change event listener
+    checkbox.addEventListener('change', function() {
+      handleCheckboxChange(this);
     });
   });
 
-  const buttonContainer = document.createElement('div');
-  buttonContainer.className = 'button-container';
+  // Safe gtag function that won't crash if GA isn't loaded
+  function safeTrack(eventName, properties) {
+    try {
+      if (typeof gtag !== 'undefined') {
+        gtag('event', eventName, properties);
+      }
+    } catch (error) {
+      // Silently fail - no console logs to avoid noise
+    }
+  }
 
-  // Create and style your button here
+  // Track page view
+  safeTrack('page_view', {
+    'event_category': 'game_solver',
+    'event_label': 'blossom_solver'
+  });
 
-  buttonContainer.appendChild(button);
-  buttonsContainer.appendChild(buttonContainer);
+  // Track form submissions
+  const form = document.querySelector('form[name="form1"]');
+  if (form) {
+    form.addEventListener('submit', function(event) {
+      safeTrack('form_submit', {
+        'event_category': 'blossom_solver',
+        'event_label': 'word_search'
+      });
+    });
+  }
+});
 
 </script>
 
-<form name="form1" action="#" method="post">
+<form name="form1" action="/blossom" method="post">
   <center>
   <br>
   <h1 style="text-align: center">Blossom Word Finder & Solver</h1>
