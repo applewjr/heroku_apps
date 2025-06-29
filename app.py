@@ -465,10 +465,20 @@ def run_wordle_revamp():
         return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
     else:
-
+        # Call the solver with empty data to get initial recommendations
+        empty_data = []
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, empty_data)
+        
         log_page_visit('wordle_revamp.html')
 
-        return render_template("wordle_revamp.html")
+        # Pass the results to JavaScript on page load
+        return render_template("wordle_revamp.html", 
+                            initial_out1=final_out1,
+                            initial_out2=final_out2, 
+                            initial_out3=final_out3,
+                            initial_out4=final_out4,
+                            initial_out5=final_out5,
+                            initial_out_end=final_out_end)
 
     
 
@@ -565,10 +575,19 @@ def run_antiwordle_revamp():
         return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
     else:
-
+        # Call the solver with empty data to get initial recommendations
+        empty_data = []
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, empty_data)
+        
         log_page_visit('antiwordle_revamp.html')
 
-        return render_template("antiwordle_revamp.html")
+        return render_template("antiwordle_revamp.html", 
+                             initial_out1=final_out1,
+                             initial_out2=final_out2, 
+                             initial_out3=final_out3,
+                             initial_out4=final_out4,
+                             initial_out5=final_out5,
+                             initial_out_end=final_out_end)
 
 
 @app.route("/antiwordle_og", methods=["POST", "GET"])

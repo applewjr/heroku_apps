@@ -112,6 +112,17 @@
 </body>
 
 <script>
+
+// Store initial data
+window.initialRecommendations = {
+    final_out1: "{{ initial_out1|default('') }}",
+    final_out2: "{{ initial_out2|default('') }}",
+    final_out3: "{{ initial_out3|default('') }}",
+    final_out4: "{{ initial_out4|default('') }}",
+    final_out5: "{{ initial_out5|default('') }}",
+    final_out_end: "{{ initial_out_end|default('') }}"
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const boxes = document.querySelectorAll('#wordle-grid .wordle-box');
     
@@ -119,10 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (boxes.length > 0) {
         boxes[0].focus();
     }
-    
+
+    // Show initial recommendations if they exist
+    if (window.initialRecommendations && window.initialRecommendations.final_out1) {
+        updateUI(window.initialRecommendations);
+    }
+
     boxes.forEach((box, index) => {
         box.addEventListener('input', (event) => {
             box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
+            
+            // If the box is now empty, reset color to default
+            if (box.value === '') {
+                box.dataset.state = '0';
+                box.className = 'wordle-box color-0';
+            }
+            
             triggerUpdate();
 
             if (box.value && index < boxes.length - 1) {
@@ -133,12 +156,19 @@ document.addEventListener('DOMContentLoaded', () => {
         box.addEventListener('click', (event) => {
             event.preventDefault(); 
 
-            let currentState = parseInt(box.dataset.state);
-            let newState = (currentState + 1) % 4;
-            box.dataset.state = newState;
-            box.className = `wordle-box color-${newState}`;
+            // Only allow color change if there's a letter in the box
+            if (box.value && box.value.trim() !== '') {
+                let currentState = parseInt(box.dataset.state);
+                let newState = (currentState + 1) % 4;
+                // Skip state 0 (white) when cycling through colors for filled boxes
+                if (newState === 0) {
+                    newState = 1;
+                }
+                box.dataset.state = newState;
+                box.className = `wordle-box color-${newState}`;
 
-            triggerUpdate();
+                triggerUpdate();
+            }
         });
 
         box.addEventListener('keydown', (event) => {
@@ -147,6 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (index > 0) {
                     boxes[index - 1].focus();
                     boxes[index - 1].value = ''; // Optional: clear the previous box value
+                    // Reset color when clearing the box
+                    boxes[index - 1].dataset.state = '0';
+                    boxes[index - 1].className = 'wordle-box color-0';
                     triggerUpdate();
                 }
             }
