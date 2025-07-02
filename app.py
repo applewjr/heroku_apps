@@ -2058,8 +2058,7 @@ def robots_txt():
 @app.route('/ads.txt')
 def ads_txt():
     log_page_visit('ads.txt')
-    content = """google.com, pub-6048977647228919, DIRECT, f08c47fec0942fa0"""
-    return Response(content, mimetype='text/plain')
+    return send_from_directory(app.static_folder, 'ads.txt', mimetype='text/plain')
 
 @app.route('/<path:icon_name>.png')
 def serve_png_icon(icon_name):
