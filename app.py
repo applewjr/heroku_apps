@@ -176,6 +176,15 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
+##### Redirect #####
+
+@app.before_request
+def redirect_non_www():
+    host = request.host.split(':')[0]
+    if host == 'jamesapplewhite.com':
+        return redirect(request.url.replace('://jamesapplewhite.com', '://www.jamesapplewhite.com'), code=301)
+
+
 ##### socket quill #####
 
 # app.config['SECRET_KEY'] = QUILL_SECRET
@@ -2040,7 +2049,6 @@ def feedback():
 @app.route("/feedback_received", methods=["GET"])
 def feedback_received():
     return render_template("feedback_received.html")
-
 
 
 
