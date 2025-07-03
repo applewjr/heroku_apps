@@ -1261,22 +1261,27 @@ def blossom_solver():
         must_have = request.form["must_have"]
         may_have = request.form["may_have"]
         petal_letter = request.form["petal_letter"]
-        list_len = request.form["list_len"]
-        if list_len == '':
-            list_len = 25
-        list_len = int(list_len)
-        
+
+        # Handle load more functionality
+        current_count = 25  # Default starting count
+        if request.form.get("load_more"):
+            current_count = int(request.form.get("current_count", 25)) + 25
+        elif request.form.get("current_count"):
+            current_count = int(request.form.get("current_count", 25))
+
         # Get used words from session
         used_words = session.get('used_words', [])
-        
+
         # Get the blossom table and modify it to include checkboxes
-        blossom_table, valid_word_count = all_words.filter_words_blossom_revamp(must_have, may_have, petal_letter, list_len, words, used_words)
-        valid_word_count = f'Valid Word Count: {valid_word_count}'
+        blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
+            must_have, may_have, petal_letter, current_count, words, used_words
+        )
+        valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
 
         # Make session permanent (4 hours)
         session.permanent = True
 
-        # log clicks and inputs
+        # log clicks and inputs - use actual displayed count
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -1284,7 +1289,7 @@ def blossom_solver():
             INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
             VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
             """
-            cursor.execute(query, (must_have, may_have, petal_letter, list_len))
+            cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
             conn.commit()
         except mysql.connector.Error as err:
             print("Error:", err)
@@ -1295,13 +1300,14 @@ def blossom_solver():
                 conn.close()
 
         return render_template("blossom.html", 
-                             blossom_table=blossom_table, 
-                             must_have_val=must_have, 
-                             may_have_val=may_have, 
-                             list_len_val=list_len, 
-                             petal_letter=petal_letter, 
-                             valid_word_count=valid_word_count,
-                             used_words=used_words)
+                            blossom_table=blossom_table, 
+                            must_have_val=must_have, 
+                            may_have_val=may_have, 
+                            petal_letter=petal_letter, 
+                            valid_word_count=valid_word_count,
+                            used_words=used_words,
+                            current_count=current_count,
+                            show_load_more=show_load_more)
 
     else:
         # Initialize session for used words if it doesn't exist
@@ -1315,8 +1321,9 @@ def blossom_solver():
         log_page_visit('blossom.html')
 
         return render_template("blossom.html", 
-                             list_len_val=25, 
-                             used_words=used_words)
+                            used_words=used_words,
+                            current_count=25,
+                            show_load_more=False)
 
 # Add this new route for clearing session data
 @app.route("/blossom/reset")
