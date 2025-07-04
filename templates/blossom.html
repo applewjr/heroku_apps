@@ -143,6 +143,7 @@ function updateButtons(selectedLetter = '') {
     });
   }
   
+  
   // Create new buttons based on input
   for (let char of mayHaveValue) {
     const button = document.createElement('button');
@@ -478,18 +479,18 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(event) {
       const centerLetter = document.querySelector('input[name="must_have"]')?.value || '';
       const petalLetters = document.querySelector('input[name="may_have"]')?.value || '';
-      const wordCount = document.querySelector('input[name="list_len"]')?.value || '';
       const selectedPetal = document.querySelector('button[name="petal_letter"]')?.value || '';
+      const isLoadMore = event.submitter?.name === 'load_more';
       
       safeTrack('form_submit', {
         'event_category': 'blossom_solver',
-        'event_label': 'word_search_submitted',
+        'event_label': isLoadMore ? 'load_more_words' : 'word_search_submitted',
         'custom_parameters': {
           'center_letter': centerLetter.toLowerCase(),
           'petal_letters': petalLetters.toLowerCase(),
-          'requested_word_count': parseInt(wordCount) || 0,
           'selected_bonus_petal': selectedPetal.toLowerCase(),
-          'form_complete': centerLetter.length === 1 && petalLetters.length === 6
+          'form_complete': centerLetter.length === 1 && petalLetters.length === 6,
+          'action_type': isLoadMore ? 'load_more' : 'new_search'
         }
       });
     });
@@ -513,6 +514,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <form name="form1" action="/blossom" method="post">
   <center>
+
+  <input type="hidden" name="current_count" value="{{current_count|default(25)}}">
+
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
   <br>
@@ -526,13 +530,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <p class="pad_lr_30" style="text-align: center">Petal Letters (6 Letters)</p>
   <input type="text" id="may_have" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="6" minlength="6" pattern="[A-Za-z]{6}" title="Please enter 6 letters. No spaces, numbers, or special characters." placeholder="BCDEFG" oninput="updateButtons()">
 
-  <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-  <p class="pad_lr_30" style="text-align: center">Count of Words to Produce (Number)</p>
-  <input type="text" pattern="[0-9]*" name="list_len" style="text-align: center;width: 75px;" value="{{list_len_val}}" maxlength="25">
-
-  <hr style="width:50%;border: 1px dashed #d3d6da;">
-
+  <br>
+  <br>
   <p class="pad_lr_30" style="text-align: center">Select the Bonus Petal Letter (Yellow Outline)</p>
   <div id="buttons-container">
     <!-- Dynamic buttons will be added here -->
@@ -545,12 +544,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
   {{blossom_table|safe}}
   <br>
+  {% if show_load_more %}
+  <form method="POST" action="/blossom" style="display: inline;">
+    <input type="hidden" name="must_have" value="{{must_have_val}}">
+    <input type="hidden" name="may_have" value="{{may_have_val}}">
+    <input type="hidden" name="petal_letter" value="{{petal_letter}}">
+    <input type="hidden" name="current_count" value="{{current_count}}">
+    <button type="submit" name="load_more" value="true" style="
+        background-color: #f5f5f5;
+        border: 1px solid #ddd;
+        color: #666;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+    ">+ Show 25 more</button>
+  </form>
+  <br>
+  <br>
+  {% endif %}
   {{valid_word_count}}
 
   <br>
   <br>
   <br>
-  <a href="/blossom/reset">
+  <a href="/blossom/reset" style="display: inline-block;">
     <div class="spinning-image">
       <img alt="Reset" src="/static/reset_logo.png">
     </div>

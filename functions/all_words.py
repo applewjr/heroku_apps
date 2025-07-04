@@ -311,6 +311,7 @@ def length_score(word_length):
 def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None):
     """
     Enhanced version that includes checkbox column for session-based word tracking
+    and supports load more functionality
     """
     if used_words is None:
         used_words = []
@@ -336,7 +337,14 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     df = pd.DataFrame(valid_words_scores, columns=['Word', 'Score', 'Pangram'])
     df.sort_values(by='Score', ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
-    valid_word_count = len(df)
+    
+    # Get total count of all valid words
+    total_valid_words = len(df)
+    
+    # Determine if there are more words to show
+    show_load_more = total_valid_words > list_len
+    
+    # Get only the words to display (up to list_len)
     top_df = df.head(list_len)
     
     # Add checkbox column with session-based checking
@@ -350,4 +358,5 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     # Convert to HTML with escape=False to render HTML checkboxes
     blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', 'Pangram'], escape=False)
         
-    return blossom_table, valid_word_count
+    # Return table, total count, and load more flag
+    return blossom_table, total_valid_words, show_load_more
