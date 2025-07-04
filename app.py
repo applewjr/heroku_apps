@@ -248,9 +248,9 @@ cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'}) # SimpleCache is fine f
 
 @app.route('/log-click', methods=['POST'])
 def log_click():
-    data = request.get_json()
-    clicked_url = data.get('url')
-    log_page_visit(clicked_url)
+    # data = request.get_json()
+    # clicked_url = data.get('url')
+    # log_page_visit(clicked_url)
     return jsonify({"status": "success"}), 200
 
 
@@ -268,7 +268,7 @@ def run_index():
     if request.method == "POST":
         return render_template("index.html")
     else:
-        log_page_visit('index.html')
+        # log_page_visit('index.html')
         return render_template("index.html")
 
 
@@ -462,7 +462,7 @@ def run_wordle_revamp():
         empty_data = []
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, empty_data)
         
-        log_page_visit('wordle_revamp.html')
+        # log_page_visit('wordle_revamp.html')
 
         # Pass the results to JavaScript on page load
         return render_template("wordle_revamp.html", 
@@ -539,7 +539,7 @@ def run_wordle():
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.wordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
-        log_page_visit('wordle.html')
+        # log_page_visit('wordle.html')
 
         return render_template("wordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
@@ -572,7 +572,7 @@ def run_antiwordle_revamp():
         empty_data = []
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, empty_data)
         
-        log_page_visit('antiwordle_revamp.html')
+        # log_page_visit('antiwordle_revamp.html')
 
         return render_template("antiwordle_revamp.html", 
                              initial_out1=final_out1,
@@ -647,7 +647,7 @@ def run_antiwordle():
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end = wordle.antiwordle_solver_split(df, must_not_be_present, \
             present1, present2, present3, present4, present5, not_present1, not_present2, not_present3, not_present4, not_present5)
 
-        log_page_visit('antiwordle.html')
+        # log_page_visit('antiwordle.html')
 
         return render_template("antiwordle.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             must_not_be_present_val=must_not_be_present, present1_val=present1, present2_val=present2, present3_val=present3, present4_val=present4, present5_val=present5, \
@@ -838,7 +838,7 @@ def run_quordle():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
-        log_page_visit('quordle.html')
+        # log_page_visit('quordle.html')
 
         return render_template("quordle.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -1041,7 +1041,7 @@ def run_quordle_mobile():
         must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
         must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
 
-        log_page_visit('quordle_mobile.html')
+        # log_page_visit('quordle_mobile.html')
 
         return render_template("quordle_mobile.html", \
             final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
@@ -1068,7 +1068,7 @@ def run_wordle_fixer():
         return render_template("fixer.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, must_be_present=must_be_present)
     else:
 
-        log_page_visit('fixer.html')
+        # log_page_visit('fixer.html')
 
         return render_template("fixer.html")
 
@@ -1079,7 +1079,7 @@ def run_wordle_example():
         return render_template("wordle_example.html")
     else:
 
-        log_page_visit('wordle_example.html')
+        # log_page_visit('wordle_example.html')
 
         return render_template("wordle_example.html")
 
@@ -1154,7 +1154,7 @@ def run_wordle_example():
 @app.route('/dogs')
 def dogs():
 
-    log_page_visit('dog_count.html')
+    # log_page_visit('dog_count.html')
 
     return render_template('dog_count.html')
 
@@ -1197,7 +1197,7 @@ def run_common_denominator():
             num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
     else:
 
-        log_page_visit('common_denominator.html')
+        # log_page_visit('common_denominator.html')
 
         return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
@@ -1233,7 +1233,7 @@ def blossom():
 
     else:
 
-        log_page_visit('blossom_bee.html')
+        # log_page_visit('blossom_bee.html')
 
         return render_template("blossom_bee.html", list_len_val=25)
 
@@ -1354,7 +1354,7 @@ def any_word():
             min_length_val=min_length, max_length_val=max_length)#, required_substrings_val=required_substrings, forbidden_substrings_val=forbidden_substrings)
     else:
 
-        log_page_visit('any_word.html')
+        # log_page_visit('any_word.html')
 
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
@@ -1406,7 +1406,7 @@ def data_summ():
 @app.route('/resume')
 def resume():
 
-    log_page_visit('resume.html')
+    # log_page_visit('resume.html')
 
     return render_template('resume.html')
 
@@ -1530,7 +1530,7 @@ def youtube_trending():
     temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
     yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
 
-    log_page_visit('youtube_trending.html')
+    # log_page_visit('youtube_trending.html')
 
     return render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
@@ -1589,7 +1589,7 @@ def etl_status_dash(round):
     cursor.close()
     conn.close()
 
-    log_page_visit(f'etl_dash_{round}.html')
+    # log_page_visit(f'etl_dash_{round}.html')
 
     return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
 
@@ -1711,7 +1711,7 @@ def validate_password():
 @app.route('/espresso/home/', methods=['GET', 'POST'])
 def espresso_home():
 
-    log_page_visit('espresso_home.html')
+    # log_page_visit('espresso_home.html')
 
     return render_template('espresso_home.html')
 
@@ -1753,7 +1753,7 @@ def espresso_recommendation():
         df_analyze, df_scatter_blank = espresso.clean_espresso_df(user_pred, roast_pred, shots_pred, df_espresso_initial, df_profile, water_temp_na_val)
         optimal_parameters_dict, good_run, performance_dict = espresso.find_optimal_espresso_parameters(df_analyze)
 
-        log_page_visit('espresso_recommendation.html')
+        # log_page_visit('espresso_recommendation.html')
 
         return render_template('espresso_recommendation.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,optimal_parameters_dict=optimal_parameters_dict, performance_dict=performance_dict, good_run=good_run, user_pred_val=user_pred, roast_pred_val=roast_pred, shots_pred_val=shots_pred \
@@ -1809,7 +1809,7 @@ def espresso_plot():
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
 
-        log_page_visit('espresso_plot.html')
+        # log_page_visit('espresso_plot.html')
 
         return render_template('espresso_plot.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col \
@@ -1907,7 +1907,7 @@ def espresso_explore():
         temp_scatter_3d_plot = 'static/scatter_3d.png'
         scatter_3d.savefig(temp_scatter_3d_plot)
 
-        log_page_visit('espresso_explore.html')
+        # log_page_visit('espresso_explore.html')
 
         return render_template('espresso_explore.html' \
             ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
@@ -1941,7 +1941,7 @@ def espresso_baseline():
     else:
         naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 
-        log_page_visit('espresso_baseline.html')
+        # log_page_visit('espresso_baseline.html')
 
         return render_template('espresso_baseline.html', naive_espresso_info=naive_espresso_info, roast_val=roast, dose_val=dose \
             ,roast_options=roast_options, dose_options=dose_options)
@@ -1974,7 +1974,7 @@ def mtg_prices():
     df_decrease = df.sort_values(by='1 Week Change', ascending=True).head(10).copy()
     df_decrease = df_decrease.reset_index(drop=True)
 
-    log_page_visit('mtg_prices.html')
+    # log_page_visit('mtg_prices.html')
 
     return render_template('mtg_prices.html', tables_increase=[df_increase.to_html(escape=False)], tables_decrease=[df_decrease.to_html(escape=False)], titles=df.columns.values, today_price_date_str=today_price_date_str)
 
@@ -1993,7 +1993,7 @@ def mtg_prices():
 @app.route("/hex")
 def hex_game():
 
-    log_page_visit('hex.html')
+    # log_page_visit('hex.html')
 
     return render_template("hex.html")
 
@@ -2009,7 +2009,7 @@ def hex_game():
 @app.route('/privacy-policy')
 def privacy_policy():
 
-    log_page_visit('privacy_policy.html')
+    # log_page_visit('privacy_policy.html')
 
     return render_template('privacy_policy.html')
 
@@ -2049,7 +2049,7 @@ def feedback():
         return render_template("feedback_received.html")
     else:
 
-        log_page_visit('feedback.html')
+        # log_page_visit('feedback.html')
 
         return render_template("feedback.html")
 
@@ -2067,22 +2067,22 @@ def feedback_received():
 
 @app.route('/robots.txt')
 def robots_txt():
-    log_page_visit('robots.txt')
+    # log_page_visit('robots.txt')
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
 
 @app.route('/ads.txt')
 def ads_txt():
-    log_page_visit('ads.txt')
+    # log_page_visit('ads.txt')
     return send_from_directory(app.static_folder, 'ads.txt', mimetype='text/plain')
 
 @app.route('/<path:icon_name>.png')
 def serve_png_icon(icon_name):
-    log_page_visit(f'{icon_name}.png')
+    # log_page_visit(f'{icon_name}.png')
     return redirect(url_for('static', filename=f'{icon_name}.png'), code=302)
 
 @app.route('/favicon.ico')
 def favicon_ico():
-    log_page_visit('favicon.ico')
+    # log_page_visit('favicon.ico')
     return redirect(url_for('static', filename='favicon.ico'), code=302)
 
 
@@ -2090,14 +2090,14 @@ def favicon_ico():
 @app.errorhandler(404)
 def page_not_found(e):
     return_type = '404 - Page Not Found'
-    log_page_visit(f'error.html (404: {e})')
+    # log_page_visit(f'error.html (404: {e})')
     print(e)
     return render_template('error.html', return_type=return_type), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     return_type = '500 - Error'
-    log_page_visit(f'error.html (500: {e})')
+    # log_page_visit(f'error.html (500: {e})')
     print(e)
     return render_template('error.html', return_type=return_type), 500
 
@@ -2105,7 +2105,7 @@ def handle_exception(e):
 @app.route('/<path:path>')
 def catch_all(path):
     return_type = '404 - Undefined Path'
-    log_page_visit(f'error.html (undefined path: {path})')
+    # log_page_visit(f'error.html (undefined path: {path})')
     return render_template('error.html', return_type=return_type), 404
 
 
