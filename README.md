@@ -27,11 +27,14 @@ This is my central hub where I practice:
 ### Notable sections
 
 [Magic: The Gathering Price Fluctuations](https://www.jamesapplewhite.com/mtg)
+- Full data pipeline repo: https://github.com/applewjr/mtg-prices
+- Secondary front end for the MTG data: https://mtg-price-dashboard.streamlit.app
 - Ingest daily Magic: The Gathering card price data from the Scryfall API
 - Convert the data into Parquet format and store it in S3, partitioned using Apache Iceberg tables for efficient querying in Athena
 - Use AWS Lambda and Step Functions to automate the end-to-end data processing and ingestion into Athena tables
 - Query the Iceberg tables in Athena to detect notable daily price changes, and export the results to CSV
 - Publish daily price updates to a web app via CloudFront, and send notifications through SNS
+
 
 [Espresso Optimizer](https://www.jamesapplewhite.com/espresso)
 - Implemented Google Forms and Google Sheets API integration for real-time data import to allow for immediate analysis
@@ -60,9 +63,6 @@ This is my central hub where I practice:
 - Pulls player (summoner), character (champion), and match data
 - Parse all data from source JSON into a series of dataframes, taking care to replace values that don't always show up
 - Auto emails sent to myself and my customer with pass/fail status messages
-
-[Stock Analysis](https://www.jamesapplewhite.com/stock_analysis)
-- Derived from my first large personal Python project in 2021. Optimize stock/crypto buying by adhering to the principles of mean reversion. Trendlines have short term variance but tend to run back to the mean. This function finds when a stock is trading notably lower than the projected price and provides triggers for when it may be advisable to buy in more aggressively (Not trading advice! *I went to healthcare school*)
 
 [Twitter Stock Bot](https://twitter.com/J_R_Applewhite)
 - Each morning, a series of .py scripts are automatically run
