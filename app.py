@@ -2090,14 +2090,22 @@ def favicon_ico():
 @app.errorhandler(404)
 def page_not_found(e):
     return_type = '404 - Page Not Found'
-    # log_page_visit(f'error.html (404: {e})')
+
+    referrer = request.headers.get('Referer', '')
+    if 'blossom' in referrer.lower():
+        log_page_visit(f'error.html (404: {e})')
+
     print(e)
     return render_template('error.html', return_type=return_type), 404
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     return_type = '500 - Error'
-    # log_page_visit(f'error.html (500: {e})')
+
+    referrer = request.headers.get('Referer', '')
+    if 'blossom' in referrer.lower():
+        log_page_visit(f'error.html (500: {e})')
+
     print(e)
     return render_template('error.html', return_type=return_type), 500
 
@@ -2105,7 +2113,11 @@ def handle_exception(e):
 @app.route('/<path:path>')
 def catch_all(path):
     return_type = '404 - Undefined Path'
-    # log_page_visit(f'error.html (undefined path: {path})')
+
+    referrer = request.headers.get('Referer', '')
+    if 'blossom' in referrer.lower():
+        log_page_visit(f'error.html (undefined path: {path})')
+
     return render_template('error.html', return_type=return_type), 404
 
 
