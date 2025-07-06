@@ -311,16 +311,33 @@ table.blossom-info {
     border-radius: 0 !important;
 }
 
-/* In button mode, disable input interaction */
-.petal-button.button-mode input {
-    pointer-events: none;
-    cursor: default;
+/* Cherry blossom purple when all letters are complete */
+.petal-button.button-mode {
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  background-color: #8B5A96; /* Cherry blossom purple */
+  transition: background-color 0.5s ease, box-shadow 0.3s ease;
 }
 
-/* Update button cursor based on mode */
-.petal-button.button-mode {
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+.petal-button.button-mode:hover {
+  background-color: #7A4D87; /* Slightly darker purple on hover */
+}
+
+/* Selected petal in button mode - keep the gold highlight */
+.petal-button.button-mode.selected {
+  border: 3px solid #ffd700;
+  background-color: #ffd700;
+}
+
+.petal-button.button-mode.selected input[type="text"] {
+  color: #02484d !important;
+  -webkit-text-fill-color: #02484d !important;
+}
+
+/* Make sure text stays white on purple petals */
+.petal-button.button-mode input[type="text"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .petal-button:not(.button-mode) {
@@ -376,12 +393,6 @@ table.blossom-info {
 .petal-button input:placeholder-shown,
 .center-letter input:placeholder-shown {
     opacity: 0.2;
-}
-
-/* Add visual feedback for button mode vs input mode */
-.petal-button.button-mode {
-  cursor: pointer;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
 .petal-button:not(.button-mode) {
