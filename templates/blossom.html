@@ -736,6 +736,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+
+  // Auto-focus center input on first load if it's empty
+  if (!centerLetter) {
+    document.getElementById('center-input').focus();
+  }
+
 });
 
 // Enhanced checkbox handling function
@@ -852,6 +858,9 @@ function trackReset() {
     }
   });
 }
+
+document.getElementById('center-input').focus();
+
 </script>
 
 <form name="form1" action="/blossom" method="post">
@@ -870,6 +879,7 @@ function trackReset() {
 
   <!-- New Blossom Layout -->
   <div class="blossom-container">
+
     <!-- Center Letter -->
     <div class="center-letter">
       <input type="text" id="center-input" maxlength="1" placeholder="A" 
