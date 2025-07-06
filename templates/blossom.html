@@ -25,12 +25,15 @@
       color: lightgrey;
   }
 
-  table.blossom-info {
-      width: 50%;
-      margin-left: auto;
-      margin-right: auto;
-      border-collapse: collapse;
-  }
+table.blossom-info {
+    width: 50%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
 
   @media (max-width: 768px) {
       table.blossom-info {
@@ -54,11 +57,75 @@
       text-decoration: none;
       display: inline-block;
       text-align: center;
+      margin: 2px;
   }
   
   .browse-button:hover {
       background-color: #03282b;
       color: gray;
+  }
+
+  /* Tooltip styles */
+  .disclaimer-tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      color: #666;
+      font-size: 12px;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+  }
+
+  .disclaimer-tooltip .tooltip-content {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #333;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      width: 350px;
+      max-width: 90vw;
+      font-size: 13px;
+      line-height: 1.4;
+      z-index: 1000;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      transition: opacity 0.3s, visibility 0.3s;
+  }
+
+  .disclaimer-tooltip .tooltip-content::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 8px solid transparent;
+      border-top-color: #333;
+  }
+
+  .disclaimer-tooltip:hover .tooltip-content {
+      visibility: visible;
+      opacity: 1;
+  }
+
+  .disclaimer-tooltip .tooltip-content a {
+      color: #4A9EFF;
+      text-decoration: underline;
+  }
+
+  .disclaimer-tooltip .tooltip-content a:hover {
+      color: #66B3FF;
+  }
+
+  @media (max-width: 480px) {
+      .disclaimer-tooltip .tooltip-content {
+          width: 300px;
+          left: 50%;
+          transform: translateX(-50%);
+      }
   }
 
   .used-word {
@@ -82,7 +149,7 @@
       position: relative;
       width: 400px;
       height: 400px;
-      margin: 20px auto;
+      margin: -30px auto 0px auto;
   }
 
   @media (max-width: 480px) {
@@ -169,8 +236,8 @@
 
   /* Rotate petals to point outward from center */
 .petal-1 {
-  top: 70px;
-  left: 90px;
+  top: 17.5%;
+  left: 22%;
   transform: translateY(0%) rotate(90deg);
 }
 .petal-1 input {
@@ -178,8 +245,8 @@
 }
 
 .petal-2 {
-  top: 70px;
-  right: 90px;
+  top: 17.5%;
+  right: 22%;
   transform: translateY(0%) rotate(0deg);
 }
 .petal-2 input {
@@ -187,8 +254,8 @@
 }
 
 .petal-3 {
-  top: 160px;
-  left: 40px;
+  top: 40%;
+  left: 10%;
   transform: translateY(0%) rotate(45deg);
 }
 .petal-3 input {
@@ -196,8 +263,8 @@
 }
 
 .petal-4 {
-  top: 160px;
-  right: 40px;
+  top: 40%;
+  right: 10%;
   transform: translateY(0%) rotate(45deg);
 }
 .petal-4 input {
@@ -205,8 +272,8 @@
 }
 
 .petal-5 {
-  bottom: 70px;
-  left: 90px;
+  bottom: 17.5%;
+  left: 22%;
   transform: translateY(0%) rotate(0deg);
 }
 .petal-5 input {
@@ -214,14 +281,13 @@
 }
 
 .petal-6 {
-  bottom: 70px;
-  right: 90px;
+  bottom: 17.5%;
+  right: 22%;
   transform: translateY(0%) rotate(90deg);
 }
 .petal-6 input {
   transform: rotate(-90deg);
 }
-
 
   .petal-button input {
       width: 100%;
@@ -253,21 +319,26 @@
       background-color: #03282b;
   }
 
-  .petal-button.selected {
-      border: 3px solid #ca9546;
-      background-color: #03282b;
-  }
+.petal-button.selected {
+    border: 3px solid #ffd700;
+    background-color: #ffd700;
+}
 
-  @media (max-width: 480px) {
-      .petal-1 { top: 45px; left: 45px; }
-      .petal-2 { top: 45px; right: 45px; }
-      .petal-3 { right: 25px; }
-      .petal-4 { bottom: 45px; right: 45px; }
-      .petal-5 { bottom: 45px; left: 45px; }
-      .petal-6 { left: 25px; }
-  }
+.petal-button.selected input {
+    color: #02484d !important;
+    -webkit-text-fill-color: #02484d !important;
+}
 
-  /* Force input text to be visible */
+@media (max-width: 480px) {
+    .petal-1 { top: 17.5%; left: 22%; }
+    .petal-2 { top: 17.5%; right: 22%; }
+    .petal-3 { top: 39%; left: 10%; }
+    .petal-4 { top: 39%; right: 10%; }
+    .petal-5 { bottom: 17.5%; left: 22%; }
+    .petal-6 { bottom: 17.5%; right: 22%; }
+}
+
+/* Force input text to be visible */
   input[type="text"] {
       -webkit-user-select: text;
       user-select: text;
@@ -289,6 +360,7 @@
 .center-letter input:placeholder-shown {
     opacity: 0.2;
 }
+
 </style>
 
 <script>
@@ -308,6 +380,8 @@ let currentPetalIndex = 0;
 let centerLetter = '';
 let petalLetters = ['', '', '', '', '', ''];
 let selectedPetal = '';
+let sessionStartTime = Date.now();
+let lastInteractionTime = Date.now();
 
 // Function to update the hidden form inputs
 function updateHiddenInputs() {
@@ -317,10 +391,11 @@ function updateHiddenInputs() {
 
 // Function to handle center letter input
 function handleCenterInput(input) {
+  const previousValue = centerLetter;
   centerLetter = input.value.toUpperCase();
   input.value = centerLetter;
   
-  if (centerLetter.length === 1) {
+  if (centerLetter.length === 1 && previousValue.length === 0) {
     // Move to first petal
     document.getElementById('petal-0').focus();
     
@@ -328,22 +403,53 @@ function handleCenterInput(input) {
     safeTrack('center_letter_entered', {
       'event_category': 'blossom_solver',
       'event_label': 'center_letter_complete',
+      'value': 1,
       'custom_parameters': {
-        'letter': centerLetter.toLowerCase()
+        'letter': centerLetter.toLowerCase(),
+        'time_to_enter': Date.now() - sessionStartTime,
+        'session_duration': Date.now() - sessionStartTime
+      }
+    });
+  }
+  
+  // Track center letter change
+  if (previousValue !== centerLetter && centerLetter.length > 0) {
+    safeTrack('letter_changed', {
+      'event_category': 'blossom_solver',
+      'event_label': 'center_letter_modified',
+      'custom_parameters': {
+        'from_letter': previousValue.toLowerCase(),
+        'to_letter': centerLetter.toLowerCase(),
+        'change_type': 'center'
       }
     });
   }
   
   updateHiddenInputs();
+  lastInteractionTime = Date.now();
 }
 
 // Function to handle petal input
 function handlePetalInput(input, index) {
+  const previousValue = petalLetters[index];
   const letter = input.value.toUpperCase();
   input.value = letter;
   petalLetters[index] = letter;
   
-  if (letter.length === 1) {
+  // Track petal entry
+  if (letter.length === 1 && previousValue.length === 0) {
+    safeTrack('petal_letter_entered', {
+      'event_category': 'blossom_solver',
+      'event_label': `petal_${index + 1}_filled`,
+      'value': index + 1,
+      'custom_parameters': {
+        'petal_position': index + 1,
+        'letter': letter.toLowerCase(),
+        'letters_filled': petalLetters.filter(l => l).length,
+        'time_since_start': Date.now() - sessionStartTime
+      }
+    });
+    
     // Auto-advance to next petal
     if (index < 5) {
       document.getElementById(`petal-${index + 1}`).focus();
@@ -352,23 +458,42 @@ function handlePetalInput(input, index) {
       input.blur();
       
       // Track completion
-      safeTrack('input_complete', {
+      safeTrack('all_letters_complete', {
         'event_category': 'blossom_solver',
-        'event_label': 'petal_letters_entered',
+        'event_label': 'full_puzzle_entered',
+        'value': 7,
         'custom_parameters': {
-          'input_length': 6,
-          'letters': petalLetters.join('').toLowerCase()
+          'time_to_complete': Date.now() - sessionStartTime,
+          'center_letter': centerLetter.toLowerCase(),
+          'petal_letters': petalLetters.join('').toLowerCase(),
+          'unique_letters': new Set([centerLetter, ...petalLetters].filter(l => l)).size
         }
       });
     }
   }
   
+  // Track petal letter change
+  if (previousValue !== letter && letter.length > 0) {
+    safeTrack('letter_changed', {
+      'event_category': 'blossom_solver',
+      'event_label': 'petal_letter_modified',
+      'custom_parameters': {
+        'from_letter': previousValue.toLowerCase(),
+        'to_letter': letter.toLowerCase(),
+        'petal_position': index + 1,
+        'change_type': 'petal'
+      }
+    });
+  }
+  
   updateHiddenInputs();
+  lastInteractionTime = Date.now();
 }
 
 // Function to handle petal click (submit form with selected petal)
 function selectPetal(index) {
   if (petalLetters[index]) {
+    const previousSelected = selectedPetal;
     selectedPetal = petalLetters[index];
     document.querySelector('input[name="petal_letter"]').value = selectedPetal;
     
@@ -377,13 +502,28 @@ function selectPetal(index) {
     document.querySelector(`.petal-${index + 1}`).classList.add('selected');
     
     // Track petal selection
-    safeTrack('petal_letter_selected', {
+    safeTrack('bonus_letter_selected', {
       'event_category': 'blossom_solver',
-      'event_label': 'letter_' + selectedPetal.toLowerCase(),
+      'event_label': `bonus_${selectedPetal.toLowerCase()}`,
+      'value': index + 1,
       'custom_parameters': {
         'selected_letter': selectedPetal.toLowerCase(),
+        'petal_position': index + 1,
         'total_letters': petalLetters.filter(l => l).length,
-        'is_reselection': false
+        'is_reselection': previousSelected === selectedPetal,
+        'time_since_last_interaction': Date.now() - lastInteractionTime,
+        'session_duration': Date.now() - sessionStartTime
+      }
+    });
+    
+    // Track form submission
+    safeTrack('form_submitted', {
+      'event_category': 'blossom_solver',
+      'event_label': 'solve_request',
+      'custom_parameters': {
+        'center_letter': centerLetter.toLowerCase(),
+        'bonus_letter': selectedPetal.toLowerCase(),
+        'all_letters': [centerLetter, ...petalLetters].filter(l => l).join('').toLowerCase()
       }
     });
     
@@ -397,6 +537,16 @@ function handleBackspace(input, index, isCenter) {
   if (input.value === '') {
     if (isCenter) return;
     
+    // Track backspace navigation
+    safeTrack('navigation', {
+      'event_category': 'blossom_solver',
+      'event_label': 'backspace_navigation',
+      'custom_parameters': {
+        'from_position': isCenter ? 'center' : `petal_${index + 1}`,
+        'to_position': index > 0 ? `petal_${index}` : 'center'
+      }
+    });
+    
     if (index > 0) {
       document.getElementById(`petal-${index - 1}`).focus();
     } else {
@@ -405,12 +555,66 @@ function handleBackspace(input, index, isCenter) {
   }
 }
 
+// Track focus events
+function trackFocus(elementType, index) {
+  safeTrack('input_focus', {
+    'event_category': 'blossom_solver',
+    'event_label': `focus_${elementType}`,
+    'custom_parameters': {
+      'element_type': elementType,
+      'position': elementType === 'center' ? 'center' : index + 1,
+      'time_since_last_interaction': Date.now() - lastInteractionTime
+    }
+  });
+  lastInteractionTime = Date.now();
+}
+
+// Track external link clicks
+function trackExternalLink(linkText, url) {
+  safeTrack('external_link_click', {
+    'event_category': 'blossom_solver',
+    'event_label': linkText,
+    'custom_parameters': {
+      'link_text': linkText,
+      'destination_url': url,
+      'session_duration': Date.now() - sessionStartTime
+    }
+  });
+}
+
+// Track internal navigation
+function trackInternalNavigation(destination) {
+  safeTrack('internal_navigation', {
+    'event_category': 'blossom_solver',
+    'event_label': destination,
+    'custom_parameters': {
+      'destination': destination,
+      'session_duration': Date.now() - sessionStartTime,
+      'letters_entered': [centerLetter, ...petalLetters].filter(l => l).length
+    }
+  });
+}
+
+// Track tooltip interactions
+function trackTooltipHover() {
+  safeTrack('tooltip_interaction', {
+    'event_category': 'blossom_solver',
+    'event_label': 'disclaimer_tooltip_hover',
+    'custom_parameters': {
+      'tooltip_type': 'disclaimer',
+      'session_duration': Date.now() - sessionStartTime
+    }
+  });
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
   // Get initial values from template
   const initialCenter = '{{must_have_val}}';
   const initialPetals = '{{may_have_val}}';
   const initialSelectedPetal = '{{petal_letter}}';
+  const currentCount = '{{current_count|default(25)}}';
+  const showLoadMore = '{{show_load_more}}' === 'True';
   
   // Set initial values
   if (initialCenter) {
@@ -435,10 +639,12 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Add event listeners to checkboxes
   const checkboxes = document.querySelectorAll('.word-checkbox');
+  let checkedCount = 0;
   checkboxes.forEach(checkbox => {
     const row = checkbox.closest('tr');
     if (checkbox.checked) {
       row.classList.add('used-word');
+      checkedCount++;
     }
     
     checkbox.addEventListener('change', function() {
@@ -446,25 +652,99 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Track initial page view
+  // Add focus tracking to inputs
+  document.getElementById('center-input').addEventListener('focus', () => trackFocus('center', 0));
+  for (let i = 0; i < 6; i++) {
+    document.getElementById(`petal-${i}`).addEventListener('focus', () => trackFocus('petal', i));
+  }
+  
+  // Add tooltip tracking
+  const tooltip = document.querySelector('.disclaimer-tooltip');
+  if (tooltip) {
+    tooltip.addEventListener('mouseenter', trackTooltipHover);
+  }
+  
+  // Add link tracking
+  document.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', function(e) {
+      const href = this.getAttribute('href');
+      const text = this.textContent.trim();
+      
+      if (href.startsWith('http')) {
+        trackExternalLink(text, href);
+      } else if (href && !href.startsWith('#')) {
+        trackInternalNavigation(text);
+      }
+    });
+  });
+  
+  // Track scroll depth
+  let maxScrollDepth = 0;
+  let scrollTracked = false;
+  window.addEventListener('scroll', function() {
+    const scrollPercentage = Math.round((window.scrollY + window.innerHeight) / document.documentElement.scrollHeight * 100);
+    if (scrollPercentage > maxScrollDepth) {
+      maxScrollDepth = scrollPercentage;
+      
+      // Track significant scroll milestones
+      if (scrollPercentage >= 90 && !scrollTracked) {
+        scrollTracked = true;
+        safeTrack('scroll_depth', {
+          'event_category': 'blossom_solver',
+          'event_label': 'reached_bottom',
+          'value': 90,
+          'custom_parameters': {
+            'max_scroll_percentage': maxScrollDepth,
+            'session_duration': Date.now() - sessionStartTime
+          }
+        });
+      }
+    }
+  });
+  
+  // Track initial page view with comprehensive data
   safeTrack('page_view', {
     'event_category': 'blossom_solver',
     'event_label': 'solver_loaded',
     'custom_parameters': {
       'has_existing_data': centerLetter.length > 0 || petalLetters.join('').length > 0,
       'center_letter_present': centerLetter.length > 0,
+      'petal_letters_count': petalLetters.filter(l => l).length,
       'petal_letters_complete': petalLetters.join('').length === 6,
-      'page_type': 'blossom_solver'
+      'selected_petal': initialSelectedPetal || 'none',
+      'words_displayed': parseInt(currentCount) || 25,
+      'has_more_words': showLoadMore,
+      'words_marked_used': checkedCount,
+      'page_type': 'blossom_solver',
+      'viewport_width': window.innerWidth,
+      'viewport_height': window.innerHeight,
+      'device_type': window.innerWidth < 768 ? 'mobile' : 'desktop'
     }
+  });
+  
+  // Track session engagement when leaving
+  window.addEventListener('beforeunload', function() {
+    safeTrack('session_end', {
+      'event_category': 'blossom_solver',
+      'event_label': 'user_exit',
+      'value': Math.round((Date.now() - sessionStartTime) / 1000),
+      'custom_parameters': {
+        'session_duration_seconds': Math.round((Date.now() - sessionStartTime) / 1000),
+        'letters_entered': [centerLetter, ...petalLetters].filter(l => l).length,
+        'words_marked': document.querySelectorAll('.word-checkbox:checked').length,
+        'max_scroll_depth': maxScrollDepth
+      }
+    });
   });
 });
 
-// Existing checkbox handling function
+// Enhanced checkbox handling function
 function handleCheckboxChange(checkbox) {
   const word = checkbox.getAttribute('data-word');
   const row = checkbox.closest('tr');
   const isChecking = checkbox.checked;
   const wordLength = word ? word.length : 0;
+  const wordScore = parseInt(row.querySelector('td:nth-child(3)')?.textContent) || 0;
   
   if (isChecking) {
     row.classList.add('used-word');
@@ -472,16 +752,25 @@ function handleCheckboxChange(checkbox) {
     row.classList.remove('used-word');
   }
 
+  // Track word interaction with enhanced data
   safeTrack('word_interaction', {
     'event_category': 'blossom_solver',
     'event_label': isChecking ? 'word_marked_used' : 'word_unmarked',
+    'value': wordScore,
     'custom_parameters': {
       'word_length': wordLength,
       'word': word,
-      'action': isChecking ? 'mark' : 'unmark'
+      'word_score': wordScore,
+      'action': isChecking ? 'mark' : 'unmark',
+      'total_marked': document.querySelectorAll('.word-checkbox:checked').length,
+      'time_since_last_interaction': Date.now() - lastInteractionTime,
+      'session_duration': Date.now() - sessionStartTime
     }
   });
 
+  lastInteractionTime = Date.now();
+
+  // Server sync
   fetch('/blossom', {
     method: 'POST',
     headers: {
@@ -505,18 +794,61 @@ function handleCheckboxChange(checkbox) {
         'event_label': 'server_sync_success',
         'custom_parameters': {
           'word': word,
-          'new_status': isChecking ? 'used' : 'available'
+          'new_status': isChecking ? 'used' : 'available',
+          'sync_time': Date.now() - lastInteractionTime
         }
       });
     }
   })
   .catch(error => {
     console.error('Error updating word status:', error);
+    
+    // Track sync error
+    safeTrack('sync_error', {
+      'event_category': 'blossom_solver',
+      'event_label': 'word_sync_failed',
+      'custom_parameters': {
+        'word': word,
+        'error_message': error.message
+      }
+    });
+    
+    // Revert checkbox state
     checkbox.checked = !checkbox.checked;
     if (checkbox.checked) {
       row.classList.add('used-word');
     } else {
       row.classList.remove('used-word');
+    }
+  });
+}
+
+// Track load more button
+function trackLoadMore() {
+  const currentWords = parseInt(document.querySelector('input[name="current_count"]').value) || 25;
+  
+  safeTrack('load_more_clicked', {
+    'event_category': 'blossom_solver',
+    'event_label': 'show_more_words',
+    'value': currentWords + 25,
+    'custom_parameters': {
+      'current_word_count': currentWords,
+      'new_word_count': currentWords + 25,
+      'session_duration': Date.now() - sessionStartTime
+    }
+  });
+}
+
+// Track reset action
+function trackReset() {
+  safeTrack('puzzle_reset', {
+    'event_category': 'blossom_solver',
+    'event_label': 'reset_letters',
+    'custom_parameters': {
+      'had_center_letter': centerLetter.length > 0,
+      'had_petal_letters': petalLetters.filter(l => l).length,
+      'words_marked': document.querySelectorAll('.word-checkbox:checked').length,
+      'session_duration': Date.now() - sessionStartTime
     }
   });
 }
@@ -532,6 +864,9 @@ function handleCheckboxChange(checkbox) {
 
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
+
+  <p class="pad_lr_30" style="text-align: center">Enter your letters below. Click any petal to calculate words with that bonus letter.</p>
+  <br>
 
   <!-- New Blossom Layout -->
   <div class="blossom-container">
@@ -591,8 +926,10 @@ function handleCheckboxChange(checkbox) {
              onblur="this.parentElement.style.pointerEvents='auto'">
     </button>
   </div>
-
-  <p class="pad_lr_30" style="text-align: center">Enter your letters above. Click any petal to calculate words with that bonus letter.</p>
+  
+  <a href="/blossom/reset" class="browse-button" style="font-size: 14px; padding: 8px 16px; margin-top: -50px;">Reset Letters</a>
+  <br>
+  <br>
 
   {{blossom_table|safe}}
   <br>
@@ -621,27 +958,13 @@ function handleCheckboxChange(checkbox) {
   <br>
   <br>
   <br>
-  <a href="/blossom/reset" style="display: inline-block;">
-    <div class="spinning-image">
-      <img alt="Reset" src="/static/reset_logo.png">
-    </div>
-  </a>
-  <p style="text-align: center; font-size: 12px; margin-top: 5px; color: #666;">
-    Reset checked words
-  </p>
-  <br>
   <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
     Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters above to find all possible words and solve today's puzzle instantly.
   </p>
   <br>
-  <p class="pad_lr_30" style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
-    Disclaimer: This is an unofficial tool to help with Merriam-Webster's Blossom word game. The word list comes from this <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer">GitHub</a> and may not always align with the valid words in the official game. Results are provided for assistance and entertainment purposes only. This tool is not affiliated with or endorsed by Merriam-Webster.
-  </p>
   <br>
-  <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank">Go To Blossom Game</a>
-  <br>
-  <br>
-  <a href="/feedback">Give Feedback Here</a>
+  <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" class="browse-button">Go To Blossom Game</a>
+  <a href="/feedback" class="browse-button">Give Feedback Here</a>
   <br>
   <br>
   <a href="/wordle" class="browse-button">Wordle Solver</a>
@@ -649,6 +972,15 @@ function handleCheckboxChange(checkbox) {
   <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
   <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a>
   <br>
+  </p>
+  <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
+    <span class="disclaimer-tooltip">
+      About this tool
+      <span class="tooltip-content">
+        This is an unofficial tool to help with Merriam-Webster's Blossom word game. The word list comes from this <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer">GitHub</a> and may not always align with the valid words in the official game. Results are provided for assistance and entertainment purposes only. This tool is not affiliated with or endorsed by Merriam-Webster.
+      </span>
+    </span>
+  </p>
   <br>
   <br>
   </center>
