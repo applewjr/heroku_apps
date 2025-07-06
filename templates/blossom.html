@@ -149,14 +149,14 @@ table.blossom-info {
       position: relative;
       width: 400px;
       height: 400px;
-      margin: -70px auto 0px auto;
+      margin: -70px auto -10px auto;
   }
 
   @media (max-width: 480px) {
       .blossom-container {
           width: 350px;
           height: 350px;
-          margin: -70px auto 0px auto;
+          margin: -70px auto -10px auto;
       }
   }
 
@@ -1259,17 +1259,115 @@ function findNextEmptyCell(currentContext = 'any') {
   <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
     Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters above to find all possible words and solve today's puzzle instantly.
   </p>
-  <br>
-  <br>
-  <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" class="browse-button">Go To Blossom Game</a>
-  <a href="/feedback" class="browse-button">Give Feedback Here</a>
-  <br>
-  <br>
-  <a href="/wordle" class="browse-button">Wordle Solver</a>
-  <a href="/quordle" class="browse-button">Quordle Solver</a>
-  <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
-  <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a>
-  <br>
+
+  <div style="margin: 20px 0; text-align: center;">
+    <div style="
+        background: linear-gradient(135deg, #02484d 0%, #8B5A96 100%);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        color: white;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+    ">
+      <h3 style="margin: 0 0 0 0; font-size: 16px;"></h3>
+      <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" style="
+          background-color: rgba(255,255,255,0.9);
+          color: #02484d;
+          padding: 10px 20px;
+          border-radius: 8px;
+          text-decoration: none;
+          display: inline-block;
+          margin: 4px;
+          font-weight: 600;
+      ">🌸 Play Blossom</a>
+      
+      <a href="/feedback" style="
+          background-color: transparent;
+          color: white;
+          border: 1px solid rgba(255,255,255,0.5);
+          padding: 10px 20px;
+          border-radius: 8px;
+          text-decoration: none;
+          display: inline-block;
+          margin: 4px;
+      ">💬 Feedback</a>
+    </div>
+    
+    <div style="margin-top: 20px;">
+      <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
+        <div style="
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            max-width: 300px;
+            margin: 0 auto;
+        ">
+          <a href="/wordle" style="
+              background-color: #f8f9fa;
+              color: #495057;
+              border: 1px solid #e9ecef;
+              padding: 8px 16px;
+              border-radius: 6px;
+              text-decoration: none;
+              display: inline-block;
+              font-size: 13px;
+              transition: all 0.2s ease;
+              flex: 0 0 calc(50% - 2px);
+              text-align: center;
+              box-sizing: border-box;
+          " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
+          
+          <a href="/quordle" style="
+              background-color: #f8f9fa;
+              color: #495057;
+              border: 1px solid #e9ecef;
+              padding: 8px 16px;
+              border-radius: 6px;
+              text-decoration: none;
+              display: inline-block;
+              font-size: 13px;
+              transition: all 0.2s ease;
+              flex: 0 0 calc(50% - 2px);
+              text-align: center;
+              box-sizing: border-box;
+          " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
+          
+          <a href="/antiwordle" style="
+              background-color: #f8f9fa;
+              color: #495057;
+              border: 1px solid #e9ecef;
+              padding: 8px 16px;
+              border-radius: 6px;
+              text-decoration: none;
+              display: inline-block;
+              font-size: 13px;
+              transition: all 0.2s ease;
+              flex: 0 0 calc(50% - 2px);
+              text-align: center;
+              box-sizing: border-box;
+          " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
+          
+          <a href="/blossom_bee" style="
+              background-color: #f8f9fa;
+              color: #495057;
+              border: 1px solid #e9ecef;
+              padding: 8px 16px;
+              border-radius: 6px;
+              text-decoration: none;
+              display: inline-block;
+              font-size: 13px;
+              transition: all 0.2s ease;
+              flex: 0 0 calc(50% - 2px);
+              text-align: center;
+              box-sizing: border-box;
+          " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Spelling Bee</a>
+        </div>
+    </div>
+  </div>
+
   </p>
   <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
     <span class="disclaimer-tooltip">
