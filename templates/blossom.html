@@ -8,15 +8,16 @@
 
 {% block content %}
 <style>
+  /* Existing styles preserved */
   input::-webkit-input-placeholder {
       color: lightgrey;
   }
 
-  input:-moz-placeholder { /* Firefox 18- */
+  input:-moz-placeholder {
       color: lightgrey;
   }
 
-  input::-moz-placeholder { /* Firefox 19+ */
+  input::-moz-placeholder {
       color: lightgrey;
   }
 
@@ -24,40 +25,23 @@
       color: lightgrey;
   }
 
-  /* Default style for larger screens */
   table.blossom-info {
-      width: 50%; /* Set table width to 40% of the parent element */
-      margin-left: auto; /* Center the table horizontally */
+      width: 50%;
+      margin-left: auto;
       margin-right: auto;
-      border-collapse: collapse; /* Remove gaps between cells */
+      border-collapse: collapse;
   }
 
-  /* Style for smaller screens (e.g., mobile devices) */
   @media (max-width: 768px) {
       table.blossom-info {
-          width: 100%; /* Set table width to 100% for smaller screens */
+          width: 100%;
       }
   }
 
   table.blossom-info, th, td {
-      border: 1px solid black; /* Add border to table, th, and td */
-      padding: 8px; /* Add padding inside cells */
-      text-align: center; /* Center text in th and td */
-  }
-
-  #buttons-container {
-      display: flex;
-      flex-wrap: wrap; /* Allow items to wrap as needed */
-      justify-content: center; /* Center items horizontally */
-      gap: 10px; /* Space between buttons */
-      padding: 10px; /* Padding around the container */
-  }
-
-  /* Additional media query for very small screens if needed */
-  @media (max-width: 480px) {
-      #buttons-container button {
-          flex: 0 0 30%; /* Reduce button width to ensure 3 buttons per row */
-      }
+      border: 1px solid black;
+      padding: 8px;
+      text-align: center;
   }
 
   .browse-button {
@@ -67,48 +51,244 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      text-decoration: none; /* Remove underline from link */
-      display: inline-block; /* Allows width and height for <a> */
-      text-align: center; /* Centers text within button */
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
   }
+  
   .browse-button:hover {
       background-color: #03282b;
       color: gray;
   }
-  /* Media query for mobile devices to adjust buttons' layout */
-  @media (max-width: 768px) {
-      .browse-button {
-          flex: 1 0 46%; /* Adjust the flex basis to allow two buttons per row and ensure they don't overlap */
-          margin: 5px; /* Add margin around each button for spacing */
-          padding: 10px; /* Adjust padding if needed */
-      }
 
-      #buttons-container {
-          display: flex;
-          flex-direction: row; /* Ensure buttons are laid out in a row */
-          flex-wrap: wrap; /* Allow wrapping */
-          justify-content: space-around; /* Distribute space around items for even spacing */
-      }
-  }
-
-  /* Styling for used words */
   .used-word {
       background-color: #f0f0f0;
       text-decoration: line-through;
       opacity: 0.6;
   }
 
-  /* Checkbox styling */
   .word-checkbox {
       transform: scale(1.2);
       cursor: pointer;
   }
 
-  /* Table styling for better checkbox alignment */
   table td:first-child {
       width: 50px;
       text-align: center;
   }
+
+  /* New Blossom Layout Styles */
+  .blossom-container {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      margin: 20px auto;
+  }
+
+  @media (max-width: 480px) {
+      .blossom-container {
+          width: 350px;
+          height: 350px;
+      }
+  }
+
+  /* Override global input styles for blossom */
+  .blossom-container input[type="text"] {
+      border: none !important;
+      background: transparent !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+  }
+
+  /* Center letter styling - circular */
+  .center-letter {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      background-color: #ffd700;
+      border: 3px solid #02484d;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: text;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .center-letter input {
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      border: none !important;
+      text-align: center;
+      font-size: 32px;
+      font-weight: bold;
+      text-transform: uppercase;
+      outline: none;
+      color: #02484d !important;
+      -webkit-text-fill-color: #02484d !important;
+      -webkit-appearance: none;
+      appearance: none;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+  }
+  
+  .center-letter input::placeholder {
+      color: rgba(2, 72, 77, 0.2);
+      opacity: 1;
+  }
+
+  /* Petal buttons styling - petal shape */
+  .petal-button {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      background-color: #02484d;
+      color: white;
+      border: 3px solid transparent;
+      border-radius: 50% 15% 50% 15%;
+      font-size: 28px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 0.2s, border 0.2s, transform 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  /* Rotate petals to point outward from center */
+.petal-1 {
+  top: 70px;
+  left: 90px;
+  transform: translateY(0%) rotate(90deg);
+}
+.petal-1 input {
+  transform: rotate(-90deg);
+}
+
+.petal-2 {
+  top: 70px;
+  right: 90px;
+  transform: translateY(0%) rotate(0deg);
+}
+.petal-2 input {
+  transform: rotate(0deg);
+}
+
+.petal-3 {
+  top: 160px;
+  left: 40px;
+  transform: translateY(0%) rotate(45deg);
+}
+.petal-3 input {
+  transform: rotate(-45deg);
+}
+
+.petal-4 {
+  top: 160px;
+  right: 40px;
+  transform: translateY(0%) rotate(45deg);
+}
+.petal-4 input {
+  transform: rotate(-45deg);
+}
+
+.petal-5 {
+  bottom: 70px;
+  left: 90px;
+  transform: translateY(0%) rotate(0deg);
+}
+.petal-5 input {
+  transform: rotate(0deg);
+}
+
+.petal-6 {
+  bottom: 70px;
+  right: 90px;
+  transform: translateY(0%) rotate(90deg);
+}
+.petal-6 input {
+  transform: rotate(-90deg);
+}
+
+
+  .petal-button input {
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      border: none !important;
+      color: #ffffff !important;
+      text-align: center;
+      font-size: 28px;
+      font-weight: bold;
+      text-transform: uppercase;
+      outline: none;
+      cursor: pointer;
+      pointer-events: none;
+      -webkit-text-fill-color: #ffffff !important;
+      -webkit-appearance: none;
+      appearance: none;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+  }
+  
+  .petal-button input::placeholder {
+      color: rgba(255, 255, 255, 0.2);
+      opacity: 1;
+  }
+
+  .petal-button:hover {
+      background-color: #03282b;
+  }
+
+  .petal-button.selected {
+      border: 3px solid #ca9546;
+      background-color: #03282b;
+  }
+
+  @media (max-width: 480px) {
+      .petal-1 { top: 45px; left: 45px; }
+      .petal-2 { top: 45px; right: 45px; }
+      .petal-3 { right: 25px; }
+      .petal-4 { bottom: 45px; right: 45px; }
+      .petal-5 { bottom: 45px; left: 45px; }
+      .petal-6 { left: 25px; }
+  }
+
+  /* Force input text to be visible */
+  input[type="text"] {
+      -webkit-user-select: text;
+      user-select: text;
+  }
+  
+  /* Additional fallback for text visibility */
+  .petal-button input:not(:placeholder-shown) {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+  }
+  
+  .center-letter input:not(:placeholder-shown) {
+      color: #02484d !important;
+      -webkit-text-fill-color: #02484d !important;
+  }
+
+/* Make demo placeholders appear faint */
+.petal-button input:placeholder-shown,
+.center-letter input:placeholder-shown {
+    opacity: 0.2;
+}
 </style>
 
 <script>
@@ -123,91 +303,175 @@ function safeTrack(eventName, properties = {}) {
   }
 }
 
-// Enhanced function to accept selectedLetter as an argument
-function updateButtons(selectedLetter = '') {
-  const mayHaveValue = document.getElementById('may_have').value;
-  const buttonsContainer = document.getElementById('buttons-container');
-  const previousButtonCount = buttonsContainer.children.length;
+// Variables to track current petal and letter values
+let currentPetalIndex = 0;
+let centerLetter = '';
+let petalLetters = ['', '', '', '', '', ''];
+let selectedPetal = '';
+
+// Function to update the hidden form inputs
+function updateHiddenInputs() {
+  document.querySelector('input[name="must_have"]').value = centerLetter;
+  document.querySelector('input[name="may_have"]').value = petalLetters.join('');
+}
+
+// Function to handle center letter input
+function handleCenterInput(input) {
+  centerLetter = input.value.toUpperCase();
+  input.value = centerLetter;
   
-  buttonsContainer.innerHTML = ''; // Clear existing buttons
-  
-  // Track input changes
-  if (mayHaveValue.length === 6) {
-    safeTrack('input_complete', {
+  if (centerLetter.length === 1) {
+    // Move to first petal
+    document.getElementById('petal-0').focus();
+    
+    // Track center letter entry
+    safeTrack('center_letter_entered', {
       'event_category': 'blossom_solver',
-      'event_label': 'petal_letters_entered',
+      'event_label': 'center_letter_complete',
       'custom_parameters': {
-        'input_length': mayHaveValue.length,
-        'letters': mayHaveValue.toLowerCase()
+        'letter': centerLetter.toLowerCase()
       }
     });
   }
   
+  updateHiddenInputs();
+}
+
+// Function to handle petal input
+function handlePetalInput(input, index) {
+  const letter = input.value.toUpperCase();
+  input.value = letter;
+  petalLetters[index] = letter;
   
-  // Create new buttons based on input
-  for (let char of mayHaveValue) {
-    const button = document.createElement('button');
-    button.type = 'submit';
-    button.name = 'petal_letter';
-    button.value = char;
-    button.textContent = char.toUpperCase();
-
-    // Apply styles directly to each button
-    button.style.width = '60px';
-    button.style.backgroundColor = '#02484d';
-    button.style.color = 'white';
-    button.style.padding = '10px 20px';
-    button.style.border = '2px solid transparent';
-    button.style.borderRadius = '4px';
-    button.style.cursor = 'pointer';
-    button.style.margin = '5px';
-
-    // Highlight selected letter
-    if (char === selectedLetter) {
-      button.style.border = '3px solid #ca9546';
-    }
-
-    // Add click tracking for petal letter selection
-    button.addEventListener('click', function(event) {
-      safeTrack('petal_letter_selected', {
+  if (letter.length === 1) {
+    // Auto-advance to next petal
+    if (index < 5) {
+      document.getElementById(`petal-${index + 1}`).focus();
+    } else {
+      // All petals filled, blur current input
+      input.blur();
+      
+      // Track completion
+      safeTrack('input_complete', {
         'event_category': 'blossom_solver',
-        'event_label': 'letter_' + char.toLowerCase(),
+        'event_label': 'petal_letters_entered',
         'custom_parameters': {
-          'selected_letter': char.toLowerCase(),
-          'total_letters': mayHaveValue.length,
-          'is_reselection': char === selectedLetter
+          'input_length': 6,
+          'letters': petalLetters.join('').toLowerCase()
         }
       });
-    });
-
-    buttonsContainer.appendChild(button);
+    }
   }
+  
+  updateHiddenInputs();
+}
 
-  // Track button generation
-  if (mayHaveValue.length > 0) {
-    safeTrack('buttons_generated', {
+// Function to handle petal click (submit form with selected petal)
+function selectPetal(index) {
+  if (petalLetters[index]) {
+    selectedPetal = petalLetters[index];
+    document.querySelector('input[name="petal_letter"]').value = selectedPetal;
+    
+    // Update visual selection
+    document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
+    document.querySelector(`.petal-${index + 1}`).classList.add('selected');
+    
+    // Track petal selection
+    safeTrack('petal_letter_selected', {
       'event_category': 'blossom_solver',
-      'event_label': 'petal_buttons_created',
-      'value': mayHaveValue.length
+      'event_label': 'letter_' + selectedPetal.toLowerCase(),
+      'custom_parameters': {
+        'selected_letter': selectedPetal.toLowerCase(),
+        'total_letters': petalLetters.filter(l => l).length,
+        'is_reselection': false
+      }
     });
+    
+    // Submit form
+    document.querySelector('form[name="form1"]').submit();
   }
 }
 
-// Enhanced function to handle checkbox changes with better tracking
+// Function to handle backspace navigation
+function handleBackspace(input, index, isCenter) {
+  if (input.value === '') {
+    if (isCenter) return;
+    
+    if (index > 0) {
+      document.getElementById(`petal-${index - 1}`).focus();
+    } else {
+      document.getElementById('center-input').focus();
+    }
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Get initial values from template
+  const initialCenter = '{{must_have_val}}';
+  const initialPetals = '{{may_have_val}}';
+  const initialSelectedPetal = '{{petal_letter}}';
+  
+  // Set initial values
+  if (initialCenter) {
+    centerLetter = initialCenter.toUpperCase();
+    document.getElementById('center-input').value = centerLetter;
+  }
+  
+  if (initialPetals) {
+    for (let i = 0; i < initialPetals.length && i < 6; i++) {
+      petalLetters[i] = initialPetals[i].toUpperCase();
+      document.getElementById(`petal-${i}`).value = petalLetters[i];
+    }
+  }
+  
+  // Highlight selected petal
+  if (initialSelectedPetal) {
+    const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
+    if (petalIndex !== -1) {
+      document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
+    }
+  }
+  
+  // Add event listeners to checkboxes
+  const checkboxes = document.querySelectorAll('.word-checkbox');
+  checkboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    }
+    
+    checkbox.addEventListener('change', function() {
+      handleCheckboxChange(this);
+    });
+  });
+  
+  // Track initial page view
+  safeTrack('page_view', {
+    'event_category': 'blossom_solver',
+    'event_label': 'solver_loaded',
+    'custom_parameters': {
+      'has_existing_data': centerLetter.length > 0 || petalLetters.join('').length > 0,
+      'center_letter_present': centerLetter.length > 0,
+      'petal_letters_complete': petalLetters.join('').length === 6,
+      'page_type': 'blossom_solver'
+    }
+  });
+});
+
+// Existing checkbox handling function
 function handleCheckboxChange(checkbox) {
   const word = checkbox.getAttribute('data-word');
   const row = checkbox.closest('tr');
   const isChecking = checkbox.checked;
   const wordLength = word ? word.length : 0;
   
-  // Toggle visual styling
   if (isChecking) {
     row.classList.add('used-word');
   } else {
     row.classList.remove('used-word');
   }
 
-  // Track word interaction immediately
   safeTrack('word_interaction', {
     'event_category': 'blossom_solver',
     'event_label': isChecking ? 'word_marked_used' : 'word_unmarked',
@@ -218,7 +482,6 @@ function handleCheckboxChange(checkbox) {
     }
   });
 
-  // Send AJAX request to update session
   fetch('/blossom', {
     method: 'POST',
     headers: {
@@ -237,7 +500,6 @@ function handleCheckboxChange(checkbox) {
   })
   .then(data => {
     if (data.status === 'success') {
-      // Track successful word status update
       safeTrack('word_status_updated', {
         'event_category': 'blossom_solver',
         'event_label': 'server_sync_success',
@@ -246,24 +508,10 @@ function handleCheckboxChange(checkbox) {
           'new_status': isChecking ? 'used' : 'available'
         }
       });
-    } else {
-      throw new Error('Server returned error status');
     }
   })
   .catch(error => {
     console.error('Error updating word status:', error);
-    
-    // Track error
-    safeTrack('word_update_error', {
-      'event_category': 'blossom_solver',
-      'event_label': 'server_sync_failed',
-      'custom_parameters': {
-        'error_type': error.message,
-        'word': word
-      }
-    });
-    
-    // Revert checkbox state if server update failed
     checkbox.checked = !checkbox.checked;
     if (checkbox.checked) {
       row.classList.add('used-word');
@@ -272,275 +520,79 @@ function handleCheckboxChange(checkbox) {
     }
   });
 }
-
-// Track user engagement and session metrics
-function trackUserEngagement() {
-  let startTime = Date.now();
-  let wordsFound = 0;
-  let interactionCount = 0;
-
-  // Track time spent on page
-  window.addEventListener('beforeunload', function() {
-    const timeSpent = Math.round((Date.now() - startTime) / 1000);
-    safeTrack('session_end', {
-      'event_category': 'blossom_solver',
-      'event_label': 'page_exit',
-      'value': timeSpent,
-      'custom_parameters': {
-        'time_spent_seconds': timeSpent,
-        'words_interacted': wordsFound,
-        'total_interactions': interactionCount
-      }
-    });
-  });
-
-  // Track periodic engagement
-  setInterval(function() {
-    const timeSpent = Math.round((Date.now() - startTime) / 1000);
-    if (timeSpent % 30 === 0 && timeSpent > 0) { // Every 30 seconds
-      safeTrack('engagement_milestone', {
-        'event_category': 'blossom_solver',
-        'event_label': 'time_milestone_' + timeSpent + 's',
-        'value': timeSpent
-      });
-    }
-  }, 1000);
-
-  return {
-    incrementWords: () => wordsFound++,
-    incrementInteractions: () => interactionCount++
-  };
-}
-
-// Track external link clicks
-function trackExternalLinks() {
-  const externalLinks = document.querySelectorAll('a[href^="http"], a[target="_blank"]');
-  externalLinks.forEach(link => {
-    link.addEventListener('click', function(event) {
-      const href = this.href;
-      const linkText = this.textContent.trim();
-      
-      safeTrack('external_link_click', {
-        'event_category': 'blossom_solver',
-        'event_label': 'external_navigation',
-        'custom_parameters': {
-          'destination_url': href,
-          'link_text': linkText,
-          'link_type': href.includes('merriam-webster') ? 'game_site' : 'other'
-        }
-      });
-    });
-  });
-}
-
-// Track internal navigation
-function trackInternalNavigation() {
-  const internalLinks = document.querySelectorAll('a.browse-button, a[href^="/"]');
-  internalLinks.forEach(link => {
-    link.addEventListener('click', function(event) {
-      const href = this.href;
-      const linkText = this.textContent.trim();
-      
-      safeTrack('internal_navigation', {
-        'event_category': 'blossom_solver',
-        'event_label': 'tool_navigation',
-        'custom_parameters': {
-          'destination_path': href,
-          'tool_name': linkText.toLowerCase(),
-          'navigation_type': this.classList.contains('browse-button') ? 'tool_button' : 'text_link'
-        }
-      });
-    });
-  });
-}
-
-// Track form input interactions
-function trackFormInputs() {
-  const centerLetterInput = document.querySelector('input[name="must_have"]');
-  const petalLettersInput = document.querySelector('input[name="may_have"]');
-  const countInput = document.querySelector('input[name="list_len"]');
-
-  // Track center letter changes
-  if (centerLetterInput) {
-    centerLetterInput.addEventListener('input', function() {
-      if (this.value.length === 1) {
-        safeTrack('center_letter_entered', {
-          'event_category': 'blossom_solver',
-          'event_label': 'center_letter_complete',
-          'custom_parameters': {
-            'letter': this.value.toLowerCase()
-          }
-        });
-      }
-    });
-  }
-
-  // Track word count changes
-  if (countInput) {
-    countInput.addEventListener('change', function() {
-      const count = parseInt(this.value) || 0;
-      safeTrack('word_count_changed', {
-        'event_category': 'blossom_solver',
-        'event_label': 'result_limit_set',
-        'value': count,
-        'custom_parameters': {
-          'requested_count': count
-        }
-      });
-    });
-  }
-}
-
-// Track reset functionality
-function trackResetActions() {
-  const resetLink = document.querySelector('a[href="/blossom/reset"]');
-  if (resetLink) {
-    resetLink.addEventListener('click', function(event) {
-      const checkedWords = document.querySelectorAll('.word-checkbox:checked').length;
-      
-      safeTrack('reset_clicked', {
-        'event_category': 'blossom_solver',
-        'event_label': 'reset_checked_words',
-        'value': checkedWords,
-        'custom_parameters': {
-          'words_to_reset': checkedWords
-        }
-      });
-    });
-  }
-}
-
-// Enhanced error tracking
-function trackErrors() {
-  window.addEventListener('error', function(event) {
-    safeTrack('javascript_error', {
-      'event_category': 'blossom_solver',
-      'event_label': 'client_side_error',
-      'custom_parameters': {
-        'error_message': event.message,
-        'error_source': event.filename,
-        'error_line': event.lineno
-      }
-    });
-  });
-}
-
-// Main initialization function
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize engagement tracking
-  const engagement = trackUserEngagement();
-  
-  // Initialize buttons
-  updateButtons('{{ petal_letter }}');
-  
-  // Add event listeners to checkboxes
-  const checkboxes = document.querySelectorAll('.word-checkbox');
-  checkboxes.forEach(checkbox => {
-    // Apply initial styling based on checkbox state
-    const row = checkbox.closest('tr');
-    if (checkbox.checked) {
-      row.classList.add('used-word');
-    }
-    
-    // Add change event listener with engagement tracking
-    checkbox.addEventListener('change', function() {
-      handleCheckboxChange(this);
-      engagement.incrementWords();
-      engagement.incrementInteractions();
-    });
-  });
-
-  // Initialize all tracking
-  trackExternalLinks();
-  trackInternalNavigation();
-  trackFormInputs();
-  trackResetActions();
-  trackErrors();
-
-  // Track initial page view with context
-  const centerLetter = document.querySelector('input[name="must_have"]')?.value || '';
-  const petalLetters = document.querySelector('input[name="may_have"]')?.value || '';
-  const hasExistingData = centerLetter.length > 0 || petalLetters.length > 0;
-  
-  safeTrack('page_view', {
-    'event_category': 'blossom_solver',
-    'event_label': 'solver_loaded',
-    'custom_parameters': {
-      'has_existing_data': hasExistingData,
-      'center_letter_present': centerLetter.length > 0,
-      'petal_letters_complete': petalLetters.length === 6,
-      'page_type': 'blossom_solver'
-    }
-  });
-
-  // Track form submissions with enhanced data
-  const form = document.querySelector('form[name="form1"]');
-  if (form) {
-    form.addEventListener('submit', function(event) {
-      const centerLetter = document.querySelector('input[name="must_have"]')?.value || '';
-      const petalLetters = document.querySelector('input[name="may_have"]')?.value || '';
-      const selectedPetal = document.querySelector('button[name="petal_letter"]')?.value || '';
-      const isLoadMore = event.submitter?.name === 'load_more';
-      
-      safeTrack('form_submit', {
-        'event_category': 'blossom_solver',
-        'event_label': isLoadMore ? 'load_more_words' : 'word_search_submitted',
-        'custom_parameters': {
-          'center_letter': centerLetter.toLowerCase(),
-          'petal_letters': petalLetters.toLowerCase(),
-          'selected_bonus_petal': selectedPetal.toLowerCase(),
-          'form_complete': centerLetter.length === 1 && petalLetters.length === 6,
-          'action_type': isLoadMore ? 'load_more' : 'new_search'
-        }
-      });
-    });
-  }
-
-  // Track successful results display
-  const resultsTable = document.querySelector('table.blossom-info');
-  if (resultsTable) {
-    const wordCount = document.querySelectorAll('.word-checkbox').length;
-    safeTrack('results_displayed', {
-      'event_category': 'blossom_solver',
-      'event_label': 'words_found',
-      'value': wordCount,
-      'custom_parameters': {
-        'total_words_found': wordCount
-      }
-    });
-  }
-});
 </script>
 
 <form name="form1" action="/blossom" method="post">
   <center>
 
   <input type="hidden" name="current_count" value="{{current_count|default(25)}}">
+  <input type="hidden" name="must_have" value="{{must_have_val}}">
+  <input type="hidden" name="may_have" value="{{may_have_val}}">
+  <input type="hidden" name="petal_letter" value="{{petal_letter}}">
 
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
-  <br>
-  <br>
 
-  <p class="pad_lr_30" style="text-align: center">Center Letter (Single Letter)</p>
-  <input type="text" pattern="[A-Za-z]+" required name="must_have" style="text-align: center;width: 60px;" value="{{must_have_val}}" maxlength="1" placeholder="A">
-
-  <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-  <p class="pad_lr_30" style="text-align: center">Petal Letters (6 Letters)</p>
-  <input type="text" id="may_have" name="may_have" style="text-align: center;width: 150px;" value="{{may_have_val}}" maxlength="6" minlength="6" pattern="[A-Za-z]{6}" title="Please enter 6 letters. No spaces, numbers, or special characters." placeholder="BCDEFG" oninput="updateButtons()">
-
-  <br>
-  <br>
-  <p class="pad_lr_30" style="text-align: center">Select the Bonus Petal Letter (Yellow Outline)</p>
-  <div id="buttons-container">
-    <!-- Dynamic buttons will be added here -->
+  <!-- New Blossom Layout -->
+  <div class="blossom-container">
+    <!-- Center Letter -->
+    <div class="center-letter">
+      <input type="text" id="center-input" maxlength="1" placeholder="A" 
+             oninput="handleCenterInput(this)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, true)">
+    </div>
+    
+    <!-- Petal Letters -->
+    <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
+      <input type="text" id="petal-0" maxlength="1" placeholder="B" 
+             oninput="handlePetalInput(this, 0)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
+    
+    <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
+      <input type="text" id="petal-1" maxlength="1" placeholder="C" 
+             oninput="handlePetalInput(this, 1)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 1, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
+    
+    <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
+      <input type="text" id="petal-2" maxlength="1" placeholder="D" 
+             oninput="handlePetalInput(this, 2)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 2, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
+    
+    <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
+      <input type="text" id="petal-3" maxlength="1" placeholder="E" 
+             oninput="handlePetalInput(this, 3)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 3, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
+    
+    <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
+      <input type="text" id="petal-4" maxlength="1" placeholder="F" 
+             oninput="handlePetalInput(this, 4)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 4, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
+    
+    <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
+      <input type="text" id="petal-5" maxlength="1" placeholder="G" 
+             oninput="handlePetalInput(this, 5)" 
+             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 5, false)"
+             onfocus="this.parentElement.style.pointerEvents='none'"
+             onblur="this.parentElement.style.pointerEvents='auto'">
+    </button>
   </div>
-  <script>updateButtons();</script> <!-- Initial call to populate buttons based on the current input value -->
 
-  <br>
-  <p class="pad_lr_30" style="text-align: center">Choose a new Bonus Petal Letter after each word. This affects which words have the highest scores</p>
-  <br>
+  <p class="pad_lr_30" style="text-align: center">Enter your letters above. Click any petal to calculate words with that bonus letter.</p>
 
   {{blossom_table|safe}}
   <br>
@@ -579,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </p>
   <br>
   <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
-    Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters below to find all possible words and solve today's puzzle instantly.
+    Blossom is Merriam-Webster's daily word puzzle where you create words using a center letter and surrounding petals. Enter your letters above to find all possible words and solve today's puzzle instantly.
   </p>
   <br>
   <p class="pad_lr_30" style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
@@ -592,12 +644,10 @@ document.addEventListener('DOMContentLoaded', function() {
   <a href="/feedback">Give Feedback Here</a>
   <br>
   <br>
-  <!-- <a href="/blossom" class="browse-button">Blossom Solver</a> -->
   <a href="/wordle" class="browse-button">Wordle Solver</a>
   <a href="/quordle" class="browse-button">Quordle Solver</a>
   <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
   <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a>
-  <!-- <a href="/quordle_mobile" class="browse-button">Quordle Mobile Solver</a> -->
   <br>
   <br>
   <br>
