@@ -289,28 +289,45 @@ table.blossom-info {
   transform: rotate(-90deg);
 }
 
-  .petal-button input {
-      width: 100%;
-      height: 100%;
-      background: transparent !important;
-      border: none !important;
-      color: #ffffff !important;
-      text-align: center;
-      font-size: 28px;
-      font-weight: bold;
-      text-transform: uppercase;
-      outline: none;
-      cursor: pointer;
-      pointer-events: none;
-      -webkit-text-fill-color: #ffffff !important;
-      -webkit-appearance: none;
-      appearance: none;
-      padding: 0 !important;
-      margin: 0 !important;
-      border-radius: 0 !important;
-  }
-  
-  .petal-button input::placeholder {
+/* Update the petal input styles to handle pointer events properly */
+.petal-button input {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+    text-transform: uppercase;
+    outline: none;
+    cursor: text; /* Change to text cursor by default */
+    pointer-events: auto; /* Enable pointer events */
+    -webkit-text-fill-color: #ffffff !important;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+}
+
+/* In button mode, disable input interaction */
+.petal-button.button-mode input {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Update button cursor based on mode */
+.petal-button.button-mode {
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.petal-button:not(.button-mode) {
+    cursor: text;
+}
+
+.petal-button input::placeholder {
       color: rgba(255, 255, 255, 0.2);
       opacity: 1;
   }
@@ -361,6 +378,20 @@ table.blossom-info {
     opacity: 0.2;
 }
 
+/* Add visual feedback for button mode vs input mode */
+.petal-button.button-mode {
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.petal-button:not(.button-mode) {
+  cursor: text;
+}
+
+.petal-button:not(.button-mode):hover {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
 </style>
 
 <script>
@@ -389,12 +420,28 @@ function updateHiddenInputs() {
   document.querySelector('input[name="may_have"]').value = petalLetters.join('');
 }
 
-// Function to handle center letter input
+// Updated handleCenterInput function with duplicate checking
 function handleCenterInput(input) {
   const previousValue = centerLetter;
-  centerLetter = input.value.toUpperCase();
-  input.value = centerLetter;
+  const newLetter = input.value.toUpperCase();
   
+  // Check for duplicates if there's a new letter
+  if (newLetter.length === 1) {
+    const duplicateCheck = checkForDuplicates(newLetter, -1, true);
+    if (duplicateCheck.isDuplicate) {
+      // Revert to previous value
+      input.value = previousValue;
+      showDuplicateWarning(newLetter, duplicateCheck.position);
+      return;
+    }
+  }
+  
+  centerLetter = newLetter;
+  input.value = centerLetter;
+
+  // Update visual state
+  updatePetalVisualState();
+
   if (centerLetter.length === 1 && previousValue.length === 0) {
     // Move to first petal
     document.getElementById('petal-0').focus();
@@ -429,22 +476,44 @@ function handleCenterInput(input) {
   lastInteractionTime = Date.now();
 }
 
-// Function to handle petal input
+
+// Function to check if all letters are entered
+function areAllLettersEntered() {
+  return centerLetter.length === 1 && petalLetters.filter(l => l.length === 1).length === 6;
+}
+
+// Updated handlePetalInput function with duplicate checking
 function handlePetalInput(input, index) {
   const previousValue = petalLetters[index];
-  const letter = input.value.toUpperCase();
-  input.value = letter;
-  petalLetters[index] = letter;
+  const newLetter = input.value.toUpperCase();
   
+  // Check for duplicates if there's a new letter
+  if (newLetter.length === 1) {
+    const duplicateCheck = checkForDuplicates(newLetter, index, false);
+    if (duplicateCheck.isDuplicate) {
+      // Revert to previous value
+      input.value = previousValue;
+      petalLetters[index] = previousValue;
+      showDuplicateWarning(newLetter, duplicateCheck.position);
+      return;
+    }
+  }
+  
+  petalLetters[index] = newLetter;
+  input.value = newLetter;
+
+  // Update visual state
+  updatePetalVisualState();
+
   // Track petal entry
-  if (letter.length === 1 && previousValue.length === 0) {
+  if (newLetter.length === 1 && previousValue.length === 0) {
     safeTrack('petal_letter_entered', {
       'event_category': 'blossom_solver',
       'event_label': `petal_${index + 1}_filled`,
       'value': index + 1,
       'custom_parameters': {
         'petal_position': index + 1,
-        'letter': letter.toLowerCase(),
+        'letter': newLetter.toLowerCase(),
         'letters_filled': petalLetters.filter(l => l).length,
         'time_since_start': Date.now() - sessionStartTime
       }
@@ -473,13 +542,13 @@ function handlePetalInput(input, index) {
   }
   
   // Track petal letter change
-  if (previousValue !== letter && letter.length > 0) {
+  if (previousValue !== newLetter && newLetter.length > 0) {
     safeTrack('letter_changed', {
       'event_category': 'blossom_solver',
       'event_label': 'petal_letter_modified',
       'custom_parameters': {
         'from_letter': previousValue.toLowerCase(),
-        'to_letter': letter.toLowerCase(),
+        'to_letter': newLetter.toLowerCase(),
         'petal_position': index + 1,
         'change_type': 'petal'
       }
@@ -490,8 +559,14 @@ function handlePetalInput(input, index) {
   lastInteractionTime = Date.now();
 }
 
-// Function to handle petal click (submit form with selected petal)
+// Remove the duplicate selectPetal function (keep only this one):
 function selectPetal(index) {
+  // Only allow button mode when all letters are entered
+  if (!areAllLettersEntered()) {
+    // If not all letters entered, focus the input instead
+    document.getElementById(`petal-${index}`).focus();
+    return;
+  }
 
   if (!centerLetter) {
     showCenterWarning();
@@ -748,6 +823,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('center-input').focus();
   }
 
+  // Initial visual state update
+  updatePetalVisualState();
 });
 
 // Enhanced checkbox handling function
@@ -883,6 +960,125 @@ function showCenterWarning() {
   }, 2000);
 }
 
+
+// Enhanced function to update visual state of petals
+function updatePetalVisualState() {
+  const allLettersEntered = areAllLettersEntered();
+  const petals = document.querySelectorAll('.petal-button');
+  
+  petals.forEach((petal, index) => {
+    if (allLettersEntered && petalLetters[index].length === 1) {
+      petal.classList.add('button-mode');
+      petal.title = `Click to solve with bonus letter ${petalLetters[index]}`;
+    } else {
+      petal.classList.remove('button-mode');
+      petal.classList.remove('selected'); // Remove selection if not in button mode
+      petal.title = 'Click to enter a letter';
+    }
+  });
+  
+  // Update instruction text if needed
+  const instruction = document.querySelector('.pad_lr_30');
+  if (instruction) {
+    if (allLettersEntered) {
+      instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
+    } else {
+      instruction.textContent = 'Enter your letters below. Click any petal to calculate words with that bonus letter.';
+    }
+  }
+}
+
+// Add this to the DOMContentLoaded event listener at the end:
+// Initial visual state update
+updatePetalVisualState();
+
+// Function to check for duplicate letters
+function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
+  const allLetters = [centerLetter, ...petalLetters];
+  const newLetterUpper = newLetter.toUpperCase();
+  
+  // Check against all other positions
+  for (let i = 0; i < allLetters.length; i++) {
+    const existingLetter = allLetters[i];
+    
+    // Skip empty letters and the current position being edited
+    if (!existingLetter) continue;
+    
+    // For center letter, skip center position (index would be -1 or special case)
+    if (isCenter && i === 0) continue;
+    
+    // For petal letters, skip the current petal position
+    if (!isCenter && i === currentIndex + 1) continue;
+    
+    // Check for duplicate
+    if (existingLetter.toUpperCase() === newLetterUpper) {
+      return {
+        isDuplicate: true,
+        position: i === 0 ? 'center' : `petal ${i}`,
+        letter: existingLetter
+      };
+    }
+  }
+  
+  return { isDuplicate: false };
+}
+
+// Function to show duplicate warning
+function showDuplicateWarning(letter, position) {
+  // Remove existing warning if any
+  const existingWarning = document.getElementById('duplicate-warning');
+  if (existingWarning) {
+    existingWarning.remove();
+  }
+  
+  // Create warning element
+  const warning = document.createElement('div');
+  warning.id = 'duplicate-warning';
+  warning.style.cssText = `
+    display: block;
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ff6b6b;
+    color: white;
+    padding: 12px 20px;
+    border: 2px solid #e55555;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+  `;
+  warning.textContent = `Letter "${letter}" is already used in the ${position}!`;
+  
+  document.body.appendChild(warning);
+  
+  // Track duplicate attempt
+  safeTrack('duplicate_letter_attempt', {
+    'event_category': 'blossom_solver',
+    'event_label': 'duplicate_blocked',
+    'custom_parameters': {
+      'attempted_letter': letter.toLowerCase(),
+      'existing_position': position,
+      'session_duration': Date.now() - sessionStartTime
+    }
+  });
+
+  // Auto-remove warning after 3 seconds
+  setTimeout(() => {
+    if (warning && warning.parentNode) {
+      warning.style.transition = 'opacity 0.5s ease';
+      warning.style.opacity = '0';
+      setTimeout(() => {
+        if (warning && warning.parentNode) {
+          warning.remove();
+        }
+      }, 500);
+    }
+  }, 2500);
+}
+
 </script>
 
 <form name="form1" action="/blossom" method="post">
@@ -930,50 +1126,38 @@ function showCenterWarning() {
     <!-- Petal Letters -->
     <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
       <input type="text" id="petal-0" maxlength="1" placeholder="B" 
-             oninput="handlePetalInput(this, 0)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 0)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, false)">
     </button>
-    
+
     <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
       <input type="text" id="petal-1" maxlength="1" placeholder="C" 
-             oninput="handlePetalInput(this, 1)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 1, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 1)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 1, false)">
     </button>
-    
+
     <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
       <input type="text" id="petal-2" maxlength="1" placeholder="D" 
-             oninput="handlePetalInput(this, 2)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 2, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 2)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 2, false)">
     </button>
-    
+
     <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
       <input type="text" id="petal-3" maxlength="1" placeholder="E" 
-             oninput="handlePetalInput(this, 3)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 3, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 3)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 3, false)">
     </button>
-    
+
     <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
       <input type="text" id="petal-4" maxlength="1" placeholder="F" 
-             oninput="handlePetalInput(this, 4)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 4, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 4)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 4, false)">
     </button>
-    
+
     <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
       <input type="text" id="petal-5" maxlength="1" placeholder="G" 
-             oninput="handlePetalInput(this, 5)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 5, false)"
-             onfocus="this.parentElement.style.pointerEvents='none'"
-             onblur="this.parentElement.style.pointerEvents='auto'">
+            oninput="handlePetalInput(this, 5)" 
+            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 5, false)">
     </button>
   </div>
   
