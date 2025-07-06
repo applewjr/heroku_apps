@@ -717,14 +717,17 @@ document.addEventListener('DOMContentLoaded', function() {
     centerLetter = initialCenter.toUpperCase();
     document.getElementById('center-input').value = centerLetter;
   }
-  
+
   if (initialPetals) {
     for (let i = 0; i < initialPetals.length && i < 6; i++) {
       petalLetters[i] = initialPetals[i].toUpperCase();
       document.getElementById(`petal-${i}`).value = petalLetters[i];
     }
   }
-  
+
+  // IMMEDIATELY update visual state after setting values
+  updatePetalVisualState();
+
   // Highlight selected petal
   if (initialSelectedPetal) {
     const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
