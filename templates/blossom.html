@@ -1161,7 +1161,7 @@ function showResetConfirmation(event) {
   
   dialog.innerHTML = `
     <h3 style="margin: 0 0 12px 0; color: #333; font-size: 18px;">Reset Letters?</h3>
-    <p style="margin: 0 0 20px 0; color: #666; line-height: 1.4;">This will clear all your current letters. Are you sure you want to continue?</p>
+    <p style="margin: 0 0 20px 0; color: #666; line-height: 1.4;">This will clear all your current letters and words marked as "Used". Are you sure you want to continue?</p>
     <div style="display: flex; gap: 12px; justify-content: center;">
       <button onclick="cancelReset()" style="
         background-color: #f5f5f5;
@@ -1174,8 +1174,8 @@ function showResetConfirmation(event) {
         font-family: inherit;
       ">Cancel</button>
       <button onclick="confirmReset()" style="
-        background-color: #dc3545;
-        border: 1px solid #dc3545;
+        background-color: #02484d;
+        border: 1px solid #02484d;
         color: white;
         padding: 10px 20px;
         border-radius: 6px;
