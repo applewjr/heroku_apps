@@ -360,3 +360,26 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
         
     # Return table, total count, and load more flag
     return blossom_table, total_valid_words, show_load_more
+
+def filter_words_for_blossom(words):
+    """
+    Convert raw word list to blossom-optimized word list
+    Removes words that are impossible in any blossom puzzle
+    """
+    filtered_words = []
+    removed_count = 0
+    
+    for word in words:
+        word_str = str(word).lower()
+        word_len = len(word_str)
+        unique_letters = len(set(word_str))
+        
+        # Keep words that could be valid in ANY blossom puzzle
+        if (word_len >= 4 and                    # Minimum length
+            word_str.isalpha() and               # Only letters
+            unique_letters <= 7):                # Max 7 unique letters (bulletproof filter)
+            filtered_words.append(word_str)
+        else:
+            removed_count += 1
+    
+    return set(filtered_words)
