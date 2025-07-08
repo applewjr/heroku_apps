@@ -409,90 +409,22 @@ table.blossom-info {
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-/* Shake animation for duplicate letters */
-@keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-5px); }
-  100% { transform: translateX(0); }
-}
-
-.shake {
-  animation: shake 0.5s ease-in-out;
-}
-
-/* Prevent petals from losing rotation during shake */
-.petal-1.shake {
-  animation: shake-petal-1 0.5s ease-in-out;
-}
-
-.petal-2.shake {
-  animation: shake-petal-2 0.5s ease-in-out;
-}
-
-.petal-3.shake {
-  animation: shake-petal-3 0.5s ease-in-out;
-}
-
-.petal-4.shake {
-  animation: shake-petal-4 0.5s ease-in-out;
-}
-
-.petal-5.shake {
-  animation: shake-petal-5 0.5s ease-in-out;
-}
-
-.petal-6.shake {
-  animation: shake-petal-6 0.5s ease-in-out;
-}
-
-@keyframes shake-petal-1 {
-  0% { transform: translateY(0%) rotate(90deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(90deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(90deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(90deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(90deg) translateX(0); }
-}
-
-@keyframes shake-petal-2 {
-  0% { transform: translateY(0%) rotate(0deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(0deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(0deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(0deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(0deg) translateX(0); }
-}
-
-@keyframes shake-petal-3 {
-  0% { transform: translateY(0%) rotate(45deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(45deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(45deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(45deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(45deg) translateX(0); }
-}
-
-@keyframes shake-petal-4 {
-  0% { transform: translateY(0%) rotate(45deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(45deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(45deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(45deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(45deg) translateX(0); }
-}
-
-@keyframes shake-petal-5 {
-  0% { transform: translateY(0%) rotate(0deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(0deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(0deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(0deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(0deg) translateX(0); }
-}
-
-@keyframes shake-petal-6 {
-  0% { transform: translateY(0%) rotate(90deg) translateX(0); }
-  25% { transform: translateY(0%) rotate(90deg) translateX(-5px); }
-  50% { transform: translateY(0%) rotate(90deg) translateX(5px); }
-  75% { transform: translateY(0%) rotate(90deg) translateX(-5px); }
-  100% { transform: translateY(0%) rotate(90deg) translateX(0); }
+/* Duplicate warning styling */
+.duplicate-warning {
+  display: block;
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #ff6b6b;
+  color: white;
+  padding: 12px 20px;
+  border: 2px solid #e55555;
+  border-radius: 6px;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  z-index: 2001;
+  font-size: 14px;
 }
 
 </style>
@@ -516,11 +448,7 @@ function handleCenterInput(input) {
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, -1, true);
     if (duplicateCheck.isDuplicate) {
-      // Shake animation for duplicate
-      input.closest('.center-letter').classList.add('shake');
-      setTimeout(() => {
-        input.closest('.center-letter').classList.remove('shake');
-      }, 500);
+      showDuplicateWarning(newLetter, duplicateCheck.position);
       input.value = centerLetter;
       return;
     }
@@ -547,11 +475,7 @@ function handlePetalInput(input, index) {
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, index, false);
     if (duplicateCheck.isDuplicate) {
-      // Shake animation for duplicate
-      input.closest('.petal-button').classList.add('shake');
-      setTimeout(() => {
-        input.closest('.petal-button').classList.remove('shake');
-      }, 500);
+      showDuplicateWarning(newLetter, duplicateCheck.position);
       input.value = petalLetters[index];
       return;
     }
@@ -644,11 +568,62 @@ function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
     if (!isCenter && i === currentIndex + 1) continue;
     
     if (existingLetter.toUpperCase() === newLetterUpper) {
-      return { isDuplicate: true };
+      return {
+        isDuplicate: true,
+        position: i === 0 ? 'center' : `petal ${i}`,
+        letter: existingLetter
+      };
     }
   }
   
   return { isDuplicate: false };
+}
+
+// Show center warning
+function showCenterWarning() {
+  const warning = document.getElementById('center-warning');
+  warning.style.display = 'block';
+  warning.style.opacity = '1';
+
+  setTimeout(() => {
+    warning.style.transition = 'opacity 0.5s ease';
+    warning.style.opacity = '0';
+  }, 1500);
+
+  setTimeout(() => {
+    warning.style.display = 'none';
+    warning.style.transition = '';
+  }, 2000);
+}
+
+// Show duplicate warning
+function showDuplicateWarning(letter, position) {
+  // Remove existing warning if any
+  const existingWarning = document.getElementById('duplicate-warning');
+  if (existingWarning) {
+    existingWarning.remove();
+  }
+  
+  // Create warning element
+  const warning = document.createElement('div');
+  warning.id = 'duplicate-warning';
+  warning.className = 'duplicate-warning';
+  warning.textContent = `Letter "${letter}" is already used in the ${position}!`;
+  
+  document.body.appendChild(warning);
+
+  // Auto-remove warning after 3 seconds
+  setTimeout(() => {
+    if (warning && warning.parentNode) {
+      warning.style.transition = 'opacity 0.5s ease';
+      warning.style.opacity = '0';
+      setTimeout(() => {
+        if (warning && warning.parentNode) {
+          warning.remove();
+        }
+      }, 500);
+    }
+  }, 2500);
 }
 
 // Find next empty cell
@@ -677,25 +652,6 @@ function findNextEmptyCell(currentContext = 'any') {
   
   return null;
 }
-
-// Show center warning
-function showCenterWarning() {
-  const warning = document.getElementById('center-warning');
-  warning.style.display = 'block';
-  warning.style.opacity = '1';
-
-  setTimeout(() => {
-    warning.style.transition = 'opacity 0.5s ease';
-    warning.style.opacity = '0';
-  }, 1500);
-
-  setTimeout(() => {
-    warning.style.display = 'none';
-    warning.style.transition = '';
-  }, 2000);
-}
-
-// Handle checkbox changes
 function handleCheckboxChange(checkbox) {
   const word = checkbox.getAttribute('data-word');
   const row = checkbox.closest('tr');
