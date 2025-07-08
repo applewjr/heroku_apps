@@ -1,6 +1,17 @@
 {% extends 'base.html' %}
 
-{% block title %}Wordle Solver{% endblock %}
+
+{% block title %}Wordle Solver - Beat Daily Wordle Puzzle Instantly{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.">
+<link rel="canonical" href="https://jamesapplewhite.com/wordle">
+<meta name="keywords" content="wordle, wordle solver, wordle help, wordle strategy, nyt wordle solver, word game solver, wordle hints">
+<meta property="og:title" content="Wordle Solver - Beat Daily Wordle Puzzle Instantly">
+<meta property="og:description" content="Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle instantly.">
+<meta property="og:url" content="https://jamesapplewhite.com/wordle">
+<meta property="og:type" content="website">
+{% endblock %}
 
 {% block content %}
 
@@ -64,7 +75,7 @@
 <body>
     <center>
     <br>
-    <h1 style="text-align: center">Wordle Game Solver</h1>
+    <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordle Solver & Strategy Tool</h1>
     <form id="wordle-form" method="post" action="/wordle">
     <br>
     <div id="wordle-grid">

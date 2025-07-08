@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}Antiwordle Solver{% endblock %}
+{% block title %}Antiwordle Solver - Beat Antiwordle Game Instantly{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.">
+<link rel="canonical" href="https://jamesapplewhite.com/antiwordle">
+<meta name="keywords" content="antiwordle, antiwordle solver, antiwordle help, antiwordle strategy, word game solver, antiwordle hints">
+<meta property="og:title" content="Antiwordle Solver - Beat Antiwordle Game Instantly">
+<meta property="og:description" content="Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game instantly.">
+<meta property="og:url" content="https://jamesapplewhite.com/antiwordle">
+<meta property="og:type" content="website">
+{% endblock %}
 
 {% block content %}
 
@@ -64,7 +74,7 @@
 <body>
     <center>
     <br>
-    <h1 style="text-align: center">Antiwordle Game Solver</h1>
+    <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Antiwordle Solver & Strategy Tool</h1>
 
     <form id="wordle-form" method="post" action="/antiwordle">
     <br>
