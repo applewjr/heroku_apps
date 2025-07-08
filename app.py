@@ -42,6 +42,7 @@ df = pd.read_csv(os.path.join(data_folder, 'word_data_created.csv'))
 word_df = pd.read_csv(os.path.join(data_folder, 'all_words_blossom.csv')) # changed to main "word_df" on 8/24/2024
 words = word_df['0'].to_list()
 words = set(words)
+words_blossom = all_words.filter_words_for_blossom(words)
 
 df_demo_realtor = pd.read_csv(os.path.join(data_folder, 'realtor_data.csv'))
 df_demo_titanic = pd.read_csv(os.path.join(data_folder, 'titanic_dataset.csv'))
@@ -1274,7 +1275,7 @@ def blossom_solver():
 
         # Get the blossom table and modify it to include checkboxes
         blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
-            must_have, may_have, petal_letter, current_count, words, used_words
+            must_have, may_have, petal_letter, current_count, words_blossom, used_words
         )
         valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
 
