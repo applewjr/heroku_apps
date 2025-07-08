@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}Quordle Solver{% endblock %}
+{% block title %}Quordle Solver - Solve 4 Wordles at Once Instantly{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.">
+<link rel="canonical" href="https://jamesapplewhite.com/quordle">
+<meta name="keywords" content="quordle, quordle solver, quordle help, quordle strategy, sequence solver, 4 wordle solver, word game solver">
+<meta property="og:title" content="Quordle Solver - Solve 4 Wordles at Once Instantly">
+<meta property="og:description" content="Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions.">
+<meta property="og:url" content="https://jamesapplewhite.com/quordle">
+<meta property="og:type" content="website">
+{% endblock %}
 
 {% block content %}
 <head>
@@ -42,7 +52,7 @@
 
     <center>
         <br>
-        <h1 style="text-align: center">Quordle/Sequence Solver</h1>
+        <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Quordle & Sequence Solver</h1>
         <br>
     </center>
 
@@ -205,7 +215,7 @@
     <!-- <a href="/quordle" class="browse-button">Quordle Solver</a> -->
     <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
     <!-- <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a> -->
-    <a href="/quordle_mobile" class="browse-button">Quordle Mobile Solver</a>
+    <!-- <a href="/quordle_mobile" class="browse-button">Quordle Mobile Solver</a> -->
     <br>
     <br>
     <br>
