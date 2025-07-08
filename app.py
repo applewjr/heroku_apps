@@ -1743,6 +1743,26 @@ def catch_all(path):
     return render_template('error.html', return_type=return_type), 404
 
 
+
+
+@app.route('/antiwordle_og')
+def antiwordle_og_redirect():
+    return redirect('/antiwordle', code=301)
+
+@app.route('/blossom_bee')
+def blossom_bee_redirect():
+    return redirect('/blossom', code=301)
+
+@app.route('/quordle_mobile')
+def quordle_mobile_redirect():
+    return redirect('/quordle', code=301)
+
+@app.route('/wordle_og')
+def wordle_og_redirect():
+    return redirect('/wordle', code=301)
+
+
+
 if __name__ == "__main__":
     app.run(debug=True, load_dotenv=False)
 
