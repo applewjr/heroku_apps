@@ -442,9 +442,11 @@ function updateHiddenInputs() {
   document.querySelector('input[name="may_have"]').value = petalLetters.join('');
 }
 
-// Handle center letter input
+// Handle center letter input - letters only
 function handleCenterInput(input) {
-  const newLetter = input.value.toUpperCase();
+  // Remove any non-letter characters and convert to uppercase
+  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
   
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, -1, true);
@@ -469,9 +471,11 @@ function handleCenterInput(input) {
   updateHiddenInputs();
 }
 
-// Handle petal letter input
+// Handle petal letter input - letters only
 function handlePetalInput(input, index) {
-  const newLetter = input.value.toUpperCase();
+  // Remove any non-letter characters and convert to uppercase
+  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
   
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, index, false);
@@ -496,6 +500,76 @@ function handlePetalInput(input, index) {
   }
   
   updateHiddenInputs();
+}
+
+// Additional function to handle keydown events and prevent non-letter input
+function handleKeyDown(event) {
+  const key = event.key;
+  
+  // Allow navigation keys
+  if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) {
+    return true;
+  }
+  
+  // Allow Ctrl+A, Ctrl+C, Ctrl+V, etc.
+  if (event.ctrlKey || event.metaKey) {
+    return true;
+  }
+  
+  // Only allow letters A-Z (both uppercase and lowercase)
+  if (!/^[A-Za-z]$/.test(key)) {
+    event.preventDefault();
+    
+    // Show warning for invalid character
+    showInvalidCharacterWarning(key);
+    
+    return false;
+  }
+  
+  return true;
+}
+
+// Show invalid character warning
+function showInvalidCharacterWarning(character) {
+  // Remove existing warning if any
+  const existingWarning = document.getElementById('invalid-char-warning');
+  if (existingWarning) {
+    existingWarning.remove();
+  }
+  
+  // Create warning element
+  const warning = document.createElement('div');
+  warning.id = 'invalid-char-warning';
+  warning.className = 'duplicate-warning'; // Reuse existing styling
+  
+  // Customize message based on character type
+  let message = '';
+  if (/\d/.test(character)) {
+    message = `Numbers like "${character}" are not allowed. Please enter letters only!`;
+  } else if (character === ' ') {
+    message = `Spaces are not allowed. Please enter letters only!`;
+  } else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(character)) {
+    message = `Special characters like "${character}" are not allowed. Please enter letters only!`;
+  } else {
+    message = `"${character}" is not allowed. Please enter letters A-Z only!`;
+  }
+  
+  warning.textContent = message;
+  
+  document.body.appendChild(warning);
+
+  // Auto-remove warning after 3 seconds
+  setTimeout(() => {
+    if (warning && warning.parentNode) {
+      warning.style.transition = 'opacity 0.5s ease';
+      warning.style.opacity = '0';
+      setTimeout(() => {
+        if (warning && warning.parentNode) {
+          warning.remove();
+        }
+      }, 500);
+    }
+  }, 2500);
 }
 
 // Check if all letters are entered
@@ -852,49 +926,49 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- New Blossom Layout -->
   <div class="blossom-container">
 
-    <!-- Center Letter -->
-    <div class="center-letter">
-      <input type="text" id="center-input" maxlength="1" placeholder="A" 
-             oninput="handleCenterInput(this)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, true)">
-    </div>
-    
-    <!-- Petal Letters -->
-    <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
-      <input type="text" id="petal-0" maxlength="1" placeholder="B" 
-            oninput="handlePetalInput(this, 0)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, false)">
-    </button>
+  <!-- Center Letter -->
+  <div class="center-letter">
+    <input type="text" id="center-input" maxlength="1" placeholder="A" 
+           oninput="handleCenterInput(this)" 
+           onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 0, true)">
+  </div>
+  
+  <!-- Petal Letters -->
+  <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
+    <input type="text" id="petal-0" maxlength="1" placeholder="B" 
+          oninput="handlePetalInput(this, 0)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 0, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
-      <input type="text" id="petal-1" maxlength="1" placeholder="C" 
-            oninput="handlePetalInput(this, 1)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 1, false)">
-    </button>
+  <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
+    <input type="text" id="petal-1" maxlength="1" placeholder="C" 
+          oninput="handlePetalInput(this, 1)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 1, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
-      <input type="text" id="petal-2" maxlength="1" placeholder="D" 
-            oninput="handlePetalInput(this, 2)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 2, false)">
-    </button>
+  <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
+    <input type="text" id="petal-2" maxlength="1" placeholder="D" 
+          oninput="handlePetalInput(this, 2)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 2, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
-      <input type="text" id="petal-3" maxlength="1" placeholder="E" 
-            oninput="handlePetalInput(this, 3)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 3, false)">
-    </button>
+  <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
+    <input type="text" id="petal-3" maxlength="1" placeholder="E" 
+          oninput="handlePetalInput(this, 3)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 3, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
-      <input type="text" id="petal-4" maxlength="1" placeholder="F" 
-            oninput="handlePetalInput(this, 4)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 4, false)">
-    </button>
+  <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
+    <input type="text" id="petal-4" maxlength="1" placeholder="F" 
+          oninput="handlePetalInput(this, 4)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 4, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
-      <input type="text" id="petal-5" maxlength="1" placeholder="G" 
-            oninput="handlePetalInput(this, 5)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 5, false)">
-    </button>
+  <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
+    <input type="text" id="petal-5" maxlength="1" placeholder="G" 
+          oninput="handlePetalInput(this, 5)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 5, false)">
+  </button>
   </div>
   
 <a href="#" style="
