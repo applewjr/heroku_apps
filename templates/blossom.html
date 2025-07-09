@@ -511,8 +511,8 @@ function handleKeyDown(event) {
     return true;
   }
   
-  // Allow Ctrl+A, Ctrl+C, Ctrl+V, etc.
-  if (event.ctrlKey || event.metaKey) {
+  // Allow modifier keys (Ctrl, Alt, Shift, etc.)
+  if (event.ctrlKey || event.metaKey || event.altKey || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta') {
     return true;
   }
   
