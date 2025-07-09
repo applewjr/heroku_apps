@@ -10,11 +10,11 @@
 <meta property="og:description" content="Free Blossom word finder. Enter letters to instantly find all words and solve today's Merriam-Webster Blossom puzzle.">
 <meta property="og:url" content="https://jamesapplewhite.com/blossom">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
 {% endblock %}
 
 {% block content %}
 <style>
-  /* Existing styles preserved */
   input::-webkit-input-placeholder {
       color: lightgrey;
   }
@@ -308,8 +308,8 @@ table.blossom-info {
     font-weight: bold;
     text-transform: uppercase;
     outline: none;
-    cursor: text; /* Change to text cursor by default */
-    pointer-events: auto; /* Enable pointer events */
+    cursor: text;
+    pointer-events: auto;
     -webkit-text-fill-color: #ffffff !important;
     -webkit-appearance: none;
     appearance: none;
@@ -322,12 +322,12 @@ table.blossom-info {
 .petal-button.button-mode {
   cursor: pointer;
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-  background-color: #8B5A96; /* Cherry blossom purple */
+  background-color: #8B5A96;
   transition: background-color 0.5s ease, box-shadow 0.3s ease;
 }
 
 .petal-button.button-mode:hover {
-  background-color: #7A4D87; /* Slightly darker purple on hover */
+  background-color: #7A4D87;
 }
 
 /* Selected petal in button mode - keep the gold highlight */
@@ -410,182 +410,221 @@ table.blossom-info {
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-</style>
+/* Duplicate warning styling */
+.duplicate-warning {
+  display: block;
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #ff6b6b;
+  color: white;
+  padding: 12px 20px;
+  border: 2px solid #e55555;
+  border-radius: 6px;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  z-index: 2001;
+  font-size: 14px;
+  max-width: 90vw;
+  text-align: center;
+}
 
-<script>
-// Safe gtag function that won't crash if GA isn't loaded
-function safeTrack(eventName, properties = {}) {
-  try {
-    if (typeof gtag !== 'undefined') {
-      gtag('event', eventName, properties);
-    }
-  } catch (error) {
-    // Silently fail - analytics shouldn't break functionality
+/* Mobile-specific positioning for warnings */
+@media (max-width: 768px) {
+  .duplicate-warning {
+    top: 20px;
+    font-size: 13px;
+    padding: 10px 16px;
+    margin: 0 5%;
+    max-width: 90%;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
-// Variables to track current petal and letter values
-let currentPetalIndex = 0;
+/* Even more visible on small screens */
+@media (max-width: 480px) {
+  .duplicate-warning {
+    top: 15px;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 0 10px;
+    max-width: calc(100% - 20px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Subtle entrance animation to draw attention */
+@keyframes warningSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.duplicate-warning {
+  animation: warningSlideIn 0.3s ease-out;
+}
+
+</style>
+
+<script>
+// Simple, lightweight tracking only for essential functionality
 let centerLetter = '';
 let petalLetters = ['', '', '', '', '', ''];
 let selectedPetal = '';
-let sessionStartTime = Date.now();
-let lastInteractionTime = Date.now();
 
-// Function to update the hidden form inputs
+// Update hidden form inputs
 function updateHiddenInputs() {
   document.querySelector('input[name="must_have"]').value = centerLetter;
   document.querySelector('input[name="may_have"]').value = petalLetters.join('');
 }
 
-// Updated handleCenterInput function
+// Handle center letter input - letters only
 function handleCenterInput(input) {
-  const previousValue = centerLetter;
-  const newLetter = input.value.toUpperCase();
+  // Remove any non-letter characters and convert to uppercase
+  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
   
-  // Check for duplicates if there's a new letter
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, -1, true);
     if (duplicateCheck.isDuplicate) {
-      // Revert to previous value
-      input.value = previousValue;
       showDuplicateWarning(newLetter, duplicateCheck.position);
+      input.value = centerLetter;
       return;
     }
   }
   
   centerLetter = newLetter;
   input.value = centerLetter;
-
-  // Update visual state
   updatePetalVisualState();
-
-  if (centerLetter.length === 1 && previousValue.length === 0) {
-    // Move to next empty cell
+  
+  if (centerLetter.length === 1) {
     const nextEmpty = findNextEmptyCell();
     if (nextEmpty) {
       document.getElementById(nextEmpty.element).focus();
     }
-    
-    // Track center letter entry
-    safeTrack('center_letter_entered', {
-      'event_category': 'blossom_solver',
-      'event_label': 'center_letter_complete',
-      'value': 1,
-      'custom_parameters': {
-        'letter': centerLetter.toLowerCase(),
-        'time_to_enter': Date.now() - sessionStartTime,
-        'session_duration': Date.now() - sessionStartTime
-      }
-    });
-  }
-  
-  // Track center letter change
-  if (previousValue !== centerLetter && centerLetter.length > 0) {
-    safeTrack('letter_changed', {
-      'event_category': 'blossom_solver',
-      'event_label': 'center_letter_modified',
-      'custom_parameters': {
-        'from_letter': previousValue.toLowerCase(),
-        'to_letter': centerLetter.toLowerCase(),
-        'change_type': 'center'
-      }
-    });
   }
   
   updateHiddenInputs();
-  lastInteractionTime = Date.now();
 }
 
-
-// Function to check if all letters are entered
-function areAllLettersEntered() {
-  return centerLetter.length === 1 && petalLetters.filter(l => l.length === 1).length === 6;
-}
-
-// Updated handlePetalInput function
+// Handle petal letter input - letters only
 function handlePetalInput(input, index) {
-  const previousValue = petalLetters[index];
-  const newLetter = input.value.toUpperCase();
+  // Remove any non-letter characters and convert to uppercase
+  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
   
-  // Check for duplicates if there's a new letter
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, index, false);
     if (duplicateCheck.isDuplicate) {
-      // Revert to previous value
-      input.value = previousValue;
-      petalLetters[index] = previousValue;
       showDuplicateWarning(newLetter, duplicateCheck.position);
+      input.value = petalLetters[index];
       return;
     }
   }
   
   petalLetters[index] = newLetter;
   input.value = newLetter;
-
-  // Update visual state
   updatePetalVisualState();
 
-  // Track petal entry
-  if (newLetter.length === 1 && previousValue.length === 0) {
-    safeTrack('petal_letter_entered', {
-      'event_category': 'blossom_solver',
-      'event_label': `petal_${index + 1}_filled`,
-      'value': index + 1,
-      'custom_parameters': {
-        'petal_position': index + 1,
-        'letter': newLetter.toLowerCase(),
-        'letters_filled': petalLetters.filter(l => l).length,
-        'time_since_start': Date.now() - sessionStartTime
-      }
-    });
-    
-    // Auto-advance to next empty cell
-    const nextEmpty = findNextEmptyCell('petal'); // Pass context that we're working on petals
+  if (newLetter.length === 1) {
+    const nextEmpty = findNextEmptyCell('petal');
     if (nextEmpty) {
       document.getElementById(nextEmpty.element).focus();
     } else {
-      // All cells filled, blur current input
       input.blur();
-      
-      // Track completion
-      safeTrack('all_letters_complete', {
-        'event_category': 'blossom_solver',
-        'event_label': 'full_puzzle_entered',
-        'value': 7,
-        'custom_parameters': {
-          'time_to_complete': Date.now() - sessionStartTime,
-          'center_letter': centerLetter.toLowerCase(),
-          'petal_letters': petalLetters.join('').toLowerCase(),
-          'unique_letters': new Set([centerLetter, ...petalLetters].filter(l => l)).size
-        }
-      });
     }
   }
   
-  // Track petal letter change
-  if (previousValue !== newLetter && newLetter.length > 0) {
-    safeTrack('letter_changed', {
-      'event_category': 'blossom_solver',
-      'event_label': 'petal_letter_modified',
-      'custom_parameters': {
-        'from_letter': previousValue.toLowerCase(),
-        'to_letter': newLetter.toLowerCase(),
-        'petal_position': index + 1,
-        'change_type': 'petal'
-      }
-    });
-  }
-  
   updateHiddenInputs();
-  lastInteractionTime = Date.now();
 }
 
-// Remove the duplicate selectPetal function (keep only this one):
+// Additional function to handle keydown events and prevent non-letter input
+function handleKeyDown(event) {
+  const key = event.key;
+  
+  // Allow navigation keys
+  if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) {
+    return true;
+  }
+  
+  // Allow modifier keys (Ctrl, Alt, Shift, etc.)
+  if (event.ctrlKey || event.metaKey || event.altKey || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta') {
+    return true;
+  }
+  
+  // Only allow letters A-Z (both uppercase and lowercase)
+  if (!/^[A-Za-z]$/.test(key)) {
+    event.preventDefault();
+    
+    // Show warning for invalid character
+    showInvalidCharacterWarning(key);
+    
+    return false;
+  }
+  
+  return true;
+}
+
+// Show invalid character warning
+function showInvalidCharacterWarning(character) {
+  // Remove existing warning if any
+  const existingWarning = document.getElementById('invalid-char-warning');
+  if (existingWarning) {
+    existingWarning.remove();
+  }
+  
+  // Create warning element
+  const warning = document.createElement('div');
+  warning.id = 'invalid-char-warning';
+  warning.className = 'duplicate-warning'; // Reuse existing styling
+  
+  // Customize message based on character type
+  let message = '';
+  if (/\d/.test(character)) {
+    message = `Numbers like "${character}" are not allowed. Please enter letters only!`;
+  } else if (character === ' ') {
+    message = `Spaces are not allowed. Please enter letters only!`;
+  } else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(character)) {
+    message = `Special characters like "${character}" are not allowed. Please enter letters only!`;
+  } else {
+    message = `"${character}" is not allowed. Please enter letters A-Z only!`;
+  }
+  
+  warning.textContent = message;
+  
+  document.body.appendChild(warning);
+
+  // Auto-remove warning after 3 seconds
+  setTimeout(() => {
+    if (warning && warning.parentNode) {
+      warning.style.transition = 'opacity 0.5s ease';
+      warning.style.opacity = '0';
+      setTimeout(() => {
+        if (warning && warning.parentNode) {
+          warning.remove();
+        }
+      }, 500);
+    }
+  }, 2500);
+}
+
+// Check if all letters are entered
+function areAllLettersEntered() {
+  return centerLetter.length === 1 && petalLetters.filter(l => l.length === 1).length === 6;
+}
+
+// Select petal for solving
 function selectPetal(index) {
-  // Only allow button mode when all letters are entered
   if (!areAllLettersEntered()) {
-    // If not all letters entered, focus the input instead
     document.getElementById(`petal-${index}`).focus();
     return;
   }
@@ -596,59 +635,20 @@ function selectPetal(index) {
   }
 
   if (petalLetters[index]) {
-    const previousSelected = selectedPetal;
     selectedPetal = petalLetters[index];
     document.querySelector('input[name="petal_letter"]').value = selectedPetal;
     
-    // Update visual selection
     document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
     document.querySelector(`.petal-${index + 1}`).classList.add('selected');
     
-    // Track petal selection
-    safeTrack('bonus_letter_selected', {
-      'event_category': 'blossom_solver',
-      'event_label': `bonus_${selectedPetal.toLowerCase()}`,
-      'value': index + 1,
-      'custom_parameters': {
-        'selected_letter': selectedPetal.toLowerCase(),
-        'petal_position': index + 1,
-        'total_letters': petalLetters.filter(l => l).length,
-        'is_reselection': previousSelected === selectedPetal,
-        'time_since_last_interaction': Date.now() - lastInteractionTime,
-        'session_duration': Date.now() - sessionStartTime
-      }
-    });
-    
-    // Track form submission
-    safeTrack('form_submitted', {
-      'event_category': 'blossom_solver',
-      'event_label': 'solve_request',
-      'custom_parameters': {
-        'center_letter': centerLetter.toLowerCase(),
-        'bonus_letter': selectedPetal.toLowerCase(),
-        'all_letters': [centerLetter, ...petalLetters].filter(l => l).join('').toLowerCase()
-      }
-    });
-    
-    // Submit form
     document.querySelector('form[name="form1"]').submit();
   }
 }
 
-// Function to handle backspace navigation
+// Handle backspace navigation
 function handleBackspace(input, index, isCenter) {
   if (input.value === '') {
     if (isCenter) return;
-    
-    // Track backspace navigation
-    safeTrack('navigation', {
-      'event_category': 'blossom_solver',
-      'event_label': 'backspace_navigation',
-      'custom_parameters': {
-        'from_position': isCenter ? 'center' : `petal_${index + 1}`,
-        'to_position': index > 0 ? `petal_${index}` : 'center'
-      }
-    });
     
     if (index > 0) {
       document.getElementById(`petal-${index - 1}`).focus();
@@ -658,317 +658,48 @@ function handleBackspace(input, index, isCenter) {
   }
 }
 
-// Track focus events
-function trackFocus(elementType, index) {
-  safeTrack('input_focus', {
-    'event_category': 'blossom_solver',
-    'event_label': `focus_${elementType}`,
-    'custom_parameters': {
-      'element_type': elementType,
-      'position': elementType === 'center' ? 'center' : index + 1,
-      'time_since_last_interaction': Date.now() - lastInteractionTime
-    }
-  });
-  lastInteractionTime = Date.now();
-}
-
-// Track external link clicks
-function trackExternalLink(linkText, url) {
-  safeTrack('external_link_click', {
-    'event_category': 'blossom_solver',
-    'event_label': linkText,
-    'custom_parameters': {
-      'link_text': linkText,
-      'destination_url': url,
-      'session_duration': Date.now() - sessionStartTime
-    }
-  });
-}
-
-// Track internal navigation
-function trackInternalNavigation(destination) {
-  safeTrack('internal_navigation', {
-    'event_category': 'blossom_solver',
-    'event_label': destination,
-    'custom_parameters': {
-      'destination': destination,
-      'session_duration': Date.now() - sessionStartTime,
-      'letters_entered': [centerLetter, ...petalLetters].filter(l => l).length
-    }
-  });
-}
-
-// Track tooltip interactions
-function trackTooltipHover() {
-  safeTrack('tooltip_interaction', {
-    'event_category': 'blossom_solver',
-    'event_label': 'disclaimer_tooltip_hover',
-    'custom_parameters': {
-      'tooltip_type': 'disclaimer',
-      'session_duration': Date.now() - sessionStartTime
-    }
-  });
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  // Get initial values from template
-  const initialCenter = '{{must_have_val}}';
-  const initialPetals = '{{may_have_val}}';
-  const initialSelectedPetal = '{{petal_letter}}';
-  const currentCount = '{{current_count|default(25)}}';
-  const showLoadMore = '{{show_load_more}}' === 'True';
+// Update visual state of petals
+function updatePetalVisualState() {
+  const allLettersEntered = areAllLettersEntered();
+  const petals = document.querySelectorAll('.petal-button');
   
-  // Set initial values
-  if (initialCenter) {
-    centerLetter = initialCenter.toUpperCase();
-    document.getElementById('center-input').value = centerLetter;
-  }
-
-  if (initialPetals) {
-    for (let i = 0; i < initialPetals.length && i < 6; i++) {
-      petalLetters[i] = initialPetals[i].toUpperCase();
-      document.getElementById(`petal-${i}`).value = petalLetters[i];
-    }
-  }
-
-  // IMMEDIATELY update visual state after setting values
-  updatePetalVisualState();
-
-  // Highlight selected petal
-  if (initialSelectedPetal) {
-    const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
-    if (petalIndex !== -1) {
-      document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
-    }
-  }
-  
-  // Add event listeners to checkboxes
-  const checkboxes = document.querySelectorAll('.word-checkbox');
-  let checkedCount = 0;
-  checkboxes.forEach(checkbox => {
-    const row = checkbox.closest('tr');
-    if (checkbox.checked) {
-      row.classList.add('used-word');
-      checkedCount++;
-    }
-    
-    checkbox.addEventListener('change', function() {
-      handleCheckboxChange(this);
-    });
-  });
-  
-  // Add focus tracking to inputs
-  document.getElementById('center-input').addEventListener('focus', () => trackFocus('center', 0));
-  for (let i = 0; i < 6; i++) {
-    document.getElementById(`petal-${i}`).addEventListener('focus', () => trackFocus('petal', i));
-  }
-  
-  // Add tooltip tracking
-  const tooltip = document.querySelector('.disclaimer-tooltip');
-  if (tooltip) {
-    tooltip.addEventListener('mouseenter', trackTooltipHover);
-  }
-  
-  // Add link tracking
-  document.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', function(e) {
-      const href = this.getAttribute('href');
-      const text = this.textContent.trim();
-      
-      if (href.startsWith('http')) {
-        trackExternalLink(text, href);
-      } else if (href && !href.startsWith('#')) {
-        trackInternalNavigation(text);
-      }
-    });
-  });
-  
-  // Track scroll depth
-  let maxScrollDepth = 0;
-  let scrollTracked = false;
-  window.addEventListener('scroll', function() {
-    const scrollPercentage = Math.round((window.scrollY + window.innerHeight) / document.documentElement.scrollHeight * 100);
-    if (scrollPercentage > maxScrollDepth) {
-      maxScrollDepth = scrollPercentage;
-      
-      // Track significant scroll milestones
-      if (scrollPercentage >= 90 && !scrollTracked) {
-        scrollTracked = true;
-        safeTrack('scroll_depth', {
-          'event_category': 'blossom_solver',
-          'event_label': 'reached_bottom',
-          'value': 90,
-          'custom_parameters': {
-            'max_scroll_percentage': maxScrollDepth,
-            'session_duration': Date.now() - sessionStartTime
-          }
-        });
-      }
-    }
-  });
-  
-  // Track initial page view with comprehensive data
-  safeTrack('page_view', {
-    'event_category': 'blossom_solver',
-    'event_label': 'solver_loaded',
-    'custom_parameters': {
-      'has_existing_data': centerLetter.length > 0 || petalLetters.join('').length > 0,
-      'center_letter_present': centerLetter.length > 0,
-      'petal_letters_count': petalLetters.filter(l => l).length,
-      'petal_letters_complete': petalLetters.join('').length === 6,
-      'selected_petal': initialSelectedPetal || 'none',
-      'words_displayed': parseInt(currentCount) || 25,
-      'has_more_words': showLoadMore,
-      'words_marked_used': checkedCount,
-      'page_type': 'blossom_solver',
-      'viewport_width': window.innerWidth,
-      'viewport_height': window.innerHeight,
-      'device_type': window.innerWidth < 768 ? 'mobile' : 'desktop'
-    }
-  });
-  
-  // Track session engagement when leaving
-  window.addEventListener('beforeunload', function() {
-    safeTrack('session_end', {
-      'event_category': 'blossom_solver',
-      'event_label': 'user_exit',
-      'value': Math.round((Date.now() - sessionStartTime) / 1000),
-      'custom_parameters': {
-        'session_duration_seconds': Math.round((Date.now() - sessionStartTime) / 1000),
-        'letters_entered': [centerLetter, ...petalLetters].filter(l => l).length,
-        'words_marked': document.querySelectorAll('.word-checkbox:checked').length,
-        'max_scroll_depth': maxScrollDepth
-      }
-    });
-  });
-
-  // Auto-focus center input on first load if it's empty
-  if (!centerLetter) {
-    document.getElementById('center-input').focus();
-  }
-
-  // Initial visual state update
-  updatePetalVisualState();
-});
-
-// Enhanced checkbox handling function
-function handleCheckboxChange(checkbox) {
-  const word = checkbox.getAttribute('data-word');
-  const row = checkbox.closest('tr');
-  const isChecking = checkbox.checked;
-  const wordLength = word ? word.length : 0;
-  const wordScore = parseInt(row.querySelector('td:nth-child(3)')?.textContent) || 0;
-  
-  if (isChecking) {
-    row.classList.add('used-word');
-  } else {
-    row.classList.remove('used-word');
-  }
-
-  // Track word interaction with enhanced data
-  safeTrack('word_interaction', {
-    'event_category': 'blossom_solver',
-    'event_label': isChecking ? 'word_marked_used' : 'word_unmarked',
-    'value': wordScore,
-    'custom_parameters': {
-      'word_length': wordLength,
-      'word': word,
-      'word_score': wordScore,
-      'action': isChecking ? 'mark' : 'unmark',
-      'total_marked': document.querySelectorAll('.word-checkbox:checked').length,
-      'time_since_last_interaction': Date.now() - lastInteractionTime,
-      'session_duration': Date.now() - sessionStartTime
-    }
-  });
-
-  lastInteractionTime = Date.now();
-
-  // Server sync
-  fetch('/blossom', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'toggle_word',
-      word: word
-    })
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (data.status === 'success') {
-      safeTrack('word_status_updated', {
-        'event_category': 'blossom_solver',
-        'event_label': 'server_sync_success',
-        'custom_parameters': {
-          'word': word,
-          'new_status': isChecking ? 'used' : 'available',
-          'sync_time': Date.now() - lastInteractionTime
-        }
-      });
-    }
-  })
-  .catch(error => {
-    console.error('Error updating word status:', error);
-    
-    // Track sync error
-    safeTrack('sync_error', {
-      'event_category': 'blossom_solver',
-      'event_label': 'word_sync_failed',
-      'custom_parameters': {
-        'word': word,
-        'error_message': error.message
-      }
-    });
-    
-    // Revert checkbox state
-    checkbox.checked = !checkbox.checked;
-    if (checkbox.checked) {
-      row.classList.add('used-word');
+  petals.forEach((petal, index) => {
+    if (allLettersEntered && petalLetters[index].length === 1) {
+      petal.classList.add('button-mode');
+      petal.title = `Click to solve with bonus letter ${petalLetters[index]}`;
     } else {
-      row.classList.remove('used-word');
+      petal.classList.remove('button-mode');
+      petal.classList.remove('selected');
+      petal.title = 'Click to enter a letter';
     }
   });
 }
 
-// Track load more button
-function trackLoadMore() {
-  const currentWords = parseInt(document.querySelector('input[name="current_count"]').value) || 25;
+// Check for duplicate letters
+function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
+  const allLetters = [centerLetter, ...petalLetters];
+  const newLetterUpper = newLetter.toUpperCase();
   
-  safeTrack('load_more_clicked', {
-    'event_category': 'blossom_solver',
-    'event_label': 'show_more_words',
-    'value': currentWords + 25,
-    'custom_parameters': {
-      'current_word_count': currentWords,
-      'new_word_count': currentWords + 25,
-      'session_duration': Date.now() - sessionStartTime
+  for (let i = 0; i < allLetters.length; i++) {
+    const existingLetter = allLetters[i];
+    
+    if (!existingLetter) continue;
+    if (isCenter && i === 0) continue;
+    if (!isCenter && i === currentIndex + 1) continue;
+    
+    if (existingLetter.toUpperCase() === newLetterUpper) {
+      return {
+        isDuplicate: true,
+        position: i === 0 ? 'center' : `petal ${i}`,
+        letter: existingLetter
+      };
     }
-  });
+  }
+  
+  return { isDuplicate: false };
 }
 
-// Track reset action
-function trackReset() {
-  safeTrack('puzzle_reset', {
-    'event_category': 'blossom_solver',
-    'event_label': 'reset_letters',
-    'custom_parameters': {
-      'had_center_letter': centerLetter.length > 0,
-      'had_petal_letters': petalLetters.filter(l => l).length,
-      'words_marked': document.querySelectorAll('.word-checkbox:checked').length,
-      'session_duration': Date.now() - sessionStartTime
-    }
-  });
-}
-
-document.getElementById('center-input').focus();
-
+// Show center warning
 function showCenterWarning() {
   const warning = document.getElementById('center-warning');
   warning.style.display = 'block';
@@ -985,70 +716,7 @@ function showCenterWarning() {
   }, 2000);
 }
 
-
-// Enhanced function to update visual state of petals
-function updatePetalVisualState() {
-  const allLettersEntered = areAllLettersEntered();
-  const petals = document.querySelectorAll('.petal-button');
-  
-  petals.forEach((petal, index) => {
-    if (allLettersEntered && petalLetters[index].length === 1) {
-      petal.classList.add('button-mode');
-      petal.title = `Click to solve with bonus letter ${petalLetters[index]}`;
-    } else {
-      petal.classList.remove('button-mode');
-      petal.classList.remove('selected'); // Remove selection if not in button mode
-      petal.title = 'Click to enter a letter';
-    }
-  });
-  
-  // Update instruction text if needed
-  const instruction = document.querySelector('.pad_lr_30');
-  if (instruction) {
-    if (allLettersEntered) {
-      instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
-    } else {
-      instruction.textContent = 'Enter your letters below. Click any petal to calculate words with that bonus letter.';
-    }
-  }
-}
-
-// Add this to the DOMContentLoaded event listener at the end:
-// Initial visual state update
-updatePetalVisualState();
-
-// Function to check for duplicate letters
-function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
-  const allLetters = [centerLetter, ...petalLetters];
-  const newLetterUpper = newLetter.toUpperCase();
-  
-  // Check against all other positions
-  for (let i = 0; i < allLetters.length; i++) {
-    const existingLetter = allLetters[i];
-    
-    // Skip empty letters and the current position being edited
-    if (!existingLetter) continue;
-    
-    // For center letter, skip center position (index would be -1 or special case)
-    if (isCenter && i === 0) continue;
-    
-    // For petal letters, skip the current petal position
-    if (!isCenter && i === currentIndex + 1) continue;
-    
-    // Check for duplicate
-    if (existingLetter.toUpperCase() === newLetterUpper) {
-      return {
-        isDuplicate: true,
-        position: i === 0 ? 'center' : `petal ${i}`,
-        letter: existingLetter
-      };
-    }
-  }
-  
-  return { isDuplicate: false };
-}
-
-// Function to show duplicate warning
+// Show duplicate warning
 function showDuplicateWarning(letter, position) {
   // Remove existing warning if any
   const existingWarning = document.getElementById('duplicate-warning');
@@ -1059,36 +727,10 @@ function showDuplicateWarning(letter, position) {
   // Create warning element
   const warning = document.createElement('div');
   warning.id = 'duplicate-warning';
-  warning.style.cssText = `
-    display: block;
-    position: fixed;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #ff6b6b;
-    color: white;
-    padding: 12px 20px;
-    border: 2px solid #e55555;
-    border-radius: 6px;
-    font-weight: bold;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    z-index: 2001;
-    font-size: 14px;
-  `;
+  warning.className = 'duplicate-warning';
   warning.textContent = `Letter "${letter}" is already used in the ${position}!`;
   
   document.body.appendChild(warning);
-  
-  // Track duplicate attempt
-  safeTrack('duplicate_letter_attempt', {
-    'event_category': 'blossom_solver',
-    'event_label': 'duplicate_blocked',
-    'custom_parameters': {
-      'attempted_letter': letter.toLowerCase(),
-      'existing_position': position,
-      'session_duration': Date.now() - sessionStartTime
-    }
-  });
 
   // Auto-remove warning after 3 seconds
   setTimeout(() => {
@@ -1104,41 +746,70 @@ function showDuplicateWarning(letter, position) {
   }, 2500);
 }
 
-// Function to find the next empty cell, with context awareness
+// Find next empty cell
 function findNextEmptyCell(currentContext = 'any') {
   if (currentContext === 'petal') {
-    // When working on petals, prioritize other empty petals first
     for (let i = 0; i < 6; i++) {
       if (!petalLetters[i]) {
-        return { type: 'petal', index: i, element: `petal-${i}` };
+        return { element: `petal-${i}` };
       }
     }
     
-    // Then check center if all petals are filled
     if (!centerLetter) {
-      return { type: 'center', index: -1, element: 'center-input' };
+      return { element: 'center-input' };
     }
   } else {
-    // Default behavior: center first, then petals
     if (!centerLetter) {
-      return { type: 'center', index: -1, element: 'center-input' };
+      return { element: 'center-input' };
     }
     
-    // Then check petals in order
     for (let i = 0; i < 6; i++) {
       if (!petalLetters[i]) {
-        return { type: 'petal', index: i, element: `petal-${i}` };
+        return { element: `petal-${i}` };
       }
     }
   }
   
-  return null; // All filled
+  return null;
+}
+function handleCheckboxChange(checkbox) {
+  const word = checkbox.getAttribute('data-word');
+  const row = checkbox.closest('tr');
+  
+  if (checkbox.checked) {
+    row.classList.add('used-word');
+  } else {
+    row.classList.remove('used-word');
+  }
+
+  // Server sync
+  fetch('/blossom', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'toggle_word',
+      word: word
+    })
+  })
+  .then(response => response.json())
+  .catch(error => {
+    console.error('Error updating word status:', error);
+    // Revert on error
+    checkbox.checked = !checkbox.checked;
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    } else {
+      row.classList.remove('used-word');
+    }
+  });
 }
 
+// Reset confirmation
 function showResetConfirmation(event) {
   event.preventDefault();
   
-  // Create custom modal
   const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed;
@@ -1195,14 +866,12 @@ function showResetConfirmation(event) {
   modal.appendChild(dialog);
   document.body.appendChild(modal);
   
-  // Close on backdrop click
   modal.addEventListener('click', function(e) {
     if (e.target === modal) {
       cancelReset();
     }
   });
   
-  // Store modal reference
   window.currentModal = modal;
 }
 
@@ -1214,24 +883,57 @@ function cancelReset() {
 }
 
 function confirmReset() {
-  // Track the reset action
-  if (typeof safeTrack === 'function') {
-    safeTrack('puzzle_reset_confirmed', {
-      'event_category': 'blossom_solver',
-      'event_label': 'user_confirmed_reset',
-      'custom_parameters': {
-        'had_center_letter': centerLetter.length > 0,
-        'had_petal_letters': petalLetters.filter(l => l).length,
-        'words_marked': document.querySelectorAll('.word-checkbox:checked').length,
-        'session_duration': Date.now() - sessionStartTime
-      }
-    });
-  }
-  
-  // Proceed with reset
   window.location.href = '/blossom/reset';
 }
 
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Get initial values from template
+  const initialCenter = '{{must_have_val}}';
+  const initialPetals = '{{may_have_val}}';
+  const initialSelectedPetal = '{{petal_letter}}';
+  
+  // Set initial values
+  if (initialCenter) {
+    centerLetter = initialCenter.toUpperCase();
+    document.getElementById('center-input').value = centerLetter;
+  }
+
+  if (initialPetals) {
+    for (let i = 0; i < initialPetals.length && i < 6; i++) {
+      petalLetters[i] = initialPetals[i].toUpperCase();
+      document.getElementById(`petal-${i}`).value = petalLetters[i];
+    }
+  }
+
+  updatePetalVisualState();
+
+  // Highlight selected petal
+  if (initialSelectedPetal) {
+    const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
+    if (petalIndex !== -1) {
+      document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
+    }
+  }
+  
+  // Add event listeners to checkboxes
+  const checkboxes = document.querySelectorAll('.word-checkbox');
+  checkboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    }
+    
+    checkbox.addEventListener('change', function() {
+      handleCheckboxChange(this);
+    });
+  });
+
+  // Auto-focus center input on first load if it's empty
+  if (!centerLetter) {
+    document.getElementById('center-input').focus();
+  }
+});
 </script>
 
 <form name="form1" action="/blossom" method="post">
@@ -1269,49 +971,49 @@ function confirmReset() {
   <!-- New Blossom Layout -->
   <div class="blossom-container">
 
-    <!-- Center Letter -->
-    <div class="center-letter">
-      <input type="text" id="center-input" maxlength="1" placeholder="A" 
-             oninput="handleCenterInput(this)" 
-             onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, true)">
-    </div>
-    
-    <!-- Petal Letters -->
-    <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
-      <input type="text" id="petal-0" maxlength="1" placeholder="B" 
-            oninput="handlePetalInput(this, 0)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 0, false)">
-    </button>
+  <!-- Center Letter -->
+  <div class="center-letter">
+    <input type="text" id="center-input" maxlength="1" placeholder="A" 
+           oninput="handleCenterInput(this)" 
+           onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 0, true)">
+  </div>
+  
+  <!-- Petal Letters -->
+  <button type="button" class="petal-button petal-1" onclick="selectPetal(0)">
+    <input type="text" id="petal-0" maxlength="1" placeholder="B" 
+          oninput="handlePetalInput(this, 0)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 0, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
-      <input type="text" id="petal-1" maxlength="1" placeholder="C" 
-            oninput="handlePetalInput(this, 1)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 1, false)">
-    </button>
+  <button type="button" class="petal-button petal-2" onclick="selectPetal(1)">
+    <input type="text" id="petal-1" maxlength="1" placeholder="C" 
+          oninput="handlePetalInput(this, 1)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 1, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
-      <input type="text" id="petal-2" maxlength="1" placeholder="D" 
-            oninput="handlePetalInput(this, 2)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 2, false)">
-    </button>
+  <button type="button" class="petal-button petal-3" onclick="selectPetal(2)">
+    <input type="text" id="petal-2" maxlength="1" placeholder="D" 
+          oninput="handlePetalInput(this, 2)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 2, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
-      <input type="text" id="petal-3" maxlength="1" placeholder="E" 
-            oninput="handlePetalInput(this, 3)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 3, false)">
-    </button>
+  <button type="button" class="petal-button petal-4" onclick="selectPetal(3)">
+    <input type="text" id="petal-3" maxlength="1" placeholder="E" 
+          oninput="handlePetalInput(this, 3)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 3, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
-      <input type="text" id="petal-4" maxlength="1" placeholder="F" 
-            oninput="handlePetalInput(this, 4)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 4, false)">
-    </button>
+  <button type="button" class="petal-button petal-5" onclick="selectPetal(4)">
+    <input type="text" id="petal-4" maxlength="1" placeholder="F" 
+          oninput="handlePetalInput(this, 4)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 4, false)">
+  </button>
 
-    <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
-      <input type="text" id="petal-5" maxlength="1" placeholder="G" 
-            oninput="handlePetalInput(this, 5)" 
-            onkeydown="if(event.key === 'Backspace') handleBackspace(this, 5, false)">
-    </button>
+  <button type="button" class="petal-button petal-6" onclick="selectPetal(5)">
+    <input type="text" id="petal-5" maxlength="1" placeholder="G" 
+          oninput="handlePetalInput(this, 5)" 
+          onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 5, false)">
+  </button>
   </div>
   
 <a href="#" style="
