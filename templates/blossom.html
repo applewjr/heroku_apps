@@ -426,6 +426,51 @@ table.blossom-info {
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
   z-index: 2001;
   font-size: 14px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+/* Mobile-specific positioning for warnings */
+@media (max-width: 768px) {
+  .duplicate-warning {
+    top: 20px;
+    font-size: 13px;
+    padding: 10px 16px;
+    margin: 0 5%;
+    max-width: 90%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Even more visible on small screens */
+@media (max-width: 480px) {
+  .duplicate-warning {
+    top: 15px;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 0 10px;
+    max-width: calc(100% - 20px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Subtle entrance animation to draw attention */
+@keyframes warningSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.duplicate-warning {
+  animation: warningSlideIn 0.3s ease-out;
 }
 
 </style>
