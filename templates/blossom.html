@@ -473,6 +473,83 @@ table.blossom-info {
   animation: warningSlideIn 0.3s ease-out;
 }
 
+/* Helper mode styles */
+.helper-mode-toggle {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 12px 24px;
+    border-radius: 12px 18px 12px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-block;
+    position: relative;
+    z-index: 10;
+    margin-top: -40px;
+    margin-right: 10px;
+    transition: all 0.2s ease;
+}
+
+.helper-mode-toggle:hover {
+    background-color: #e9ecef;
+    text-decoration: none !important;
+    color: #666 !important;
+    transform: scale(1.03) !important;
+}
+
+/* Purple "ON" state */
+.helper-mode-toggle.helper-mode-on {
+    background-color: #8B5A96;
+    color: white;
+    border-color: #8B5A96;
+}
+
+.helper-mode-toggle.helper-mode-on:hover {
+    background-color: #7A4D87;
+    color: white !important;
+}
+
+.show-letter-btn {
+    background-color: #02484d;
+    color: white;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.show-letter-btn:hover {
+    background-color: #03282b;
+}
+
+.show-letter-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Helper mode word display */
+.word-masked {
+    font-family: monospace;
+    letter-spacing: 2px;
+}
+
+/* Show Letter column styling */
+th.show-letter-header,
+td.show-letter-cell {
+    text-align: center;
+    width: 80px;
+    padding: 4px;
+}
+
+/* Hide elements in helper mode */
+.helper-mode-hidden {
+    display: none !important;
+}
+
 </style>
 
 <script>
@@ -883,6 +960,10 @@ function cancelReset() {
 }
 
 function confirmReset() {
+  // Clear helper mode state including revealed letters
+  sessionStorage.removeItem('blossomHelperMode');
+  revealedLetters = {};
+  
   window.location.href = '/blossom/reset';
 }
 
@@ -934,6 +1015,304 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('center-input').focus();
   }
 });
+
+// Helper mode functionality
+let isHelperMode = false;
+let revealedLetters = {}; // Track how many letters are revealed for each word
+
+// Store helper mode in sessionStorage to persist across table updates
+function saveHelperModeState() {
+    sessionStorage.setItem('blossomHelperMode', JSON.stringify({
+        isHelperMode: isHelperMode,
+        revealedLetters: revealedLetters
+    }));
+}
+
+// Load helper mode state
+function loadHelperModeState() {
+    const saved = sessionStorage.getItem('blossomHelperMode');
+    if (saved) {
+        const state = JSON.parse(saved);
+        isHelperMode = state.isHelperMode;
+        revealedLetters = state.revealedLetters || {};
+    }
+}
+
+// Toggle helper mode
+function toggleHelperMode() {
+    isHelperMode = !isHelperMode;
+    
+    // Update button text and style
+    const toggleBtn = document.getElementById('helper-mode-toggle');
+    if (toggleBtn) {
+        if (isHelperMode) {
+            toggleBtn.textContent = 'Helper Mode: ON';
+            toggleBtn.classList.add('helper-mode-on');
+        } else {
+            toggleBtn.textContent = 'Helper Mode: OFF';
+            toggleBtn.classList.remove('helper-mode-on');
+        }
+    }
+    
+    // Reset revealed letters when switching modes
+    if (!isHelperMode) {
+        revealedLetters = {};
+    }
+    
+    // Save state
+    saveHelperModeState();
+    
+    // Update table display
+    updateTableForHelperMode();
+}
+
+// Mask word based on revealed letters count
+function maskWord(word, revealCount = 1) {
+    if (!word || word.length === 0) return '';
+    
+    // Show first letter and specified number of additional letters
+    let masked = word[0];
+    for (let i = 1; i < word.length; i++) {
+        if (i < revealCount) {
+            masked += word[i];
+        } else {
+            masked += '_';
+        }
+    }
+    return masked;
+}
+
+// Show next letter for a word
+function showNextLetter(word, event) {
+    // Prevent any default button behavior
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    if (!revealedLetters[word]) {
+        revealedLetters[word] = 2; // Start with 2 (first letter + one more)
+    } else {
+        revealedLetters[word]++;
+    }
+    
+    // Save state
+    saveHelperModeState();
+    
+    // Update just this word's display
+    updateWordDisplay(word);
+    
+    // Return false to prevent any form submission
+    return false;
+}
+
+// Update display for a specific word
+function updateWordDisplay(word) {
+    const wordCell = document.querySelector(`td[data-word="${word}"]`);
+    if (!wordCell) return;
+    
+    const revealCount = revealedLetters[word] || 1;
+    const maskedWord = maskWord(word, revealCount);
+    wordCell.textContent = maskedWord;
+    
+    // Update button state
+    const row = wordCell.closest('tr');
+    const showLetterBtn = row.querySelector('.show-letter-btn');
+    if (showLetterBtn) {
+        if (revealCount >= word.length) {
+            showLetterBtn.disabled = true;
+            showLetterBtn.textContent = 'Shown';
+        } else {
+            showLetterBtn.disabled = false;
+            showLetterBtn.textContent = 'Show';
+        }
+    }
+}
+
+// Update entire table for helper mode
+function updateTableForHelperMode() {
+    const table = document.querySelector('table');
+    if (!table) return;
+    
+    // Handle header row
+    const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+    if (headerRow) {
+        // Remove existing "Show Letter" header if any
+        const existingShowHeader = headerRow.querySelector('.show-letter-header');
+        if (existingShowHeader) {
+            existingShowHeader.remove();
+        }
+        
+        if (isHelperMode) {
+            // Add "Show Letter" header
+            const showLetterHeader = document.createElement('th');
+            showLetterHeader.className = 'show-letter-header';
+            showLetterHeader.textContent = 'Hint';
+            headerRow.appendChild(showLetterHeader);
+        }
+    }
+    
+    // Handle data rows
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const wordCell = row.querySelector('td:nth-child(2)'); // Assuming word is in 2nd column
+        if (!wordCell) return;
+        
+        // Get the original word (stored as data attribute or from checkbox)
+        const checkbox = row.querySelector('.word-checkbox');
+        const word = checkbox ? checkbox.getAttribute('data-word') : wordCell.textContent;
+        
+        // Store original word as data attribute if not already there
+        if (!wordCell.hasAttribute('data-word')) {
+            wordCell.setAttribute('data-word', word);
+        }
+        
+        // Remove existing show letter cell if any
+        const existingShowCell = row.querySelector('.show-letter-cell');
+        if (existingShowCell) {
+            existingShowCell.remove();
+        }
+        
+        if (isHelperMode) {
+            // Add word class for styling
+            wordCell.classList.add('word-masked');
+            
+            // Mask the word
+            const revealCount = revealedLetters[word] || 1;
+            wordCell.textContent = maskWord(word, revealCount);
+            
+            // Add "Show Letter" button cell
+            const showLetterCell = document.createElement('td');
+            showLetterCell.className = 'show-letter-cell';
+            
+            const showLetterBtn = document.createElement('button');
+            showLetterBtn.className = 'show-letter-btn';
+            showLetterBtn.type = 'button'; // Explicitly set type to prevent form submission
+            showLetterBtn.textContent = revealCount >= word.length ? 'Shown' : 'Show';
+            showLetterBtn.disabled = revealCount >= word.length;
+            showLetterBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                showNextLetter(word, e);
+                return false;
+            };
+            
+            showLetterCell.appendChild(showLetterBtn);
+            row.appendChild(showLetterCell);
+        } else {
+            // Restore original word
+            wordCell.classList.remove('word-masked');
+            wordCell.textContent = word;
+        }
+    });
+}
+
+// Create or update the helper mode button
+function createHelperModeButton() {
+    // Check if button already exists
+    if (document.getElementById('helper-mode-toggle')) {
+        return;
+    }
+    
+    const resetButton = document.querySelector('a[onclick*="showResetConfirmation"]');
+    if (resetButton) {
+        const toggleButton = document.createElement('a');
+        toggleButton.id = 'helper-mode-toggle';
+        toggleButton.className = 'helper-mode-toggle';
+        toggleButton.textContent = isHelperMode ? 'Helper Mode: ON' : 'Helper Mode: OFF';
+        if (isHelperMode) {
+            toggleButton.classList.add('helper-mode-on');
+        }
+        toggleButton.href = '#';
+        toggleButton.onclick = function(e) {
+            e.preventDefault();
+            toggleHelperMode();
+        };
+        
+        resetButton.parentNode.insertBefore(toggleButton, resetButton);
+    }
+}
+
+// Initialize helper mode on page load and after any table updates
+function initializeHelperMode() {
+    // Load saved state
+    loadHelperModeState();
+    
+    // Create button if it doesn't exist
+    createHelperModeButton();
+    
+    // Store original words as data attributes
+    const wordCells = document.querySelectorAll('table td:nth-child(2)');
+    wordCells.forEach(cell => {
+        const checkbox = cell.parentElement.querySelector('.word-checkbox');
+        if (checkbox) {
+            const word = checkbox.getAttribute('data-word');
+            cell.setAttribute('data-word', word);
+        }
+    });
+    
+    // Apply helper mode if active
+    if (isHelperMode) {
+        updateTableForHelperMode();
+    }
+}
+
+// Override the existing DOMContentLoaded or add to it
+document.addEventListener('DOMContentLoaded', function() {
+    initializeHelperMode();
+});
+
+// Watch for table changes using MutationObserver
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+            // Check if a table was added or modified
+            const hasTableChange = Array.from(mutation.addedNodes).some(node => 
+                node.nodeName === 'TABLE' || (node.querySelector && node.querySelector('table'))
+            );
+            
+            if (hasTableChange) {
+                // Re-initialize helper mode after table update
+                setTimeout(initializeHelperMode, 10);
+            }
+        }
+    });
+});
+
+// Start observing the document for changes
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// Modify the handleCheckboxChange function to work with helper mode
+if (typeof handleCheckboxChange !== 'undefined') {
+    const originalHandleCheckboxChange = handleCheckboxChange;
+    handleCheckboxChange = function(checkbox) {
+        // Call original function
+        originalHandleCheckboxChange(checkbox);
+        
+        // If in helper mode, ensure the word display is maintained
+        if (isHelperMode) {
+            const word = checkbox.getAttribute('data-word');
+            const row = checkbox.closest('tr');
+            const wordCell = row.querySelector('td[data-word]');
+            if (wordCell) {
+                const revealCount = revealedLetters[word] || 1;
+                wordCell.textContent = maskWord(word, revealCount);
+            }
+        }
+    };
+}
+
+// Preserve helper mode state during form submissions
+document.addEventListener('submit', function(e) {
+    if (e.target && e.target.matches('form[name="form1"]')) {
+        // State is already saved in sessionStorage, so it will persist
+        saveHelperModeState();
+    }
+}, true);
+
 </script>
 
 <form name="form1" action="/blossom" method="post">
