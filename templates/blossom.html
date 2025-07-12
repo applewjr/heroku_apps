@@ -1226,6 +1226,11 @@ function createHelperModeButton() {
     
     const resetButton = document.querySelector('a[onclick*="showResetConfirmation"]');
     if (resetButton) {
+        // 1. Create the wrapper span for the tooltip
+        const tooltipWrapper = document.createElement('span');
+        tooltipWrapper.className = 'disclaimer-tooltip';
+        
+        // 2. Create the Helper Mode button (<a> element)
         const toggleButton = document.createElement('a');
         toggleButton.id = 'helper-mode-toggle';
         toggleButton.className = 'helper-mode-toggle';
@@ -1234,12 +1239,35 @@ function createHelperModeButton() {
             toggleButton.classList.add('helper-mode-on');
         }
         toggleButton.href = '#';
+        
+        // Add the click handler with the setTimeout for automatic dismissal
         toggleButton.onclick = function(e) {
             e.preventDefault();
             toggleHelperMode();
+            
+            // Explicitly make the tooltip content visible on click
+            tooltipContent.style.visibility = 'visible';
+            tooltipContent.style.opacity = '1';
+
+            // Set the timeout to hide the tooltip after 2 seconds
+            setTimeout(() => {
+                // Hide the tooltip content
+                tooltipContent.style.visibility = 'hidden';
+                tooltipContent.style.opacity = '0';
+            }, 2000); // 2000 milliseconds = 2 seconds
         };
+
+        // 3. Create the tooltip content span
+        const tooltipContent = document.createElement('span');
+        tooltipContent.className = 'tooltip-content';
+        tooltipContent.textContent = 'When ON, words are masked, and you can reveal one letter at a time.';
         
-        resetButton.parentNode.insertBefore(toggleButton, resetButton);
+        // 4. Append the button and content to the wrapper
+        tooltipWrapper.appendChild(toggleButton);
+        tooltipWrapper.appendChild(tooltipContent);
+        
+        // 5. Insert the wrapper before the Reset button
+        resetButton.parentNode.insertBefore(tooltipWrapper, resetButton);
     }
 }
 
