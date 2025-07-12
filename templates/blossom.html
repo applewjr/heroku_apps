@@ -750,6 +750,16 @@ function updatePetalVisualState() {
       petal.title = 'Click to enter a letter';
     }
   });
+
+  // ✅ NEW: update instruction text
+  const instruction = document.querySelector('.pad_lr_30');
+  if (instruction) {
+    if (allLettersEntered) {
+      instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
+    } else {
+      instruction.textContent = 'Enter your letters below to match the Blossom game you aim to solve.';
+    }
+  }
 }
 
 // Check for duplicate letters
