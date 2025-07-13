@@ -31,6 +31,7 @@
         border: 2px solid #777;
         outline: none;
         transition: background-color 0.3s;
+        cursor: pointer;
     }
 
     /* Define color states */
@@ -39,6 +40,38 @@
     .color-2 { background-color: #c9b458; }
     .color-3 { background-color: #6aaa64; }
 
+    .instructions {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px auto;
+        max-width: 600px;
+        font-size: 14px;
+        border: 1px solid #e9ecef;
+    }
+
+    .color-legend {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 15px 0;
+        flex-wrap: wrap;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+
+    .legend-box {
+        width: 20px;
+        height: 20px;
+        border: 1px solid #777;
+        border-radius: 3px;
+    }
+
     .browse-button {
         background-color: #02484d;
         color: white;
@@ -46,27 +79,33 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
-        text-decoration: none; /* Remove underline from link */
-        display: inline-block; /* Allows width and height for <a> */
-        text-align: center; /* Centers text within button */
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
     }
     .browse-button:hover {
         background-color: #03282b;
         color: gray;
     }
-    /* Media query for mobile devices to adjust buttons' layout */
+
     @media (max-width: 768px) {
         .browse-button {
-            flex: 1 0 46%; /* Adjust the flex basis to allow two buttons per row and ensure they don't overlap */
-            margin: 5px; /* Add margin around each button for spacing */
-            padding: 10px; /* Adjust padding if needed */
+            flex: 1 0 46%;
+            margin: 5px;
+            padding: 10px;
         }
 
         #buttons-container {
             display: flex;
-            flex-direction: row; /* Ensure buttons are laid out in a row */
-            flex-wrap: wrap; /* Allow wrapping */
-            justify-content: space-around; /* Distribute space around items for even spacing */
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .color-legend {
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
     }
     </style>
@@ -76,11 +115,30 @@
     <center>
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordle Solver & Strategy Tool</h1>
+    
+    <div class="instructions">
+        <strong>How to use:</strong> Type your letters, then click each box to change its color based on your Wordle results.
+        <div class="color-legend">
+            <div class="legend-item">
+                <div class="legend-box color-1"></div>
+                <span>Gray: Not in word</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box color-2"></div>
+                <span>Yellow: Wrong position</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box color-3"></div>
+                <span>Green: Correct position</span>
+            </div>
+        </div>
+    </div>
+
     <form id="wordle-form" method="post" action="/wordle">
     <br>
     <div id="wordle-grid">
         {% for row in range(6) %}
-        <div class="wordle-row">
+        <div class="wordle-row" data-row="{{ row + 1 }}" {% if row > 1 %}style="display: none;"{% endif %}>
             {% for col in range(5) %}
             <input type="text" maxlength="1" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
             {% endfor %}
@@ -108,12 +166,8 @@
     <br>
     <br>
     <a href="/blossom" class="browse-button">Blossom Solver</a>
-    <!-- <a href="/wordle" class="browse-button">Wordle Solver</a> -->
     <a href="/quordle" class="browse-button">Quordle Solver</a>
     <a href="/antiwordle" class="browse-button">Antiwordle Solver</a>
-    <!-- <a href="/blossom_bee" class="browse-button">Spelling Bee Solver</a> -->
-    <!-- <a href="/quordle_mobile" class="browse-button">Quordle Mobile Solver</a> -->
-    <!-- <a href="/wordle_og" class="browse-button">OG Wordle Solver</a> -->
     <br>
     <br>
     <br>
@@ -134,6 +188,7 @@ window.initialRecommendations = {
 
 document.addEventListener('DOMContentLoaded', () => {
     const boxes = document.querySelectorAll('#wordle-grid .wordle-box');
+    const rows = document.querySelectorAll('#wordle-grid .wordle-row');
     
     // Set focus to the first box as soon as the page loads
     if (boxes.length > 0) {
@@ -143,6 +198,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show initial recommendations if they exist
     if (window.initialRecommendations && window.initialRecommendations.final_out1) {
         updateUI(window.initialRecommendations);
+    }
+
+    function showNextRowIfNeeded() {
+        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+        const currentRowIndex = visibleRows.length - 1;
+        const currentRow = visibleRows[currentRowIndex];
+        
+        if (currentRow) {
+            const currentRowBoxes = currentRow.querySelectorAll('.wordle-box');
+            const allFilled = Array.from(currentRowBoxes).every(box => box.value.trim() !== '');
+            
+            // Show next row if current row is complete and there are more rows
+            if (allFilled && currentRowIndex + 1 < rows.length) {
+                rows[currentRowIndex + 1].style.display = 'flex';
+                // Focus first box of new row
+                const nextRowFirstBox = rows[currentRowIndex + 1].querySelector('.wordle-box');
+                if (nextRowFirstBox) {
+                    nextRowFirstBox.focus();
+                }
+            }
+        }
+    }
+
+    function hideEmptyRowsFromEnd() {
+        // Hide rows from the end if they're completely empty
+        for (let i = rows.length - 1; i >= 2; i--) { // Keep at least first 2 rows
+            const rowBoxes = rows[i].querySelectorAll('.wordle-box');
+            const isEmpty = Array.from(rowBoxes).every(box => box.value.trim() === '');
+            
+            if (isEmpty && rows[i].style.display !== 'none') {
+                // Check if this is the last visible row and previous row has content
+                const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+                if (visibleRows[visibleRows.length - 1] === rows[i] && visibleRows.length > 2) {
+                    const prevRow = rows[i - 1];
+                    const prevRowBoxes = prevRow.querySelectorAll('.wordle-box');
+                    const prevRowHasContent = Array.from(prevRowBoxes).some(box => box.value.trim() !== '');
+                    
+                    if (prevRowHasContent) {
+                        rows[i].style.display = 'none';
+                    }
+                }
+            } else {
+                break; // Stop at first non-empty row from the end
+            }
+        }
     }
 
     boxes.forEach((box, index) => {
@@ -156,9 +256,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             triggerUpdate();
+            showNextRowIfNeeded();
 
             if (box.value && index < boxes.length - 1) {
-                boxes[index + 1].focus();
+                // Find next visible box
+                for (let i = index + 1; i < boxes.length; i++) {
+                    if (boxes[i].closest('.wordle-row').style.display !== 'none') {
+                        boxes[i].focus();
+                        break;
+                    }
+                }
             }
         });
 
@@ -184,12 +291,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 1)) {
                 event.preventDefault();
                 if (index > 0) {
-                    boxes[index - 1].focus();
-                    boxes[index - 1].value = ''; // Optional: clear the previous box value
-                    // Reset color when clearing the box
-                    boxes[index - 1].dataset.state = '0';
-                    boxes[index - 1].className = 'wordle-box color-0';
-                    triggerUpdate();
+                    // Find previous visible box
+                    for (let i = index - 1; i >= 0; i--) {
+                        if (boxes[i].closest('.wordle-row').style.display !== 'none') {
+                            boxes[i].focus();
+                            boxes[i].value = '';
+                            // Reset color when clearing the box
+                            boxes[i].dataset.state = '0';
+                            boxes[i].className = 'wordle-box color-0';
+                            triggerUpdate();
+                            hideEmptyRowsFromEnd();
+                            break;
+                        }
+                    }
                 }
             }
         });
@@ -197,19 +311,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
   
   function triggerUpdate() {
-      const data = collectData(); // Collects data from all boxes
+      const data = collectData();
   
-      // Consider adding a debounce or throttle method here to avoid too many requests
       fetch('/wordle', {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',
           },
-          body: JSON.stringify({wordle_data: data}), // Send data as JSON
+          body: JSON.stringify({wordle_data: data}),
       })
       .then(response => response.json())
       .then(data => {
-          updateUI(data); // Function to update UI with recommendations
+          updateUI(data);
       })
       .catch((error) => {
           console.error('Error:', error);
@@ -217,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   function collectData() {
-      // Similar logic to prepareData(), but returns the data array
       const data = [];
       document.querySelectorAll('#wordle-grid .wordle-box').forEach((box, index) => {
           const row = box.getAttribute('data-row');
@@ -231,20 +343,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   function updateUI(recommendations) {
-      // Implement logic to update your page with the recommendations
-      console.log(recommendations); // Placeholder for demonstration
+      console.log(recommendations);
   }
 
 
 function updateUI(data) {
-    console.log("Updating UI with data:", data); // Add logging to debug
+    console.log("Updating UI with data:", data);
 
-    // Clear existing content
     const recommendationsContainer = document.getElementById('recommendations');
     recommendationsContainer.innerHTML = '';
 
-    // Update the UI with all new recommendations except 'final_out1'
-    // ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5', 'final_out_end', 'first_incomplete_row', 'complete_rows'].forEach(key => {
     ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5', 'final_out_end'].forEach(key => {
         if (data[key]) {
             const para = document.createElement("p");
