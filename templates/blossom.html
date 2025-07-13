@@ -564,11 +564,16 @@ function updateHiddenInputs() {
   document.querySelector('input[name="may_have"]').value = petalLetters.join('');
 }
 
-// Handle center letter input - letters only
+// Handle center letter input - letters only (ENHANCED with better filtering)
 function handleCenterInput(input) {
   // Remove any non-letter characters and convert to uppercase
   const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
   const newLetter = cleanedValue.slice(0, 1); // Take only first letter
+  
+  // Only process if we actually have a letter change
+  if (newLetter === centerLetter) {
+    return; // No change, avoid unnecessary processing
+  }
   
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, -1, true);
@@ -593,11 +598,16 @@ function handleCenterInput(input) {
   updateHiddenInputs();
 }
 
-// Handle petal letter input - letters only
+// Handle petal letter input - letters only (ENHANCED with better filtering)
 function handlePetalInput(input, index) {
   // Remove any non-letter characters and convert to uppercase
   const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
   const newLetter = cleanedValue.slice(0, 1); // Take only first letter
+  
+  // Only process if we actually have a letter change
+  if (newLetter === petalLetters[index]) {
+    return; // No change, avoid unnecessary processing
+  }
   
   if (newLetter.length === 1) {
     const duplicateCheck = checkForDuplicates(newLetter, index, false);
@@ -637,13 +647,16 @@ function handleKeyDown(event) {
   if (event.ctrlKey || event.metaKey || event.altKey || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta') {
     return true;
   }
-  
-  // Only allow letters A-Z (both uppercase and lowercase)
-  if (!/^[A-Za-z]$/.test(key)) {
+    
+  // Only prevent and warn for obvious invalid characters (numbers, common symbols)
+  // but allow system events and composition to pass through
+  if (key.length === 1 && /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
     event.preventDefault();
     
-    // Show warning for invalid character
-    showInvalidCharacterWarning(key);
+    // Only show warning for clearly intentional invalid characters
+    if (/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
+      showInvalidCharacterWarning(key);
+    }
     
     return false;
   }
@@ -651,7 +664,7 @@ function handleKeyDown(event) {
   return true;
 }
 
-// Show invalid character warning
+// Show invalid character warning (SIMPLIFIED - less trigger-happy)
 function showInvalidCharacterWarning(character) {
   // Remove existing warning if any
   const existingWarning = document.getElementById('invalid-char-warning');
@@ -664,14 +677,10 @@ function showInvalidCharacterWarning(character) {
   warning.id = 'invalid-char-warning';
   warning.className = 'duplicate-warning'; // Reuse existing styling
   
-  // Customize message based on character type
+  // Simplified message - only for clearly invalid characters
   let message = '';
   if (/\d/.test(character)) {
-    message = `Numbers like "${character}" are not allowed. Please enter letters only!`;
-  } else if (character === ' ') {
-    message = `Spaces are not allowed. Please enter letters only!`;
-  } else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(character)) {
-    message = `Special characters like "${character}" are not allowed. Please enter letters only!`;
+    message = `"${character}" is not allowed. Please enter letters A-Z only!`;
   } else {
     message = `"${character}" is not allowed. Please enter letters A-Z only!`;
   }
@@ -680,7 +689,7 @@ function showInvalidCharacterWarning(character) {
   
   document.body.appendChild(warning);
 
-  // Auto-remove warning after 3 seconds
+  // Auto-remove warning after 2.5 seconds (shortened from 3)
   setTimeout(() => {
     if (warning && warning.parentNode) {
       warning.style.transition = 'opacity 0.5s ease';
@@ -691,7 +700,7 @@ function showInvalidCharacterWarning(character) {
         }
       }, 500);
     }
-  }, 2500);
+  }, 2000); // Reduced from 2500ms
 }
 
 // Check if all letters are entered
