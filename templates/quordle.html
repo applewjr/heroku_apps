@@ -98,35 +98,37 @@
                 font-size: 16px; /* Prevents zoom on iOS */
             }
 
-            /* Adjust input sizes for mobile */
+            /* Adjust input sizes for mobile - bigger and more readable */
             input[style*="width: 55px"] {
-                width: 45px !important;
-                height: 45px !important;
-                margin: 2px !important;
+                width: 55px !important;
+                height: 55px !important;
+                margin: 3px !important;
+                font-size: 18px !important;
+                font-weight: bold !important;
             }
 
             input[style*="width: 75px"] {
-                width: 55px !important;
-                height: 35px !important;
-                margin: 2px !important;
-                font-size: 12px !important;
+                width: 65px !important;
+                height: 45px !important;
+                margin: 3px !important;
+                font-size: 14px !important;
             }
 
             input[style*="width: 200px"] {
-                width: 150px !important;
-                height: 35px !important;
-                font-size: 12px !important;
+                width: 200px !important;
+                height: 45px !important;
+                font-size: 14px !important;
             }
 
             /* Make paragraphs more mobile-friendly */
             .pad_lr_30 {
                 padding-left: 10px !important;
                 padding-right: 10px !important;
-                font-size: 12px !important;
+                font-size: 13px !important;
             }
 
             h4 {
-                font-size: 16px !important;
+                font-size: 18px !important;
             }
 
             h1 {
@@ -135,26 +137,27 @@
         }
 
         @media (max-width: 480px) {
+            /* For smaller phones, still keep inputs readable */
             input[style*="width: 55px"] {
-                width: 35px !important;
-                height: 35px !important;
-                font-size: 14px !important;
+                width: 50px !important;
+                height: 50px !important;
+                font-size: 16px !important;
             }
 
             input[style*="width: 75px"] {
-                width: 45px !important;
-                height: 30px !important;
-                font-size: 11px !important;
+                width: 55px !important;
+                height: 40px !important;
+                font-size: 13px !important;
             }
 
             input[style*="width: 200px"] {
-                width: 120px !important;
-                height: 30px !important;
-                font-size: 11px !important;
+                width: 160px !important;
+                height: 40px !important;
+                font-size: 13px !important;
             }
 
             .pad_lr_30 {
-                font-size: 11px !important;
+                font-size: 12px !important;
             }
         }
     </style>
