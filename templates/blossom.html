@@ -552,815 +552,6 @@ td.show-letter-cell {
 
 </style>
 
-<script>
-// Simple, lightweight tracking only for essential functionality
-let centerLetter = '';
-let petalLetters = ['', '', '', '', '', ''];
-let selectedPetal = '';
-
-// Update hidden form inputs
-function updateHiddenInputs() {
-  document.querySelector('input[name="must_have"]').value = centerLetter;
-  document.querySelector('input[name="may_have"]').value = petalLetters.join('');
-}
-
-// Handle center letter input - letters only (ENHANCED with better filtering)
-function handleCenterInput(input) {
-  // Remove any non-letter characters and convert to uppercase
-  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
-  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
-  
-  // Only process if we actually have a letter change
-  if (newLetter === centerLetter) {
-    return; // No change, avoid unnecessary processing
-  }
-  
-  if (newLetter.length === 1) {
-    const duplicateCheck = checkForDuplicates(newLetter, -1, true);
-    if (duplicateCheck.isDuplicate) {
-      showDuplicateWarning(newLetter, duplicateCheck.position);
-      input.value = centerLetter;
-      return;
-    }
-  }
-  
-  centerLetter = newLetter;
-  input.value = centerLetter;
-  updatePetalVisualState();
-  
-  if (centerLetter.length === 1) {
-    const nextEmpty = findNextEmptyCell();
-    if (nextEmpty) {
-      document.getElementById(nextEmpty.element).focus();
-    }
-  }
-  
-  updateHiddenInputs();
-}
-
-// Handle petal letter input - letters only (ENHANCED with better filtering)
-function handlePetalInput(input, index) {
-  // Remove any non-letter characters and convert to uppercase
-  const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
-  const newLetter = cleanedValue.slice(0, 1); // Take only first letter
-  
-  // Only process if we actually have a letter change
-  if (newLetter === petalLetters[index]) {
-    return; // No change, avoid unnecessary processing
-  }
-  
-  if (newLetter.length === 1) {
-    const duplicateCheck = checkForDuplicates(newLetter, index, false);
-    if (duplicateCheck.isDuplicate) {
-      showDuplicateWarning(newLetter, duplicateCheck.position);
-      input.value = petalLetters[index];
-      return;
-    }
-  }
-  
-  petalLetters[index] = newLetter;
-  input.value = newLetter;
-  updatePetalVisualState();
-
-  if (newLetter.length === 1) {
-    const nextEmpty = findNextEmptyCell('petal');
-    if (nextEmpty) {
-      document.getElementById(nextEmpty.element).focus();
-    } else {
-      input.blur();
-    }
-  }
-  
-  updateHiddenInputs();
-}
-
-// Additional function to handle keydown events and prevent non-letter input
-function handleKeyDown(event) {
-  const key = event.key;
-  
-  // Allow navigation keys
-  if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) {
-    return true;
-  }
-  
-  // Allow modifier keys (Ctrl, Alt, Shift, etc.)
-  if (event.ctrlKey || event.metaKey || event.altKey || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta') {
-    return true;
-  }
-    
-  // Only prevent and warn for obvious invalid characters (numbers, common symbols)
-  // but allow system events and composition to pass through
-  if (key.length === 1 && /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
-    event.preventDefault();
-    
-    // Only show warning for clearly intentional invalid characters
-    if (/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
-      showInvalidCharacterWarning(key);
-    }
-    
-    return false;
-  }
-  
-  return true;
-}
-
-// Show invalid character warning (SIMPLIFIED - less trigger-happy)
-function showInvalidCharacterWarning(character) {
-  // Remove existing warning if any
-  const existingWarning = document.getElementById('invalid-char-warning');
-  if (existingWarning) {
-    existingWarning.remove();
-  }
-  
-  // Create warning element
-  const warning = document.createElement('div');
-  warning.id = 'invalid-char-warning';
-  warning.className = 'duplicate-warning'; // Reuse existing styling
-  
-  // Simplified message - only for clearly invalid characters
-  let message = '';
-  if (/\d/.test(character)) {
-    message = `"${character}" is not allowed. Please enter letters A-Z only!`;
-  } else {
-    message = `"${character}" is not allowed. Please enter letters A-Z only!`;
-  }
-  
-  warning.textContent = message;
-  
-  document.body.appendChild(warning);
-
-  // Auto-remove warning after 2.5 seconds (shortened from 3)
-  setTimeout(() => {
-    if (warning && warning.parentNode) {
-      warning.style.transition = 'opacity 0.5s ease';
-      warning.style.opacity = '0';
-      setTimeout(() => {
-        if (warning && warning.parentNode) {
-          warning.remove();
-        }
-      }, 500);
-    }
-  }, 2000); // Reduced from 2500ms
-}
-
-// Check if all letters are entered
-function areAllLettersEntered() {
-  return centerLetter.length === 1 && petalLetters.filter(l => l.length === 1).length === 6;
-}
-
-// Select petal for solving
-function selectPetal(index) {
-  if (!areAllLettersEntered()) {
-    document.getElementById(`petal-${index}`).focus();
-    return;
-  }
-
-  if (!centerLetter) {
-    showCenterWarning();
-    return;
-  }
-
-  if (petalLetters[index]) {
-    selectedPetal = petalLetters[index];
-    document.querySelector('input[name="petal_letter"]').value = selectedPetal;
-    
-    document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
-    document.querySelector(`.petal-${index + 1}`).classList.add('selected');
-    
-    document.querySelector('form[name="form1"]').submit();
-  }
-}
-
-// Handle backspace navigation
-function handleBackspace(input, index, isCenter) {
-  if (input.value === '') {
-    if (isCenter) return;
-    
-    if (index > 0) {
-      document.getElementById(`petal-${index - 1}`).focus();
-    } else {
-      document.getElementById('center-input').focus();
-    }
-  }
-}
-
-// Update visual state of petals
-function updatePetalVisualState() {
-  const allLettersEntered = areAllLettersEntered();
-  const petals = document.querySelectorAll('.petal-button');
-  
-  petals.forEach((petal, index) => {
-    if (allLettersEntered && petalLetters[index].length === 1) {
-      petal.classList.add('button-mode');
-      petal.title = `Click to solve with bonus letter ${petalLetters[index]}`;
-    } else {
-      petal.classList.remove('button-mode');
-      petal.classList.remove('selected');
-      petal.title = 'Click to enter a letter';
-    }
-  });
-
-  const instruction = document.querySelector('.pad_lr_30');
-  if (instruction) {
-    if (allLettersEntered) {
-      instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
-    } else {
-      instruction.textContent = 'Enter letters below to match the Blossom game you aim to solve.';
-    }
-  }
-}
-
-// Check for duplicate letters
-function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
-  const allLetters = [centerLetter, ...petalLetters];
-  const newLetterUpper = newLetter.toUpperCase();
-  
-  for (let i = 0; i < allLetters.length; i++) {
-    const existingLetter = allLetters[i];
-    
-    if (!existingLetter) continue;
-    if (isCenter && i === 0) continue;
-    if (!isCenter && i === currentIndex + 1) continue;
-    
-    if (existingLetter.toUpperCase() === newLetterUpper) {
-      return {
-        isDuplicate: true,
-        position: i === 0 ? 'center' : `petal ${i}`,
-        letter: existingLetter
-      };
-    }
-  }
-  
-  return { isDuplicate: false };
-}
-
-// Show center warning
-function showCenterWarning() {
-  const warning = document.getElementById('center-warning');
-  warning.style.display = 'block';
-  warning.style.opacity = '1';
-
-  setTimeout(() => {
-    warning.style.transition = 'opacity 0.5s ease';
-    warning.style.opacity = '0';
-  }, 1500);
-
-  setTimeout(() => {
-    warning.style.display = 'none';
-    warning.style.transition = '';
-  }, 2000);
-}
-
-// Show duplicate warning
-function showDuplicateWarning(letter, position) {
-  // Remove existing warning if any
-  const existingWarning = document.getElementById('duplicate-warning');
-  if (existingWarning) {
-    existingWarning.remove();
-  }
-  
-  // Create warning element
-  const warning = document.createElement('div');
-  warning.id = 'duplicate-warning';
-  warning.className = 'duplicate-warning';
-  warning.textContent = `Letter "${letter}" is already used in the ${position}!`;
-  
-  document.body.appendChild(warning);
-
-  // Auto-remove warning after 3 seconds
-  setTimeout(() => {
-    if (warning && warning.parentNode) {
-      warning.style.transition = 'opacity 0.5s ease';
-      warning.style.opacity = '0';
-      setTimeout(() => {
-        if (warning && warning.parentNode) {
-          warning.remove();
-        }
-      }, 500);
-    }
-  }, 2500);
-}
-
-// Find next empty cell
-function findNextEmptyCell(currentContext = 'any') {
-  if (currentContext === 'petal') {
-    for (let i = 0; i < 6; i++) {
-      if (!petalLetters[i]) {
-        return { element: `petal-${i}` };
-      }
-    }
-    
-    if (!centerLetter) {
-      return { element: 'center-input' };
-    }
-  } else {
-    if (!centerLetter) {
-      return { element: 'center-input' };
-    }
-    
-    for (let i = 0; i < 6; i++) {
-      if (!petalLetters[i]) {
-        return { element: `petal-${i}` };
-      }
-    }
-  }
-  
-  return null;
-}
-function handleCheckboxChange(checkbox) {
-  const word = checkbox.getAttribute('data-word');
-  const row = checkbox.closest('tr');
-  
-  if (checkbox.checked) {
-    row.classList.add('used-word');
-  } else {
-    row.classList.remove('used-word');
-  }
-
-  // Server sync
-  fetch('/blossom', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'toggle_word',
-      word: word
-    })
-  })
-  .then(response => response.json())
-  .catch(error => {
-    console.error('Error updating word status:', error);
-    // Revert on error
-    checkbox.checked = !checkbox.checked;
-    if (checkbox.checked) {
-      row.classList.add('used-word');
-    } else {
-      row.classList.remove('used-word');
-    }
-  });
-}
-
-// Reset confirmation
-function showResetConfirmation(event) {
-  event.preventDefault();
-  
-  const modal = document.createElement('div');
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-  `;
-  
-  const dialog = document.createElement('div');
-  dialog.style.cssText = `
-    background: white;
-    padding: 24px;
-    border-radius: 12px;
-    max-width: 320px;
-    margin: 20px;
-    text-align: center;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    font-family: inherit;
-  `;
-  
-  dialog.innerHTML = `
-    <h3 style="margin: 0 0 12px 0; color: #333; font-size: 18px;">Reset Letters?</h3>
-    <p style="margin: 0 0 20px 0; color: #666; line-height: 1.4;">This will clear all your current letters and words marked as "Used". Are you sure you want to continue?</p>
-    <div style="display: flex; gap: 12px; justify-content: center;">
-      <button onclick="cancelReset()" style="
-        background-color: #f5f5f5;
-        border: 1px solid #ddd;
-        color: #666;
-        padding: 10px 20px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-family: inherit;
-      ">Cancel</button>
-      <button onclick="confirmReset()" style="
-        background-color: #02484d;
-        border: 1px solid #02484d;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-family: inherit;
-      ">Reset Letters</button>
-    </div>
-  `;
-  
-  modal.appendChild(dialog);
-  document.body.appendChild(modal);
-  
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) {
-      cancelReset();
-    }
-  });
-  
-  window.currentModal = modal;
-}
-
-function cancelReset() {
-  if (window.currentModal) {
-    document.body.removeChild(window.currentModal);
-    window.currentModal = null;
-  }
-}
-
-function confirmReset() {
-  // Clear helper mode state including revealed letters
-  sessionStorage.removeItem('blossomHelperMode');
-  revealedLetters = {};
-  
-  window.location.href = '/blossom/reset';
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  // Get initial values from template
-  const initialCenter = '{{must_have_val}}';
-  const initialPetals = '{{may_have_val}}';
-  const initialSelectedPetal = '{{petal_letter}}';
-  
-  // Set initial values
-  if (initialCenter) {
-    centerLetter = initialCenter.toUpperCase();
-    document.getElementById('center-input').value = centerLetter;
-  }
-
-  if (initialPetals) {
-    for (let i = 0; i < initialPetals.length && i < 6; i++) {
-      petalLetters[i] = initialPetals[i].toUpperCase();
-      document.getElementById(`petal-${i}`).value = petalLetters[i];
-    }
-  }
-
-  updatePetalVisualState();
-
-  // Highlight selected petal
-  if (initialSelectedPetal) {
-    const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
-    if (petalIndex !== -1) {
-      document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
-    }
-  }
-  
-  // Add event listeners to checkboxes
-  const checkboxes = document.querySelectorAll('.word-checkbox');
-  checkboxes.forEach(checkbox => {
-    const row = checkbox.closest('tr');
-    if (checkbox.checked) {
-      row.classList.add('used-word');
-    }
-    
-    checkbox.addEventListener('change', function() {
-      handleCheckboxChange(this);
-    });
-  });
-
-  // Auto-focus center input on first load if it's empty
-  if (!centerLetter) {
-    document.getElementById('center-input').focus();
-  }
-});
-
-// Helper mode functionality
-let isHelperMode = false;
-let revealedLetters = {}; // Track how many letters are revealed for each word
-
-// Store helper mode in sessionStorage to persist across table updates
-function saveHelperModeState() {
-    sessionStorage.setItem('blossomHelperMode', JSON.stringify({
-        isHelperMode: isHelperMode,
-        revealedLetters: revealedLetters
-    }));
-}
-
-// Load helper mode state
-function loadHelperModeState() {
-    const saved = sessionStorage.getItem('blossomHelperMode');
-    if (saved) {
-        const state = JSON.parse(saved);
-        isHelperMode = state.isHelperMode;
-        revealedLetters = state.revealedLetters || {};
-    }
-}
-
-// Toggle helper mode
-function toggleHelperMode() {
-    isHelperMode = !isHelperMode;
-    
-    // Update button text and style
-    const toggleBtn = document.getElementById('helper-mode-toggle');
-    if (toggleBtn) {
-        if (isHelperMode) {
-            toggleBtn.textContent = 'Helper Mode: ON';
-            toggleBtn.classList.add('helper-mode-on');
-        } else {
-            toggleBtn.textContent = 'Helper Mode: OFF';
-            toggleBtn.classList.remove('helper-mode-on');
-        }
-    }
-    
-    // Reset revealed letters when switching modes
-    if (!isHelperMode) {
-        revealedLetters = {};
-    }
-    
-    // Save state
-    saveHelperModeState();
-    
-    // Update table display
-    updateTableForHelperMode();
-}
-
-// Mask word based on revealed letters count
-function maskWord(word, revealCount = 1) {
-    if (!word || word.length === 0) return '';
-    
-    // Show first letter and specified number of additional letters
-    let masked = word[0];
-    for (let i = 1; i < word.length; i++) {
-        if (i < revealCount) {
-            masked += word[i];
-        } else {
-            masked += '_';
-        }
-    }
-    return masked;
-}
-
-// Show next letter for a word
-function showNextLetter(word, event) {
-    // Prevent any default button behavior
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    
-    if (!revealedLetters[word]) {
-        revealedLetters[word] = 2; // Start with 2 (first letter + one more)
-    } else {
-        revealedLetters[word]++;
-    }
-    
-    // Save state
-    saveHelperModeState();
-    
-    // Update just this word's display
-    updateWordDisplay(word);
-    
-    // Return false to prevent any form submission
-    return false;
-}
-
-// Update display for a specific word
-function updateWordDisplay(word) {
-    const wordCell = document.querySelector(`td[data-word="${word}"]`);
-    if (!wordCell) return;
-    
-    const revealCount = revealedLetters[word] || 1;
-    const maskedWord = maskWord(word, revealCount);
-    wordCell.textContent = maskedWord;
-    
-    // Update button state
-    const row = wordCell.closest('tr');
-    const showLetterBtn = row.querySelector('.show-letter-btn');
-    if (showLetterBtn) {
-        if (revealCount >= word.length) {
-            showLetterBtn.disabled = true;
-            showLetterBtn.textContent = 'Shown';
-        } else {
-            showLetterBtn.disabled = false;
-            showLetterBtn.textContent = 'Show';
-        }
-    }
-}
-
-// Update entire table for helper mode
-function updateTableForHelperMode() {
-    const table = document.querySelector('table');
-    if (!table) return;
-    
-    // Handle header row
-    const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
-    if (headerRow) {
-        // Remove existing "Show Letter" header if any
-        const existingShowHeader = headerRow.querySelector('.show-letter-header');
-        if (existingShowHeader) {
-            existingShowHeader.remove();
-        }
-        
-        if (isHelperMode) {
-            // Add "Show Letter" header
-            const showLetterHeader = document.createElement('th');
-            showLetterHeader.className = 'show-letter-header';
-            showLetterHeader.textContent = 'Hint';
-            headerRow.appendChild(showLetterHeader);
-        }
-    }
-    
-    // Handle data rows
-    const rows = table.querySelectorAll('tbody tr');
-    rows.forEach(row => {
-        const wordCell = row.querySelector('td:nth-child(2)'); // Assuming word is in 2nd column
-        if (!wordCell) return;
-        
-        // Get the original word (stored as data attribute or from checkbox)
-        const checkbox = row.querySelector('.word-checkbox');
-        const word = checkbox ? checkbox.getAttribute('data-word') : wordCell.textContent;
-        
-        // Store original word as data attribute if not already there
-        if (!wordCell.hasAttribute('data-word')) {
-            wordCell.setAttribute('data-word', word);
-        }
-        
-        // Remove existing show letter cell if any
-        const existingShowCell = row.querySelector('.show-letter-cell');
-        if (existingShowCell) {
-            existingShowCell.remove();
-        }
-        
-        if (isHelperMode) {
-            // Add word class for styling
-            wordCell.classList.add('word-masked');
-            
-            // Mask the word
-            const revealCount = revealedLetters[word] || 1;
-            wordCell.textContent = maskWord(word, revealCount);
-            
-            // Add "Show Letter" button cell
-            const showLetterCell = document.createElement('td');
-            showLetterCell.className = 'show-letter-cell';
-            
-            const showLetterBtn = document.createElement('button');
-            showLetterBtn.className = 'show-letter-btn';
-            showLetterBtn.type = 'button'; // Explicitly set type to prevent form submission
-            showLetterBtn.textContent = revealCount >= word.length ? 'Shown' : 'Show';
-            showLetterBtn.disabled = revealCount >= word.length;
-            showLetterBtn.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                showNextLetter(word, e);
-                return false;
-            };
-            
-            showLetterCell.appendChild(showLetterBtn);
-            row.appendChild(showLetterCell);
-        } else {
-            // Restore original word
-            wordCell.classList.remove('word-masked');
-            wordCell.textContent = word;
-        }
-    });
-}
-
-// Create or update the helper mode button
-function createHelperModeButton() {
-    // Check if button already exists
-    if (document.getElementById('helper-mode-toggle')) {
-        return;
-    }
-    
-    const resetButton = document.querySelector('a[onclick*="showResetConfirmation"]');
-    if (resetButton) {
-        // 1. Create the wrapper span for the tooltip
-        const tooltipWrapper = document.createElement('span');
-        tooltipWrapper.className = 'disclaimer-tooltip';
-        
-        // 2. Create the Helper Mode button (<a> element)
-        const toggleButton = document.createElement('a');
-        toggleButton.id = 'helper-mode-toggle';
-        toggleButton.className = 'helper-mode-toggle';
-        toggleButton.textContent = isHelperMode ? 'Helper Mode: ON' : 'Helper Mode: OFF';
-        if (isHelperMode) {
-            toggleButton.classList.add('helper-mode-on');
-        }
-        toggleButton.href = '#';
-        
-        // Add the click handler with the setTimeout for automatic dismissal
-        toggleButton.onclick = function(e) {
-            e.preventDefault();
-            toggleHelperMode();
-            
-            // Explicitly make the tooltip content visible on click
-            tooltipContent.style.visibility = 'visible';
-            tooltipContent.style.opacity = '1';
-
-            // Set the timeout to hide the tooltip after 2 seconds
-            setTimeout(() => {
-                // Hide the tooltip content
-                tooltipContent.style.visibility = 'hidden';
-                tooltipContent.style.opacity = '0';
-            }, 2000); // 2000 milliseconds = 2 seconds
-        };
-
-        // 3. Create the tooltip content span
-        const tooltipContent = document.createElement('span');
-        tooltipContent.className = 'tooltip-content';
-        tooltipContent.textContent = 'When ON, words are masked, and you can reveal one letter at a time.';
-        
-        // 4. Append the button and content to the wrapper
-        tooltipWrapper.appendChild(toggleButton);
-        tooltipWrapper.appendChild(tooltipContent);
-        
-        // 5. Insert the wrapper before the Reset button
-        resetButton.parentNode.insertBefore(tooltipWrapper, resetButton);
-    }
-}
-
-// Initialize helper mode on page load and after any table updates
-function initializeHelperMode() {
-    // Load saved state
-    loadHelperModeState();
-    
-    // Create button if it doesn't exist
-    createHelperModeButton();
-    
-    // Store original words as data attributes
-    const wordCells = document.querySelectorAll('table td:nth-child(2)');
-    wordCells.forEach(cell => {
-        const checkbox = cell.parentElement.querySelector('.word-checkbox');
-        if (checkbox) {
-            const word = checkbox.getAttribute('data-word');
-            cell.setAttribute('data-word', word);
-        }
-    });
-    
-    // Apply helper mode if active
-    if (isHelperMode) {
-        updateTableForHelperMode();
-    }
-}
-
-// Override the existing DOMContentLoaded or add to it
-document.addEventListener('DOMContentLoaded', function() {
-    initializeHelperMode();
-});
-
-// Watch for table changes using MutationObserver
-const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'childList') {
-            // Check if a table was added or modified
-            const hasTableChange = Array.from(mutation.addedNodes).some(node => 
-                node.nodeName === 'TABLE' || (node.querySelector && node.querySelector('table'))
-            );
-            
-            if (hasTableChange) {
-                // Re-initialize helper mode after table update
-                setTimeout(initializeHelperMode, 10);
-            }
-        }
-    });
-});
-
-// Start observing the document for changes
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
-
-// Modify the handleCheckboxChange function to work with helper mode
-if (typeof handleCheckboxChange !== 'undefined') {
-    const originalHandleCheckboxChange = handleCheckboxChange;
-    handleCheckboxChange = function(checkbox) {
-        // Call original function
-        originalHandleCheckboxChange(checkbox);
-        
-        // If in helper mode, ensure the word display is maintained
-        if (isHelperMode) {
-            const word = checkbox.getAttribute('data-word');
-            const row = checkbox.closest('tr');
-            const wordCell = row.querySelector('td[data-word]');
-            if (wordCell) {
-                const revealCount = revealedLetters[word] || 1;
-                wordCell.textContent = maskWord(word, revealCount);
-            }
-        }
-    };
-}
-
-// Preserve helper mode state during form submissions
-document.addEventListener('submit', function(e) {
-    if (e.target && e.target.matches('form[name="form1"]')) {
-        // State is already saved in sessionStorage, so it will persist
-        saveHelperModeState();
-    }
-}, true);
-
-</script>
-
 <form name="form1" action="/blossom" method="post">
   <center>
 
@@ -1587,5 +778,809 @@ document.addEventListener('submit', function(e) {
   <br>
   </center>
 </form>
+
+<script>
+// Wait for page to fully load before initializing JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  // Give AdSense time to initialize first
+  setTimeout(function() {
+    initializeBlossomApp();
+  }, 100);
+});
+
+function initializeBlossomApp() {
+  // Simple, lightweight tracking only for essential functionality
+  let centerLetter = '';
+  let petalLetters = ['', '', '', '', '', ''];
+  let selectedPetal = '';
+
+  // Update hidden form inputs
+  function updateHiddenInputs() {
+    document.querySelector('input[name="must_have"]').value = centerLetter;
+    document.querySelector('input[name="may_have"]').value = petalLetters.join('');
+  }
+
+  // Handle center letter input - letters only (ENHANCED with better filtering)
+  function handleCenterInput(input) {
+    // Remove any non-letter characters and convert to uppercase
+    const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+    const newLetter = cleanedValue.slice(0, 1); // Take only first letter
+    
+    // Only process if we actually have a letter change
+    if (newLetter === centerLetter) {
+      return; // No change, avoid unnecessary processing
+    }
+    
+    if (newLetter.length === 1) {
+      const duplicateCheck = checkForDuplicates(newLetter, -1, true);
+      if (duplicateCheck.isDuplicate) {
+        showDuplicateWarning(newLetter, duplicateCheck.position);
+        input.value = centerLetter;
+        return;
+      }
+    }
+    
+    centerLetter = newLetter;
+    input.value = centerLetter;
+    updatePetalVisualState();
+    
+    if (centerLetter.length === 1) {
+      const nextEmpty = findNextEmptyCell();
+      if (nextEmpty) {
+        document.getElementById(nextEmpty.element).focus();
+      }
+    }
+    
+    updateHiddenInputs();
+  }
+
+  // Handle petal letter input - letters only (ENHANCED with better filtering)
+  function handlePetalInput(input, index) {
+    // Remove any non-letter characters and convert to uppercase
+    const cleanedValue = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+    const newLetter = cleanedValue.slice(0, 1); // Take only first letter
+    
+    // Only process if we actually have a letter change
+    if (newLetter === petalLetters[index]) {
+      return; // No change, avoid unnecessary processing
+    }
+    
+    if (newLetter.length === 1) {
+      const duplicateCheck = checkForDuplicates(newLetter, index, false);
+      if (duplicateCheck.isDuplicate) {
+        showDuplicateWarning(newLetter, duplicateCheck.position);
+        input.value = petalLetters[index];
+        return;
+      }
+    }
+    
+    petalLetters[index] = newLetter;
+    input.value = newLetter;
+    updatePetalVisualState();
+
+    if (newLetter.length === 1) {
+      const nextEmpty = findNextEmptyCell('petal');
+      if (nextEmpty) {
+        document.getElementById(nextEmpty.element).focus();
+      } else {
+        input.blur();
+      }
+    }
+    
+    updateHiddenInputs();
+  }
+
+  // Additional function to handle keydown events and prevent non-letter input
+  function handleKeyDown(event) {
+    const key = event.key;
+    
+    // Allow navigation keys
+    if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) {
+      return true;
+    }
+    
+    // Allow modifier keys (Ctrl, Alt, Shift, etc.)
+    if (event.ctrlKey || event.metaKey || event.altKey || key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta') {
+      return true;
+    }
+      
+    // Only prevent and warn for obvious invalid characters (numbers, common symbols)
+    // but allow system events and composition to pass through
+    if (key.length === 1 && /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
+      event.preventDefault();
+      
+      // Only show warning for clearly intentional invalid characters
+      if (/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(key)) {
+        showInvalidCharacterWarning(key);
+      }
+      
+      return false;
+    }
+    
+    return true;
+  }
+
+  // Show invalid character warning (SIMPLIFIED - less trigger-happy)
+  function showInvalidCharacterWarning(character) {
+    // Remove existing warning if any
+    const existingWarning = document.getElementById('invalid-char-warning');
+    if (existingWarning) {
+      existingWarning.remove();
+    }
+    
+    // Create warning element
+    const warning = document.createElement('div');
+    warning.id = 'invalid-char-warning';
+    warning.className = 'duplicate-warning'; // Reuse existing styling
+    
+    // Simplified message - only for clearly invalid characters
+    let message = '';
+    if (/\d/.test(character)) {
+      message = `"${character}" is not allowed. Please enter letters A-Z only!`;
+    } else {
+      message = `"${character}" is not allowed. Please enter letters A-Z only!`;
+    }
+    
+    warning.textContent = message;
+    
+    document.body.appendChild(warning);
+
+    // Auto-remove warning after 2.5 seconds (shortened from 3)
+    setTimeout(() => {
+      if (warning && warning.parentNode) {
+        warning.style.transition = 'opacity 0.5s ease';
+        warning.style.opacity = '0';
+        setTimeout(() => {
+          if (warning && warning.parentNode) {
+            warning.remove();
+          }
+        }, 500);
+      }
+    }, 2000); // Reduced from 2500ms
+  }
+
+  // Check if all letters are entered
+  function areAllLettersEntered() {
+    return centerLetter.length === 1 && petalLetters.filter(l => l.length === 1).length === 6;
+  }
+
+  // Select petal for solving
+  function selectPetal(index) {
+    if (!areAllLettersEntered()) {
+      document.getElementById(`petal-${index}`).focus();
+      return;
+    }
+
+    if (!centerLetter) {
+      showCenterWarning();
+      return;
+    }
+
+    if (petalLetters[index]) {
+      selectedPetal = petalLetters[index];
+      document.querySelector('input[name="petal_letter"]').value = selectedPetal;
+      
+      document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
+      document.querySelector(`.petal-${index + 1}`).classList.add('selected');
+      
+      document.querySelector('form[name="form1"]').submit();
+    }
+  }
+
+  // Handle backspace navigation
+  function handleBackspace(input, index, isCenter) {
+    if (input.value === '') {
+      if (isCenter) return;
+      
+      if (index > 0) {
+        document.getElementById(`petal-${index - 1}`).focus();
+      } else {
+        document.getElementById('center-input').focus();
+      }
+    }
+  }
+
+  // Update visual state of petals
+  function updatePetalVisualState() {
+    const allLettersEntered = areAllLettersEntered();
+    const petals = document.querySelectorAll('.petal-button');
+    
+    petals.forEach((petal, index) => {
+      if (allLettersEntered && petalLetters[index].length === 1) {
+        petal.classList.add('button-mode');
+        petal.title = `Click to solve with bonus letter ${petalLetters[index]}`;
+      } else {
+        petal.classList.remove('button-mode');
+        petal.classList.remove('selected');
+        petal.title = 'Click to enter a letter';
+      }
+    });
+
+    const instruction = document.querySelector('.pad_lr_30');
+    if (instruction) {
+      if (allLettersEntered) {
+        instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
+      } else {
+        instruction.textContent = 'Enter letters below to match the Blossom game you aim to solve.';
+      }
+    }
+  }
+
+  // Check for duplicate letters
+  function checkForDuplicates(newLetter, currentIndex, isCenter = false) {
+    const allLetters = [centerLetter, ...petalLetters];
+    const newLetterUpper = newLetter.toUpperCase();
+    
+    for (let i = 0; i < allLetters.length; i++) {
+      const existingLetter = allLetters[i];
+      
+      if (!existingLetter) continue;
+      if (isCenter && i === 0) continue;
+      if (!isCenter && i === currentIndex + 1) continue;
+      
+      if (existingLetter.toUpperCase() === newLetterUpper) {
+        return {
+          isDuplicate: true,
+          position: i === 0 ? 'center' : `petal ${i}`,
+          letter: existingLetter
+        };
+      }
+    }
+    
+    return { isDuplicate: false };
+  }
+
+  // Show center warning
+  function showCenterWarning() {
+    const warning = document.getElementById('center-warning');
+    warning.style.display = 'block';
+    warning.style.opacity = '1';
+
+    setTimeout(() => {
+      warning.style.transition = 'opacity 0.5s ease';
+      warning.style.opacity = '0';
+    }, 1500);
+
+    setTimeout(() => {
+      warning.style.display = 'none';
+      warning.style.transition = '';
+    }, 2000);
+  }
+
+  // Show duplicate warning
+  function showDuplicateWarning(letter, position) {
+    // Remove existing warning if any
+    const existingWarning = document.getElementById('duplicate-warning');
+    if (existingWarning) {
+      existingWarning.remove();
+    }
+    
+    // Create warning element
+    const warning = document.createElement('div');
+    warning.id = 'duplicate-warning';
+    warning.className = 'duplicate-warning';
+    warning.textContent = `Letter "${letter}" is already used in the ${position}!`;
+    
+    document.body.appendChild(warning);
+
+    // Auto-remove warning after 3 seconds
+    setTimeout(() => {
+      if (warning && warning.parentNode) {
+        warning.style.transition = 'opacity 0.5s ease';
+        warning.style.opacity = '0';
+        setTimeout(() => {
+          if (warning && warning.parentNode) {
+            warning.remove();
+          }
+        }, 500);
+      }
+    }, 2500);
+  }
+
+  // Find next empty cell
+  function findNextEmptyCell(currentContext = 'any') {
+    if (currentContext === 'petal') {
+      for (let i = 0; i < 6; i++) {
+        if (!petalLetters[i]) {
+          return { element: `petal-${i}` };
+        }
+      }
+      
+      if (!centerLetter) {
+        return { element: 'center-input' };
+      }
+    } else {
+      if (!centerLetter) {
+        return { element: 'center-input' };
+      }
+      
+      for (let i = 0; i < 6; i++) {
+        if (!petalLetters[i]) {
+          return { element: `petal-${i}` };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  function handleCheckboxChange(checkbox) {
+    const word = checkbox.getAttribute('data-word');
+    const row = checkbox.closest('tr');
+    
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    } else {
+      row.classList.remove('used-word');
+    }
+
+    // Server sync
+    fetch('/blossom', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'toggle_word',
+        word: word
+      })
+    })
+    .then(response => response.json())
+    .catch(error => {
+      console.error('Error updating word status:', error);
+      // Revert on error
+      checkbox.checked = !checkbox.checked;
+      if (checkbox.checked) {
+        row.classList.add('used-word');
+      } else {
+        row.classList.remove('used-word');
+      }
+    });
+  }
+
+  // Reset confirmation
+  function showResetConfirmation(event) {
+    event.preventDefault();
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    `;
+    
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 320px;
+      margin: 20px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      font-family: inherit;
+    `;
+    
+    dialog.innerHTML = `
+      <h3 style="margin: 0 0 12px 0; color: #333; font-size: 18px;">Reset Letters?</h3>
+      <p style="margin: 0 0 20px 0; color: #666; line-height: 1.4;">This will clear all your current letters and words marked as "Used". Are you sure you want to continue?</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button onclick="cancelReset()" style="
+          background-color: #f5f5f5;
+          border: 1px solid #ddd;
+          color: #666;
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-family: inherit;
+        ">Cancel</button>
+        <button onclick="confirmReset()" style="
+          background-color: #02484d;
+          border: 1px solid #02484d;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-family: inherit;
+        ">Reset Letters</button>
+      </div>
+    `;
+    
+    modal.appendChild(dialog);
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        cancelReset();
+      }
+    });
+    
+    window.currentModal = modal;
+  }
+
+  function cancelReset() {
+    if (window.currentModal) {
+      document.body.removeChild(window.currentModal);
+      window.currentModal = null;
+    }
+  }
+
+  function confirmReset() {
+    // Clear helper mode state including revealed letters
+    sessionStorage.removeItem('blossomHelperMode');
+    revealedLetters = {};
+    
+    window.location.href = '/blossom/reset';
+  }
+
+  // Helper mode functionality
+  let isHelperMode = false;
+  let revealedLetters = {}; // Track how many letters are revealed for each word
+
+  // Store helper mode in sessionStorage to persist across table updates
+  function saveHelperModeState() {
+      sessionStorage.setItem('blossomHelperMode', JSON.stringify({
+          isHelperMode: isHelperMode,
+          revealedLetters: revealedLetters
+      }));
+  }
+
+  // Load helper mode state
+  function loadHelperModeState() {
+      const saved = sessionStorage.getItem('blossomHelperMode');
+      if (saved) {
+          const state = JSON.parse(saved);
+          isHelperMode = state.isHelperMode;
+          revealedLetters = state.revealedLetters || {};
+      }
+  }
+
+  // Toggle helper mode
+  function toggleHelperMode() {
+      isHelperMode = !isHelperMode;
+      
+      // Update button text and style
+      const toggleBtn = document.getElementById('helper-mode-toggle');
+      if (toggleBtn) {
+          if (isHelperMode) {
+              toggleBtn.textContent = 'Helper Mode: ON';
+              toggleBtn.classList.add('helper-mode-on');
+          } else {
+              toggleBtn.textContent = 'Helper Mode: OFF';
+              toggleBtn.classList.remove('helper-mode-on');
+          }
+      }
+      
+      // Reset revealed letters when switching modes
+      if (!isHelperMode) {
+          revealedLetters = {};
+      }
+      
+      // Save state
+      saveHelperModeState();
+      
+      // Update table display
+      updateTableForHelperMode();
+  }
+
+  // Mask word based on revealed letters count
+  function maskWord(word, revealCount = 1) {
+      if (!word || word.length === 0) return '';
+      
+      // Show first letter and specified number of additional letters
+      let masked = word[0];
+      for (let i = 1; i < word.length; i++) {
+          if (i < revealCount) {
+              masked += word[i];
+          } else {
+              masked += '_';
+          }
+      }
+      return masked;
+  }
+
+  // Show next letter for a word
+  function showNextLetter(word, event) {
+      // Prevent any default button behavior
+      if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+      }
+      
+      if (!revealedLetters[word]) {
+          revealedLetters[word] = 2; // Start with 2 (first letter + one more)
+      } else {
+          revealedLetters[word]++;
+      }
+      
+      // Save state
+      saveHelperModeState();
+      
+      // Update just this word's display
+      updateWordDisplay(word);
+      
+      // Return false to prevent any form submission
+      return false;
+  }
+
+  // Update display for a specific word
+  function updateWordDisplay(word) {
+      const wordCell = document.querySelector(`td[data-word="${word}"]`);
+      if (!wordCell) return;
+      
+      const revealCount = revealedLetters[word] || 1;
+      const maskedWord = maskWord(word, revealCount);
+      wordCell.textContent = maskedWord;
+      
+      // Update button state
+      const row = wordCell.closest('tr');
+      const showLetterBtn = row.querySelector('.show-letter-btn');
+      if (showLetterBtn) {
+          if (revealCount >= word.length) {
+              showLetterBtn.disabled = true;
+              showLetterBtn.textContent = 'Shown';
+          } else {
+              showLetterBtn.disabled = false;
+              showLetterBtn.textContent = 'Show';
+          }
+      }
+  }
+
+  // Update entire table for helper mode
+  function updateTableForHelperMode() {
+      const table = document.querySelector('table');
+      if (!table) return;
+      
+      // Handle header row
+      const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+      if (headerRow) {
+          // Remove existing "Show Letter" header if any
+          const existingShowHeader = headerRow.querySelector('.show-letter-header');
+          if (existingShowHeader) {
+              existingShowHeader.remove();
+          }
+          
+          if (isHelperMode) {
+              // Add "Show Letter" header
+              const showLetterHeader = document.createElement('th');
+              showLetterHeader.className = 'show-letter-header';
+              showLetterHeader.textContent = 'Hint';
+              headerRow.appendChild(showLetterHeader);
+          }
+      }
+      
+      // Handle data rows
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+          const wordCell = row.querySelector('td:nth-child(2)'); // Assuming word is in 2nd column
+          if (!wordCell) return;
+          
+          // Get the original word (stored as data attribute or from checkbox)
+          const checkbox = row.querySelector('.word-checkbox');
+          const word = checkbox ? checkbox.getAttribute('data-word') : wordCell.textContent;
+          
+          // Store original word as data attribute if not already there
+          if (!wordCell.hasAttribute('data-word')) {
+              wordCell.setAttribute('data-word', word);
+          }
+          
+          // Remove existing show letter cell if any
+          const existingShowCell = row.querySelector('.show-letter-cell');
+          if (existingShowCell) {
+              existingShowCell.remove();
+          }
+          
+          if (isHelperMode) {
+              // Add word class for styling
+              wordCell.classList.add('word-masked');
+              
+              // Mask the word
+              const revealCount = revealedLetters[word] || 1;
+              wordCell.textContent = maskWord(word, revealCount);
+              
+              // Add "Show Letter" button cell
+              const showLetterCell = document.createElement('td');
+              showLetterCell.className = 'show-letter-cell';
+              
+              const showLetterBtn = document.createElement('button');
+              showLetterBtn.className = 'show-letter-btn';
+              showLetterBtn.type = 'button'; // Explicitly set type to prevent form submission
+              showLetterBtn.textContent = revealCount >= word.length ? 'Shown' : 'Show';
+              showLetterBtn.disabled = revealCount >= word.length;
+              showLetterBtn.onclick = function(e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  showNextLetter(word, e);
+                  return false;
+              };
+              
+              showLetterCell.appendChild(showLetterBtn);
+              row.appendChild(showLetterCell);
+          } else {
+              // Restore original word
+              wordCell.classList.remove('word-masked');
+              wordCell.textContent = word;
+          }
+      });
+  }
+
+  // Create or update the helper mode button
+  function createHelperModeButton() {
+      // Check if button already exists
+      if (document.getElementById('helper-mode-toggle')) {
+          return;
+      }
+      
+      const resetButton = document.querySelector('a[onclick*="showResetConfirmation"]');
+      if (resetButton) {
+          // 1. Create the wrapper span for the tooltip
+          const tooltipWrapper = document.createElement('span');
+          tooltipWrapper.className = 'disclaimer-tooltip';
+          
+          // 2. Create the Helper Mode button (<a> element)
+          const toggleButton = document.createElement('a');
+          toggleButton.id = 'helper-mode-toggle';
+          toggleButton.className = 'helper-mode-toggle';
+          toggleButton.textContent = isHelperMode ? 'Helper Mode: ON' : 'Helper Mode: OFF';
+          if (isHelperMode) {
+              toggleButton.classList.add('helper-mode-on');
+          }
+          toggleButton.href = '#';
+          
+          // Add the click handler with the setTimeout for automatic dismissal
+          toggleButton.onclick = function(e) {
+              e.preventDefault();
+              toggleHelperMode();
+              
+              // Explicitly make the tooltip content visible on click
+              tooltipContent.style.visibility = 'visible';
+              tooltipContent.style.opacity = '1';
+
+              // Set the timeout to hide the tooltip after 2 seconds
+              setTimeout(() => {
+                  // Hide the tooltip content
+                  tooltipContent.style.visibility = 'hidden';
+                  tooltipContent.style.opacity = '0';
+              }, 2000); // 2000 milliseconds = 2 seconds
+          };
+
+          // 3. Create the tooltip content span
+          const tooltipContent = document.createElement('span');
+          tooltipContent.className = 'tooltip-content';
+          tooltipContent.textContent = 'When ON, words are masked, and you can reveal one letter at a time.';
+          
+          // 4. Append the button and content to the wrapper
+          tooltipWrapper.appendChild(toggleButton);
+          tooltipWrapper.appendChild(tooltipContent);
+          
+          // 5. Insert the wrapper before the Reset button
+          resetButton.parentNode.insertBefore(tooltipWrapper, resetButton);
+      }
+  }
+
+  // Initialize helper mode on page load and after any table updates
+  function initializeHelperMode() {
+      // Load saved state
+      loadHelperModeState();
+      
+      // Create button if it doesn't exist
+      createHelperModeButton();
+      
+      // Store original words as data attributes
+      const wordCells = document.querySelectorAll('table td:nth-child(2)');
+      wordCells.forEach(cell => {
+          const checkbox = cell.parentElement.querySelector('.word-checkbox');
+          if (checkbox) {
+              const word = checkbox.getAttribute('data-word');
+              cell.setAttribute('data-word', word);
+          }
+      });
+      
+      // Apply helper mode if active
+      if (isHelperMode) {
+          updateTableForHelperMode();
+      }
+  }
+
+  // Watch for table changes using MutationObserver
+  const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+          if (mutation.type === 'childList') {
+              // Check if a table was added or modified
+              const hasTableChange = Array.from(mutation.addedNodes).some(node => 
+                  node.nodeName === 'TABLE' || (node.querySelector && node.querySelector('table'))
+              );
+              
+              if (hasTableChange) {
+                  // Re-initialize helper mode after table update
+                  setTimeout(initializeHelperMode, 10);
+              }
+          }
+      });
+  });
+
+  // Start observing the document for changes
+  observer.observe(document.body, {
+      childList: true,
+      subtree: true
+  });
+
+  // Preserve helper mode state during form submissions
+  document.addEventListener('submit', function(e) {
+      if (e.target && e.target.matches('form[name="form1"]')) {
+          // State is already saved in sessionStorage, so it will persist
+          saveHelperModeState();
+      }
+  }, true);
+
+  // Get initial values from template
+  const initialCenter = '{{must_have_val}}';
+  const initialPetals = '{{may_have_val}}';
+  const initialSelectedPetal = '{{petal_letter}}';
+  
+  // Set initial values
+  if (initialCenter) {
+    centerLetter = initialCenter.toUpperCase();
+    document.getElementById('center-input').value = centerLetter;
+  }
+
+  if (initialPetals) {
+    for (let i = 0; i < initialPetals.length && i < 6; i++) {
+      petalLetters[i] = initialPetals[i].toUpperCase();
+      document.getElementById(`petal-${i}`).value = petalLetters[i];
+    }
+  }
+
+  updatePetalVisualState();
+
+  // Highlight selected petal
+  if (initialSelectedPetal) {
+    const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
+    if (petalIndex !== -1) {
+      document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
+    }
+  }
+  
+  // Add event listeners to checkboxes
+  const checkboxes = document.querySelectorAll('.word-checkbox');
+  checkboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    if (checkbox.checked) {
+      row.classList.add('used-word');
+    }
+    
+    checkbox.addEventListener('change', function() {
+      handleCheckboxChange(this);
+    });
+  });
+
+  // Auto-focus center input on first load if it's empty
+  if (!centerLetter) {
+    document.getElementById('center-input').focus();
+  }
+
+  // Initialize helper mode
+  initializeHelperMode();
+
+  // Make functions available globally for inline event handlers
+  window.handleCenterInput = handleCenterInput;
+  window.handlePetalInput = handlePetalInput;
+  window.handleKeyDown = handleKeyDown;
+  window.handleBackspace = handleBackspace;
+  window.selectPetal = selectPetal;
+  window.showResetConfirmation = showResetConfirmation;
+  window.cancelReset = cancelReset;
+  window.confirmReset = confirmReset;
+}
+</script>
 
 {% endblock %}
