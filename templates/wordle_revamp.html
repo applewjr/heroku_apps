@@ -309,25 +309,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
-  
-  function triggerUpdate() {
-      const data = collectData();
-  
-      fetch('/wordle', {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({wordle_data: data}),
-      })
-      .then(response => response.json())
-      .then(data => {
-          updateUI(data);
-      })
-      .catch((error) => {
-          console.error('Error:', error);
-      });
-  }
+
+let updateTimeout;
+
+function triggerUpdate() {
+    clearTimeout(updateTimeout);
+    updateTimeout = setTimeout(() => {
+        const data = collectData();
+
+        fetch('/wordle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({wordle_data: data}),
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateUI(data);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    }, 300); // 300ms delay
+}
   
   function collectData() {
       const data = [];
