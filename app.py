@@ -870,6 +870,29 @@ def run_common_denominator():
 @app.route("/blossom", methods=["POST", "GET"])
 def blossom_solver():
     try:
+
+        try:
+            schema_data = {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "Blossom Word Finder & Solver",
+                "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
+                "url": "https://jamesapplewhite.com/blossom",
+                "applicationCategory": "GameApplication",
+                "isAccessibleForFree": True,
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                },
+                "creator": {
+                    "@type": "Person",
+                    "name": "James Applewhite"
+                }
+            }
+        except Exception:
+            schema_data = None
+
         if request.method == "POST":
             # Handle checkbox updates via AJAX
             if request.is_json:
@@ -937,7 +960,8 @@ def blossom_solver():
                                 valid_word_count=valid_word_count,
                                 used_words=used_words,
                                 current_count=current_count,
-                                show_load_more=show_load_more)
+                                show_load_more=show_load_more,
+                                schema_data=schema_data)
 
         else:
             # Initialize session for used words if it doesn't exist
@@ -953,7 +977,8 @@ def blossom_solver():
             return render_template("blossom.html", 
                                 used_words=used_words,
                                 current_count=25,
-                                show_load_more=False)
+                                show_load_more=False,
+                                schema_data=schema_data)
 
     except Exception as e:
         app.logger.error(f"Error R99 (Blossom failed): {str(e)} - IP: {request.remote_addr}")
