@@ -858,41 +858,33 @@ def antiwordle_solver_split_revamp(import_df, wordle_data_dict):
     not_present_joined = ''.join(filter(lambda x: x != '', not_present))
 
     # yellow round 1 - toss any words that do not have the letter
-    df = df[df['word'].apply(lambda x: all(letter in x for letter in not_present_joined))]
+    if not_present_joined:  # Only filter if there are letters to check
+        df = df[df['word'].apply(lambda x: all(letter in x for letter in not_present_joined))]
 
     # yellow round 2 - give a bonus if the letter is in the same position
     bonus = 0.75
 
     for i in range(5):
         condition = locals().get(f'not_present{i + 1}')
-        if condition:
+        if condition and len(df) > 0:  # Check if df is not empty
             df.loc[df['word'].str[i].isin(list(condition)), 'word_score'] *= bonus
 
+    # Check if dataframe is empty before sorting
+    if len(df) == 0:
+        # Return "No words found" for all outputs when dataframe is empty
+        return ('No words found', '', '', '', '', 
+                f'Options remaining: 0/{total_len} (0.0%)', 
+                first_incomplete_row, complete_rows)
 
-    # finalize
-    df = df.sort_values(by = 'word_score', ascending =  True)
+    # finalize - only sort if we have data
+    df = df.sort_values(by = 'word_score', ascending = True)
 
-
-    try:
-        final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
-    except:
-        final_out1 = 'No words found'
-    try:
-        final_out2 = 'Pick 2: ' + df.iat[1, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
-    except:
-        final_out2 = ''
-    try:
-        final_out3 = 'Pick 3: ' + df.iat[2, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
-    except:
-        final_out3 = ''
-    try:
-        final_out4 = 'Pick 4: ' + df.iat[3, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
-    except:
-        final_out4 = ''
-    try:
-        final_out5 = 'Pick 5: ' + df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
-    except:
-        final_out5 = ''
+    # Build outputs safely
+    final_out1 = 'Pick 1: ' + df.iat[0, 0] if len(df) > 0 else 'No words found'
+    final_out2 = 'Pick 2: ' + df.iat[1, 0] if len(df) > 1 else ''
+    final_out3 = 'Pick 3: ' + df.iat[2, 0] if len(df) > 2 else ''
+    final_out4 = 'Pick 4: ' + df.iat[3, 0] if len(df) > 3 else ''
+    final_out5 = 'Pick 5: ' + df.iat[4, 0] if len(df) > 4 else ''
     final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
 
     return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows
