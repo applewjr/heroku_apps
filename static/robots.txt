@@ -7,3 +7,4 @@ Disallow: /task_mysql
 Disallow: /task_db
 Disallow: /high_score
 Disallow: /quill
+Disallow: /blossom_admin
