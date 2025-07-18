@@ -926,8 +926,9 @@ def blossom_solver():
             used_words = session.get('used_words', [])
 
             # Get the blossom table and modify it to include checkboxes
+            words_blossom_filtered = get_filtered_blossom_words()
             blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
-                must_have, may_have, petal_letter, current_count, words_blossom, used_words
+                must_have, may_have, petal_letter, current_count, words_blossom_filtered, used_words
             )
             valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
 
@@ -994,6 +995,132 @@ def blossom_reset():
     
     # Redirect back to the main blossom page
     return redirect(url_for('blossom_solver'))
+
+
+@app.route('/blossom_admin')
+@auth.login_required
+def blossom_admin():
+    """Admin page to manage invalid words"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all currently marked invalid words
+        cursor.execute("""
+            SELECT word, added_date 
+            FROM blossom_invalid_words 
+            ORDER BY added_date DESC
+        """)
+        invalid_words = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('blossom_admin.html', invalid_words=invalid_words)
+        
+    except Exception as e:
+        print(f"Error loading blossom admin: {e}")
+        return render_template('error.html', return_type='Admin Error'), 500
+
+@app.route('/add_invalid_word', methods=['POST'])
+@auth.login_required
+def add_invalid_word():
+    """Add a word to the invalid list"""
+    try:
+        word = request.form.get('word', '').strip().lower()
+        
+        if not word:
+            return redirect('/blossom_admin?error=Word is required')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Insert the invalid word (ignore duplicates)
+        cursor.execute("""
+            INSERT IGNORE INTO blossom_invalid_words (word, added_date)
+            VALUES (%s, CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
+        """, (word,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Clear cache to force refresh
+        cache.delete('blossom_filtered_words')
+        
+        return redirect('/blossom_admin?success=Word added successfully')
+        
+    except Exception as e:
+        print(f"Error adding invalid word: {e}")
+        return redirect('/blossom_admin?error=Database error')
+
+@app.route('/remove_invalid_word', methods=['POST'])
+@auth.login_required
+def remove_invalid_word():
+    """Remove a word from the invalid list"""
+    try:
+        word = request.form.get('word', '').strip().lower()
+        
+        if not word:
+            return redirect('/blossom_admin?error=Word is required')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM blossom_invalid_words WHERE word = %s", (word,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Clear cache to force refresh
+        cache.delete('blossom_filtered_words')
+        
+        return redirect('/blossom_admin?success=Word removed successfully')
+        
+    except Exception as e:
+        print(f"Error removing invalid word: {e}")
+        return redirect('/blossom_admin?error=Database error')
+
+def get_filtered_blossom_words():
+    """Get word list with invalid words removed, using cache for performance"""
+    
+    # Check cache first
+    cached_words = cache.get('blossom_filtered_words')
+    if cached_words is not None:
+        return cached_words
+    
+    # Get invalid words from database
+    invalid_words = set()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT word FROM blossom_invalid_words")
+        results = cursor.fetchall()
+        invalid_words = {row[0].lower() for row in results}
+        
+    except Exception as e:
+        print(f"Error fetching invalid words: {e}")
+        # If database error, use original word list (show all words including invalid ones)
+        invalid_words = set()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+    
+    # Ensure both word lists are lowercase for proper comparison
+    # Convert words_blossom to lowercase set for comparison
+    words_blossom_lower = {str(word).lower() for word in words_blossom}
+    
+    # Filter out invalid words from the main word list
+    filtered_words_lower = words_blossom_lower - invalid_words
+    
+    # Cache the filtered word list for 12 hours
+    cache.set('blossom_filtered_words', filtered_words_lower, timeout=43200)
+    
+    return filtered_words_lower
+
 
 
 @app.route("/any_word", methods=["POST", "GET"])
