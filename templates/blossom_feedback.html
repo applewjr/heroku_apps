@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Report Invalid Word - Blossom{% endblock %}
+
+{% block content %}
+<head>
+  <script>
+    function validateForm() {
+      var body = document.forms["form1"]["feedback_body"].value;
+      if (body == "") {
+        alert("Please enter the invalid word(s) you want to report");
+        return false;
+      }
+      return true;
+    }
+
+    function setReferrer() {
+      document.forms["form1"]["referrer"].value = document.referrer;
+    }
+
+    window.onload = setReferrer;
+  </script>
+</head>
+
+<body>
+  <form name="form1" action="/blossom_feedback" method="post" onsubmit="return validateForm()">
+    <input type="hidden" name="referrer" value="">
+    <center>
+      <br>
+      <h1 style="text-align: center">Report Invalid Word</h1>
+      <br>
+      <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto;">
+        Found a word in our Blossom solver that isn't accepted by the official Merriam-Webster Blossom game? 
+        Let me know and I'll review it for removal. Thank you for your Support!
+      </p>
+      <br>
+      <h5 class="pad_lr_30" style="text-align: center">Invalid Word(s)</h5>
+      <textarea name="feedback_body" style="width: 500px; max-width: 90%;" maxlength="500" rows="4" 
+                placeholder="Enter the word(s) that weren't accepted by Blossom. One word per line."></textarea>
+      <br>
+      <p style="font-size: 12px; color: #666; margin: 10px 0;">
+        Example:<br>
+        WORDONE<br>
+        WORDTWO
+      </p>
+      <br>
+      <input type="submit" value="Submit Report" style="
+        background-color: #02484d;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      ">
+      <br>
+      <br>
+      <a href="/blossom" style="
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+      ">← Back to Blossom Solver</a>
+      <br>
+      <br>
+    </center>
+  </form>
+</body>
+{% endblock %}

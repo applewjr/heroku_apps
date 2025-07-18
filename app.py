@@ -997,6 +997,35 @@ def blossom_reset():
     return redirect(url_for('blossom_solver'))
 
 
+@app.route("/blossom_feedback", methods=["POST", "GET"])
+def blossom_feedback():
+    if request.method == "POST":
+        feedback_header = "Blossom Invalid Word Report"
+        feedback_body = request.form['feedback_body']
+        referrer = request.form['referrer']
+
+        # Log inputs to new feedback_blossom table
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO feedback_blossom (submit_time, referrer, reported_words) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s);
+            """
+            cursor.execute(query, (referrer, feedback_body))
+            conn.commit()
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conn is not None and conn.is_connected():
+                conn.close()
+
+        return render_template("blossom_feedback_received.html")
+    else:
+        return render_template("blossom_feedback.html")
+
 @app.route('/blossom_admin')
 @auth.login_required
 def blossom_admin():
