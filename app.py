@@ -15,6 +15,7 @@ import pytz
 import time
 from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
+import logging
 
 ########## local functions ##########
 
@@ -92,6 +93,12 @@ if 'IS_HEROKU' in os.environ:
 
     def get_db_connection():
         return cnxpool.get_connection()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        stream=sys.stdout
+    )
 else:
     # Running locally, load values from secret_pass.py
     import secret_pass
@@ -862,90 +869,121 @@ def run_common_denominator():
 
 @app.route("/blossom", methods=["POST", "GET"])
 def blossom_solver():
-    if request.method == "POST":
-        # Handle checkbox updates via AJAX
-        if request.is_json:
-            data = request.get_json()
-            if data.get('action') == 'toggle_word':
-                word = data.get('word')
-                if 'used_words' not in session:
-                    session['used_words'] = []
-                
-                if word in session['used_words']:
-                    session['used_words'].remove(word)
-                else:
-                    session['used_words'].append(word)
-                
-                session.modified = True  # Mark session as modified
-                return jsonify({'status': 'success', 'used_words': session['used_words']})
-        
-        # Handle form submission for word search
-        must_have = request.form["must_have"]
-        may_have = request.form["may_have"]
-        petal_letter = request.form["petal_letter"]
+    try:
 
-        # Handle load more functionality
-        current_count = 25  # Default starting count
-        if request.form.get("load_more"):
-            current_count = int(request.form.get("current_count", 25)) + 25
-        elif request.form.get("current_count"):
-            current_count = int(request.form.get("current_count", 25))
-
-        # Get used words from session
-        used_words = session.get('used_words', [])
-
-        # Get the blossom table and modify it to include checkboxes
-        blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
-            must_have, may_have, petal_letter, current_count, words_blossom, used_words
-        )
-        valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
-
-        # Make session permanent (4 hours)
-        session.permanent = True
-
-        # log clicks and inputs - use actual displayed count
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
-            """
-            cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
+            schema_data = {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "Blossom Word Finder & Solver",
+                "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
+                "url": "https://jamesapplewhite.com/blossom",
+                "applicationCategory": "GameApplication",
+                "isAccessibleForFree": True,
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                },
+                "creator": {
+                    "@type": "Person",
+                    "name": "James Applewhite"
+                }
+            }
+        except Exception:
+            schema_data = None
 
-        return render_template("blossom.html", 
-                            blossom_table=blossom_table, 
-                            must_have_val=must_have, 
-                            may_have_val=may_have, 
-                            petal_letter=petal_letter, 
-                            valid_word_count=valid_word_count,
-                            used_words=used_words,
-                            current_count=current_count,
-                            show_load_more=show_load_more)
+        if request.method == "POST":
+            # Handle checkbox updates via AJAX
+            if request.is_json:
+                data = request.get_json()
+                if data.get('action') == 'toggle_word':
+                    word = data.get('word')
+                    if 'used_words' not in session:
+                        session['used_words'] = []
+                    
+                    if word in session['used_words']:
+                        session['used_words'].remove(word)
+                    else:
+                        session['used_words'].append(word)
+                    
+                    session.modified = True  # Mark session as modified
+                    return jsonify({'status': 'success', 'used_words': session['used_words']})
+            
+            # Handle form submission for word search
+            must_have = request.form["must_have"]
+            may_have = request.form["may_have"]
+            petal_letter = request.form["petal_letter"]
 
-    else:
-        # Initialize session for used words if it doesn't exist
-        if 'used_words' not in session:
-            session['used_words'] = []
-        
-        # Make session permanent (4 hours)
-        session.permanent = True
-        
-        used_words = session.get('used_words', [])
-        log_page_visit('blossom.html')
+            # Handle load more functionality
+            current_count = 25  # Default starting count
+            if request.form.get("load_more"):
+                current_count = int(request.form.get("current_count", 25)) + 25
+            elif request.form.get("current_count"):
+                current_count = int(request.form.get("current_count", 25))
 
-        return render_template("blossom.html", 
-                            used_words=used_words,
-                            current_count=25,
-                            show_load_more=False)
+            # Get used words from session
+            used_words = session.get('used_words', [])
+
+            # Get the blossom table and modify it to include checkboxes
+            blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
+                must_have, may_have, petal_letter, current_count, words_blossom, used_words
+            )
+            valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
+
+            # Make session permanent (4 hours)
+            session.permanent = True
+
+            # log clicks and inputs - use actual displayed count
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                query = """
+                INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
+                VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
+                """
+                cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
+                conn.commit()
+            except mysql.connector.Error as err:
+                print("Error:", err)
+            finally:
+                if cursor is not None:
+                    cursor.close()
+                if conn is not None and conn.is_connected():
+                    conn.close()
+
+            return render_template("blossom.html", 
+                                blossom_table=blossom_table, 
+                                must_have_val=must_have, 
+                                may_have_val=may_have, 
+                                petal_letter=petal_letter, 
+                                valid_word_count=valid_word_count,
+                                used_words=used_words,
+                                current_count=current_count,
+                                show_load_more=show_load_more,
+                                schema_data=schema_data)
+
+        else:
+            # Initialize session for used words if it doesn't exist
+            if 'used_words' not in session:
+                session['used_words'] = []
+            
+            # Make session permanent (4 hours)
+            session.permanent = True
+            
+            used_words = session.get('used_words', [])
+            log_page_visit('blossom.html')
+
+            return render_template("blossom.html", 
+                                used_words=used_words,
+                                current_count=25,
+                                show_load_more=False,
+                                schema_data=schema_data)
+
+    except Exception as e:
+        app.logger.error(f"Error R99 (Blossom failed): {str(e)} - IP: {request.remote_addr}")
+        return render_template('error.html', return_type='Blossom Error'), 500
+
 
 # Add this new route for clearing session data
 @app.route("/blossom/reset")
