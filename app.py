@@ -90,6 +90,7 @@ if 'IS_HEROKU' in os.environ:
     MTG_PATH = os.environ.get('MTG_PATH')
     SESSION_KEY = os.environ.get('SESSION_KEY')
     GMAIL_PASS = os.environ.get('GMAIL_PASS')
+    BLOSSOM_EMAIL_FLAG = os.environ.get('BLOSSOM_EMAIL_FLAG')
 
     # Creating a connection pool
     cnxpool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
@@ -125,6 +126,7 @@ else:
     MTG_PATH = secret_pass.MTG_PATH
     SESSION_KEY = secret_pass.SESSION_KEY
     GMAIL_PASS = secret_pass.GMAIL_PASS
+    BLOSSOM_EMAIL_FLAG = secret_pass.BLOSSOM_EMAIL_FLAG
 
     def get_db_connection():
         try:
@@ -1149,13 +1151,14 @@ def blossom_feedback():
                 conn.close()
         
         # Send email notification
-        try:
-            pst = pytz.timezone('America/Los_Angeles')
-            current_time = datetime.now(pst).strftime("%Y-%m-%d %H:%M:%S PST")
-            
-            report_type_display = "Invalid Words" if report_type == 'invalid' else "Missing Words"
-            
-            email_body = f"""New Blossom Word Report Received
+        if BLOSSOM_EMAIL_FLAG == 1:
+            try:
+                pst = pytz.timezone('America/Los_Angeles')
+                current_time = datetime.now(pst).strftime("%Y-%m-%d %H:%M:%S PST")
+                
+                report_type_display = "Invalid Words" if report_type == 'invalid' else "Missing Words"
+                
+                email_body = f"""New Blossom Word Report Received
 
 Report Type: {report_type_display}
 Submission Time: {current_time}
@@ -1169,21 +1172,21 @@ Reported Words:
 View admin panel: https://jamesapplewhite.com/blossom_admin
 """
             
-            gmail_subject = f'Blossom {report_type_display} Report'
-            
-            msg = MIMEText(email_body)
-            msg['Subject'] = gmail_subject
-            msg['From'] = gmail_sender_email
-            msg['To'] = gmail_receiver_email
-            
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
-                server.login(gmail_sender_email, GMAIL_PASS)
-                server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-                print(f'Blossom feedback email sent for {report_type} report')
+                gmail_subject = f'Blossom {report_type_display} Report'
                 
-        except Exception as e:
-            print(f"Failed to send email notification: {e}")
+                msg = MIMEText(email_body)
+                msg['Subject'] = gmail_subject
+                msg['From'] = gmail_sender_email
+                msg['To'] = gmail_receiver_email
+                
+                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    server.starttls()
+                    server.login(gmail_sender_email, GMAIL_PASS)
+                    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+                    print(f'Blossom feedback email sent for {report_type} report')
+                    
+            except Exception as e:
+                print(f"Failed to send email notification: {e}")
 
         return render_template("blossom_feedback_received.html", report_type=report_type)
     else:
