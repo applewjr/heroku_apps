@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}Blossom Admin - Invalid Words{% endblock %}
+{% block title %}Blossom Admin - Word Management{% endblock %}
 
 {% block content %}
 <style>
 .admin-container {
-    max-width: 800px;
+    max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
 }
 
-.add-word-form {
+.admin-section {
     background-color: #f8f9fa;
     padding: 20px;
     border-radius: 8px;
@@ -29,7 +29,7 @@
     color: #333;
 }
 
-.form-group input {
+.form-group input, .form-group select {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
@@ -58,6 +58,15 @@
     background-color: #0056b3;
 }
 
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
 .btn-danger {
     background-color: #dc3545;
     color: white;
@@ -67,25 +76,25 @@
     background-color: #c82333;
 }
 
-.invalid-words-table {
+.words-table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 20px;
 }
 
-.invalid-words-table th,
-.invalid-words-table td {
+.words-table th,
+.words-table td {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid #ddd;
 }
 
-.invalid-words-table th {
+.words-table th {
     background-color: #f8f9fa;
     font-weight: bold;
 }
 
-.invalid-words-table tr:hover {
+.words-table tr:hover {
     background-color: #f5f5f5;
 }
 
@@ -118,10 +127,54 @@
 .remove-form {
     display: inline;
 }
+
+.feedback-item {
+    background-color: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.feedback-type-invalid {
+    border-left: 4px solid #dc3545;
+}
+
+.feedback-type-missing {
+    border-left: 4px solid #28a745;
+}
+
+.tab-container {
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    background-color: #e9ecef;
+    border: 1px solid #ddd;
+    padding: 10px 20px;
+    cursor: pointer;
+    display: inline-block;
+    margin-right: 5px;
+    border-radius: 4px 4px 0 0;
+}
+
+.tab-button.active {
+    background-color: #007bff;
+    color: white;
+    border-bottom: 1px solid #007bff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
 </style>
 
 <div class="admin-container">
-    <h1>Blossom Admin - Invalid Words Management</h1>
+    <h1>Blossom Admin - Word Management</h1>
     
     <!-- Success/Error Messages -->
     {% if request.args.get('success') %}
@@ -138,54 +191,132 @@
     
     <!-- Stats -->
     <div class="stats">
-        <strong>Currently marked invalid words:</strong> {{ invalid_words|length }}
+        <strong>Recent feedback:</strong> {{ recent_feedback|length }} |
+        <strong>Invalid words:</strong> {{ invalid_words|length }} | 
+        <strong>Added words:</strong> {{ added_words|length }}
     </div>
     
-    <!-- Add Invalid Word Form -->
-    <div class="add-word-form">
-        <h2>Add Invalid Word</h2>
-        <form method="POST" action="/add_invalid_word">
+    <!-- Add Word Form -->
+    <div class="admin-section">
+        <h2>Add/Remove Words</h2>
+        <form method="POST" action="/add_word">
             <div class="form-group">
                 <label for="word">Word:</label>
                 <input type="text" id="word" name="word" required 
-                       placeholder="Enter word to mark as invalid"
+                       placeholder="Enter word"
                        style="text-transform: lowercase;">
             </div>
-            <button type="submit" class="btn btn-primary">Add Invalid Word</button>
+            <div class="form-group">
+                <label for="word_type">Action:</label>
+                <select id="word_type" name="word_type" required>
+                    <option value="invalid">Remove Invalid Word</option>
+                    <option value="missing">Add Missing Word</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Process Word</button>
         </form>
     </div>
     
-    <!-- Current Invalid Words -->
-    <h2>Current Invalid Words</h2>
+    <!-- Tabs for different sections -->
+    <div class="tab-container">
+        <div class="tab-button active" onclick="showTab('feedback')">Recent Feedback</div>
+        <div class="tab-button" onclick="showTab('invalid')">Invalid Words Removed</div>
+        <div class="tab-button" onclick="showTab('added')">Added Words</div>
+    </div>
     
-    {% if invalid_words %}
-    <table class="invalid-words-table">
-        <thead>
-            <tr>
-                <th>Word</th>
-                <th>Added Date</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for word_data in invalid_words %}
-            <tr>
-                <td><strong>{{ word_data[0] }}</strong></td>
-                <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
-                <td>
-                    <form method="POST" action="/remove_invalid_word" class="remove-form"
-                          onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the invalid list?')">
-                        <input type="hidden" name="word" value="{{ word_data[0] }}">
-                        <button type="submit" class="btn btn-danger">Remove</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>No invalid words currently marked.</p>
-    {% endif %}
+    <!-- Recent Feedback Tab -->
+    <div id="feedback-tab" class="tab-content active">
+        <h2>Recent Feedback Reports</h2>
+        {% if recent_feedback %}
+        {% for feedback in recent_feedback %}
+        <div class="feedback-item feedback-type-{{ feedback[2] }}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex-grow: 1;">
+                    <strong>
+                        {% if feedback[2] == 'invalid' %}
+                        🚫 Invalid Words Report
+                        {% else %}
+                        ➕ Missing Words Report
+                        {% endif %}
+                    </strong>
+                    <small style="color: #666; margin-left: 10px;">{{ feedback[1].strftime('%Y-%m-%d %H:%M') }}</small>
+                    <div style="margin-top: 8px; white-space: pre-line;">{{ feedback[3] }}</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>No recent feedback.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Invalid Words Tab -->
+    <div id="invalid-tab" class="tab-content">
+        <h2>Invalid Words (Removed from Results)</h2>
+        {% if invalid_words %}
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Added Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word_data in invalid_words %}
+                <tr>
+                    <td><strong>{{ word_data[0] }}</strong></td>
+                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td>
+                        <form method="POST" action="/remove_word" class="remove-form"
+                              onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the invalid list?')">
+                            <input type="hidden" name="word" value="{{ word_data[0] }}">
+                            <input type="hidden" name="word_type" value="invalid">
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No invalid words currently marked.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Added Words Tab -->
+    <div id="added-tab" class="tab-content">
+        <h2>Added Words (Included in Results)</h2>
+        {% if added_words %}
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Added Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word_data in added_words %}
+                <tr>
+                    <td><strong>{{ word_data[0] }}</strong></td>
+                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td>
+                        <form method="POST" action="/remove_word" class="remove-form"
+                              onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the added words list?')">
+                            <input type="hidden" name="word" value="{{ word_data[0] }}">
+                            <input type="hidden" name="word_type" value="missing">
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No added words currently.</p>
+        {% endif %}
+    </div>
     
     <br>
     <a href="/blossom" class="btn btn-primary">Back to Blossom Solver</a>
@@ -197,6 +328,27 @@
 document.getElementById('word').addEventListener('input', function() {
     this.value = this.value.toLowerCase();
 });
+
+// Tab functionality
+function showTab(tabName) {
+    // Hide all tab contents
+    var tabContents = document.querySelectorAll('.tab-content');
+    tabContents.forEach(function(content) {
+        content.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    var tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(function(button) {
+        button.classList.remove('active');
+    });
+    
+    // Show selected tab content
+    document.getElementById(tabName + '-tab').classList.add('active');
+    
+    // Add active class to clicked tab button
+    event.target.classList.add('active');
+}
 </script>
 
 {% endblock %}
