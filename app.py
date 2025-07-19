@@ -90,7 +90,7 @@ if 'IS_HEROKU' in os.environ:
     MTG_PATH = os.environ.get('MTG_PATH')
     SESSION_KEY = os.environ.get('SESSION_KEY')
     GMAIL_PASS = os.environ.get('GMAIL_PASS')
-    BLOSSOM_EMAIL_FLAG = os.environ.get('BLOSSOM_EMAIL_FLAG')
+    BLOSSOM_EMAIL_FLAG = int(os.environ.get('BLOSSOM_EMAIL_FLAG', '1'))
 
     # Creating a connection pool
     cnxpool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
@@ -126,7 +126,7 @@ else:
     MTG_PATH = secret_pass.MTG_PATH
     SESSION_KEY = secret_pass.SESSION_KEY
     GMAIL_PASS = secret_pass.GMAIL_PASS
-    BLOSSOM_EMAIL_FLAG = secret_pass.BLOSSOM_EMAIL_FLAG
+    BLOSSOM_EMAIL_FLAG = getattr(secret_pass, 'BLOSSOM_EMAIL_FLAG', 1)
 
     def get_db_connection():
         try:
@@ -1187,6 +1187,8 @@ View admin panel: https://jamesapplewhite.com/blossom_admin
                     
             except Exception as e:
                 print(f"Failed to send email notification: {e}")
+        else:
+            print("Blossom feedback submitted, email is not configured to send")
 
         return render_template("blossom_feedback_received.html", report_type=report_type)
     else:
