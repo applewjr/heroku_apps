@@ -628,18 +628,6 @@ def run_wordle_fixer():
         return render_template("fixer.html")
 
 
-@app.route("/wordle_example", methods=["POST", "GET"])
-def run_wordle_example():
-    if request.method == "POST":
-        return render_template("wordle_example.html")
-    else:
-
-        # log_page_visit('wordle_example.html')
-
-        return render_template("wordle_example.html")
-
-
-
 
 
 
