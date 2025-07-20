@@ -456,6 +456,29 @@ def abbreviate_keys(data):
 
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
+            "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
+            "url": "https://jamesapplewhite.com/wordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
@@ -488,12 +511,36 @@ def run_wordle_revamp():
                             initial_out3=final_out3,
                             initial_out4=final_out4,
                             initial_out5=final_out5,
-                            initial_out_end=final_out_end)
+                            initial_out_end=final_out_end,
+                            schema_data=schema_data)
 
 
 
 @app.route("/antiwordle", methods=["POST", "GET"])
 def run_antiwordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
+            "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
+            "url": "https://jamesapplewhite.com/antiwordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
@@ -525,12 +572,36 @@ def run_antiwordle_revamp():
                              initial_out3=final_out3,
                              initial_out4=final_out4,
                              initial_out5=final_out5,
-                             initial_out_end=final_out_end)
+                             initial_out_end=final_out_end,
+                             schema_data=schema_data)
 
 
 
 @app.route("/quordle", methods=["POST", "GET"])
 def run_quordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
+            "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
+            "url": "https://jamesapplewhite.com/quordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
         quordle_data_dict = request.get_json().get('quordle_data')
         
@@ -612,7 +683,9 @@ def run_quordle_revamp():
             # Initial puzzle 4 results
             initial_out4_1=final_out4_1, initial_out4_2=final_out4_2,
             initial_out4_3=final_out4_3, initial_out4_4=final_out4_4,
-            initial_out4_5=final_out4_5, initial_out_end4=final_out_end4
+            initial_out4_5=final_out4_5, initial_out_end4=final_out_end4,
+
+            schema_data=schema_data
         )
 
 @app.route("/fixer", methods=["POST", "GET"])

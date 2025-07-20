@@ -13,6 +13,10 @@
 <meta property="og:site_name" content="JJ Apps">
 {% endblock %}
 
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
 {% block content %}
 
 <head>

@@ -10,7 +10,12 @@
 <meta property="og:description" content="Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game instantly.">
 <meta property="og:url" content="https://jamesapplewhite.com/antiwordle">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
 {% endblock %}
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
 
 {% block content %}
 
@@ -38,6 +43,10 @@
     .color-1 { background-color: gray; }
     .color-2 { background-color: rgb(180, 162, 0); }
     .color-3 { background-color: red; }
+
+    .legend-box.color-1 { background-color: gray !important; }
+    .legend-box.color-2 { background-color: rgb(180, 162, 0) !important; }
+    .legend-box.color-3 { background-color: red !important; }
 
     .instructions {
         background-color: #f8f9fa;
