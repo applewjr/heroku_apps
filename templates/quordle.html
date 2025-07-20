@@ -531,6 +531,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const boxes = document.querySelectorAll('.quordle-box');
     const rows = document.querySelectorAll('.quordle-row');
     
+    // Add flag to prevent focus loops
+    let isProcessingInput = false;
+    let focusTimeout = null;
+    
     // Set focus to the first box as soon as the page loads
     if (boxes.length > 0) {
         boxes[0].focus();
@@ -582,9 +586,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Focus first box of new row in puzzle 1
             const nextRowFirstBox = puzzle1Rows[nextRowIndex].querySelector('.quordle-box[data-position="1"]');
             if (nextRowFirstBox) {
-                // Use setTimeout for mobile focus
-                setTimeout(() => {
-                    nextRowFirstBox.focus();
+                // Clear any pending focus operations
+                if (focusTimeout) {
+                    clearTimeout(focusTimeout);
+                }
+                focusTimeout = setTimeout(() => {
+                    if (!isProcessingInput) {
+                        nextRowFirstBox.focus();
+                    }
                 }, 100);
             }
         }
@@ -648,51 +657,60 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    boxes.forEach((box, index) => {
-        // Use 'beforeinput' for better mobile support
-        box.addEventListener('beforeinput', (event) => {
-            if (event.inputType === 'insertText' || event.inputType === 'insertCompositionText') {
-                const letter = event.data;
-                if (letter && /^[A-Za-z]$/.test(letter)) {
-                    event.preventDefault();
-                    box.value = letter.toUpperCase();
-                    
-                    // Mirror this letter to all puzzles
-                    mirrorLetterToAllPuzzles(box);
-                    
-                    // Move to next box
-                    const currentPuzzle = box.dataset.puzzle;
-                    const currentRow = box.dataset.row;
-                    const currentPosition = parseInt(box.dataset.position);
-                    
-                    if (currentPosition < 5) {
-                        // Move to next position in same puzzle and row
-                        const nextBox = document.querySelector(
-                            `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
-                        );
-                        if (nextBox) {
-                            // Use setTimeout for mobile focus
-                            setTimeout(() => {
-                                nextBox.focus();
-                                nextBox.select();
-                            }, 50);
-                        }
-                    } else {
-                        // If we're at the last position (5), check if we should show the next row
-                        setTimeout(() => {
-                            showNextRowIfNeeded();
-                        }, 100);
-                    }
-                    
-                    triggerUpdate();
+    // Function to move to next box with debouncing
+    function moveToNextBox(currentBox) {
+        if (isProcessingInput) return;
+        
+        const currentPuzzle = currentBox.dataset.puzzle;
+        const currentRow = currentBox.dataset.row;
+        const currentPosition = parseInt(currentBox.dataset.position);
+        
+        if (currentPosition < 5) {
+            // Move to next position in same puzzle and row
+            const nextBox = document.querySelector(
+                `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
+            );
+            if (nextBox) {
+                // Clear any pending focus operations
+                if (focusTimeout) {
+                    clearTimeout(focusTimeout);
                 }
+                isProcessingInput = true;
+                focusTimeout = setTimeout(() => {
+                    nextBox.focus();
+                    nextBox.select();
+                    isProcessingInput = false;
+                }, 50);
             }
-        });
+        } else {
+            // If we're at the last position (5), check if we should show the next row
+            setTimeout(() => {
+                showNextRowIfNeeded();
+            }, 100);
+        }
+    }
 
-        // Keep the original input handler as fallback
+    boxes.forEach((box, index) => {
+        // Simplified input handler
         box.addEventListener('input', (event) => {
-            const oldValue = box.value;
-            box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
+            // Prevent processing if we're already handling input
+            if (isProcessingInput) {
+                event.preventDefault();
+                return;
+            }
+            
+            const oldValue = box.dataset.lastValue || '';
+            const newValue = box.value.toUpperCase().replace(/[^A-Z]/g, '');
+            
+            // Only keep the first character if multiple were pasted/typed
+            if (newValue.length > 1) {
+                box.value = newValue[0];
+            } else {
+                box.value = newValue;
+            }
+            
+            // Store the last value
+            box.dataset.lastValue = box.value;
             
             // If the box is now empty, reset color to default
             if (box.value === '') {
@@ -705,31 +723,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Only move to next box if we added a letter (not if we deleted one)
             if (box.value && box.value !== oldValue && box.value.length === 1) {
-                const currentPuzzle = box.dataset.puzzle;
-                const currentRow = box.dataset.row;
-                const currentPosition = parseInt(box.dataset.position);
-                
-                if (currentPosition < 5) {
-                    // Move to next position in same puzzle and row
-                    const nextBox = document.querySelector(
-                        `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
-                    );
-                    if (nextBox) {
-                        // Use setTimeout for mobile
-                        setTimeout(() => {
-                            nextBox.focus();
-                            nextBox.select();
-                        }, 50);
-                    }
-                } else {
-                    // If we're at the last position (5), check if we should show the next row
-                    setTimeout(() => {
-                        showNextRowIfNeeded();
-                    }, 100);
-                }
+                moveToNextBox(box);
             }
             
             triggerUpdate();
+        });
+
+        // Prevent beforeinput when we're processing
+        box.addEventListener('beforeinput', (event) => {
+            if (isProcessingInput) {
+                event.preventDefault();
+                return;
+            }
         });
 
         box.addEventListener('click', (event) => {
@@ -751,24 +756,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         box.addEventListener('keydown', (event) => {
-            if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 1)) {
+            if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 0)) {
                 event.preventDefault();
                 
                 const currentPuzzle = box.dataset.puzzle;
                 const currentRow = box.dataset.row;
                 const currentPosition = parseInt(box.dataset.position);
                 
-                if (currentPosition > 1) {
+                if (box.value === '' && currentPosition > 1) {
                     // Move to previous position in same puzzle and row
                     const prevBox = document.querySelector(
                         `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition - 1}"]`
                     );
                     if (prevBox) {
-                        setTimeout(() => {
+                        // Clear any pending focus operations
+                        if (focusTimeout) {
+                            clearTimeout(focusTimeout);
+                        }
+                        isProcessingInput = true;
+                        focusTimeout = setTimeout(() => {
                             prevBox.focus();
                             prevBox.select();
+                            isProcessingInput = false;
                         }, 50);
                         prevBox.value = '';
+                        prevBox.dataset.lastValue = '';
                         // Reset color when clearing the box
                         prevBox.dataset.state = '0';
                         prevBox.className = 'quordle-box color-0';
@@ -777,15 +789,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         triggerUpdate();
                         hideEmptyRowsFromEnd();
                     }
+                } else if (box.value !== '') {
+                    // Just clear current box
+                    box.value = '';
+                    box.dataset.lastValue = '';
+                    box.dataset.state = '0';
+                    box.className = 'quordle-box color-0';
+                    mirrorLetterToAllPuzzles(box);
+                    triggerUpdate();
                 }
             }
         });
 
-        // Add focus handler to select text on mobile
+        // Simplified focus handler
         box.addEventListener('focus', (event) => {
-            setTimeout(() => {
-                box.select();
-            }, 50);
+            if (!isProcessingInput) {
+                setTimeout(() => {
+                    box.select();
+                }, 50);
+            }
         });
     });
 });
