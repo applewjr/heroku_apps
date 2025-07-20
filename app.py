@@ -16,6 +16,8 @@ import time
 from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 import logging
+import smtplib
+from email.mime.text import MIMEText
 
 ########## local functions ##########
 
@@ -87,6 +89,8 @@ if 'IS_HEROKU' in os.environ:
     REDIS_PASS = os.environ.get('REDIS_PASS')
     MTG_PATH = os.environ.get('MTG_PATH')
     SESSION_KEY = os.environ.get('SESSION_KEY')
+    GMAIL_PASS = os.environ.get('GMAIL_PASS')
+    BLOSSOM_EMAIL_FLAG = int(os.environ.get('BLOSSOM_EMAIL_FLAG', '1'))
 
     # Creating a connection pool
     cnxpool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
@@ -121,6 +125,8 @@ else:
     REDIS_PASS = secret_pass.REDIS_PASS
     MTG_PATH = secret_pass.MTG_PATH
     SESSION_KEY = secret_pass.SESSION_KEY
+    GMAIL_PASS = secret_pass.GMAIL_PASS
+    BLOSSOM_EMAIL_FLAG = getattr(secret_pass, 'BLOSSOM_EMAIL_FLAG', 1)
 
     def get_db_connection():
         try:
@@ -130,6 +136,9 @@ else:
         except Error as e:
             print(f"Error connecting to MySQL: {e}")
             return None
+
+gmail_sender_email = 'james.r.applewhite@gmail.com'
+gmail_receiver_email = 'james.r.applewhite@gmail.com'
 
 if not SESSION_KEY:
     if os.environ.get('IS_HEROKU'):
@@ -926,8 +935,9 @@ def blossom_solver():
             used_words = session.get('used_words', [])
 
             # Get the blossom table and modify it to include checkboxes
+            words_blossom_filtered = get_filtered_blossom_words()
             blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
-                must_have, may_have, petal_letter, current_count, words_blossom, used_words
+                must_have, may_have, petal_letter, current_count, words_blossom_filtered, used_words
             )
             valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
 
@@ -994,6 +1004,245 @@ def blossom_reset():
     
     # Redirect back to the main blossom page
     return redirect(url_for('blossom_solver'))
+
+@app.route('/blossom_admin')
+@auth.login_required
+def blossom_admin():
+    """Admin page to manage invalid and missing words"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get invalid words
+        cursor.execute("""
+            SELECT word, added_date 
+            FROM blossom_invalid_words 
+            ORDER BY added_date DESC
+        """)
+        invalid_words = cursor.fetchall()
+        
+        # Get added words
+        cursor.execute("""
+            SELECT word, added_date 
+            FROM blossom_added_words 
+            ORDER BY added_date DESC
+        """)
+        added_words = cursor.fetchall()
+        
+        # Get recent feedback
+        cursor.execute("""
+            SELECT id, submit_time, report_type, reported_words 
+            FROM feedback_blossom 
+            ORDER BY submit_time DESC 
+            LIMIT 10
+        """)
+        recent_feedback = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('blossom_admin.html', 
+                             invalid_words=invalid_words,
+                             added_words=added_words,
+                             recent_feedback=recent_feedback)
+        
+    except Exception as e:
+        print(f"Error loading blossom admin: {e}")
+        return render_template('error.html', return_type='Admin Error'), 500
+
+@app.route('/add_word', methods=['POST'])
+@auth.login_required
+def add_word():
+    """Add a word to the added words list (for missing words)"""
+    try:
+        word = request.form.get('word', '').strip().lower()
+        word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
+        
+        if not word:
+            return redirect('/blossom_admin?error=Word is required')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if word_type == 'missing':
+            # Add to blossom_added_words table
+            cursor.execute("""
+                INSERT IGNORE INTO blossom_added_words (word, added_date)
+                VALUES (%s, CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
+            """, (word,))
+        else:
+            # Add to blossom_invalid_words table (existing functionality)
+            cursor.execute("""
+                INSERT IGNORE INTO blossom_invalid_words (word, added_date)
+                VALUES (%s, CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
+            """, (word,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Clear cache to force refresh
+        cache.delete('blossom_filtered_words')
+        
+        action = "added to word list" if word_type == 'missing' else "marked as invalid"
+        return redirect(f'/blossom_admin?success=Word {action} successfully')
+        
+    except Exception as e:
+        print(f"Error adding word: {e}")
+        return redirect('/blossom_admin?error=Database error')
+
+@app.route('/remove_word', methods=['POST'])
+@auth.login_required
+def remove_word():
+    """Remove a word from either invalid or added words list"""
+    try:
+        word = request.form.get('word', '').strip().lower()
+        word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
+        
+        if not word:
+            return redirect('/blossom_admin?error=Word is required')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if word_type == 'missing':
+            cursor.execute("DELETE FROM blossom_added_words WHERE word = %s", (word,))
+        else:
+            cursor.execute("DELETE FROM blossom_invalid_words WHERE word = %s", (word,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Clear cache to force refresh
+        cache.delete('blossom_filtered_words')
+        
+        return redirect('/blossom_admin?success=Word removed successfully')
+        
+    except Exception as e:
+        print(f"Error removing word: {e}")
+        return redirect('/blossom_admin?error=Database error')
+
+@app.route("/blossom_feedback", methods=["POST", "GET"])
+def blossom_feedback():
+    if request.method == "POST":
+        report_type = request.form['report_type']
+        feedback_body = request.form['feedback_body']
+        referrer = request.form['referrer']
+
+        # Log inputs to new feedback_blossom table
+        feedback_id = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            query = """
+            INSERT INTO feedback_blossom (submit_time, referrer, report_type, reported_words) 
+            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
+            """
+            cursor.execute(query, (referrer, report_type, feedback_body))
+            conn.commit()
+            feedback_id = cursor.lastrowid  # Get the ID of the inserted record
+        except mysql.connector.Error as err:
+            print("Error:", err)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conn is not None and conn.is_connected():
+                conn.close()
+        
+        # Send email notification
+        if BLOSSOM_EMAIL_FLAG == 1:
+            try:
+                pst = pytz.timezone('America/Los_Angeles')
+                current_time = datetime.now(pst).strftime("%Y-%m-%d %H:%M:%S PST")
+                
+                report_type_display = "Invalid Words" if report_type == 'invalid' else "Missing Words"
+                
+                email_body = f"""New Blossom Word Report Received
+
+Report Type: {report_type_display}
+Submission Time: {current_time}
+Referrer: {referrer}
+Feedback ID: {feedback_id}
+
+Reported Words:
+{feedback_body}
+
+---
+View admin panel: https://jamesapplewhite.com/blossom_admin
+"""
+            
+                gmail_subject = f'Blossom {report_type_display} Report'
+                
+                msg = MIMEText(email_body)
+                msg['Subject'] = gmail_subject
+                msg['From'] = gmail_sender_email
+                msg['To'] = gmail_receiver_email
+                
+                with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                    server.starttls()
+                    server.login(gmail_sender_email, GMAIL_PASS)
+                    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
+                    print(f'Blossom feedback email sent for {report_type} report')
+                    
+            except Exception as e:
+                print(f"Failed to send email notification: {e}")
+        else:
+            print("Blossom feedback submitted, email is not configured to send")
+
+        return render_template("blossom_feedback_received.html", report_type=report_type)
+    else:
+        return render_template("blossom_feedback.html")
+
+
+def get_filtered_blossom_words():
+    """Get word list with invalid words removed and missing words added, using cache for performance"""
+    
+    # Check cache first
+    cached_words = cache.get('blossom_filtered_words')
+    if cached_words is not None:
+        return cached_words
+    
+    # Get invalid and added words from database
+    invalid_words = set()
+    added_words = set()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get invalid words
+        cursor.execute("SELECT word FROM blossom_invalid_words")
+        results = cursor.fetchall()
+        invalid_words = {row[0].lower() for row in results}
+        
+        # Get added words
+        cursor.execute("SELECT word FROM blossom_added_words")
+        results = cursor.fetchall()
+        added_words = {row[0].lower() for row in results}
+        
+    except Exception as e:
+        print(f"Error fetching word lists: {e}")
+        # If database error, use original word list
+        invalid_words = set()
+        added_words = set()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+    
+    # Ensure both word lists are lowercase for proper comparison
+    words_blossom_lower = {str(word).lower() for word in words_blossom}
+    
+    # Remove invalid words and add missing words
+    filtered_words_lower = (words_blossom_lower - invalid_words) | added_words
+    
+    # Cache the filtered word list for 12 hours
+    cache.set('blossom_filtered_words', filtered_words_lower, timeout=43200)
+    
+    return filtered_words_lower
+
+
 
 
 @app.route("/any_word", methods=["POST", "GET"])

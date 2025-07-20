@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Report Words - Blossom{% endblock %}
+
+{% block content %}
+<head>
+  <script>
+    function validateForm() {
+      var body = document.forms["form1"]["feedback_body"].value;
+      var reportType = document.forms["form1"]["report_type"].value;
+      if (body == "" || reportType == "") {
+        alert("Please select a report type and enter the word(s)");
+        return false;
+      }
+      return true;
+    }
+
+    function setReferrer() {
+      document.forms["form1"]["referrer"].value = document.referrer;
+    }
+
+    function updateFormText() {
+      var reportType = document.querySelector('input[name="report_type"]:checked');
+      var textarea = document.querySelector('textarea[name="feedback_body"]');
+      var label = document.querySelector('#words-label');
+      var example = document.querySelector('#example-text');
+      
+      if (reportType && reportType.value === 'invalid') {
+        label.textContent = 'Invalid Word(s)';
+        textarea.placeholder = 'Enter word(s) that weren\'t accepted by Blossom';
+      } else if (reportType && reportType.value === 'missing') {
+        label.textContent = 'Missing Word(s)';
+        textarea.placeholder = 'Enter word(s) that Blossom accepted but aren\'t in the solver';
+      }
+    }
+
+    window.onload = function() {
+      setReferrer();
+      updateFormText();
+    };
+  </script>
+</head>
+
+<body>
+  <form name="form1" action="/blossom_feedback" method="post" onsubmit="return validateForm()">
+    <input type="hidden" name="referrer" value="">
+    <center>
+      <br>
+      <h1 style="text-align: center">Report Words</h1>
+      <br>
+      <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto;">
+        Help to improve the Blossom solver! Report words that should be removed or added.
+      </p>
+      <br>
+      
+      <!-- Report Type Selection -->
+      <div style="margin: 20px 0;">
+        <h5 style="margin-bottom: 10px;">What would you like to report?</h5>
+        <label style="display: inline-block; margin: 0 20px; cursor: pointer;">
+          <input type="radio" name="report_type" value="invalid" onchange="updateFormText()" style="margin-right: 8px;" checked>
+          <span style="color: #dc3545; font-weight: bold;">Invalid Word (Needs Removal)</span>
+          <br><small style="color: #666;">Words our solver shows but Blossom rejects</small>
+        </label>
+        <label style="display: inline-block; margin: 0 20px; cursor: pointer;">
+          <input type="radio" name="report_type" value="missing" onchange="updateFormText()" style="margin-right: 8px;">
+          <span style="color: #28a745; font-weight: bold;">Missing Word (Needs Adding)</span>
+          <br><small style="color: #666;">Words Blossom accepts but our solver doesn't show</small>
+        </label>
+      </div>
+      <br>
+      
+      <h5 class="pad_lr_30" style="text-align: center;" id="words-label">Invalid or Missing Word</h5>
+      <textarea name="feedback_body" style="width: 500px; max-width: 90%;" maxlength="500" rows="4" 
+                placeholder="Enter word(s) that weren't accepted by Blossom. One word per line."></textarea>
+      <br>
+      <br>
+      <input type="submit" value="Submit Report" style="
+        background-color: #02484d;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      ">
+      <br>
+      <br>
+      <a href="/blossom" style="
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+      ">← Back to Blossom Solver</a>
+      <br>
+      <br>
+    </center>
+  </form>
+</body>
+{% endblock %}

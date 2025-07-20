@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Report Submitted - Blossom{% endblock %}
+
+{% block content %}
+<center>
+  <br>
+  <br>
+  <h1 style="text-align: center; color: #02484d;">Report Submitted!</h1>
+  <br>
+  {% if report_type == 'invalid' %}
+  <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto; font-size: 16px;">
+    Thank you for reporting invalid words. I'll review your submission and remove any words 
+    that aren't accepted by the official Blossom game.
+  </p>
+  {% elif report_type == 'missing' %}
+  <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto; font-size: 16px;">
+    Thank you for reporting missing words. I'll review your submission and add any valid words 
+    that Blossom accepts but the solver doesn't currently show.
+  </p>
+  {% else %}
+  <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto; font-size: 16px;">
+    Thank you for your report. I'll review your submission and update the word list accordingly.
+  </p>
+  {% endif %}
+  <br>
+  <br>
+  <a href="/blossom" style="
+    background-color: #02484d;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+  ">Back to Blossom Solver</a>
+  <br>
+  <br>
+  <br>
+</center>
+{% endblock %}
