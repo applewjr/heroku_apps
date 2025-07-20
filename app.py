@@ -456,6 +456,29 @@ def abbreviate_keys(data):
 
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
+            "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
+            "url": "https://jamesapplewhite.com/wordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
@@ -488,12 +511,36 @@ def run_wordle_revamp():
                             initial_out3=final_out3,
                             initial_out4=final_out4,
                             initial_out5=final_out5,
-                            initial_out_end=final_out_end)
+                            initial_out_end=final_out_end,
+                            schema_data=schema_data)
 
 
 
 @app.route("/antiwordle", methods=["POST", "GET"])
 def run_antiwordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
+            "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
+            "url": "https://jamesapplewhite.com/antiwordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
@@ -525,213 +572,121 @@ def run_antiwordle_revamp():
                              initial_out3=final_out3,
                              initial_out4=final_out4,
                              initial_out5=final_out5,
-                             initial_out_end=final_out_end)
+                             initial_out_end=final_out_end,
+                             schema_data=schema_data)
 
 
 
 @app.route("/quordle", methods=["POST", "GET"])
-def run_quordle():
+def run_quordle_revamp():
+
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
+            "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
+            "url": "https://jamesapplewhite.com/quordle",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
     if request.method == "POST":
-        must_not_be_present1 = request.form["must_not_be_present1"]
-        must_not_be_present2 = request.form["must_not_be_present2"]
-        must_not_be_present3 = request.form["must_not_be_present3"]
-        must_not_be_present4 = request.form["must_not_be_present4"]
-
-        present1_1 = request.form["present1_1"]
-        present1_2 = request.form["present1_2"]
-        present1_3 = request.form["present1_3"]
-        present1_4 = request.form["present1_4"]
-        present1_5 = request.form["present1_5"]
-        present2_1 = request.form["present2_1"]
-        present2_2 = request.form["present2_2"]
-        present2_3 = request.form["present2_3"]
-        present2_4 = request.form["present2_4"]
-        present2_5 = request.form["present2_5"]
-        present3_1 = request.form["present3_1"]
-        present3_2 = request.form["present3_2"]
-        present3_3 = request.form["present3_3"]
-        present3_4 = request.form["present3_4"]
-        present3_5 = request.form["present3_5"]
-        present4_1 = request.form["present4_1"]
-        present4_2 = request.form["present4_2"]
-        present4_3 = request.form["present4_3"]
-        present4_4 = request.form["present4_4"]
-        present4_5 = request.form["present4_5"]
-
-        not_present1_1 = request.form["not_present1_1"]
-        not_present1_2 = request.form["not_present1_2"]
-        not_present1_3 = request.form["not_present1_3"]
-        not_present1_4 = request.form["not_present1_4"]
-        not_present1_5 = request.form["not_present1_5"]
-        not_present2_1 = request.form["not_present2_1"]
-        not_present2_2 = request.form["not_present2_2"]
-        not_present2_3 = request.form["not_present2_3"]
-        not_present2_4 = request.form["not_present2_4"]
-        not_present2_5 = request.form["not_present2_5"]
-        not_present3_1 = request.form["not_present3_1"]
-        not_present3_2 = request.form["not_present3_2"]
-        not_present3_3 = request.form["not_present3_3"]
-        not_present3_4 = request.form["not_present3_4"]
-        not_present3_5 = request.form["not_present3_5"]
-        not_present4_1 = request.form["not_present4_1"]
-        not_present4_2 = request.form["not_present4_2"]
-        not_present4_3 = request.form["not_present4_3"]
-        not_present4_4 = request.form["not_present4_4"]
-        not_present4_5 = request.form["not_present4_5"]
-
-        final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all \
-        ,final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1 \
-        ,final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2 \
-        ,final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3 \
-        ,final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4 = wordle.quordle_solver_split(df, \
-        must_not_be_present1, present1_1, present1_2, present1_3, present1_4, present1_5, not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5, \
-        must_not_be_present2, present2_1, present2_2, present2_3, present2_4, present2_5, not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5, \
-        must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
-        must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
-
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            query = """
-            INSERT INTO quordle_clicks (
-                click_time, solver_name,
-                present1_1, present1_2, present1_3, present1_4, present1_5,
-                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
-                must_not_be_present1,
-                present2_1, present2_2, present2_3, present2_4, present2_5,
-                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
-                must_not_be_present2,
-                present3_1, present3_2, present3_3, present3_4, present3_5,
-                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
-                must_not_be_present3,
-                present4_1, present4_2, present4_3, present4_4, present4_5,
-                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
-                must_not_be_present4
-            ) VALUES (
-                CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            );
-            """
-            cursor.execute(query, (
-                'quordle',
-                present1_1, present1_2, present1_3, present1_4, present1_5,
-                not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5,
-                must_not_be_present1,
-                present2_1, present2_2, present2_3, present2_4, present2_5,
-                not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5,
-                must_not_be_present2,
-                present3_1, present3_2, present3_3, present3_4, present3_5,
-                not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5,
-                must_not_be_present3,
-                present4_1, present4_2, present4_3, present4_4, present4_5,
-                not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5,
-                must_not_be_present4
-            ))
-            conn.commit()
-        except mysql.connector.Error as err:
-            print("Error:", err)
-        finally:
-            if cursor is not None:
-                cursor.close()
-            if conn is not None and conn.is_connected():
-                conn.close()
-
-        return render_template("quordle.html", \
-            final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
-            ,final_out1_1=final_out1_1, final_out1_2=final_out1_2, final_out1_3=final_out1_3, final_out1_4=final_out1_4, final_out1_5=final_out1_5, final_out_end1=final_out_end1 \
-            ,final_out2_1=final_out2_1, final_out2_2=final_out2_2, final_out2_3=final_out2_3, final_out2_4=final_out2_4, final_out2_5=final_out2_5, final_out_end2=final_out_end2 \
-            ,final_out3_1=final_out3_1, final_out3_2=final_out3_2, final_out3_3=final_out3_3, final_out3_4=final_out3_4, final_out3_5=final_out3_5, final_out_end3=final_out_end3 \
-            ,final_out4_1=final_out4_1, final_out4_2=final_out4_2, final_out4_3=final_out4_3, final_out4_4=final_out4_4, final_out4_5=final_out4_5, final_out_end4=final_out_end4 \
-
-            ,must_not_be_present1_val=must_not_be_present1, present1_1_val=present1_1, present1_2_val=present1_2, present1_3_val=present1_3, present1_4_val=present1_4, present1_5_val=present1_5 \
-            ,not_present1_1_val=not_present1_1, not_present1_2_val=not_present1_2, not_present1_3_val=not_present1_3, not_present1_4_val=not_present1_4, not_present1_5_val=not_present1_5 \
-            ,must_not_be_present2_val=must_not_be_present2, present2_1_val=present2_1, present2_2_val=present2_2, present2_3_val=present2_3, present2_4_val=present2_4, present2_5_val=present2_5 \
-            ,not_present2_1_val=not_present2_1, not_present2_2_val=not_present2_2, not_present2_3_val=not_present2_3, not_present2_4_val=not_present2_4, not_present2_5_val=not_present2_5 \
-            ,must_not_be_present3_val=must_not_be_present3, present3_1_val=present3_1, present3_2_val=present3_2, present3_3_val=present3_3, present3_4_val=present3_4, present3_5_val=present3_5 \
-            ,not_present3_1_val=not_present3_1, not_present3_2_val=not_present3_2, not_present3_3_val=not_present3_3, not_present3_4_val=not_present3_4, not_present3_5_val=not_present3_5 \
-            ,must_not_be_present4_val=must_not_be_present4, present4_1_val=present4_1, present4_2_val=present4_2, present4_3_val=present4_3, present4_4_val=present4_4, present4_5_val=present4_5 \
-            ,not_present4_1_val=not_present4_1, not_present4_2_val=not_present4_2, not_present4_3_val=not_present4_3, not_present4_4_val=not_present4_4, not_present4_5_val=not_present4_5 \
-            ,suggested="Suggested word(s):", all_puzzle="All Puzzle:", puzzle_1="Puzzle 1:", puzzle_2="Puzzle 2:", puzzle_3="Puzzle 3:", puzzle_4="Puzzle 4:")
+        quordle_data_dict = request.get_json().get('quordle_data')
+        
+        # Call the new solver function
+        results = wordle.quordle_solver_split_revamp(df, quordle_data_dict)
+        
+        # Unpack all the results
+        (final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all,
+         final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1,
+         final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2,
+         final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3,
+         final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4) = results
+        
+        # try:
+        #     stream_name = 'quordle_logging'
+        #     add_data_to_stream(stream_name, quordle_data_dict)
+        # except:
+        #     print('quordle_logging_failed')
+        
+        return jsonify(
+            # All puzzle results
+            final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, 
+            final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, 
+            final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all,
+            
+            # Puzzle 1 results
+            final_out1_1=final_out1_1, final_out1_2=final_out1_2, 
+            final_out1_3=final_out1_3, final_out1_4=final_out1_4, 
+            final_out1_5=final_out1_5, final_out_end1=final_out_end1,
+            
+            # Puzzle 2 results
+            final_out2_1=final_out2_1, final_out2_2=final_out2_2, 
+            final_out2_3=final_out2_3, final_out2_4=final_out2_4, 
+            final_out2_5=final_out2_5, final_out_end2=final_out_end2,
+            
+            # Puzzle 3 results
+            final_out3_1=final_out3_1, final_out3_2=final_out3_2, 
+            final_out3_3=final_out3_3, final_out3_4=final_out3_4, 
+            final_out3_5=final_out3_5, final_out_end3=final_out_end3,
+            
+            # Puzzle 4 results
+            final_out4_1=final_out4_1, final_out4_2=final_out4_2, 
+            final_out4_3=final_out4_3, final_out4_4=final_out4_4, 
+            final_out4_5=final_out4_5, final_out_end4=final_out_end4
+        )
     else:
-        must_not_be_present1 = ""
-        must_not_be_present2 = ""
-        must_not_be_present3 = ""
-        must_not_be_present4 = ""
+        # Call the solver with empty data to get initial recommendations
+        empty_data = []
+        results = wordle.quordle_solver_split_revamp(df, empty_data)
+        
+        # Unpack results for initial load
+        (final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all,
+         final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1,
+         final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2,
+         final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3,
+         final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4) = results
+        
+        return render_template("quordle.html",
+            # Initial all puzzle results
+            initial_out_all_1=final_out_all_1, initial_out_all_2=final_out_all_2,
+            initial_out_all_3=final_out_all_3, initial_out_all_4=final_out_all_4,
+            initial_out_all_5=final_out_all_5, initial_out_end_all=final_out_end_all,
+            
+            # Initial puzzle 1 results
+            initial_out1_1=final_out1_1, initial_out1_2=final_out1_2,
+            initial_out1_3=final_out1_3, initial_out1_4=final_out1_4,
+            initial_out1_5=final_out1_5, initial_out_end1=final_out_end1,
+            
+            # Initial puzzle 2 results
+            initial_out2_1=final_out2_1, initial_out2_2=final_out2_2,
+            initial_out2_3=final_out2_3, initial_out2_4=final_out2_4,
+            initial_out2_5=final_out2_5, initial_out_end2=final_out_end2,
+            
+            # Initial puzzle 3 results
+            initial_out3_1=final_out3_1, initial_out3_2=final_out3_2,
+            initial_out3_3=final_out3_3, initial_out3_4=final_out3_4,
+            initial_out3_5=final_out3_5, initial_out_end3=final_out_end3,
+            
+            # Initial puzzle 4 results
+            initial_out4_1=final_out4_1, initial_out4_2=final_out4_2,
+            initial_out4_3=final_out4_3, initial_out4_4=final_out4_4,
+            initial_out4_5=final_out4_5, initial_out_end4=final_out_end4,
 
-        present1_1 = ""
-        present1_2 = ""
-        present1_3 = ""
-        present1_4 = ""
-        present1_5 = ""
-        present2_1 = ""
-        present2_2 = ""
-        present2_3 = ""
-        present2_4 = ""
-        present2_5 = ""
-        present3_1 = ""
-        present3_2 = ""
-        present3_3 = ""
-        present3_4 = ""
-        present3_5 = ""
-        present4_1 = ""
-        present4_2 = ""
-        present4_3 = ""
-        present4_4 = ""
-        present4_5 = ""
-
-        not_present1_1 = ""
-        not_present1_2 = ""
-        not_present1_3 = ""
-        not_present1_4 = ""
-        not_present1_5 = ""
-        not_present2_1 = ""
-        not_present2_2 = ""
-        not_present2_3 = ""
-        not_present2_4 = ""
-        not_present2_5 = ""
-        not_present3_1 = ""
-        not_present3_2 = ""
-        not_present3_3 = ""
-        not_present3_4 = ""
-        not_present3_5 = ""
-        not_present4_1 = ""
-        not_present4_2 = ""
-        not_present4_3 = ""
-        not_present4_4 = ""
-        not_present4_5 = ""
-
-        final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all \
-        ,final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1 \
-        ,final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2 \
-        ,final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3 \
-        ,final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4 = wordle.quordle_solver_split(df, \
-        must_not_be_present1, present1_1, present1_2, present1_3, present1_4, present1_5, not_present1_1, not_present1_2, not_present1_3, not_present1_4, not_present1_5, \
-        must_not_be_present2, present2_1, present2_2, present2_3, present2_4, present2_5, not_present2_1, not_present2_2, not_present2_3, not_present2_4, not_present2_5, \
-        must_not_be_present3, present3_1, present3_2, present3_3, present3_4, present3_5, not_present3_1, not_present3_2, not_present3_3, not_present3_4, not_present3_5, \
-        must_not_be_present4, present4_1, present4_2, present4_3, present4_4, present4_5, not_present4_1, not_present4_2, not_present4_3, not_present4_4, not_present4_5)
-
-        # log_page_visit('quordle.html')
-
-        return render_template("quordle.html", \
-            final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all \
-            ,final_out1_1=final_out1_1, final_out1_2=final_out1_2, final_out1_3=final_out1_3, final_out1_4=final_out1_4, final_out1_5=final_out1_5, final_out_end1=final_out_end1 \
-            ,final_out2_1=final_out2_1, final_out2_2=final_out2_2, final_out2_3=final_out2_3, final_out2_4=final_out2_4, final_out2_5=final_out2_5, final_out_end2=final_out_end2 \
-            ,final_out3_1=final_out3_1, final_out3_2=final_out3_2, final_out3_3=final_out3_3, final_out3_4=final_out3_4, final_out3_5=final_out3_5, final_out_end3=final_out_end3 \
-            ,final_out4_1=final_out4_1, final_out4_2=final_out4_2, final_out4_3=final_out4_3, final_out4_4=final_out4_4, final_out4_5=final_out4_5, final_out_end4=final_out_end4 \
-
-            ,must_not_be_present1_val=must_not_be_present1, present1_1_val=present1_1, present1_2_val=present1_2, present1_3_val=present1_3, present1_4_val=present1_4, present1_5_val=present1_5 \
-            ,not_present1_1_val=not_present1_1, not_present1_2_val=not_present1_2, not_present1_3_val=not_present1_3, not_present1_4_val=not_present1_4, not_present1_5_val=not_present1_5 \
-            ,must_not_be_present2_val=must_not_be_present2, present2_1_val=present2_1, present2_2_val=present2_2, present2_3_val=present2_3, present2_4_val=present2_4, present2_5_val=present2_5 \
-            ,not_present2_1_val=not_present2_1, not_present2_2_val=not_present2_2, not_present2_3_val=not_present2_3, not_present2_4_val=not_present2_4, not_present2_5_val=not_present2_5 \
-            ,must_not_be_present3_val=must_not_be_present3, present3_1_val=present3_1, present3_2_val=present3_2, present3_3_val=present3_3, present3_4_val=present3_4, present3_5_val=present3_5 \
-            ,not_present3_1_val=not_present3_1, not_present3_2_val=not_present3_2, not_present3_3_val=not_present3_3, not_present3_4_val=not_present3_4, not_present3_5_val=not_present3_5 \
-            ,must_not_be_present4_val=must_not_be_present4, present4_1_val=present4_1, present4_2_val=present4_2, present4_3_val=present4_3, present4_4_val=present4_4, present4_5_val=present4_5 \
-            ,not_present4_1_val=not_present4_1, not_present4_2_val=not_present4_2, not_present4_3_val=not_present4_3, not_present4_4_val=not_present4_4, not_present4_5_val=not_present4_5 \
-            ,suggested="Suggested word(s):", all_puzzle="All Puzzle:", puzzle_1="Puzzle 1:", puzzle_2="Puzzle 2:", puzzle_3="Puzzle 3:", puzzle_4="Puzzle 4:")
-
+            schema_data=schema_data
+        )
 
 @app.route("/fixer", methods=["POST", "GET"])
 def run_wordle_fixer():
@@ -744,18 +699,6 @@ def run_wordle_fixer():
         # log_page_visit('fixer.html')
 
         return render_template("fixer.html")
-
-
-@app.route("/wordle_example", methods=["POST", "GET"])
-def run_wordle_example():
-    if request.method == "POST":
-        return render_template("wordle_example.html")
-    else:
-
-        # log_page_visit('wordle_example.html')
-
-        return render_template("wordle_example.html")
-
 
 
 

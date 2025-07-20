@@ -1,64 +1,193 @@
 {% extends 'base.html' %}
 
-{% block title %}Wordle/Quordle Fixer{% endblock %}
+{% block title %}Wordle/Quordle Letter Eliminator - Break Out of Linear Guessing{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Break out of linear Wordle guessing patterns. Find words that test multiple similar letters at once to eliminate bad guesses faster.">
+<link rel="canonical" href="https://jamesapplewhite.com/fixer">
+<meta name="keywords" content="wordle fixer, wordle strategy, linear guessing, wordle helper, quordle strategy">
+{% endblock %}
 
 {% block content %}
+
+<head>
+    <style>
+    .example-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px auto;
+        max-width: 600px;
+        text-align: left;
+    }
+    
+    .problem-example {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+    
+    .solution-example {
+        background-color: #d1edff;
+        border: 1px solid #74c0fc;
+        color: #0c5460;
+    }
+    
+    .word-sequence {
+        font-family: monospace;
+        font-size: 16px;
+        font-weight: bold;
+        margin: 8px 0;
+        padding: 8px;
+        background-color: rgba(255,255,255,0.7);
+        border-radius: 4px;
+    }
+    
+    .input-section {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 25px;
+        margin: 20px auto;
+        max-width: 500px;
+    }
+    
+    .letter-input {
+        font-size: 18px;
+        padding: 12px;
+        border: 2px solid #6aaa64;
+        border-radius: 6px;
+        text-align: center;
+        width: 200px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin: 10px;
+    }
+    
+    .submit-btn {
+        background-color: #6aaa64;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin: 10px;
+    }
+    
+    .submit-btn:hover {
+        background-color: #5a9954;
+    }
+    
+    .results-section {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px auto;
+        max-width: 500px;
+    }
+    
+    .result-word {
+        font-family: monospace;
+        font-size: 18px;
+        font-weight: bold;
+        color: #6aaa64;
+        margin: 8px 0;
+        padding: 8px;
+        background-color: white;
+        border-radius: 4px;
+        border: 1px solid #d4edda;
+    }
+    
+    .back-links {
+        margin: 30px 0;
+    }
+    
+    .back-link {
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 10px 18px;
+        border-radius: 6px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    
+    .back-link:hover {
+        background-color: #e9ecef;
+        text-decoration: none;
+        color: #495057;
+    }
+    </style>
+</head>
+
 <form action="#" method="post">
     <center>
     <br>
-    <h1 style="text-align: center">Wordle/Quordle Fixer</h1>
-    <br>
-    <p style="text-align: center; color:#787c7e">Enter all possible letters</p>
-    <input type="text" name="must_be_present" style="text-align: center;width: 200px;">
-    <br>
-    <br>
-    <input type="submit" value="Calculate">
-    <br>
-    <br>
-    <p style="text-align: center; color:black">Suggested word(s) for {{must_be_present}}:</p>
-    <p style="text-align: center; color:black">{{final_out1}}</p>
-    <p style="text-align: center; color:black">{{final_out2}}</p>
-    <p style="text-align: center; color:black">{{final_out3}}</p>
-    <p style="text-align: center; color:black">{{final_out4}}</p>
-    <p style="text-align: center; color:black">{{final_out5}}</p>
-    <!-- <br>
-    <br>
-    <a href="/wordle"  target="_blank">Back to Wordle Solver</a>
-    <br>
-    <br>
-    <a href="/quordle"  target="_blank">Back to Quordle Solver</a> -->
-    <br>
-    <br>
-    <!-- <a href="/">
-        <img alt="Home" src="/static/home_logo.jpg" width=50 height=50>
-    </a> -->
-    <!-- <a href="https://github.com/applewjr/heroku_apps" target="_blank">
-        <img alt="GitHub" src="/static/github_logo.jpg" width=55 height=55>
-    </a> -->
-    <br>
+    <h1 style="text-align: center; font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.2;">Wordle/Quordle Letter Eliminator Tool</h1>
+    <h2 style="color: #666; font-size: 1.2rem; font-weight: normal; margin-top: -10px;">Break Out of Linear Guessing Patterns</h2>
+    
+    <div class="example-box problem-example">
+        <h3 style="margin-top: 0; color: #856404;">❌ The Problem: Linear Guessing</h3>
+        <p><strong>When Wordle suggests similar words in sequence:</strong></p>
+        <div class="word-sequence">LIGHT → MIGHT → NIGHT → RIGHT → SIGHT...</div>
+        <p>You're testing one new letter at a time. This is slow and wastes guesses!</p>
+    </div>
+    
+    <div class="example-box solution-example">
+        <h3 style="margin-top: 0; color: #0c5460;">✅ The Solution: Letter Elimination</h3>
+        <p><strong>Instead, find a word that tests multiple letters:</strong></p>
+        <div class="word-sequence">Enter: L, M, N, R, S → Get: SNARL or MORNS</div>
+        <p>Test 4-5 potential letters in one guess! If "R" hits, go straight to RIGHT.</p>
+    </div>
+    
+    <div class="input-section">
+        <h3 style="margin-top: 0; color: #333;">Enter Your Letters</h3>
+        <p style="color: #666; margin-bottom: 15px;">Type the letters from your similar word suggestions (like L, M, N, R, S from the example above)</p>
+        <input type="text" name="must_be_present" class="letter-input" placeholder="LMNRS" value="{{must_be_present}}" maxlength="10">
+        <br>
+        <input type="submit" value="Find Eliminator Words" class="submit-btn">
+    </div>
+    
+    {% if final_out1 or final_out2 or final_out3 or final_out4 or final_out5 %}
+    <div class="results-section">
+        <h3 style="margin-top: 0; color: #333;">🎯 Suggested Eliminator Words</h3>
+        <p style="color: #666;">Use these words to test multiple letters at once:</p>
+        {% if final_out1 %}<div class="result-word">{{final_out1}}</div>{% endif %}
+        {% if final_out2 %}<div class="result-word">{{final_out2}}</div>{% endif %}
+        {% if final_out3 %}<div class="result-word">{{final_out3}}</div>{% endif %}
+        {% if final_out4 %}<div class="result-word">{{final_out4}}</div>{% endif %}
+        {% if final_out5 %}<div class="result-word">{{final_out5}}</div>{% endif %}
+        <p style="color: #666; font-size: 13px; margin-top: 15px;">💡 <strong>Strategy:</strong> Pick one of these words to quickly eliminate or confirm multiple letters in a single guess!</p>
+    </div>
+    {% endif %}
+    
+    <div class="back-links">
+        <a href="/wordle" class="back-link">← Back to Wordle Solver</a>
+        <a href="/quordle" class="back-link">← Back to Quordle Solver</a>
+        <a href="/feedback" class="back-link">💬 Give Feedback</a>
+    </div>
+    
+    <div style="margin: 30px 0; max-width: 600px; text-align: left;">
+        <h3 style="color: #333;">When to Use This Tool:</h3>
+        <ul style="color: #666; line-height: 1.6;">
+            <li><strong>Stuck in patterns:</strong> When getting words like STING→STINK→STINT</li>
+            <li><strong>Multiple possibilities:</strong> When several words fit your clues</li>
+            <li><strong>Quordle efficiency:</strong> Test letters across multiple puzzles at once</li>
+            <li><strong>Late in the game:</strong> When you need to be strategic with remaining guesses</li>
+        </ul>
+    </div>
+    
     <br>
     <br>
     </center>
 </form>
+
 {% endblock %}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

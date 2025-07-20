@@ -651,6 +651,81 @@ def quordle_solver_split(import_df,
      ,final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3 \
      ,final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4
 
+def quordle_solver_split_revamp(import_df, quordle_data_dict):
+    """
+    Quordle solver that follows the wordle revamp pattern
+    Takes quordle_data_dict in format: 
+    [
+        {"letter": "A", "position": "1", "color": "1", "row": "1", "puzzle": "1"},
+        {"letter": "R", "position": "2", "color": "2", "row": "1", "puzzle": "1"},
+        ...
+    ]
+    """
+    
+    # Initialize data structures for each puzzle
+    puzzles_data = {
+        1: {"must_not_be_present": set(), "present": {i: set() for i in range(1, 6)}, "not_present": {i: set() for i in range(1, 6)}},
+        2: {"must_not_be_present": set(), "present": {i: set() for i in range(1, 6)}, "not_present": {i: set() for i in range(1, 6)}},
+        3: {"must_not_be_present": set(), "present": {i: set() for i in range(1, 6)}, "not_present": {i: set() for i in range(1, 6)}},
+        4: {"must_not_be_present": set(), "present": {i: set() for i in range(1, 6)}, "not_present": {i: set() for i in range(1, 6)}}
+    }
+    
+    # Process the input data
+    for entry in quordle_data_dict:
+        if entry['letter']:  # Check if 'letter' is not empty
+            letter = entry['letter'].lower()
+            position = int(entry['position'])
+            color = entry['color']
+            puzzle = int(entry['puzzle'])
+            
+            # Letters that must not be present anywhere (gray)
+            if color == '1':
+                puzzles_data[puzzle]["must_not_be_present"].add(letter)
+            # Letters present in specific positions (green)
+            elif color == '3':
+                puzzles_data[puzzle]["present"][position].add(letter)
+            # Letters that are not present in specific positions but are in the word (yellow)
+            elif color == '2':
+                puzzles_data[puzzle]["not_present"][position].add(letter)
+    
+    # Convert sets to strings and handle letter conflicts for each puzzle
+    puzzle_params = {}
+    for puzzle_num in range(1, 5):
+        data = puzzles_data[puzzle_num]
+        
+        # Convert present and not_present to strings
+        present_strings = [''.join(sorted(data["present"][i])) for i in range(1, 6)]
+        not_present_strings = [''.join(sorted(data["not_present"][i])) for i in range(1, 6)]
+        
+        # Remove letters that are green or yellow from gray letters
+        all_present = ''.join(present_strings + not_present_strings)
+        must_not_be_present = ''.join(sorted(data["must_not_be_present"] - set(all_present)))
+        
+        # Store parameters for this puzzle
+        puzzle_params[puzzle_num] = {
+            'must_not_be_present': must_not_be_present,
+            'present': present_strings,
+            'not_present': not_present_strings
+        }
+    
+    # Call the existing quordle_solver_split function with the formatted parameters
+    results = quordle_solver_split(
+        import_df,
+        puzzle_params[1]['must_not_be_present'], 
+        *puzzle_params[1]['present'], 
+        *puzzle_params[1]['not_present'],
+        puzzle_params[2]['must_not_be_present'], 
+        *puzzle_params[2]['present'], 
+        *puzzle_params[2]['not_present'],
+        puzzle_params[3]['must_not_be_present'], 
+        *puzzle_params[3]['present'], 
+        *puzzle_params[3]['not_present'],
+        puzzle_params[4]['must_not_be_present'], 
+        *puzzle_params[4]['present'], 
+        *puzzle_params[4]['not_present']
+    )
+    
+    return results
 
 # last letter solver
 def find_word_with_letters(import_df, must_be_present: str):
