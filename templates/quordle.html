@@ -40,6 +40,8 @@
 @media (max-width: 767px) {
     .puzzles-container {
         grid-template-columns: 1fr;
+        margin: 20px 10px; /* Add horizontal margin */
+        padding: 0 5px; /* Add padding */
     }
 }
 
@@ -179,16 +181,49 @@
     color: gray;
 }
 
+.legend-box.color-1 { 
+    background-color: #787c7e !important; 
+}
+.legend-box.color-2 { 
+    background-color: #c9b458 !important; 
+}
+.legend-box.color-3 { 
+    background-color: #6aaa64 !important; 
+}
+
+/* Mobile-specific styles */
 @media (max-width: 768px) {
+    /* Prevent horizontal overflow */
+    body {
+        overflow-x: hidden;
+    }
+    
+    /* Fix puzzle container width */
+    .puzzle {
+        width: 100%;
+        max-width: calc(100vw - 40px); /* Account for margins */
+        box-sizing: border-box;
+        overflow: hidden; /* Prevent overflow */
+        padding: 15px;
+    }
+    
+    /* Ensure grid doesn't overflow */
+    .quordle-grid {
+        width: 100%;
+        overflow-x: auto; /* Allow scroll if needed */
+    }
+    
+    .quordle-row {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    /* Smaller boxes on mobile */
     .quordle-grid .quordle-box {
         width: 40px;
         height: 40px;
         font-size: 14px;
         margin: 2px;
-    }
-
-    .puzzle {
-        padding: 15px;
     }
 
     .puzzle-title {
@@ -217,18 +252,15 @@
         align-items: center;
         gap: 10px;
     }
+    
+    /* Adjust instructions and recommendations for mobile */
+    .instructions,
+    .global-recommendations {
+        margin: 20px 10px;
+        max-width: calc(100vw - 20px);
+        box-sizing: border-box;
+    }
 }
-
-.legend-box.color-1 { 
-    background-color: #787c7e !important; 
-}
-.legend-box.color-2 { 
-    background-color: #c9b458 !important; 
-}
-.legend-box.color-3 { 
-    background-color: #6aaa64 !important; 
-}
-
 </style>
 </head>
 
@@ -551,7 +583,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Focus first box of new row in puzzle 1
             const nextRowFirstBox = puzzle1Rows[nextRowIndex].querySelector('.quordle-box[data-position="1"]');
             if (nextRowFirstBox) {
-                nextRowFirstBox.focus();
+                // Use setTimeout for mobile focus
+                setTimeout(() => {
+                    nextRowFirstBox.focus();
+                }, 100);
             }
         }
     }
@@ -615,6 +650,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     boxes.forEach((box, index) => {
+        // Use 'beforeinput' for better mobile support
+        box.addEventListener('beforeinput', (event) => {
+            if (event.inputType === 'insertText' || event.inputType === 'insertCompositionText') {
+                const letter = event.data;
+                if (letter && /^[A-Za-z]$/.test(letter)) {
+                    event.preventDefault();
+                    box.value = letter.toUpperCase();
+                    
+                    // Mirror this letter to all puzzles
+                    mirrorLetterToAllPuzzles(box);
+                    
+                    // Move to next box
+                    const currentPuzzle = box.dataset.puzzle;
+                    const currentRow = box.dataset.row;
+                    const currentPosition = parseInt(box.dataset.position);
+                    
+                    if (currentPosition < 5) {
+                        // Move to next position in same puzzle and row
+                        const nextBox = document.querySelector(
+                            `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
+                        );
+                        if (nextBox) {
+                            // Use setTimeout for mobile focus
+                            setTimeout(() => {
+                                nextBox.focus();
+                                nextBox.select();
+                            }, 50);
+                        }
+                    } else {
+                        // If we're at the last position (5), check if we should show the next row
+                        setTimeout(() => {
+                            showNextRowIfNeeded();
+                        }, 100);
+                    }
+                    
+                    triggerUpdate();
+                }
+            }
+        });
+
+        // Keep the original input handler as fallback
         box.addEventListener('input', (event) => {
             const oldValue = box.value;
             box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
@@ -640,11 +716,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
                     );
                     if (nextBox) {
-                        nextBox.focus();
+                        // Use setTimeout for mobile
+                        setTimeout(() => {
+                            nextBox.focus();
+                            nextBox.select();
+                        }, 50);
                     }
                 } else {
                     // If we're at the last position (5), check if we should show the next row
-                    showNextRowIfNeeded();
+                    setTimeout(() => {
+                        showNextRowIfNeeded();
+                    }, 100);
                 }
             }
             
@@ -683,7 +765,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition - 1}"]`
                     );
                     if (prevBox) {
-                        prevBox.focus();
+                        setTimeout(() => {
+                            prevBox.focus();
+                            prevBox.select();
+                        }, 50);
                         prevBox.value = '';
                         // Reset color when clearing the box
                         prevBox.dataset.state = '0';
@@ -695,6 +780,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+        });
+
+        // Add focus handler to select text on mobile
+        box.addEventListener('focus', (event) => {
+            setTimeout(() => {
+                box.select();
+            }, 50);
         });
     });
 });
