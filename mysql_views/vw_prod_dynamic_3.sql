@@ -1,0 +1,4 @@
+CREATE OR REPLACE VIEW vw_prod_dynamic_3 AS
+
+SELECT 1
+;

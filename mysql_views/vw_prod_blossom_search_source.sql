@@ -14,6 +14,7 @@ WITH counts AS (
         AND referrer not like '%blossom%'
         AND referrer not like '%127.0.0.1:5000%'
         AND referrer not like '%jamesapplewhite%'
+        AND referrer not like '%apple-apps-staging%'
     GROUP BY referrer
     HAVING cnt_28 >= 1 OR cnt_21 >= 1 OR cnt_14 >= 1 OR cnt_7 >= 1 OR cnt_1 >= 10
     )

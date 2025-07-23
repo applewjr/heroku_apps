@@ -54,22 +54,34 @@ Youtube Trending:
     description: "Last 10 days of data"
     query: SELECT * FROM vw_prod_youtube_trending;
 
-Spotify:
+Youtube Trending Grouped:
     round: 3
-    label: 'Spotify'
-    description: "Last 10 days of data"
-    query: SELECT * FROM vw_prod_spotify;
-
-LoL:
-    round: 3
-    label: 'LoL'
-    description: "High level summary info"
-    query: SELECT * FROM vw_prod_lol;
+    label: 'Youtube Trending Grouped'
+    description: "Last 10 days of data for the new grouped Youtube trending"
+    query: SELECT * FROM vw_prod_youtube_trending_grouped;
 
 
-View Test:
+Dynamic View 1:
     round: 4
-    label: 'View Test'
-    description: "Run a view test"
-    query: SELECT * FROM vw_prod_demo;
+    label: 'Dynamic View 1'
+    description: ""
+    query: SELECT * FROM vw_prod_dynamic_1;
+
+Dynamic View 2:
+    round: 4
+    label: 'Dynamic View 2'
+    description: ""
+    query: SELECT * FROM vw_prod_dynamic_2;
+
+Dynamic View 3:
+    round: 4
+    label: 'Dynamic View 3'
+    description: ""
+    query: SELECT * FROM vw_prod_dynamic_3;
+
+Dynamic View 4:
+    round: 4
+    label: 'Dynamic View 4'
+    description: ""
+    query: SELECT * FROM vw_prod_dynamic_4;
 

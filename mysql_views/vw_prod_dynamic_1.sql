@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW vw_prod_demo AS
+CREATE OR REPLACE VIEW vw_prod_dynamic_1 AS
 
 SELECT * FROM feedback
 WHERE submit_time >= CURRENT_DATE - INTERVAL 30 DAY
