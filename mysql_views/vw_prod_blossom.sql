@@ -6,6 +6,7 @@ WITH all_clicks AS (
         COUNT(*) AS clicks
     FROM blossom_solver_clicks
     WHERE DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
+        AND NOT (must_have = 'a' AND may_have = 'qwerty')
     GROUP BY DATE(click_time)
 ),
 timed_clicks AS (
@@ -15,6 +16,7 @@ timed_clicks AS (
     FROM blossom_solver_clicks
     WHERE TIME(click_time) <= TIME(CONVERT_TZ(CURTIME(), 'UTC', 'America/Los_Angeles'))
         AND DATE(click_time) BETWEEN DATE_SUB(CURRENT_DATE, INTERVAL 28 DAY) AND CURRENT_DATE
+        AND NOT (must_have = 'a' AND may_have = 'qwerty')
     GROUP BY DATE(click_time)
 ),
 clicks_combined AS (
