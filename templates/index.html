@@ -3,139 +3,105 @@
 {% block title %}JJ Apps{% endblock %}
 
 {% block content %}
+<form action="#" method="post">
+    <br>
+    <h1 style="text-align: center">JJ Apps</h1>
+    <hr style="width:50%;border: 1px dashed #d3d6da;">
+    <br>
 
-<head>
-    <style>
-        body {
-          padding: 0 20px; /* add 20px padding to left and right of the body */
-        }
-    </style>
-</head>
-<body>
-    <form action="#" method="post">
-        <br>
-        <h1 style="text-align: center">JJ Apps</h1>
-        <hr style="width:50%;border: 1px dashed #d3d6da;">
-        <br>
-
-        <h3 style="text-align: center; color:#02484d">Data Engineering and Analytics</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/espresso" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Espresso Optimizer</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/mtg" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Magic: The Gathering Prices</div>
-                </a>
-                <a href="/data_summary" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Auto Data Summary</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/youtube_trending" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">YouTube Trending</div>
-                </a>
-            </div>
+    <h3 style="text-align: center; color:#02484d">Data Engineering and Analytics</h3>
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/espresso" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Espresso Optimizer</div>
+            </a>
         </div>
-        <br>
-        <br>
-
-        <h3 style="text-align: center; color:#02484d">Game Solvers</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/wordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Wordle Solver</div>
-                </a>
-                <a href="/antiwordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Antiwordle Solver</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/quordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Quordle Solver</div>
-                </a>
-                <a href="/fixer" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">"Last Letter" Solver</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/blossom" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Blossom Solver</div>
-                </a>
-            </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/mtg" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Magic: The Gathering Prices</div>
+            </a>
         </div>
-        <br>
-        <br>
-
-        <h3 style="text-align: center; color:#02484d">Other Tools</h3>
-        <div class="row">
-            <!-- <div class="column3">
-                <a href="/stock_analysis" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Stock Analysis</div>
-                </a>
-            </div> -->
-            <div class="column3">
-                <a href="/common_denominator" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Common Denominator</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/any_word" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Any Word Finder</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/dogs" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Dog Counter</div>
-                </a>
-            </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/youtube_trending" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">YouTube Trending</div>
+            </a>
         </div>
-        <br>
-        <br>
-
-        <h3 style="text-align: center; color:#02484d">Databases and Storage</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/task_mysql" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">To Do List (MySQL)</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/task_db" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Task List (SQLite)</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/high_score" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">High Score (MySQL)</div>
-                </a>
-            </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/data_summary" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Auto Data Summary</div>
+            </a>
         </div>
-        <br>
-        <br>
+    </div>
+    <br>
 
-        <!-- <h3 style="text-align: center; color:#02484d">(Testing)</h3>
-        <div class="row">
-            <div class="column3">
-            </div>
-            <div class="column3">
-                <a href="/high_score" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">High Score (MySQL)</div>
-                </a>
-            </div> -->
-            <!-- <div class="column3">
-                <a href="/quill" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Text Editor</div>
-                </a>
-            </div>
-            <div class="column3"> -->
-            <!-- </div>
-        </div> -->
-        <br>
-        <br>
-    </form>
-</body>
+    <h3 style="text-align: center; color:#02484d">Game Solvers</h3>
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/blossom" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Blossom Solver</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/wordle" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Wordle Solver</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/antiwordle" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Antiwordle Solver</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/quordle" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Quordle Solver</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/fixer" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">"Last Letter" Solver</div>
+            </a>
+        </div>
+    </div>
+    <br>
 
+    <h3 style="text-align: center; color:#02484d">Other Tools</h3>
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/common_denominator" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Common Denominator</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/any_word" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Any Word Finder</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/dogs" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Dog Counter</div>
+            </a>
+        </div>
+    </div>
+    <br>
+
+    <h3 style="text-align: center; color:#02484d">Databases and Storage</h3>
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/task_mysql" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">To Do List (MySQL)</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/task_db" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">Task List (SQLite)</div>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+            <a href="/high_score" style="text-decoration: none; color: black; font-weight: bold;">
+                <div class="box">High Score (MySQL)</div>
+            </a>
+        </div>
+    </div>
+    <br>
+</form>
 {% endblock %}

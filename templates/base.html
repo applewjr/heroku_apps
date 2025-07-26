@@ -2,7 +2,6 @@
 <html lang="en">
   <head>
 
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-TLNFREYPWR"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -28,11 +27,96 @@
     {% block meta %}{% endblock %}
     <title>{% block title %}{% endblock %}</title>
 
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
     <style>
-        /* Custom hamburger animation */
+        /* Global Styles */
+        body {
+            margin: 0;
+            font-family: sans-serif;
+            background-color: white;
+            color: gray;
+            text-align: center;
+            padding: 0 20px; /* Add 20px padding to left and right of the body */
+        }
+
+        /* Center helper */
+        center {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Table styles (if still used) */
+        table, th, td {
+            border: 1px solid #02484d;
+            border-spacing: 0;
+            width: 33%;
+            font-size: 14px;
+            margin-left: auto;
+            margin-right: auto;
+            border: .5px;
+            border-style: solid;
+            border-color: #02484d;
+        }
+
+        tr:nth-child(even) {
+            background-color: white;
+        }
+
+        /* Input and Button Styles */
+        input[type=text], select {
+            width: 50;
+            padding: 12px 20px;
+            display: inline-block;
+            border: 1px solid #013438;
+            border-radius: 6px;
+            border-color: #013438;
+            box-sizing: border-box;
+            color: black; /* Changed to black for visibility */
+        }
+
+        input[type=submit] {
+            width: 50;
+            background-color: #02484d;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        input[type=submit]:hover {
+            background-color: #03282b;
+            color: gray;
+        }
+
+        .button {
+            background-color: #02484d;
+            border: none;
+            color: white;
+            padding: 2px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #03282b;
+            border: 4px;
+            color: white;
+            border-color: white;
+            padding: 2px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            color: gray;
+        }
+
+        /* Hamburger animation styles */
         .navbar-toggler {
             border: none !important;
             padding: 4px 8px;
@@ -104,28 +188,24 @@
             left: 50%;
         }
 
-        /* Desktop: Keep dropdown behavior */
+        /* Desktop vs Mobile display */
         @media (min-width: 992px) {
             .mobile-only {
                 display: none !important;
             }
-            
             .desktop-only {
                 display: block !important;
             }
         }
 
-        /* Mobile: Show all items directly */
         @media (max-width: 991px) {
             .mobile-only {
                 display: block !important;
             }
-            
             .desktop-only {
                 display: none !important;
             }
-            
-            /* Social icons horizontal layout */
+            /* Mobile specific styles */
             .mobile-social-icons {
                 display: flex;
                 justify-content: center;
@@ -134,24 +214,135 @@
                 border-bottom: 1px solid #dee2e6;
                 margin-bottom: 6px;
             }
-            
             .mobile-social-icons .nav-link {
                 padding: 0 !important;
                 display: inline-flex !important;
             }
-            
-            /* Style mobile menu items */
             .mobile-menu-item {
                 padding-left: 20px;
                 padding-top: 6px !important;
                 padding-bottom: 6px !important;
             }
-            
             .mobile-divider {
                 height: 1px;
                 background-color: #dee2e6;
                 margin: 6px 20px;
             }
+        }
+
+        /* Box styles */
+        .box {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 10px 0;
+            margin-bottom: 10px; /* Added margin-bottom for spacing between boxes */
+            transition: transform 0.25s, background-color .25s;
+            height: 100%; /* Ensures all boxes in a row have the same height */
+            display: flex; /* Use flexbox to center content vertically */
+            align-items: center; /* Center content vertically */
+            justify-content: center; /* Center content horizontally */
+        }
+
+        .box:hover {
+            background-color: #02484d;
+            border-color: #ddd;
+            transform: scale(1.015);
+        }
+
+        .box a {
+            color: black;
+            text-decoration: none;
+            font-weight: bold;
+            display: block; /* Make the anchor fill the box for better click area */
+            width: 100%; /* Make the anchor fill the box */
+            height: 100%; /* Make the anchor fill the box */
+            display: flex; /* Use flexbox for inner centering if content is just text */
+            align-items: center;
+            justify-content: center;
+        }
+
+        .box:hover a {
+            color: white;
+        }
+
+        /* Utility classes from previous main.css */
+        .hr_index {
+            border: none;
+            height: 1.3px;
+            background-color: gray;
+            width: 70%;
+            margin: 0 auto;
+        }
+
+        ul {
+            margin: 0;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 3rem;
+            margin-top: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        /* Image pulsing effects */
+        .pulsing-image, .pulsing-image25, .pulsing-image27 {
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.5s ease;
+        }
+        .pulsing-image img, .pulsing-image25 img, .pulsing-image27 img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform: scale(1);
+            transition: transform 0.5s ease;
+        }
+        .pulsing-image:hover img, .pulsing-image25:hover img, .pulsing-image27:hover img {
+            transform: scale(1.1);
+        }
+        .pulsing-image { width: 40px; height: 40px; }
+        .pulsing-image25 { width: 25px; height: 25px; }
+        .pulsing-image27 { width: 27px; height: 27px; }
+
+        /* Spinning image styles */
+        .spinning-image {
+            width: 45px;
+            height: 45px;
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.5s ease;
+        }
+        .spinning-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .spinning-image:hover img {
+            animation-name: spinning-image-rotate;
+            animation-duration: 2s;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+        }
+        @keyframes spinning-image-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(-360deg); }
+        }
+
+        /* Anchor tag hover effect */
+        a:hover {
+            color: #6aaa64;
+            transform: scale(1.03);
         }
 
     </style>
@@ -172,7 +363,6 @@
         
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav mr-auto">
-            <!-- Mobile Menu -->
             <li class="nav-item mobile-only">
               <div class="mobile-social-icons">
                 <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
@@ -195,7 +385,6 @@
               </div>
             </li>
             
-            <!-- Mobile menu items -->
             <li class="nav-item mobile-only">
               <a class="nav-link mobile-menu-item" href="/espresso">Espresso Optimizer</a>
             </li>
@@ -242,7 +431,6 @@
               <a class="nav-link mobile-menu-item" href="/privacy-policy">Privacy Policy</a>
             </li>
             
-            <!-- Desktop social icons (left side) -->
             <li class="nav-item desktop-only">
               <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
                 <div class="pulsing-image25">
@@ -286,7 +474,6 @@
                 <a class="dropdown-item" href="/wordle">Wordle Solver</a>
                 <a class="dropdown-item" href="/quordle">Quordle Solver</a>
                 <a class="dropdown-item" href="/antiwordle">Antiwordle Solver</a>
-                <a class="dropdown-item" href="/fixer">"Last Letter" Solver</a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="/common_denominator">Common Denominator</a>
                 <a class="dropdown-item" href="/any_word">Any Word Finder</a>
@@ -325,39 +512,26 @@
       });
     });
 
-    // Hamburger animation JavaScript
+    // Hamburger animation JavaScript for mobile toggler
     $('.navbar-toggler').on('click', function() {
-        $('.hamburger').toggleClass('open');
+        $('.navbar-toggler .hamburger').toggleClass('open'); // Target hamburger within this specific toggler
     });
     
     // Desktop hamburger dropdown animation
-    $('#navbarDropdownDesktop').on('show.bs.dropdown', function() {
+    // Listen for dropdown events on the parent li.nav-item.dropdown
+    $('.nav-item.dropdown').on('show.bs.dropdown', function() {
         $(this).find('.hamburger').addClass('open');
     });
     
-    $('#navbarDropdownDesktop').on('hide.bs.dropdown', function() {
+    $('.nav-item.dropdown').on('hide.bs.dropdown', function() {
         $(this).find('.hamburger').removeClass('open');
     });
 
-    // Also handle when menu is closed by clicking outside
+    // Also handle when mobile menu is closed by clicking outside
     $('#navbarSupportedContent').on('hidden.bs.collapse', function () {
-        $('.hamburger').removeClass('open');
+        // This targets the hamburger within the mobile navbar-toggler button
+        $('.navbar-toggler .hamburger').removeClass('open');
     });
   });
 
 </script>
-
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    {% block head %}{% endblock %}
-</head>
-<body>
-    {% block body %}{% endblock %}
-</body>
-</html>
