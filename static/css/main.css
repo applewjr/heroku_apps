@@ -433,3 +433,19 @@ li {
 .box + .box {
   margin-top: 10px;
 }
+
+.navbar-brand-animated {
+    color: black; /* Default text color (fallback) */
+    background-image: linear-gradient(to right, black 50%, #02484d 50%);
+    background-size: 200% 100%; /* Double width for animation */
+    background-position: 0% 0; /* Start with default color visible */
+    -webkit-background-clip: text; /* Clip background to text for WebKit browsers */
+    background-clip: text; /* Clip background to text */
+    -webkit-text-fill-color: transparent; /* Make text transparent for WebKit browsers */
+    transition: background-position 0.3s ease-in-out; /* Animate background position */
+}
+
+.navbar-brand-animated:hover {
+    background-position: -100% 0; /* Move background to reveal the new color */
+    color: transparent; /* Ensure text remains transparent on hover */
+}
