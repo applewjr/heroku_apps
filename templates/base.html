@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -30,113 +29,282 @@
     <title>{% block title %}{% endblock %}</title>
 
     <!-- Favicon -->
-    <!-- <link rel="icon" href="{{ url_for('static', filename='jj.ico') }}" type="image/x-icon">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='jj.ico') }}" type="image/x-icon"> -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
-    <!-- Apple Touch Icons -->
-    <!-- <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='apple-touch-icon-152x152.png') }}">
-    <link rel="apple-touch-icon" sizes="120x120" href="{{ url_for('static', filename='apple-touch-icon-120x120.png') }}"> -->
+    <style>
+        /* Custom hamburger animation */
+        .navbar-toggler {
+            border: none !important;
+            padding: 4px 8px;
+            outline: none !important;
+            box-shadow: none !important;
+        }
 
-    <!-- Legacy Apple Touch Icons (precomposed) -->
-    <!-- These are generally not needed anymore as newer iOS versions ignore these. However, if you want to ensure no errors are thrown for any reason, include them: -->
-    <!-- <link rel="apple-touch-icon-precomposed" sizes="120x120" href="{{ url_for('static', filename='apple-touch-icon-120x120-precomposed.png') }}">
-    <link rel="apple-touch-icon-precomposed" href="{{ url_for('static', filename='apple-touch-icon-precomposed.png') }}"> -->
+        .navbar-toggler:focus {
+            box-shadow: none !important;
+        }
+
+        /* Hide default Bootstrap icon */
+        .navbar-toggler-icon {
+            display: none;
+        }
+
+        /* Custom hamburger lines */
+        .hamburger {
+            width: 24px;
+            height: 20px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .hamburger span {
+            display: block;
+            position: absolute;
+            height: 3px;
+            width: 100%;
+            background: #333;
+            border-radius: 3px;
+            opacity: 1;
+            left: 0;
+            transform: rotate(0deg);
+            transition: .25s ease-in-out;
+        }
+
+        .hamburger span:nth-child(1) {
+            top: 0px;
+        }
+
+        .hamburger span:nth-child(2),
+        .hamburger span:nth-child(3) {
+            top: 8px;
+        }
+
+        .hamburger span:nth-child(4) {
+            top: 16px;
+        }
+
+        /* Animation when menu is open */
+        .hamburger.open span:nth-child(1) {
+            top: 8px;
+            width: 0%;
+            left: 50%;
+        }
+
+        .hamburger.open span:nth-child(2) {
+            transform: rotate(45deg);
+        }
+
+        .hamburger.open span:nth-child(3) {
+            transform: rotate(-45deg);
+        }
+
+        .hamburger.open span:nth-child(4) {
+            top: 8px;
+            width: 0%;
+            left: 50%;
+        }
+
+        /* Desktop: Keep dropdown behavior */
+        @media (min-width: 992px) {
+            .mobile-only {
+                display: none !important;
+            }
+            
+            .desktop-only {
+                display: block !important;
+            }
+        }
+
+        /* Mobile: Show all items directly */
+        @media (max-width: 991px) {
+            .mobile-only {
+                display: block !important;
+            }
+            
+            .desktop-only {
+                display: none !important;
+            }
+            
+            /* Social icons horizontal layout */
+            .mobile-social-icons {
+                display: flex;
+                justify-content: center;
+                gap: 30px;
+                padding: 10px 0;
+                border-bottom: 1px solid #dee2e6;
+                margin-bottom: 6px;
+            }
+            
+            .mobile-social-icons .nav-link {
+                padding: 0 !important;
+                display: inline-flex !important;
+            }
+            
+            /* Style mobile menu items */
+            .mobile-menu-item {
+                padding-left: 20px;
+                padding-top: 6px !important;
+                padding-bottom: 6px !important;
+            }
+            
+            .mobile-divider {
+                height: 1px;
+                background-color: #dee2e6;
+                margin: 6px 20px;
+            }
+        }
+
+    </style>
 
   </head>
   <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <a class="navbar-brand" href="/">JJ Apps</a>
+        
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
+          <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </button>
+        
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav mr-auto">
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Pages
-              </a>
-              <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-
-                <a class="dropdown-item" href="/espresso">Espresso Optimizer</a>
-                <a class="dropdown-item" href="/mtg">Magic: The Gathering Prices</a>
-                <a class="dropdown-item" href="/youtube_trending">YouTube Trending</a>
-                <a class="dropdown-item" href="/data_summary">Auto Data Summary</a>
-
-                <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/blossom">Blossom Solver</a>
-                <a class="dropdown-item" href="/wordle">Wordle Solver</a>
-                <a class="dropdown-item" href="/quordle">Quordle Solver</a>
-                <!-- <a class="dropdown-item" href="/quordle_mobile">Quordle Solver (Mobile)</a> -->
-                <a class="dropdown-item" href="/antiwordle">Antiwordle Solver</a>
-                <a class="dropdown-item" href="/fixer">"Last Letter" Solver</a>
-
-                <div class="dropdown-divider"></div>
-
-                <!-- <a class="dropdown-item" href="/stock_analysis">Stock Analysis</a> -->
-                <a class="dropdown-item" href="/common_denominator">Common Denominator</a>
-                <a class="dropdown-item" href="/any_word">Any Word Finder</a>
-
-                <!-- <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/task_mysql">To Do List (MySQL)</a>
-                <a class="dropdown-item" href="/task_db">Task List (SQLite)</a>
-                <a class="dropdown-item" href="/dogs">Dog Counter</a>
-
-                <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/high_score">High Score (MySQL)</a> -->
-                <!-- <a class="dropdown-item" href="/quill">Text Editor</a> -->
-
-                <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/privacy-policy">Privacy Policy</a>
-
+            <!-- Mobile Menu -->
+            <li class="nav-item mobile-only">
+              <div class="mobile-social-icons">
+                <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
+                  <div class="pulsing-image25">
+                    <img alt="GitHub" src="/static/github_logo4.png" width=25 height=25>
+                  </div>
+                </a>
+                
+                <a class="nav-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">
+                  <div class="pulsing-image27">
+                    <img alt="LinkedIn" src="/static/linkedin_logo.jpg" width=27 height=27>
+                  </div>
+                </a>
+                
+                <a class="nav-link tracked-link" href="https://twitter.com/J_R_Applewhite" target="_blank" rel="noopener noreferrer">
+                  <div class="pulsing-image27">
+                    <img alt="Twitter" src="/static/twitter_logo.png" width=27 height=27>
+                  </div>
+                </a>
               </div>
             </li>
-
-            <li class="nav-item">
+            
+            <!-- Mobile menu items -->
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/espresso">Espresso Optimizer</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/mtg">Magic: The Gathering Prices</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/youtube_trending">YouTube Trending</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/data_summary">Auto Data Summary</a>
+            </li>
+            <li class="mobile-only">
+              <div class="mobile-divider"></div>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/blossom">Blossom Solver</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/wordle">Wordle Solver</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/quordle">Quordle Solver</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/antiwordle">Antiwordle Solver</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/fixer">"Last Letter" Solver</a>
+            </li>
+            <li class="mobile-only">
+              <div class="mobile-divider"></div>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/common_denominator">Common Denominator</a>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/any_word">Any Word Finder</a>
+            </li>
+            <li class="mobile-only">
+              <div class="mobile-divider"></div>
+            </li>
+            <li class="nav-item mobile-only">
+              <a class="nav-link mobile-menu-item" href="/privacy-policy">Privacy Policy</a>
+            </li>
+            
+            <!-- Desktop social icons (left side) -->
+            <li class="nav-item desktop-only">
               <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
                 <div class="pulsing-image25">
                   <img alt="GitHub" src="/static/github_logo4.png" width=25 height=25>
                 </div>
               </a>
             </li>
-            
-            <li class="nav-item">
+            <li class="nav-item desktop-only">
               <a class="nav-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">
                 <div class="pulsing-image27">
                   <img alt="LinkedIn" src="/static/linkedin_logo.jpg" width=27 height=27>
                 </div>
               </a>
             </li>
-            
-            <li class="nav-item">
+            <li class="nav-item desktop-only">
               <a class="nav-link tracked-link" href="https://twitter.com/J_R_Applewhite" target="_blank" rel="noopener noreferrer">
                 <div class="pulsing-image27">
-                    <img alt="Twitter" src="/static/twitter_logo.png" width=27 height=27>
+                  <img alt="Twitter" src="/static/twitter_logo.png" width=27 height=27>
                 </div>
               </a>
             </li>
-
-            <!-- <li class="nav-item">
-              <a class="nav-link" href="https://www.jamesapplewhite.com/resume" target="_blank">
-                <div class="pulsing-image27">
-                    <img alt="Resume" src="/static/resume2.png" width=27 height=27>
+          </ul>
+          
+          <ul class="navbar-nav ml-auto desktop-only">
+            <li class="nav-item dropdown">
+              <a class="nav-link" href="#" id="navbarDropdownDesktop" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <div class="hamburger">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
                 </div>
               </a>
-            </li> -->
-
-          </div>
-      </nav>
-      {% block content %}
-      {% endblock %}
-      <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-      <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-    </body>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownDesktop">
+                <a class="dropdown-item" href="/espresso">Espresso Optimizer</a>
+                <a class="dropdown-item" href="/mtg">Magic: The Gathering Prices</a>
+                <a class="dropdown-item" href="/youtube_trending">YouTube Trending</a>
+                <a class="dropdown-item" href="/data_summary">Auto Data Summary</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="/blossom">Blossom Solver</a>
+                <a class="dropdown-item" href="/wordle">Wordle Solver</a>
+                <a class="dropdown-item" href="/quordle">Quordle Solver</a>
+                <a class="dropdown-item" href="/antiwordle">Antiwordle Solver</a>
+                <a class="dropdown-item" href="/fixer">"Last Letter" Solver</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="/common_denominator">Common Denominator</a>
+                <a class="dropdown-item" href="/any_word">Any Word Finder</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="/privacy-policy">Privacy Policy</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+    </nav>
+    
+    {% block content %}
+    {% endblock %}
+    
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+</body>
 </html>
 
 <script>
@@ -144,19 +312,39 @@
     const trackedLinks = document.querySelectorAll('.tracked-link');
     trackedLinks.forEach(link => {
       link.addEventListener('click', function(e) {
-        const target = e.target.closest('a'); // Capture the closest anchor element
+        const target = e.target.closest('a');
         fetch('/log-click', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            url: target.href // Send only the URL of the clicked link
+            url: target.href
           })
         });
       });
     });
+
+    // Hamburger animation JavaScript
+    $('.navbar-toggler').on('click', function() {
+        $('.hamburger').toggleClass('open');
+    });
+    
+    // Desktop hamburger dropdown animation
+    $('#navbarDropdownDesktop').on('show.bs.dropdown', function() {
+        $(this).find('.hamburger').addClass('open');
+    });
+    
+    $('#navbarDropdownDesktop').on('hide.bs.dropdown', function() {
+        $(this).find('.hamburger').removeClass('open');
+    });
+
+    // Also handle when menu is closed by clicking outside
+    $('#navbarSupportedContent').on('hidden.bs.collapse', function () {
+        $('.hamburger').removeClass('open');
+    });
   });
+
 </script>
 
 
@@ -164,7 +352,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width", initial-scale="1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     {% block head %}{% endblock %}
