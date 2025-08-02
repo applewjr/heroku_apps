@@ -634,13 +634,6 @@ td.show-letter-cell {
 
   <p class="pad_lr_30" style="text-align: center">Enter your letters below. Click any petal to calculate words with that bonus letter.</p>
   <br>
-  <br>
-
-  <!-- Fixed Reset Letters Button -->
-  <a href="#" class="reset-letters-btn" onclick="showResetConfirmation(event);">Reset Letters</a>
-  <br>
-  <br>
-  <br>
 
   <!-- New Blossom Layout -->
   <div class="blossom-container">
@@ -689,6 +682,11 @@ td.show-letter-cell {
           onkeydown="handleKeyDown(event); if(event.key === 'Backspace') handleBackspace(this, 5, false)">
   </button>
   </div>
+  
+  <!-- Fixed Reset Letters Button -->
+  <a href="#" class="reset-letters-btn" onclick="showResetConfirmation(event);">Reset Letters</a>
+  <br>
+  <br>
 
   <!-- Wrap dynamic content to prevent layout shifts -->
   <div class="results-section">
