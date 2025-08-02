@@ -887,23 +887,37 @@ def blossom_solver():
             # Make session permanent (4 hours)
             session.permanent = True
 
-            # log clicks and inputs - use actual displayed count
+            # # log clicks and inputs - use actual displayed count
+            # try:
+            #     conn = get_db_connection()
+            #     cursor = conn.cursor()
+            #     query = """
+            #     INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
+            #     VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
+            #     """
+            #     cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
+            #     conn.commit()
+            # except mysql.connector.Error as err:
+            #     print("Error:", err)
+            # finally:
+            #     if cursor is not None:
+            #         cursor.close()
+            #     if conn is not None and conn.is_connected():
+            #         conn.close()
+
+            # log clicks and inputs - use actual displayed count - redis mode
+            stream_name = 'blossom_logging'
+            blossom_data_dict_abbr = {
+                'must_have': must_have,
+                'may_have': may_have,
+                'petal_letter': petal_letter,
+                'list_len': str(min(current_count, total_valid_words))
+            }
+            # insert into a redis cloud instance
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                query = """
-                INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len) 
-                VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
-                """
-                cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
-                conn.commit()
-            except mysql.connector.Error as err:
-                print("Error:", err)
-            finally:
-                if cursor is not None:
-                    cursor.close()
-                if conn is not None and conn.is_connected():
-                    conn.close()
+                add_data_to_stream(stream_name, blossom_data_dict_abbr)
+            except:
+                print('blossom_logging_failed')
 
             return render_template("blossom.html", 
                                 blossom_table=blossom_table, 
