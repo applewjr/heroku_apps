@@ -383,3 +383,25 @@ def filter_words_for_blossom(words):
             removed_count += 1
     
     return set(filtered_words)
+
+def wordiply_solver(search_string, words, list_len=15):
+
+    search_string = search_string.lower().strip()
+    
+    # Return empty list if no search string
+    if not search_string:
+        return []
+    
+    valid_words = []
+    
+    for word in words:
+        word_str = str(word).lower()
+        # Check if the search string appears in the word
+        if search_string in word_str:
+            valid_words.append(word_str)
+    
+    # Sort by length (longest first), then alphabetically for ties
+    valid_words.sort(key=lambda x: (-len(x), x))
+    
+    # Return top results
+    return valid_words[:list_len]

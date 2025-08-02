@@ -1212,6 +1212,42 @@ def any_word():
 
 
 
+@app.route("/wordiply", methods=["POST", "GET"])
+def run_wordiply():
+    
+    try:
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Wordiply Solver - Find the Longest Words Instantly",
+            "description": "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
+            "url": "https://jamesapplewhite.com/wordiply",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
+            }
+        }
+    except Exception:
+        schema_data = None
+
+    if request.method == "POST":
+        data = request.get_json()
+        search_string = data.get('search_string', '')
+        
+        results = all_words.wordiply_solver(search_string, words, 15) 
+       
+        return jsonify(results=results)    
+    else:
+        return render_template("wordiply.html", schema_data=schema_data)
+
+
 
 
 ######################################

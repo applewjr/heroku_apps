@@ -1,0 +1,452 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordiply Solver - Find the Longest Words Instantly{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.">
+<link rel="canonical" href="https://jamesapplewhite.com/wordiply">
+<meta name="keywords" content="wordiply, wordiply solver, wordiply help, wordiply strategy, word game solver, wordiply hints, longest word finder">
+<meta property="og:title" content="Wordiply Solver - Find the Longest Words Instantly">
+<meta property="og:description" content="Free Wordiply solver and word finder. Find the longest words containing your letters for today's puzzle instantly.">
+<meta property="og:url" content="https://jamesapplewhite.com/wordiply">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+{% endblock %}
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+{% block content %}
+
+<head>
+<style>
+.wordiply-input {
+    width: 300px;
+    max-width: 90%;
+    padding: 15px;
+    font-size: 24px;
+    text-align: center;
+    margin: 20px auto;
+    border: 2px solid #02484d;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.wordiply-input:focus {
+    outline: none;
+    border-color: #6aaa64;
+    box-shadow: 0 0 0 2px rgba(106, 170, 100, 0.2);
+}
+
+.instructions {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 15px;
+    border: 1px solid #e9ecef;
+    line-height: 1.6;
+}
+
+.results-container {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.word-result {
+    background-color: #f8f9fa;
+    padding: 12px 20px;
+    margin: 8px 0;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    gap: 10px;
+    min-height: 48px;
+}
+
+.word-result:hover {
+    background-color: #e9ecef;
+    transform: translateX(5px);
+}
+
+.word-result.copied {
+    background-color: #6aaa64;
+    border-color: #6aaa64;
+}
+
+.word-result.copied .word-text,
+.word-result.copied .word-length {
+    color: white;
+}
+
+.word-text {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    word-break: break-all;
+    text-align: left;
+    flex: 1;
+    line-height: 1.3;
+}
+
+.word-length {
+    background-color: #02484d;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.copy-feedback {
+    position: absolute;
+    right: 50%;
+    transform: translateX(50%);
+    top: -30px;
+    background-color: #333;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.copy-feedback.show {
+    opacity: 1;
+}
+
+.copy-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.word-text {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+.word-length {
+    background-color: #02484d;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.no-results {
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    margin: 30px 0;
+}
+
+.loading {
+    text-align: center;
+    color: #888;
+    margin: 20px 0;
+}
+
+@media (max-width: 768px) {
+    .wordiply-input {
+        font-size: 20px;
+        padding: 12px;
+    }
+    
+    .word-result {
+        padding: 10px 12px;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+    }
+    
+    .word-text {
+        font-size: 15px;
+        letter-spacing: 0.5px;
+        flex: 1;
+        line-height: 1.2;
+    }
+    
+    .word-length {
+        font-size: 12px;
+        padding: 3px 8px;
+    }
+    
+    .results-container {
+        padding: 10px;
+    }
+    
+    .copy-feedback {
+        top: -25px;
+        right: 50%;
+        transform: translateX(50%);
+        left: auto;
+    }
+}
+</style>
+</head>
+
+<body>
+    <center>
+    <br>
+    <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordiply Solver & Word Finder</h1>
+    
+    <div class="instructions">
+        <strong>How to use:</strong> Enter the letters that must appear in the word. The solver will instantly find the longest words containing those letters.
+        <br><br>
+        <strong>Wordiply Rules:</strong> Find the longest word that contains the given letter sequence. The letters must appear together in the exact order shown.
+    </div>
+
+    <form id="wordiply-form">
+        <input type="text" 
+               id="search-input" 
+               class="wordiply-input" 
+               placeholder="Enter letters" 
+               autocomplete="off"
+               autofocus>
+    </form>
+
+    <div id="results-container" class="results-container">
+        <!-- Results will be displayed here -->
+    </div>
+    
+    <div class="copy-hint" id="copy-hint" style="display: none;">
+        Click any word to copy it to clipboard
+    </div>
+
+    <br>
+    <div style="margin: 20px 0; text-align: center;">
+        <a href="/feedback" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 4px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+        <a href="/wordiply" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 4px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Clear</a>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
+        <div style="
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            max-width: 400px;
+            margin: 0 auto;
+        ">
+            <a href="/blossom" style="
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 1px solid #e9ecef;
+                padding: 8px 16px;
+                border-radius: 6px;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 13px;
+                transition: all 0.2s ease;
+                flex: 0 0 calc(50% - 2px);
+                text-align: center;
+                box-sizing: border-box;
+            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
+            
+            <a href="/wordle" style="
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 1px solid #e9ecef;
+                padding: 8px 16px;
+                border-radius: 6px;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 13px;
+                transition: all 0.2s ease;
+                flex: 0 0 calc(50% - 2px);
+                text-align: center;
+                box-sizing: border-box;
+            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
+            
+            <a href="/antiwordle" style="
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 1px solid #e9ecef;
+                padding: 8px 16px;
+                border-radius: 6px;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 13px;
+                transition: all 0.2s ease;
+                flex: 0 0 calc(50% - 2px);
+                text-align: center;
+                box-sizing: border-box;
+            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
+            
+            <a href="/quordle" style="
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 1px solid #e9ecef;
+                padding: 8px 16px;
+                border-radius: 6px;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 13px;
+                transition: all 0.2s ease;
+                flex: 0 0 calc(50% - 2px);
+                text-align: center;
+                box-sizing: border-box;
+            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
+        </div>
+    </div>
+    <br>
+    <br>
+    <br>
+    </center>
+</body>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    const resultsContainer = document.getElementById('results-container');
+    let searchTimeout;
+
+    // Initial display
+    if (window.initialResults && window.initialResults.length > 0) {
+        displayResults(window.initialResults);
+    }
+
+    searchInput.addEventListener('input', (event) => {
+        const searchString = event.target.value.toUpperCase();
+        searchInput.value = searchString;
+
+        clearTimeout(searchTimeout);
+        
+        if (searchString.trim() === '') {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+
+        // Show loading state
+        resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+        // Debounce the search
+        searchTimeout = setTimeout(() => {
+            fetch('/wordiply', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ search_string: searchString }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data.results);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                resultsContainer.innerHTML = '<div class="no-results">Error loading results</div>';
+            });
+        }, 300); // 300ms delay
+    });
+
+    function displayResults(results) {
+        if (!results || results.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No words found containing those letters</div>';
+            document.getElementById('copy-hint').style.display = 'none';
+            return;
+        }
+
+        let html = '';
+        results.forEach((word, index) => {
+            html += `
+                <div class="word-result" data-word="${word}">
+                    <span class="word-text">${word.toUpperCase()}</span>
+                    <span class="word-length">${word.length} letters</span>
+                    <div class="copy-feedback">Copied!</div>
+                </div>
+            `;
+        });
+
+        resultsContainer.innerHTML = html;
+        document.getElementById('copy-hint').style.display = 'block';
+        
+        // Add click handlers to each word result
+        document.querySelectorAll('.word-result').forEach(element => {
+            element.addEventListener('click', function() {
+                copyToClipboard(this);
+            });
+        });
+    }
+    
+    function copyToClipboard(element) {
+        const word = element.dataset.word;
+        
+        // Create a temporary textarea to copy the text
+        const textarea = document.createElement('textarea');
+        textarea.value = word.toUpperCase();
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        
+        // Select and copy the text
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            document.execCommand('copy');
+            
+            // Visual feedback
+            element.classList.add('copied');
+            const feedback = element.querySelector('.copy-feedback');
+            feedback.classList.add('show');
+            
+            // Remove visual feedback after a delay
+            setTimeout(() => {
+                element.classList.remove('copied');
+                feedback.classList.remove('show');
+            }, 1500);
+            
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+        }
+        
+        // Remove the temporary textarea
+        document.body.removeChild(textarea);
+    }
+});
+</script>
+
+{% endblock %}
