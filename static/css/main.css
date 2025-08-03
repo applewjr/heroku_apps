@@ -218,7 +218,7 @@ input[type=submit]:hover {
   } */
 
 
-/* .spinning-image {
+.spinning-image {
   width: 45px;
   height: 45px;
   overflow: hidden;
@@ -242,7 +242,7 @@ input[type=submit]:hover {
 @keyframes spinning-image-rotate {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-360deg); }
-} */
+}
 
 
 
