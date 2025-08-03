@@ -20,231 +20,356 @@
 {% block content %}
 
 <style>
-
-/* CLS Prevention - Critical fixes */
-body {
-  min-height: 100vh; /* Prevent body from jumping */
-}
-
-/* Reserve space for dynamic content to prevent layout shifts */
-.word-results-container {
-  min-height: 400px; /* Reserve space before table loads */
-}
-
-.results-section {
-  min-height: 200px; /* Prevent content jumping */
-}
-
-/* Blossom container - STABLE positioning */
-.blossom-container {
-  position: relative;
-  width: 400px;
-  height: 400px;
-  margin: 0 auto;
-  /* CRITICAL CLS FIXES: */
-  contain: layout;
-  min-width: 400px;
-  min-height: 400px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  font-family: inherit;
-  line-height: 1;
-  will-change: auto;
-}
-
-@media (max-width: 480px) {
-  .blossom-container {
-    width: 350px;
-    height: 350px;
-    min-width: 350px;
-    min-height: 350px;
+  /* CLS Prevention - Critical fixes */
+  body {
+    min-height: 100vh; /* Prevent body from jumping */
   }
+
+  /* Reserve space for dynamic content to prevent layout shifts */
+  .word-results-container {
+    min-height: 400px; /* Reserve space before table loads */
+  }
+
+  .results-section {
+    min-height: 200px; /* Prevent content jumping */
+  }
+
+  /* Prevent shifts during JavaScript initialization */
+  .blossom-container {
+    contain: layout; /* Isolate layout changes */
+  }
+
+  /* Reset Letters Button - Fixed positioning */
+  .reset-letters-btn {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 12px 24px;
+    border-radius: 12px 18px 12px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-block;
+    /* position: relative; */
+    z-index: 10;
+    /* margin-top: -40px; */
+    width: auto; /* Prevent width changes */
+    white-space: nowrap; /* Prevent text wrapping */
+    transition: all 0.2s ease;
+  }
+
+  .reset-letters-btn:hover {
+    background-color: #e9ecef;
+    text-decoration: none !important;
+    color: #666 !important;
+    transform: scale(1.03) !important;
+  }
+
+  input::-webkit-input-placeholder {
+      color: lightgrey;
+  }
+
+  input:-moz-placeholder {
+      color: lightgrey;
+  }
+
+  input::-moz-placeholder {
+      color: lightgrey;
+  }
+
+  input:-ms-input-placeholder {
+      color: lightgrey;
+  }
+
+table.blossom-info {
+    width: 50%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
-/* Override global input styles for blossom */
-.blossom-container input[type="text"] {
-  border: none !important;
-  background: transparent !important;
-  box-sizing: border-box !important;
-  width: 100% !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  font-family: inherit;
-  line-height: 1;
-}
+  @media (max-width: 768px) {
+      table.blossom-info {
+          width: 100%;
+      }
+  }
 
-/* Center letter styling - circular */
-.center-letter {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
-  background-color: #ffd700;
-  border: 3px solid #02484d;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  font-weight: bold;
-  text-transform: uppercase;
-  cursor: text;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  /* CLS fixes */
-  box-sizing: border-box;
-  flex-shrink: 0;
-  font-family: inherit;
-  line-height: 1;
-  margin: 0;
-  padding: 0;
-  will-change: auto;
-}
+  table.blossom-info, th, td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: center;
+  }
 
-.center-letter input {
-  width: 100%;
-  height: 100%;
-  background: transparent !important;
-  border: none !important;
-  text-align: center;
-  font-size: 32px;
-  font-weight: bold;
-  text-transform: uppercase;
-  outline: none;
-  color: #02484d !important;
-  -webkit-text-fill-color: #02484d !important;
-  -webkit-appearance: none;
-  appearance: none;
-  padding: 0 !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  box-sizing: border-box;
-  font-family: inherit;
-  line-height: 1;
-}
+  .browse-button {
+      background-color: #02484d;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
+      margin: 2px;
+  }
+  
+  .browse-button:hover {
+      background-color: #03282b;
+      color: gray;
+  }
 
-.center-letter input:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.5);
-}
+  /* Tooltip styles */
+  .disclaimer-tooltip {
+      /* position: relative; */
+      display: inline-block;
+      cursor: help;
+      color: #666;
+      font-size: 12px;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+  }
 
-.center-letter input::placeholder {
-  color: rgba(2, 72, 77, 0.2);
-  opacity: 1;
-}
+  .disclaimer-tooltip .tooltip-content {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #333;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      width: 350px;
+      max-width: 90vw;
+      font-size: 13px;
+      line-height: 1.4;
+      z-index: 1000;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      transition: opacity 0.3s, visibility 0.3s;
+  }
 
-/* Petal buttons styling - SIMPLE CIRCLES with EXACT positioning */
-.petal-button {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  background-color: #02484d;
-  color: white;
-  border: 3px solid transparent;
-  border-radius: 50%; /* SIMPLE CIRCLES */
-  font-size: 28px;
-  font-weight: bold;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color 0.2s, border 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  /* CLS fixes */
-  box-sizing: border-box;
-  flex-shrink: 0;
-  font-family: inherit;
-  line-height: 1;
-  margin: 0;
-  padding: 0;
-  will-change: auto;
-}
+  .disclaimer-tooltip .tooltip-content::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 8px solid transparent;
+      border-top-color: #333;
+  }
 
-/* EXACT pixel positioning for stability */
+  .disclaimer-tooltip:hover .tooltip-content {
+      visibility: visible;
+      opacity: 1;
+  }
+
+  .disclaimer-tooltip .tooltip-content a {
+      color: #4A9EFF;
+      text-decoration: underline;
+  }
+
+  .disclaimer-tooltip .tooltip-content a:hover {
+      color: #66B3FF;
+  }
+
+  @media (max-width: 480px) {
+      .disclaimer-tooltip .tooltip-content {
+          width: 300px;
+          left: 50%;
+          transform: translateX(-50%);
+      }
+  }
+
+  .used-word {
+      background-color: #f0f0f0;
+      text-decoration: line-through;
+      opacity: 0.6;
+  }
+
+  .word-checkbox {
+      transform: scale(1.2);
+      cursor: pointer;
+  }
+
+  table td:first-child {
+      width: 50px;
+      text-align: center;
+  }
+
+  /* New Blossom Layout Styles */
+  .blossom-container {
+      /* position: relative; */
+      width: 400px;
+      height: 400px;
+      /* margin: -70px auto -10px auto; */
+  }
+
+  @media (max-width: 480px) {
+      .blossom-container {
+          width: 350px;
+          height: 350px;
+          /* margin: -70px auto -10px auto; */
+      }
+  }
+
+  /* Override global input styles for blossom */
+  .blossom-container input[type="text"] {
+      border: none !important;
+      background: transparent !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+  }
+
+  /* Center letter styling - circular */
+  .center-letter {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      background-color: #ffd700;
+      border: 3px solid #02484d;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: text;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .center-letter input {
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      border: none !important;
+      text-align: center;
+      font-size: 32px;
+      font-weight: bold;
+      text-transform: uppercase;
+      outline: none;
+      color: #02484d !important;
+      -webkit-text-fill-color: #02484d !important;
+      -webkit-appearance: none;
+      appearance: none;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+  }
+  
+  .center-letter input::placeholder {
+      color: rgba(2, 72, 77, 0.2);
+      opacity: 1;
+  }
+
+  /* Petal buttons styling - petal shape */
+  .petal-button {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      background-color: #02484d;
+      color: white;
+      border: 3px solid transparent;
+      border-radius: 50% 15% 50% 15%;
+      font-size: 28px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background-color 0.2s, border 0.2s, transform 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  /* Rotate petals to point outward from center */
 .petal-1 {
-  top: 70px;    /* 17.5% of 400px */
-  left: 96px;   /* 24% of 400px */
-  transform: none;
+  top: 17.5%;
+  left: 24%;
+  transform: translateY(0%) rotate(90deg);
+}
+.petal-1 input {
+  transform: rotate(-90deg);
 }
 
 .petal-2 {
-  top: 70px;    /* 17.5% of 400px */
-  right: 96px;  /* 24% of 400px */
-  transform: none;
+  top: 17.5%;
+  right: 24%;
+  transform: translateY(0%) rotate(0deg);
+}
+.petal-2 input {
+  transform: rotate(0deg);
 }
 
 .petal-3 {
-  top: 160px;   /* 40% of 400px */
-  left: 40px;   /* 10% of 400px */
-  transform: none;
+  top: 40%;
+  left: 10%;
+  transform: translateY(0%) rotate(45deg);
+}
+.petal-3 input {
+  transform: rotate(-45deg);
 }
 
 .petal-4 {
-  top: 160px;   /* 40% of 400px */
-  right: 40px;  /* 10% of 400px */
-  transform: none;
+  top: 40%;
+  right: 10%;
+  transform: translateY(0%) rotate(45deg);
+}
+.petal-4 input {
+  transform: rotate(-45deg);
 }
 
 .petal-5 {
-  bottom: 70px; /* 17.5% from bottom */
-  left: 96px;   /* 24% of 400px */
-  transform: none;
+  bottom: 17.5%;
+  left: 24%;
+  transform: translateY(0%) rotate(0deg);
+}
+.petal-5 input {
+  transform: rotate(0deg);
 }
 
 .petal-6 {
-  bottom: 70px; /* 17.5% from bottom */
-  right: 96px;  /* 24% of 400px */
-  transform: none;
+  bottom: 17.5%;
+  right: 24%;
+  transform: translateY(0%) rotate(90deg);
+}
+.petal-6 input {
+  transform: rotate(-90deg);
 }
 
-/* Mobile positioning - exact pixels */
-@media (max-width: 480px) {
-  .petal-1 { top: 61px; left: 77px; }    /* 17.5% of 350px, 22% of 350px */
-  .petal-2 { top: 61px; right: 77px; }
-  .petal-3 { top: 136px; left: 35px; }   /* 39% of 350px, 10% of 350px */
-  .petal-4 { top: 136px; right: 35px; }
-  .petal-5 { bottom: 61px; left: 77px; }
-  .petal-6 { bottom: 61px; right: 77px; }
-}
-
-/* Petal input styling */
+/* Update the petal input styles to handle pointer events properly */
 .petal-button input {
-  width: 100%;
-  height: 100%;
-  background: transparent !important;
-  border: none !important;
-  color: #ffffff !important;
-  text-align: center;
-  font-size: 28px;
-  font-weight: bold;
-  text-transform: uppercase;
-  outline: none;
-  cursor: text;
-  pointer-events: auto;
-  -webkit-text-fill-color: #ffffff !important;
-  -webkit-appearance: none;
-  appearance: none;
-  padding: 0 !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  box-sizing: border-box;
-  font-family: inherit;
-  line-height: 1;
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+    text-transform: uppercase;
+    outline: none;
+    cursor: text;
+    pointer-events: auto;
+    -webkit-text-fill-color: #ffffff !important;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
 }
 
-.petal-button input:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.5);
-}
-
-.petal-button input::placeholder {
-  color: rgba(255, 255, 255, 0.2);
-  opacity: 1;
-}
-
-/* Button mode states */
+/* Cherry blossom purple when all letters are complete */
 .petal-button.button-mode {
   cursor: pointer;
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
@@ -256,6 +381,7 @@ body {
   background-color: #7A4D87;
 }
 
+/* Selected petal in button mode - keep the gold highlight */
 .petal-button.button-mode.selected {
   border: 3px solid #ffd700;
   background-color: #ffd700;
@@ -266,9 +392,65 @@ body {
   -webkit-text-fill-color: #02484d !important;
 }
 
+/* Make sure text stays white on purple petals */
 .petal-button.button-mode input[type="text"] {
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
+}
+
+.petal-button:not(.button-mode) {
+    cursor: text;
+}
+
+.petal-button input::placeholder {
+      color: rgba(255, 255, 255, 0.2);
+      opacity: 1;
+  }
+
+  .petal-button:hover {
+      background-color: #03282b;
+  }
+
+.petal-button.selected {
+    border: 3px solid #ffd700;
+    background-color: #ffd700;
+}
+
+.petal-button.selected input[type="text"] {
+    color: #02484d !important;
+    -webkit-text-fill-color: #02484d !important;
+}
+
+@media (max-width: 480px) {
+    .petal-1 { top: 17.5%; left: 22%; }
+    .petal-2 { top: 17.5%; right: 22%; }
+    .petal-3 { top: 39%; left: 10%; }
+    .petal-4 { top: 39%; right: 10%; }
+    .petal-5 { bottom: 17.5%; left: 22%; }
+    .petal-6 { bottom: 17.5%; right: 22%; }
+}
+
+/* Force input text to be visible */
+  input[type="text"] {
+      -webkit-user-select: text;
+      user-select: text;
+  }
+  
+  /* Additional fallback for text visibility */
+  .petal-button input:not(:placeholder-shown) {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+  }
+  
+  .center-letter input:not(:placeholder-shown) {
+      color: #02484d !important;
+      -webkit-text-fill-color: #02484d !important;
+  }
+
+/* Make demo placeholders appear faint */
+.petal-button input:placeholder-shown,
+.center-letter input:placeholder-shown {
+    opacity: 0.12;
 }
 
 .petal-button:not(.button-mode) {
@@ -276,223 +458,10 @@ body {
 }
 
 .petal-button:not(.button-mode):hover {
-  background-color: #03282b;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-.petal-button:hover {
-  background-color: #03282b;
-}
-
-.petal-button.selected {
-  border: 3px solid #ffd700;
-  background-color: #ffd700;
-}
-
-.petal-button.selected input[type="text"] {
-  color: #02484d !important;
-  -webkit-text-fill-color: #02484d !important;
-}
-
-/* Text selection control */
-.blossom-container * {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-.blossom-container input {
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-}
-
-/* Force input text to be visible */
-input[type="text"] {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-.petal-button input:not(:placeholder-shown) {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.center-letter input:not(:placeholder-shown) {
-  color: #02484d !important;
-  -webkit-text-fill-color: #02484d !important;
-}
-
-/* Make demo placeholders appear faint */
-.petal-button input:placeholder-shown,
-.center-letter input:placeholder-shown {
-  opacity: 0.12;
-}
-
-/* Reset Letters Button */
-.reset-letters-btn {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  color: #666;
-  padding: 12px 24px;
-  border-radius: 12px 18px 12px 18px;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  text-decoration: none;
-  display: inline-block;
-  z-index: 10;
-  width: auto;
-  white-space: nowrap;
-  transition: all 0.2s ease;
-}
-
-.reset-letters-btn:hover {
-  background-color: #e9ecef;
-  text-decoration: none !important;
-  color: #666 !important;
-  transform: scale(1.03) !important;
-}
-
-/* Placeholder styling */
-input::-webkit-input-placeholder {
-  color: lightgrey;
-}
-
-input:-moz-placeholder {
-  color: lightgrey;
-}
-
-input::-moz-placeholder {
-  color: lightgrey;
-}
-
-input:-ms-input-placeholder {
-  color: lightgrey;
-}
-
-/* Table styling */
-table.blossom-info {
-  width: 50%;
-  margin: 20px auto;
-  border-collapse: collapse;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-@media (max-width: 768px) {
-  table.blossom-info {
-    width: 100%;
-  }
-}
-
-table.blossom-info, th, td {
-  border: 1px solid black;
-  padding: 8px;
-  text-align: center;
-}
-
-.browse-button {
-  background-color: #02484d;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  text-align: center;
-  margin: 2px;
-}
-
-.browse-button:hover {
-  background-color: #03282b;
-  color: gray;
-}
-
-/* Tooltip styles */
-.disclaimer-tooltip {
-  display: inline-block;
-  cursor: help;
-  color: #666;
-  font-size: 12px;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-
-.disclaimer-tooltip .tooltip-content {
-  visibility: hidden;
-  opacity: 0;
-  position: absolute;
-  bottom: 120%;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #333;
-  color: white;
-  padding: 15px;
-  border-radius: 8px;
-  width: 350px;
-  max-width: 90vw;
-  font-size: 13px;
-  line-height: 1.4;
-  z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  transition: opacity 0.3s, visibility 0.3s;
-}
-
-.disclaimer-tooltip .tooltip-content::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 8px solid transparent;
-  border-top-color: #333;
-}
-
-.disclaimer-tooltip:hover .tooltip-content {
-  visibility: visible;
-  opacity: 1;
-}
-
-.disclaimer-tooltip .tooltip-content a {
-  color: #4A9EFF;
-  text-decoration: underline;
-}
-
-.disclaimer-tooltip .tooltip-content a:hover {
-  color: #66B3FF;
-}
-
-@media (max-width: 480px) {
-  .disclaimer-tooltip .tooltip-content {
-    width: 300px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-}
-
-.used-word {
-  background-color: #f0f0f0;
-  text-decoration: line-through;
-  opacity: 0.6;
-}
-
-.word-checkbox {
-  transform: scale(1.2);
-  cursor: pointer;
-}
-
-table td:first-child {
-  width: 50px;
-  text-align: center;
-}
-
-/* Warning styling */
+/* Duplicate warning styling */
 .duplicate-warning {
   display: block;
   position: fixed;
@@ -510,9 +479,9 @@ table td:first-child {
   font-size: 14px;
   max-width: 90vw;
   text-align: center;
-  animation: warningSlideIn 0.3s ease-out;
 }
 
+/* Mobile-specific positioning for warnings */
 @media (max-width: 768px) {
   .duplicate-warning {
     top: 20px;
@@ -525,6 +494,7 @@ table td:first-child {
   }
 }
 
+/* Even more visible on small screens */
 @media (max-width: 480px) {
   .duplicate-warning {
     top: 15px;
@@ -538,6 +508,7 @@ table td:first-child {
   }
 }
 
+/* Subtle entrance animation to draw attention */
 @keyframes warningSlideIn {
   0% {
     opacity: 0;
@@ -549,76 +520,85 @@ table td:first-child {
   }
 }
 
+.duplicate-warning {
+  animation: warningSlideIn 0.3s ease-out;
+}
+
 /* Helper mode styles */
 .helper-mode-toggle {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  color: #666;
-  padding: 12px 24px;
-  border-radius: 12px 18px 12px 18px;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  text-decoration: none;
-  display: inline-block;
-  z-index: 10;
-  margin-top: -40px;
-  margin-right: 10px;
-  transition: all 0.2s ease;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 12px 24px;
+    border-radius: 12px 18px 12px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-block;
+    /* position: relative; */
+    z-index: 10;
+    margin-top: -40px;
+    margin-right: 10px;
+    transition: all 0.2s ease;
 }
 
 .helper-mode-toggle:hover {
-  background-color: #e9ecef;
-  text-decoration: none !important;
-  color: #666 !important;
-  transform: scale(1.03) !important;
+    background-color: #e9ecef;
+    text-decoration: none !important;
+    color: #666 !important;
+    transform: scale(1.03) !important;
 }
 
+/* Purple "ON" state */
 .helper-mode-toggle.helper-mode-on {
-  background-color: #8B5A96;
-  color: white;
-  border-color: #8B5A96;
+    background-color: #8B5A96;
+    color: white;
+    border-color: #8B5A96;
 }
 
 .helper-mode-toggle.helper-mode-on:hover {
-  background-color: #7A4D87;
-  color: white !important;
+    background-color: #7A4D87;
+    color: white !important;
 }
 
 .show-letter-btn {
-  background-color: #02484d;
-  color: white;
-  padding: 4px 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s ease;
+    background-color: #02484d;
+    color: white;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
 }
 
 .show-letter-btn:hover {
-  background-color: #03282b;
+    background-color: #03282b;
 }
 
 .show-letter-btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+    background-color: #ccc;
+    cursor: not-allowed;
 }
 
+/* Helper mode word display */
 .word-masked {
-  font-family: monospace;
-  letter-spacing: 2px;
+    font-family: monospace;
+    letter-spacing: 2px;
 }
 
+/* Show Letter column styling */
 th.show-letter-header,
 td.show-letter-cell {
-  text-align: center;
-  width: 80px;
-  padding: 4px;
+    text-align: center;
+    width: 80px;
+    padding: 4px;
 }
 
+/* Hide elements in helper mode */
 .helper-mode-hidden {
-  display: none !important;
+    display: none !important;
 }
 
 </style>
@@ -710,8 +690,40 @@ td.show-letter-cell {
 
   <!-- Wrap dynamic content to prevent layout shifts -->
   <div class="results-section">
-    <div class="word-results-container">
-      {{blossom_table|safe}}
+    <div class="results-section">
+      <div class="word-results-container">
+        {% if blossom_table %}
+          {{blossom_table|safe}}
+        {% else %}
+          <div class="loading-placeholder">
+            Enter letters above to find words...
+          </div>
+        {% endif %}
+      </div>
+      <br>
+      {% if show_load_more %}
+      <form method="POST" action="/blossom" style="display: inline;">
+        <input type="hidden" name="must_have" value="{{must_have_val}}">
+        <input type="hidden" name="may_have" value="{{may_have_val}}">
+        <input type="hidden" name="petal_letter" value="{{petal_letter}}">
+        <input type="hidden" name="current_count" value="{{current_count}}">
+        <button type="submit" name="load_more" value="true" style="
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            color: #666;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            min-width: 150px;
+            height: 40px;
+        ">+ Show 25 more</button>
+      </form>
+      <br>
+      <br>
+      {% endif %}
+      {{valid_word_count}}
     </div>
     <br>
     {% if show_load_more %}
