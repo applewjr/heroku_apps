@@ -1,9 +1,8 @@
 
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
 
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-TLNFREYPWR"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -32,27 +31,21 @@
     <meta property="og:site_name" content="JJ Apps">
     <meta name="theme-color" content="#02484d">
 
-    <!-- <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"> -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <!-- <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"></noscript> -->
+    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"> -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"></noscript>
 
     {% block meta %}{% endblock %}
     <title>{% block title %}{% endblock %}</title>
 
-    <!-- Favicon -->
-    <!-- <link rel="icon" href="{{ url_for('static', filename='jj.ico') }}" type="image/x-icon">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='jj.ico') }}" type="image/x-icon"> -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
-    <!-- Apple Touch Icons -->
-    <!-- <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='apple-touch-icon-152x152.png') }}">
-    <link rel="apple-touch-icon" sizes="120x120" href="{{ url_for('static', filename='apple-touch-icon-120x120.png') }}"> -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
 
-    <!-- Legacy Apple Touch Icons (precomposed) -->
-    <!-- These are generally not needed anymore as newer iOS versions ignore these. However, if you want to ensure no errors are thrown for any reason, include them: -->
-    <!-- <link rel="apple-touch-icon-precomposed" sizes="120x120" href="{{ url_for('static', filename='apple-touch-icon-120x120-precomposed.png') }}">
-    <link rel="apple-touch-icon-precomposed" href="{{ url_for('static', filename='apple-touch-icon-precomposed.png') }}"> -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 
   </head>
   <body>
@@ -79,27 +72,14 @@
                 <a class="dropdown-item" href="/blossom">Blossom Solver</a>
                 <a class="dropdown-item" href="/wordle">Wordle Solver</a>
                 <a class="dropdown-item" href="/quordle">Quordle Solver</a>
-                <!-- <a class="dropdown-item" href="/quordle_mobile">Quordle Solver (Mobile)</a> -->
                 <a class="dropdown-item" href="/antiwordle">Antiwordle Solver</a>
                 <a class="dropdown-item" href="/wordiply">Wordiply Solver</a>
                 <a class="dropdown-item" href="/fixer">"Last Letter" Solver</a>
 
                 <div class="dropdown-divider"></div>
 
-                <!-- <a class="dropdown-item" href="/stock_analysis">Stock Analysis</a> -->
                 <a class="dropdown-item" href="/common_denominator">Common Denominator</a>
                 <a class="dropdown-item" href="/any_word">Any Word Finder</a>
-
-                <!-- <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/task_mysql">To Do List (MySQL)</a>
-                <a class="dropdown-item" href="/task_db">Task List (SQLite)</a>
-                <a class="dropdown-item" href="/dogs">Dog Counter</a>
-
-                <div class="dropdown-divider"></div>
-
-                <a class="dropdown-item" href="/high_score">High Score (MySQL)</a> -->
-                <!-- <a class="dropdown-item" href="/quill">Text Editor</a> -->
 
                 <div class="dropdown-divider"></div>
 
@@ -132,14 +112,6 @@
               </a>
             </li>
 
-            <!-- <li class="nav-item">
-              <a class="nav-link" href="https://www.jamesapplewhite.com/resume" target="_blank">
-                <div class="pulsing-image27">
-                    <img alt="Resume" src="/static/resume2.png" width=27 height=27>
-                </div>
-              </a>
-            </li> -->
-
           </div>
       </nav>
       {% block content %}
@@ -147,8 +119,6 @@
       <script defer src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
       <script defer src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
       <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-      </body>
-</html>
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -170,22 +140,5 @@
   });
 </script>
 
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://www.googletagmanager.com">
-    <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
-
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width", initial-scale="1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    {% block head %}{% endblock %}
-</head>
-<body>
-    {% block body %}{% endblock %}
 </body>
 </html>
