@@ -601,6 +601,39 @@ td.show-letter-cell {
     display: none !important;
 }
 
+.results-box {
+  width: 100%;
+  max-width: 800px;
+  height: 1050px; /* Fixed height - adjust based on your needs */
+  margin: 20px auto;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  background: #fafbfc;
+  position: relative;
+  overflow-y: auto; /* Scroll if content exceeds height */
+}
+
+.empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+}
+
+.table-content {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 15px;
+  box-sizing: border-box;
+}
+
 </style>
 
 <form name="form1" action="/blossom" method="post">
@@ -690,8 +723,18 @@ td.show-letter-cell {
 
   <!-- Wrap dynamic content to prevent layout shifts -->
   <div class="results-section">
-    <div class="word-results-container">
-      {{blossom_table|safe}}
+    <div class="results-box">
+      {% if not blossom_table %}
+      <div class="empty-state">
+        <div class="empty-state-icon">🌸</div>
+        <h3>Ready to Find Words</h3>
+        <p>Enter all 7 letters and click any petal<br>to see word results here</p>
+      </div>
+      {% else %}
+      <div class="table-content">
+        {{blossom_table|safe}}
+      </div>
+      {% endif %}
     </div>
     <br>
     {% if show_load_more %}
