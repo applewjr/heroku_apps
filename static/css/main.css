@@ -5,7 +5,6 @@ body {
 }
 
 body, html {
-    /* margin: 20px; */
     font-family: sans-serif;
     background-color: white;
     color:gray;
@@ -37,16 +36,12 @@ tr:nth-child(even) {
 input[type=text], select {
   width: 50;
   padding: 12px 20px;
-  /* margin: 8px 0; */
   display: inline-block;
   border: 1px solid #013438;
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  /* background-color: white; */
   color:white;
-  /* margin-right: 40px; */
-
 }
 
 input[type=submit] {
@@ -54,7 +49,6 @@ input[type=submit] {
   background-color: #02484d;
   color: white;
   padding: 10px 20px;
-  /* margin: 8px 0; */
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -66,7 +60,7 @@ input[type=submit]:hover {
   
 }
 
-/* .button {
+.button {
   background-color: #02484d;
   border: none;
   color: white;
@@ -90,7 +84,7 @@ input[type=submit]:hover {
   font-size: 16px;
   cursor: pointer;
   color:gray;
-} */
+}
 
 center{
     margin-left: auto;
@@ -116,15 +110,12 @@ tr:nth-child(even) {
 input[type=text], select {
   width: 50;
   padding: 12px 20px;
-  /* margin: 8px 0; */
   display: inline-block;
   border: 1px solid #013438;
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  /* background-color: white; */
   color:black;
-  /* margin-right: 40px; */
 
 }
 
@@ -133,7 +124,6 @@ input[type=submit] {
   background-color: #02484d;
   color: white;
   padding: 10px 20px;
-  /* margin: 8px 0; */
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -154,7 +144,6 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
 }
 
@@ -168,15 +157,11 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
   color:gray;
 }
 
-
-
-
-/* .column {
+.column {
   float: left;
   width: 50%;
 }
@@ -185,38 +170,30 @@ input[type=submit]:hover {
   content: "";
   display: table;
   clear: both;
-} */
-
-
+}
 
 .column3 {
   float: left;
   width: 33.33%;
 }
 
-/* Clear floats after the columns */
 .row3:after {
   content: "";
   display: table;
   clear: both;
 }
 
-
-
-
-/* .middle75 {
+.middle75 {
   width: 75%;
-} */
-
+}
 
 .pad_lr_30 {
   padding: 0px 30px 0px 30px;
   }
 
-/* .pad_lr_100 {
+.pad_lr_100 {
   padding: 0px 100px 0px 100px;
-  } */
-
+  }
 
 .spinning-image {
   width: 45px;
@@ -244,9 +221,7 @@ input[type=submit]:hover {
   100% { transform: rotate(-360deg); }
 }
 
-
-
-/* .pulsing-image {
+.pulsing-image {
   width: 40px;
   height: 40px;
   overflow: hidden;
@@ -264,9 +239,9 @@ input[type=submit]:hover {
 
 .pulsing-image:hover img {
   transform: scale(1.2);
-} */
+}
 
-/* .pulsing-image {
+.pulsing-image {
   width: 40px;
   height: 40px;
   overflow: hidden;
@@ -285,10 +260,8 @@ input[type=submit]:hover {
 .pulsing-image:hover img {
   transform: scale(1.1);
 }
-*/
 
-
-/* .pulsing-image25 {
+.pulsing-image25 {
   width: 25px;
   height: 25px;
   overflow: hidden;
@@ -307,11 +280,8 @@ input[type=submit]:hover {
 .pulsing-image25:hover img {
   transform: scale(1.1);
 }
-*/
 
-
-
-/* .pulsing-image27 {
+.pulsing-image27 {
   width: 27px;
   height: 27px;
   overflow: hidden;
@@ -330,31 +300,24 @@ input[type=submit]:hover {
 .pulsing-image27:hover img {
   transform: scale(1.1);
 }
-  */
-
-
-
 
 a {
   color: black;
-  text-decoration: none; /* Optional: removes underline */
+  text-decoration: none;
 }
 
 a:hover {
-  color: #6aaa64; /* Change the color to blue on hover */
-  transform: scale(1.03); /* Add scale effect on hover */
+  color: #6aaa64;
+  transform: scale(1.03);
 }
 
-
-
-/* .hr_index {
+.hr_index {
   border: none;
   height: 1.3px;
   background-color: gray;
   width: 70%;
   margin: 0 auto;
-} */
-
+}
 
 ul {
   margin: 0;
@@ -362,32 +325,20 @@ ul {
 }
 
 li {
-  margin-bottom: 10px; /* adjust this value to change the spacing */
+  margin-bottom: 10px;
 }
 
-
-
-
-
-/* .container {
+.container {
   max-width: 800px;
   margin: 0 auto;
-} */
+}
 
-/* .title {
+.title {
   text-align: center;
   font-size: 3rem;
   margin-top: 3rem;
   margin-bottom: 3rem;
-} */
-
-
-
-
-
-
-
-
+}
 
 .box {
   display: inline-block;
