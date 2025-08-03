@@ -66,7 +66,7 @@ input[type=submit]:hover {
   
 }
 
-.button {
+/* .button {
   background-color: #02484d;
   border: none;
   color: white;
@@ -75,7 +75,6 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
 }
 
@@ -89,19 +88,10 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
   color:gray;
-}
-body, html {
-    /* margin: 20px; */
-    font-family: sans-serif;
-    background-color: white;
-    color:gray;
-    lighting-color:blue;
-    outline-color:white;
-    text-align:center;
-}
+} */
+
 center{
     margin-left: auto;
     margin-right: auto;
@@ -186,17 +176,16 @@ input[type=submit]:hover {
 
 
 
-.column {
+/* .column {
   float: left;
   width: 50%;
 }
 
-/* Clear floats after the columns */
 .row:after {
   content: "";
   display: table;
   clear: both;
-}
+} */
 
 
 
@@ -224,13 +213,12 @@ input[type=submit]:hover {
   padding: 0px 30px 0px 30px;
   }
 
-.pad_lr_100 {
+/* .pad_lr_100 {
   padding: 0px 100px 0px 100px;
-  }
+  } */
 
 
-/* Define the spinning image styles */
-.spinning-image {
+/* .spinning-image {
   width: 45px;
   height: 45px;
   overflow: hidden;
@@ -244,7 +232,6 @@ input[type=submit]:hover {
   object-fit: cover;
 }
 
-/* Apply the hover animation */
 .spinning-image:hover img {
   animation-name: spinning-image-rotate;
   animation-duration: 2s;
@@ -252,11 +239,10 @@ input[type=submit]:hover {
   animation-iteration-count: infinite;
 }
 
-/* Define the hover animation */
 @keyframes spinning-image-rotate {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-360deg); }
-}
+} */
 
 
 
@@ -280,14 +266,13 @@ input[type=submit]:hover {
   transform: scale(1.2);
 } */
 
-/* Define the pulsing image styles */
-.pulsing-image {
+/* .pulsing-image {
   width: 40px;
   height: 40px;
   overflow: hidden;
   position: relative;
   transition: transform 0.5s ease;
-}
+} 
 
 .pulsing-image img {
   width: 100%;
@@ -297,15 +282,13 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image:hover img {
   transform: scale(1.1);
 }
+*/
 
 
-
-/* Define the pulsing image styles */
-.pulsing-image25 {
+/* .pulsing-image25 {
   width: 25px;
   height: 25px;
   overflow: hidden;
@@ -321,22 +304,20 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image25:hover img {
   transform: scale(1.1);
 }
+*/
 
 
 
-
-/* Define the pulsing image styles */
-.pulsing-image27 {
+/* .pulsing-image27 {
   width: 27px;
   height: 27px;
   overflow: hidden;
   position: relative;
   transition: transform 0.5s ease;
-}
+} 
 
 .pulsing-image27 img {
   width: 100%;
@@ -346,10 +327,10 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image27:hover img {
   transform: scale(1.1);
 }
+  */
 
 
 
@@ -366,14 +347,13 @@ a:hover {
 
 
 
-/* Define the styles for the horizontal line */
-.hr_index {
-  border: none; /* Remove the default border of the hr element */
-  height: 1.3px; /* Set the height of the hr element to 1px */
-  background-color: gray; /* Set the color of the hr element to black */
-  width: 70%; /* Set the width of the hr element to 70% of the container */
-  margin: 0 auto; /* Center the hr element horizontally */
-}
+/* .hr_index {
+  border: none;
+  height: 1.3px;
+  background-color: gray;
+  width: 70%;
+  margin: 0 auto;
+} */
 
 
 ul {
@@ -389,17 +369,17 @@ li {
 
 
 
-.container {
+/* .container {
   max-width: 800px;
   margin: 0 auto;
-}
+} */
 
-.title {
+/* .title {
   text-align: center;
   font-size: 3rem;
   margin-top: 3rem;
   margin-bottom: 3rem;
-}
+} */
 
 
 
@@ -412,7 +392,6 @@ li {
 .box {
   display: inline-block;
   border: 2px solid #ddd;
-  /* background-color: #ddd; */
   border-radius: 10px;
   width: 90%;
   margin: 0 auto;
