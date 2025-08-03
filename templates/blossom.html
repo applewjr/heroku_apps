@@ -601,39 +601,75 @@ td.show-letter-cell {
     display: none !important;
 }
 
-.results-box {
-  width: 100%;
-  max-width: 800px;
-  height: 1050px; /* Fixed height - adjust based on your needs */
-  margin: 20px auto;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
-  background: #fafbfc;
-  position: relative;
-  overflow-y: auto; /* Scroll if content exceeds height */
+.even-row {
+    background-color: #f9f9f9;
 }
 
-.empty-state {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #6c757d;
+/* Visibility helper classes */
+.visible { display: block; }
+.hidden { display: none; }
+
+/* Placeholder table styles */
+table.blossom-info,
+.blossom-placeholder-table {
+    width: 50%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
-.table-content {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  padding: 15px;
-  box-sizing: border-box;
+@media (max-width: 768px) {
+    table.blossom-info,
+    .blossom-placeholder-table {
+        width: 100%;
+    }
 }
 
+table.blossom-info th,
+table.blossom-info td,
+.blossom-placeholder-table th,
+.blossom-placeholder-table td {
+    border: 1px solid #02484d;
+    padding: 8px;
+    text-align: center;
+}
+
+table.blossom-info th,
+.blossom-placeholder-table th {
+    background-color: #02484d;
+    color: white;
+    font-weight: bold;
+}
+
+table.blossom-info tbody tr:nth-child(even),
+.blossom-placeholder-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.placeholder-cell {
+    height: 20px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: placeholderLoading 1.5s infinite;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+
+.placeholder-checkbox {
+    width: 16px;
+    height: 16px;
+    background-color: #e0e0e0;
+    border-radius: 2px;
+    margin: 0 auto;
+}
+
+@keyframes placeholderLoading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
 </style>
 
 <form name="form1" action="/blossom" method="post">
@@ -723,18 +759,37 @@ td.show-letter-cell {
 
   <!-- Wrap dynamic content to prevent layout shifts -->
   <div class="results-section">
-    <div class="results-box">
-      {% if not blossom_table %}
-      <div class="empty-state">
-        <div class="empty-state-icon">🌸</div>
-        <h3>Ready to Find Words</h3>
-        <p>Enter all 7 letters and click any petal<br>to see word results here</p>
+    <div class="word-results-container">
+      <!-- Placeholder table (shown when no data) -->
+      <div id="placeholder-table" class="{% if blossom_table %}hidden{% else %}visible{% endif %}">
+        <table class="blossom-placeholder-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Used</th>
+              <th>Word</th>
+              <th style="width: 80px;">Score</th>
+              <th style="width: 80px;">Pangram</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in range(25) %}
+            <tr>
+              <td><div class="placeholder-checkbox"></div></td>
+              <td><div class="placeholder-cell"></div></td>
+              <td><div class="placeholder-cell"></div></td>
+              <td><div class="placeholder-cell"></div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      {% else %}
-      <div class="table-content">
-        {{blossom_table|safe}}
+      
+      <!-- Real table (shown when data exists) -->
+      <div id="real-table" class="{% if blossom_table %}visible{% else %}hidden{% endif %}">
+        {% if blossom_table %}
+          {{blossom_table|safe}}
+        {% endif %}
       </div>
-      {% endif %}
     </div>
     <br>
     {% if show_load_more %}
@@ -903,6 +958,29 @@ function initializeBlossomApp() {
   let centerLetter = '';
   let petalLetters = ['', '', '', '', '', ''];
   let selectedPetal = '';
+
+  // Helper mode functionality
+  let isHelperMode = false;
+  let revealedLetters = {}; // Track how many letters are revealed for each word
+
+  // Add this function to handle table visibility
+  function updateTableDisplay(hasData) {
+    const placeholderTable = document.getElementById('placeholder-table');
+    const realTable = document.getElementById('real-table');
+    
+    if (hasData) {
+        placeholderTable.className = 'hidden';
+        realTable.className = 'visible';
+    } else {
+        placeholderTable.className = 'visible';
+        realTable.className = 'hidden';
+    }
+  }
+
+  // Call this when form is submitted to show loading state
+  function showLoadingState() {
+    updateTableDisplay(false);
+  }
 
   // Update hidden form inputs
   function updateHiddenInputs() {
@@ -1073,6 +1151,9 @@ function initializeBlossomApp() {
       document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
       document.querySelector(`.petal-${index + 1}`).classList.add('selected');
       
+      // Show loading state before form submission
+      showLoadingState();
+      
       document.querySelector('form[name="form1"]').submit();
     }
   }
@@ -1111,7 +1192,7 @@ function initializeBlossomApp() {
       if (allLettersEntered) {
         instruction.textContent = 'All letters entered! Click any petal to calculate words with that bonus letter.';
       } else {
-        instruction.textContent = 'Enter letters into the petals below to match the Blossom game you aim to solve.';
+        instruction.textContent = 'Enter your letters below. Click any petal to calculate words with that bonus letter.';
       }
     }
   }
@@ -1332,10 +1413,6 @@ function initializeBlossomApp() {
     window.location.href = '/blossom/reset';
   }
 
-  // Helper mode functionality
-  let isHelperMode = false;
-  let revealedLetters = {}; // Track how many letters are revealed for each word
-
   // Store helper mode in sessionStorage to persist across table updates
   function saveHelperModeState() {
       sessionStorage.setItem('blossomHelperMode', JSON.stringify({
@@ -1447,7 +1524,7 @@ function initializeBlossomApp() {
 
   // Update entire table for helper mode
   function updateTableForHelperMode() {
-      const table = document.querySelector('table');
+      const table = document.querySelector('#real-table table');
       if (!table) return;
       
       // Handle header row
@@ -1586,7 +1663,7 @@ function initializeBlossomApp() {
       createHelperModeButton();
       
       // Store original words as data attributes
-      const wordCells = document.querySelectorAll('table td:nth-child(2)');
+      const wordCells = document.querySelectorAll('#real-table table td:nth-child(2)');
       wordCells.forEach(cell => {
           const checkbox = cell.parentElement.querySelector('.word-checkbox');
           if (checkbox) {
@@ -1605,12 +1682,12 @@ function initializeBlossomApp() {
   const observer = new MutationObserver(function(mutations) {
       mutations.forEach(function(mutation) {
           if (mutation.type === 'childList') {
-              // Check if a table was added or modified
+              // Check if a table was added or modified in the real-table div
               const hasTableChange = Array.from(mutation.addedNodes).some(node => 
                   node.nodeName === 'TABLE' || (node.querySelector && node.querySelector('table'))
               );
               
-              if (hasTableChange) {
+              if (hasTableChange && mutation.target.id === 'real-table') {
                   // Re-initialize helper mode after table update
                   setTimeout(initializeHelperMode, 10);
               }
@@ -1657,6 +1734,8 @@ function initializeBlossomApp() {
     const petalIndex = petalLetters.indexOf(initialSelectedPetal.toUpperCase());
     if (petalIndex !== -1) {
       document.querySelector(`.petal-${petalIndex + 1}`).classList.add('selected');
+      // Show real table since we have data
+      updateTableDisplay(true);
     }
   }
   
@@ -1690,6 +1769,27 @@ function initializeBlossomApp() {
   window.showResetConfirmation = showResetConfirmation;
   window.cancelReset = cancelReset;
   window.confirmReset = confirmReset;
+  window.updateTableDisplay = updateTableDisplay;
+  window.showLoadingState = showLoadingState;
+}
+
+// Add this function to handle table visibility
+function updateTableDisplay(hasData) {
+    const placeholderTable = document.getElementById('placeholder-table');
+    const realTable = document.getElementById('real-table');
+    
+    if (hasData) {
+        placeholderTable.className = 'hidden';
+        realTable.className = 'visible';
+    } else {
+        placeholderTable.className = 'visible';
+        realTable.className = 'hidden';
+    }
+}
+
+// Call this when form is submitted to show loading state
+function showLoadingState() {
+    updateTableDisplay(false);
 }
 </script>
 

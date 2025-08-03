@@ -356,8 +356,15 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     top_df.insert(0, 'Used', checkbox_html)
     
     # Convert to HTML with escape=False to render HTML checkboxes
-    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', 'Pangram'], escape=False)
-        
+    # blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', 'Pangram'], escape=False)
+    blossom_table = top_df.to_html(
+        index=False, 
+        columns=['Used', 'Word', 'Score', 'Pangram'], 
+        escape=False,
+        classes='blossom-info',  # This adds your existing CSS class
+        table_id='blossom-results-table'
+    )
+
     # Return table, total count, and load more flag
     return blossom_table, total_valid_words, show_load_more
 
