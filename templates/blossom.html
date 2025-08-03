@@ -688,7 +688,34 @@ td.show-letter-cell {
   <br>
   <br>
 
-
+  <!-- Wrap dynamic content to prevent layout shifts -->
+  <div class="results-section">
+    <div class="word-results-container">
+      {{blossom_table|safe}}
+    </div>
+    <br>
+    {% if show_load_more %}
+    <form method="POST" action="/blossom" style="display: inline;">
+      <input type="hidden" name="must_have" value="{{must_have_val}}">
+      <input type="hidden" name="may_have" value="{{may_have_val}}">
+      <input type="hidden" name="petal_letter" value="{{petal_letter}}">
+      <input type="hidden" name="current_count" value="{{current_count}}">
+      <button type="submit" name="load_more" value="true" style="
+          background-color: #f5f5f5;
+          border: 1px solid #ddd;
+          color: #666;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          font-family: inherit;
+      ">+ Show 25 more</button>
+    </form>
+    <br>
+    <br>
+    {% endif %}
+    {{valid_word_count}}
+  </div>
 
   <br>
   <br>
@@ -817,36 +844,6 @@ td.show-letter-cell {
       </span>
     </span>
   </p>
-
-  <!-- Wrap dynamic content to prevent layout shifts -->
-  <div class="results-section">
-    <div class="word-results-container">
-      {{blossom_table|safe}}
-    </div>
-    <br>
-    {% if show_load_more %}
-    <form method="POST" action="/blossom" style="display: inline;">
-      <input type="hidden" name="must_have" value="{{must_have_val}}">
-      <input type="hidden" name="may_have" value="{{may_have_val}}">
-      <input type="hidden" name="petal_letter" value="{{petal_letter}}">
-      <input type="hidden" name="current_count" value="{{current_count}}">
-      <button type="submit" name="load_more" value="true" style="
-          background-color: #f5f5f5;
-          border: 1px solid #ddd;
-          color: #666;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 13px;
-          font-family: inherit;
-      ">+ Show 25 more</button>
-    </form>
-    <br>
-    <br>
-    {% endif %}
-    {{valid_word_count}}
-  </div>
-
   <br>
   <br>
   </center>
