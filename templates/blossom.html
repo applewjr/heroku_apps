@@ -20,18 +20,31 @@
 {% block content %}
 
 <style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+      line-height: 1.4;
+  }
+
   /* CLS Prevention - Critical fixes */
   body {
     min-height: 100vh; /* Prevent body from jumping */
   }
 
-  /* Reserve space for dynamic content to prevent layout shifts */
   .word-results-container {
-    min-height: 400px; /* Reserve space before table loads */
+      min-height: 500px; /* up from 400px */
   }
 
   .results-section {
-    min-height: 200px; /* Prevent content jumping */
+      min-height: 600px; /* up from 200px */
+      contain: layout style;
   }
 
   /* Prevent shifts during JavaScript initialization */
@@ -39,8 +52,8 @@
     contain: layout; /* Isolate layout changes */
   }
 
-  /* Reset Letters Button - Fixed positioning */
-  .reset-letters-btn {
+  .reset-letters-btn,
+  .helper-mode-toggle {
     background-color: #f5f5f5;
     border: 1px solid #ddd;
     color: #666;
@@ -82,15 +95,11 @@
       color: lightgrey;
   }
 
-table.blossom-info {
-    width: 50%;
-    margin: 20px auto;
-    border-collapse: collapse;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 8px;
-    overflow: hidden;
-}
+  table.blossom-info {
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 0;
+  }
 
   @media (max-width: 768px) {
       table.blossom-info {
@@ -217,14 +226,8 @@ table.blossom-info {
       }
   }
 
-  /* Override global input styles for blossom */
   .blossom-container input[type="text"] {
-      border: none !important;
-      background: transparent !important;
-      box-sizing: border-box !important;
-      width: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
+      font-size: 16px; /* Prevents iOS zoom */
   }
 
   /* Center letter styling - circular */
@@ -522,25 +525,6 @@ table.blossom-info {
 
 .duplicate-warning {
   animation: warningSlideIn 0.3s ease-out;
-}
-
-/* Helper mode styles */
-.helper-mode-toggle {
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    color: #666;
-    padding: 12px 24px;
-    border-radius: 12px 18px 12px 18px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    text-decoration: none;
-    display: inline-block;
-    /* position: relative; */
-    z-index: 10;
-    margin-top: -40px;
-    margin-right: 10px;
-    transition: all 0.2s ease;
 }
 
 .helper-mode-toggle:hover {
