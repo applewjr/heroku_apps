@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Hex Toggle Game</title>
+    <title>Hex Game</title>
     <style>
         * {
             box-sizing: border-box;
@@ -206,7 +206,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔷 Hex Toggle Puzzle</h1>
+        <h1>Hex Game</h1>
         
         <div class="instructions">
             <strong>How to play:</strong> Click any hexagon to toggle its color and its neighbors' colors.
@@ -230,15 +230,16 @@
                 <button id="restartButton" class="btn">🔄 New Puzzle</button>
                 <button id="modeButton" class="btn">🎨 Switch Mode</button>
             </div>
-            
+            <div class="game-stats">
+                <div id="clickCount" class="stat-item">Clicks: 0</div>
+                <div id="modeInfo" class="stat-item">Black/White Mode</div>
+                <div id="highScore" class="stat-item stat-best">Best: -</div>
+            </div>
+
             <div id="status"></div>
         </div>
 
-        <div class="game-stats">
-            <div id="clickCount" class="stat-item">Clicks: 0</div>
-            <div id="modeInfo" class="stat-item">Black/White Mode</div>
-            <div id="highScore" class="stat-item stat-best">Best: -</div>
-        </div>
+
     </div>
 
     <script>
