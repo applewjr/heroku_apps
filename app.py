@@ -905,6 +905,20 @@ def blossom_solver():
                 if conn is not None and conn.is_connected():
                     conn.close()
 
+            # # log clicks and inputs - use actual displayed count - redis mode
+            # stream_name = 'blossom_logging'
+            # blossom_data_dict_abbr = {
+            #     'must_have': must_have,
+            #     'may_have': may_have,
+            #     'petal_letter': petal_letter,
+            #     'list_len': str(min(current_count, total_valid_words))
+            # }
+            # # insert into a redis cloud instance
+            # try:
+            #     add_data_to_stream(stream_name, blossom_data_dict_abbr)
+            # except:
+            #     print('blossom_logging_failed')
+
             return render_template("blossom.html", 
                                 blossom_table=blossom_table, 
                                 must_have_val=must_have, 

@@ -5,7 +5,6 @@ body {
 }
 
 body, html {
-    /* margin: 20px; */
     font-family: sans-serif;
     background-color: white;
     color:gray;
@@ -37,16 +36,12 @@ tr:nth-child(even) {
 input[type=text], select {
   width: 50;
   padding: 12px 20px;
-  /* margin: 8px 0; */
   display: inline-block;
   border: 1px solid #013438;
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  /* background-color: white; */
   color:white;
-  /* margin-right: 40px; */
-
 }
 
 input[type=submit] {
@@ -54,7 +49,6 @@ input[type=submit] {
   background-color: #02484d;
   color: white;
   padding: 10px 20px;
-  /* margin: 8px 0; */
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -75,7 +69,6 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
 }
 
@@ -89,19 +82,10 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
   color:gray;
 }
-body, html {
-    /* margin: 20px; */
-    font-family: sans-serif;
-    background-color: white;
-    color:gray;
-    lighting-color:blue;
-    outline-color:white;
-    text-align:center;
-}
+
 center{
     margin-left: auto;
     margin-right: auto;
@@ -126,15 +110,12 @@ tr:nth-child(even) {
 input[type=text], select {
   width: 50;
   padding: 12px 20px;
-  /* margin: 8px 0; */
   display: inline-block;
   border: 1px solid #013438;
   border-radius: 6px;
   border-color: #013438;
   box-sizing: border-box;
-  /* background-color: white; */
   color:black;
-  /* margin-right: 40px; */
 
 }
 
@@ -143,7 +124,6 @@ input[type=submit] {
   background-color: #02484d;
   color: white;
   padding: 10px 20px;
-  /* margin: 8px 0; */
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -164,7 +144,6 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
 }
 
@@ -178,47 +157,35 @@ input[type=submit]:hover {
   text-decoration: none;
   display: inline-block;
   font-size: 16px;
-  /* margin: 4px 2px; */
   cursor: pointer;
   color:gray;
 }
-
-
-
 
 .column {
   float: left;
   width: 50%;
 }
 
-/* Clear floats after the columns */
 .row:after {
   content: "";
   display: table;
   clear: both;
 }
 
-
-
 .column3 {
   float: left;
   width: 33.33%;
 }
 
-/* Clear floats after the columns */
 .row3:after {
   content: "";
   display: table;
   clear: both;
 }
 
-
-
-
-/* .middle75 {
+.middle75 {
   width: 75%;
-} */
-
+}
 
 .pad_lr_30 {
   padding: 0px 30px 0px 30px;
@@ -228,8 +195,6 @@ input[type=submit]:hover {
   padding: 0px 100px 0px 100px;
   }
 
-
-/* Define the spinning image styles */
 .spinning-image {
   width: 45px;
   height: 45px;
@@ -244,7 +209,6 @@ input[type=submit]:hover {
   object-fit: cover;
 }
 
-/* Apply the hover animation */
 .spinning-image:hover img {
   animation-name: spinning-image-rotate;
   animation-duration: 2s;
@@ -252,15 +216,12 @@ input[type=submit]:hover {
   animation-iteration-count: infinite;
 }
 
-/* Define the hover animation */
 @keyframes spinning-image-rotate {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-360deg); }
 }
 
-
-
-/* .pulsing-image {
+.pulsing-image {
   width: 40px;
   height: 40px;
   overflow: hidden;
@@ -278,16 +239,15 @@ input[type=submit]:hover {
 
 .pulsing-image:hover img {
   transform: scale(1.2);
-} */
+}
 
-/* Define the pulsing image styles */
 .pulsing-image {
   width: 40px;
   height: 40px;
   overflow: hidden;
   position: relative;
   transition: transform 0.5s ease;
-}
+} 
 
 .pulsing-image img {
   width: 100%;
@@ -297,14 +257,10 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image:hover img {
   transform: scale(1.1);
 }
 
-
-
-/* Define the pulsing image styles */
 .pulsing-image25 {
   width: 25px;
   height: 25px;
@@ -321,22 +277,17 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image25:hover img {
   transform: scale(1.1);
 }
 
-
-
-
-/* Define the pulsing image styles */
 .pulsing-image27 {
   width: 27px;
   height: 27px;
   overflow: hidden;
   position: relative;
   transition: transform 0.5s ease;
-}
+} 
 
 .pulsing-image27 img {
   width: 100%;
@@ -346,35 +297,27 @@ input[type=submit]:hover {
   transition: transform 0.5s ease;
 }
 
-/* Apply the hover animation */
 .pulsing-image27:hover img {
   transform: scale(1.1);
 }
 
-
-
-
 a {
   color: black;
-  text-decoration: none; /* Optional: removes underline */
+  text-decoration: none;
 }
 
 a:hover {
-  color: #6aaa64; /* Change the color to blue on hover */
-  transform: scale(1.03); /* Add scale effect on hover */
+  color: #6aaa64;
+  transform: scale(1.03);
 }
 
-
-
-/* Define the styles for the horizontal line */
 .hr_index {
-  border: none; /* Remove the default border of the hr element */
-  height: 1.3px; /* Set the height of the hr element to 1px */
-  background-color: gray; /* Set the color of the hr element to black */
-  width: 70%; /* Set the width of the hr element to 70% of the container */
-  margin: 0 auto; /* Center the hr element horizontally */
+  border: none;
+  height: 1.3px;
+  background-color: gray;
+  width: 70%;
+  margin: 0 auto;
 }
-
 
 ul {
   margin: 0;
@@ -382,12 +325,8 @@ ul {
 }
 
 li {
-  margin-bottom: 10px; /* adjust this value to change the spacing */
+  margin-bottom: 10px;
 }
-
-
-
-
 
 .container {
   max-width: 800px;
@@ -401,18 +340,9 @@ li {
   margin-bottom: 3rem;
 }
 
-
-
-
-
-
-
-
-
 .box {
   display: inline-block;
   border: 2px solid #ddd;
-  /* background-color: #ddd; */
   border-radius: 10px;
   width: 90%;
   margin: 0 auto;
