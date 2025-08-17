@@ -1,430 +1,625 @@
-{% extends 'base.html' %}
-
-{% block title %}Hex Game{% endblock %}
-
-{% block content %}
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Hex Toggle Game - Flask Version</title>
-  <style>
-      body {
-          background-color: rgb(30, 30, 30);
-          color: white;
-          font-family: Arial, sans-serif;
-          margin: 0;
-          padding: 0;
-      }
-      #game-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-      }
-      #gameCanvas {
-          background-color: rgb(30, 30, 30);
-          border: 1px solid #333;
-          margin-top: 20px;
-      }
-      #buttons {
-          margin: 10px;
-      }
-      button {
-          background-color: rgb(100, 100, 100);
-          border: 2px solid rgb(50, 50, 50);
-          color: white;
-          font-size: 16px;
-          padding: 6px 12px;
-          margin: 5px;
-          cursor: pointer;
-      }
-      button:hover {
-          background-color: rgb(150, 150, 150);
-      }
-      #status {
-          margin-top: 10px;
-          font-size: 20px;
-          color: red;
-      }
-      /* Adjust the top offsets for these two so they don't overlap your navbar */
-      #clickCount {
-          position: absolute;
-          left: 10px;
-          top: 80px;   /* Increased from 10px -> 80px */
-          font-size: 24px;
-          color: red;
-      }
-      #modeInfo {
-          position: absolute;
-          right: 10px;
-          top: 80px;   /* Increased from 10px -> 80px */
-          font-size: 24px;
-          color: red;
-      }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Hex Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background-color: #ffffff;
+            color: #495057;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            line-height: 1.4;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            line-height: 1.2;
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px auto;
+            max-width: 700px;
+            font-size: 14px;
+            border: 1px solid #e9ecef;
+            text-align: center;
+        }
+        
+        .instructions strong {
+            color: #212529;
+            display: block;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        
+        .mode-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 15px 0 5px 0;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-circle {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #777;
+            border-radius: 50%;
+        }
+        
+        .legend-white { background-color: #ffffff; }
+        .legend-black { background-color: #1a1a1a; }
+        .legend-red { background-color: #ff6b6b; }
+        .legend-blue { background-color: #4ecdc4; }
+        
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        #gameCanvas {
+            background-color: #e8eaed;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            touch-action: none;
+        }
+        
+        .game-controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-family: inherit;
+        }
+        
+        .btn:hover {
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+        }
+        
+        .game-stats {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #495057;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .stat-best {
+            color: #856404;
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+        }
+        
+        #status {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 20px 0;
+            min-height: 24px;
+            color: #28a745;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .game-stats {
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .stat-item {
+                min-width: 120px;
+            }
+            
+            .mode-legend {
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .btn {
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+        }
+        
+        /* Success animation */
+        @keyframes celebrate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        .celebrating {
+            animation: celebrate 0.6s ease-in-out;
+        }
+    </style>
 </head>
 <body>
-<div id="game-container">
-  <canvas id="gameCanvas" width="900" height="600"></canvas>
+    <div class="container">
+        <h1>Hex Game</h1>
+        
+        <div class="instructions">
+            <strong>How to play:</strong> Click any hexagon to toggle its color and its neighbors' colors.
+            <div class="mode-legend" id="mode-legend">
+                <div class="legend-item">
+                    <div class="legend-circle legend-white"></div>
+                    <span>White</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle legend-black"></div>
+                    <span>Black</span>
+                </div>
+            </div>
+            Your goal: <strong>Turn ALL hexagons BLACK to win!</strong> Try to win with the fewest clicks possible.
+        </div>
 
-  <div id="buttons">
-      <button id="restartButton">Restart</button>
-      <button id="modeButton">Switch Mode</button>
-  </div>
-  
-  <div id="status"></div>
-</div>
+        <div id="game-container">
+            <canvas id="gameCanvas" width="1000" height="700"></canvas>
+            
+            <div class="game-controls">
+                <button id="restartButton" class="btn">🔄 New Puzzle</button>
+                <button id="modeButton" class="btn">🎨 Switch Mode</button>
+            </div>
+            <div class="game-stats">
+                <div id="clickCount" class="stat-item">Clicks: 0</div>
+                <div id="modeInfo" class="stat-item">Black/White Mode</div>
+                <div id="highScore" class="stat-item stat-best">Best: -</div>
+            </div>
 
-<div id="clickCount"></div>
-<div id="modeInfo"></div>
+            <div id="status"></div>
+        </div>
 
-<script>
-/*
-  Replicating your hex game logic in JavaScript
-  - We will draw the hex board on an HTML canvas
-  - We'll handle clicks and color toggling in JS
-*/
 
-/* ---------------- Configuration --------------- */
+    </div>
 
-const SCREEN_WIDTH = 900;
-const SCREEN_HEIGHT = 600;
-const HEX_RADIUS = 30;
-const HEX_SPACING_X = HEX_RADIUS * 1.75;
-const HEX_SPACING_Y = HEX_RADIUS * 1.5;
-const TOGGLES = 100;
-const FPS = 30;
+    <script>
+        // Configuration
+        const SCREEN_WIDTH = 1000;
+        const SCREEN_HEIGHT = 700;
+        const HEX_RADIUS = 32;
+        const HEX_SPACING_X = HEX_RADIUS * 1.75;
+        const HEX_SPACING_Y = HEX_RADIUS * 1.5;
+        const TOGGLES = 100;
 
-const WHITE = "white";
-const BLACK = "black";
-const RED   = "red";
-const GREY  = "grey";
+        // Wordle-style colors
+        const WHITE = "#ffffff";
+        const BLACK = "#1a1a1a";
+        const RED = "#ff6b6b";
+        const BLUE = "#4ecdc4";
+        const OUTLINE = "#e9ecef";
 
-let colorMode = "2color";  // "2color" or "3color"
+        let colorMode = "2color";
+        let canvas = document.getElementById("gameCanvas");
+        let ctx = canvas.getContext("2d");
+        let board = [];
+        let won = false;
+        let clickCount = 0;
+        let animationFrameId;
+        let highScores = {};
+        let scaleFactor = 1;
 
-let canvas = document.getElementById("gameCanvas");
-let ctx = canvas.getContext("2d");
+        // Local Storage for High Scores
+        function loadHighScores() {
+            const stored = localStorage.getItem('hexGameHighScores');
+            if (stored) {
+                highScores = JSON.parse(stored);
+            }
+        }
 
-let board = [];
-let won = false;
-let clickCount = 0;
-let animationFrameId;
+        function saveHighScore() {
+            if (!highScores[colorMode] || clickCount < highScores[colorMode]) {
+                highScores[colorMode] = clickCount;
+                localStorage.setItem('hexGameHighScores', JSON.stringify(highScores));
+                return true;
+            }
+            return false;
+        }
 
-/* ---------------- Helper Functions --------------- */
+        function updateHighScoreDisplay() {
+            const score = highScores[colorMode];
+            document.getElementById("highScore").textContent = score ? `Best: ${score}` : "Best: -";
+        }
 
-/**
-* Generate the corners (vertices) for a regular hexagon
-* given its center (x, y) and radius.
-* Returns array of (x, y) pairs.
-*/
-function hexCorners(center_x, center_y, radius) {
-  let corners = [];
-  for (let i = 0; i < 6; i++) {
-      // using the same "60 * i - 30" approach
-      let angleRad = (Math.PI / 180) * (60 * i - 30);
-      let x = center_x + radius * Math.cos(angleRad);
-      let y = center_y + radius * Math.sin(angleRad);
-      corners.push({x, y});
-  }
-  return corners;
-}
+        // Canvas scaling for mobile
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const maxWidth = Math.min(container.clientWidth - 40, SCREEN_WIDTH);
+            
+            if (maxWidth < SCREEN_WIDTH) {
+                scaleFactor = maxWidth / SCREEN_WIDTH;
+                canvas.style.width = maxWidth + 'px';
+                canvas.style.height = (SCREEN_HEIGHT * scaleFactor) + 'px';
+            } else {
+                scaleFactor = 1;
+                canvas.style.width = SCREEN_WIDTH + 'px';
+                canvas.style.height = SCREEN_HEIGHT + 'px';
+            }
+        }
 
-/**
-* Determine if a point (px, py) is inside a polygon (array of {x, y}).
-* Using the ray-casting method.
-*/
-function pointInPolygon(px, py, polygon) {
-  let inside = false;
-  let n = polygon.length;
-  for (let i = 0; i < n; i++) {
-      let x1 = polygon[i].x;
-      let y1 = polygon[i].y;
-      let x2 = polygon[(i + 1) % n].x;
-      let y2 = polygon[(i + 1) % n].y;
-      
-      let intersect = false;
-      // Check if the line from (px,py) horizontally intersects
-      // with polygon edge from (x1,y1) to (x2,y2)
-      if ((y1 > py) !== (y2 > py)) {
-          let xIntersect = (py - y1) * (x2 - x1) / (y2 - y1) + x1;
-          if (px < xIntersect) {
-              intersect = true;
-          }
-      }
-      if (intersect) {
-          inside = !inside;
-      }
-  }
-  return inside;
-}
+        // Hex geometry functions
+        function hexCorners(center_x, center_y, radius) {
+            let corners = [];
+            for (let i = 0; i < 6; i++) {
+                let angleRad = (Math.PI / 180) * (60 * i - 30);
+                let x = center_x + radius * Math.cos(angleRad);
+                let y = center_y + radius * Math.sin(angleRad);
+                corners.push({x, y});
+            }
+            return corners;
+        }
 
-/* ------------------ Tile Class  ------------------ */
+        function pointInPolygon(px, py, polygon) {
+            let inside = false;
+            let n = polygon.length;
+            for (let i = 0; i < n; i++) {
+                let x1 = polygon[i].x;
+                let y1 = polygon[i].y;
+                let x2 = polygon[(i + 1) % n].x;
+                let y2 = polygon[(i + 1) % n].y;
+                
+                if ((y1 > py) !== (y2 > py)) {
+                    let xIntersect = (py - y1) * (x2 - x1) / (y2 - y1) + x1;
+                    if (px < xIntersect) {
+                        inside = !inside;
+                    }
+                }
+            }
+            return inside;
+        }
 
-class HexTile {
-  constructor(row, col, center, radius, color) {
-      this.row = row;
-      this.col = col;
-      this.center = center; // {x, y}
-      this.radius = radius;
-      this.color = color;
-      this.corners = hexCorners(center.x, center.y, radius);
-  }
-  
-  draw(ctx) {
-      // Fill polygon
-      ctx.fillStyle = this.color;
-      ctx.beginPath();
-      ctx.moveTo(this.corners[0].x, this.corners[0].y);
-      for (let i = 1; i < this.corners.length; i++) {
-          ctx.lineTo(this.corners[i].x, this.corners[i].y);
-      }
-      ctx.closePath();
-      ctx.fill();
-      // Draw outline in grey
-      ctx.strokeStyle = "grey";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-  }
-}
+        // Tile class
+        class HexTile {
+            constructor(row, col, center, radius, color) {
+                this.row = row;
+                this.col = col;
+                this.center = center;
+                this.radius = radius;
+                this.color = color;
+                this.corners = hexCorners(center.x, center.y, radius);
+            }
+            
+            draw(ctx) {
+                // Clean, minimal fill
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.corners[0].x, this.corners[0].y);
+                for (let i = 1; i < this.corners.length; i++) {
+                    ctx.lineTo(this.corners[i].x, this.corners[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                
+                // Clean outline
+                ctx.strokeStyle = OUTLINE;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+        }
 
-/* ------------------ Board Logic  ------------------ */
+        // Color cycling functions
+        function nextTileColor2color(current) {
+            return (current === WHITE) ? BLACK : WHITE;
+        }
 
-/**
-* Returns the next tile color for 2color mode: White -> Black -> White...
-*/
-function nextTileColor2color(current) {
-  return (current === WHITE) ? BLACK : WHITE;
-}
+        function nextTileColor3color(current) {
+            if (current === WHITE) return RED;
+            if (current === RED) return BLACK;
+            return WHITE;
+        }
 
-/**
-* Returns the next tile color for 3color mode: White -> Red -> Black -> White...
-*/
-function nextTileColor3color(current) {
-  if (current === WHITE) return RED;
-  if (current === RED)   return BLACK;
-  return WHITE;
-}
+        function nextTileColor4color(current) {
+            if (current === WHITE) return RED;
+            if (current === RED) return BLUE;
+            if (current === BLUE) return BLACK;
+            return WHITE;
+        }
 
-/**
-* Decide which color-cycling to use based on 'colorMode'.
-*/
-function nextTileColor(currentColor) {
-  if (colorMode === "2color") {
-      return nextTileColor2color(currentColor);
-  } else {
-      return nextTileColor3color(currentColor);
-  }
-}
+        function nextTileColor(currentColor) {
+            if (colorMode === "2color") {
+                return nextTileColor2color(currentColor);
+            } else if (colorMode === "3color") {
+                return nextTileColor3color(currentColor);
+            } else {
+                return nextTileColor4color(currentColor);
+            }
+        }
 
-/**
-* Create the hex-shaped board using row lengths [2,3,4,5,6,7,6,5,4,3,2].
-* Default all tiles to black (like original).
-*/
-function createHexShapedBoard(tileColor = BLACK) {
-  let row_lengths = [2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2];
-  let newBoard = [];
+        // Board creation and management
+        function createHexShapedBoard(tileColor = BLACK) {
+            let row_lengths = [2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2];
+            let newBoard = [];
 
-  let center_x = SCREEN_WIDTH / 2;
-  let center_y = SCREEN_HEIGHT / 2;
-  
-  let total_rows = row_lengths.length;
-  for (let r = 0; r < total_rows; r++) {
-      let num_cols = row_lengths[r];
-      let row_center_y = center_y + (r - (total_rows - 1) / 2) * HEX_SPACING_Y;
-      let offset_x = (num_cols - 1) * HEX_SPACING_X / 2;
-      
-      let row_tiles = [];
-      for (let c = 0; c < num_cols; c++) {
-          let cx = center_x - offset_x + c * HEX_SPACING_X;
-          let cy = row_center_y;
-          let tile = new HexTile(r, c, {x: cx, y: cy}, HEX_RADIUS, tileColor);
-          row_tiles.push(tile);
-      }
-      newBoard.push(row_tiles);
-  }
-  return newBoard;
-}
+            let center_x = SCREEN_WIDTH / 2;
+            let center_y = SCREEN_HEIGHT / 2;
+            
+            let total_rows = row_lengths.length;
+            for (let r = 0; r < total_rows; r++) {
+                let num_cols = row_lengths[r];
+                let row_center_y = center_y + (r - (total_rows - 1) / 2) * HEX_SPACING_Y;
+                let offset_x = (num_cols - 1) * HEX_SPACING_X / 2;
+                
+                let row_tiles = [];
+                for (let c = 0; c < num_cols; c++) {
+                    let cx = center_x - offset_x + c * HEX_SPACING_X;
+                    let cy = row_center_y;
+                    let tile = new HexTile(r, c, {x: cx, y: cy}, HEX_RADIUS, tileColor);
+                    row_tiles.push(tile);
+                }
+                newBoard.push(row_tiles);
+            }
+            return newBoard;
+        }
 
-/**
-* Get neighbors for a given tile by checking if the distance between centers is < threshold.
-*/
-function getNeighbors(board, row, col) {
-  let neighbors = [];
-  let tile = board[row][col];
-  let threshold = 2 * HEX_RADIUS * 1.1; // same as in the original
+        function getNeighbors(board, row, col) {
+            let neighbors = [];
+            let tile = board[row][col];
+            let threshold = 2 * HEX_RADIUS * 1.1;
 
-  for (let r = 0; r < board.length; r++) {
-      for (let c = 0; c < board[r].length; c++) {
-          if (r === row && c === col) continue;
-          let otherTile = board[r][c];
-          let dist = distance(tile.center.x, tile.center.y, otherTile.center.x, otherTile.center.y);
-          if (dist < threshold) {
-              neighbors.push({r, c});
-          }
-      }
-  }
-  return neighbors;
-}
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < board[r].length; c++) {
+                    if (r === row && c === col) continue;
+                    let otherTile = board[r][c];
+                    let dist = distance(tile.center.x, tile.center.y, otherTile.center.x, otherTile.center.y);
+                    if (dist < threshold) {
+                        neighbors.push({r, c});
+                    }
+                }
+            }
+            return neighbors;
+        }
 
-/**
-* Toggle a given tile and its neighbors.
-*/
-function toggleTileAndNeighbors(board, row, col) {
-  let tile = board[row][col];
-  tile.color = nextTileColor(tile.color);
+        function toggleTileAndNeighbors(board, row, col) {
+            let tile = board[row][col];
+            tile.color = nextTileColor(tile.color);
 
-  let nbrs = getNeighbors(board, row, col);
-  nbrs.forEach(({r, c}) => {
-      let neighborTile = board[r][c];
-      neighborTile.color = nextTileColor(neighborTile.color);
-  });
-}
+            let nbrs = getNeighbors(board, row, col);
+            nbrs.forEach(({r, c}) => {
+                let neighborTile = board[r][c];
+                neighborTile.color = nextTileColor(neighborTile.color);
+            });
+        }
 
-/**
-* Randomly scramble the board by toggling random tiles.
-*/
-function scrambleBoard(board, toggles = TOGGLES) {
-  let allTiles = [];
-  for (let r = 0; r < board.length; r++) {
-      for (let c = 0; c < board[r].length; c++) {
-          allTiles.push({r, c});
-      }
-  }
-  for (let i = 0; i < toggles; i++) {
-      let randomIndex = Math.floor(Math.random() * allTiles.length);
-      let {r, c} = allTiles[randomIndex];
-      toggleTileAndNeighbors(board, r, c);
-  }
-}
+        function scrambleBoard(board, toggles = TOGGLES) {
+            let allTiles = [];
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < board[r].length; c++) {
+                    allTiles.push({r, c});
+                }
+            }
+            for (let i = 0; i < toggles; i++) {
+                let randomIndex = Math.floor(Math.random() * allTiles.length);
+                let {r, c} = allTiles[randomIndex];
+                toggleTileAndNeighbors(board, r, c);
+            }
+        }
 
-/**
-* Distance helper
-*/
-function distance(x1, y1, x2, y2) {
-  let dx = x1 - x2;
-  let dy = y1 - y2;
-  return Math.sqrt(dx*dx + dy*dy);
-}
+        function distance(x1, y1, x2, y2) {
+            let dx = x1 - x2;
+            let dy = y1 - y2;
+            return Math.sqrt(dx*dx + dy*dy);
+        }
 
-/* ------------------ Game Flow  ------------------ */
+        function checkWin(board) {
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < board[r].length; c++) {
+                    if (board[r][c].color !== BLACK) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
 
-/**
-* Check if all tiles are black => you win.
-*/
-function checkWin(board) {
-  for (let r = 0; r < board.length; r++) {
-      for (let c = 0; c < board[r].length; c++) {
-          if (board[r][c].color !== BLACK) {
-              return false;
-          }
-      }
-  }
-  return true;
-}
+        function updateModeLegend() {
+            const legend = document.getElementById("mode-legend");
+            legend.innerHTML = '';
+            
+            if (colorMode === "2color") {
+                legend.innerHTML = `
+                    <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-black"></div><span>Black</span></div>
+                `;
+            } else if (colorMode === "3color") {
+                legend.innerHTML = `
+                    <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-black"></div><span>Black</span></div>
+                `;
+            } else {
+                legend.innerHTML = `
+                    <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-blue"></div><span>Blue</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-black"></div><span>Black</span></div>
+                `;
+            }
+        }
 
-function restartGame() {
-  board = createHexShapedBoard(BLACK);
-  scrambleBoard(board, TOGGLES);
-  won = false;
-  clickCount = 0;
-}
+        function restartGame() {
+            board = createHexShapedBoard(BLACK);
+            scrambleBoard(board, TOGGLES);
+            won = false;
+            clickCount = 0;
+            updateHighScoreDisplay();
+            updateModeLegend();
+        }
 
-/**
-* Switch color mode between "2color" and "3color",
-* then restart the game to reflect the new mode.
-*/
-function switchMode() {
-  if (colorMode === "2color") {
-      colorMode = "3color";
-  } else {
-      colorMode = "2color";
-  }
-  restartGame();
-}
+        function switchMode() {
+            if (colorMode === "2color") {
+                colorMode = "3color";
+            } else if (colorMode === "3color") {
+                colorMode = "4color";
+            } else {
+                colorMode = "2color";
+            }
+            restartGame();
+        }
 
-/**
-* Initialize the game for the first time.
-*/
-function initGame() {
-  restartGame();
+        function initGame() {
+            loadHighScores();
+            resizeCanvas();
+            restartGame();
 
-  // Hook up button clicks
-  document.getElementById("restartButton").addEventListener("click", () => {
-      restartGame();
-  });
-  document.getElementById("modeButton").addEventListener("click", () => {
-      switchMode();
-  });
+            document.getElementById("restartButton").addEventListener("click", restartGame);
+            document.getElementById("modeButton").addEventListener("click", switchMode);
 
-  // Listen for clicks on the canvas
-  canvas.addEventListener("mousedown", (evt) => {
-      if (evt.button === 0 && !won) {
-          let rect = canvas.getBoundingClientRect();
-          let mx = evt.clientX - rect.left;
-          let my = evt.clientY - rect.top;
+            function handleInput(evt) {
+                if (won) return;
+                
+                evt.preventDefault();
+                let rect = canvas.getBoundingClientRect();
+                let clientX, clientY;
+                
+                if (evt.touches) {
+                    clientX = evt.touches[0].clientX;
+                    clientY = evt.touches[0].clientY;
+                } else {
+                    if (evt.button !== 0) return;
+                    clientX = evt.clientX;
+                    clientY = evt.clientY;
+                }
+                
+                let mx = (clientX - rect.left) / scaleFactor;
+                let my = (clientY - rect.top) / scaleFactor;
 
-          // Check which tile was clicked
-          for (let r = 0; r < board.length; r++) {
-              for (let c = 0; c < board[r].length; c++) {
-                  let tile = board[r][c];
-                  if (pointInPolygon(mx, my, tile.corners)) {
-                      toggleTileAndNeighbors(board, r, c);
-                      clickCount++;
-                      if (checkWin(board)) {
-                          won = true;
-                      }
-                      break; // only toggle one tile per click
-                  }
-              }
-          }
-      }
-  });
+                for (let r = 0; r < board.length; r++) {
+                    for (let c = 0; c < board[r].length; c++) {
+                        let tile = board[r][c];
+                        if (pointInPolygon(mx, my, tile.corners)) {
+                            toggleTileAndNeighbors(board, r, c);
+                            clickCount++;
+                            if (checkWin(board)) {
+                                won = true;
+                                const isNewHighScore = saveHighScore();
+                                if (isNewHighScore) {
+                                    canvas.classList.add('celebrating');
+                                    setTimeout(() => canvas.classList.remove('celebrating'), 600);
+                                }
+                                updateHighScoreDisplay();
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            canvas.addEventListener("mousedown", handleInput);
+            canvas.addEventListener("touchstart", handleInput);
+            window.addEventListener('resize', resizeCanvas);
 
-  // Start draw loop
-  gameLoop();
-}
+            gameLoop();
+        }
 
-/**
-* Main game loop: handle drawing and updating UI.
-*/
-function gameLoop() {
-  drawGame();
-  animationFrameId = requestAnimationFrame(gameLoop);
-}
+        function gameLoop() {
+            drawGame();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
 
-/**
-* Render the board and status on the canvas.
-*/
-function drawGame() {
-  ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        function drawGame() {
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-  // Draw all tiles
-  for (let r = 0; r < board.length; r++) {
-      for (let c = 0; board[r] && c < board[r].length; c++) {
-          board[r][c].draw(ctx);
-      }
-  }
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; board[r] && c < board[r].length; c++) {
+                    board[r][c].draw(ctx);
+                }
+            }
 
-  // Show click count in top-left corner
-  document.getElementById("clickCount").textContent = "Clicks: " + clickCount;
+            document.getElementById("clickCount").textContent = `Clicks: ${clickCount}`;
 
-  // Show mode in top-right corner
-  let modeText = (colorMode === "2color") ? "Mode: Black/White" : "Mode: Black/White/Red";
-  document.getElementById("modeInfo").textContent = modeText;
+            let modeText;
+            if (colorMode === "2color") {
+                modeText = "Black/White Mode";
+            } else if (colorMode === "3color") {
+                modeText = "Three Color Mode";
+            } else {
+                modeText = "Four Color Mode";
+            }
+            document.getElementById("modeInfo").textContent = modeText;
 
-  // Display "You win" if won
-  let statusDiv = document.getElementById("status");
-  if (won) {
-      statusDiv.textContent = "You win! Score: " + clickCount;
-  } else {
-      statusDiv.textContent = "";
-  }
-}
+            let statusDiv = document.getElementById("status");
+            if (won) {
+                const highScore = highScores[colorMode];
+                let message = `🎉 Puzzle solved in ${clickCount} clicks!`;
+                if (highScore && clickCount === highScore) {
+                    message += " (New best score!)";
+                }
+                statusDiv.textContent = message;
+            } else {
+                statusDiv.textContent = "";
+            }
+        }
 
-/* ------------------ Start Everything  ------------------ */
-initGame();
-</script>
-<p>Win by making all the tiles black</p>
+        initGame();
+    </script>
 </body>
-
-{% endblock %}
+</html>
