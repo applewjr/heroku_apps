@@ -2,7 +2,7 @@ from flask import Flask, redirect, render_template, request, redirect, url_for, 
 from flask_caching import Cache
 # from flask_socketio import SocketIO, emit
 from flask_httpauth import HTTPBasicAuth
-from flask_sqlalchemy import SQLAlchemy
+# from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
 import pandas as pd
 import os
@@ -180,9 +180,11 @@ def log_page_visit(page_name_value):
 ########## Other SQL stuff ##########
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# db = SQLAlchemy(app)
+
 app.secret_key = SESSION_KEY
 app.permanent_session_lifetime = timedelta(hours=4)  # Sessions last 4 hours
 
@@ -296,27 +298,27 @@ def run_index():
 ######################################
 ######################################
 
-@app.route('/high_score', methods=['GET', 'POST'])
-def game():
+# @app.route('/high_score', methods=['GET', 'POST'])
+# def game():
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
 
-    if request.method == 'POST':
-        initials = request.form['initials']
-        score = request.form['score']
-        cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
-        conn.commit()
+#     if request.method == 'POST':
+#         initials = request.form['initials']
+#         score = request.form['score']
+#         cursor.execute("INSERT INTO high_scores (initials, score, timelog) VALUES (%s, %s, NOW())", (initials, score))
+#         conn.commit()
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT hs.initials, hs.score FROM high_scores hs ORDER BY score DESC LIMIT 5")
-    scores = cursor.fetchall()
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT DISTINCT hs.initials, hs.score FROM high_scores hs ORDER BY score DESC LIMIT 5")
+#     scores = cursor.fetchall()
 
-    cursor.close()
-    conn.close()
+#     cursor.close()
+#     conn.close()
 
-    return render_template('high_score.html', scores=scores)
+#     return render_template('high_score.html', scores=scores)
 
 
 
@@ -326,59 +328,59 @@ def game():
 ######################################
 ######################################
 
-@app.route('/task_mysql')
-def task():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # Retrieve tasks from the database
-    cursor.execute('SELECT * FROM tasks')
-    tasks = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return render_template('task.html', tasks=tasks)
+# @app.route('/task_mysql')
+# def task():
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     # Retrieve tasks from the database
+#     cursor.execute('SELECT * FROM tasks')
+#     tasks = cursor.fetchall()
+#     cursor.close()
+#     conn.close()
+#     return render_template('task.html', tasks=tasks)
 
-@app.route('/add_task', methods=['POST'])
-def add_task():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    task = request.form['task']
-    # Insert the new task into the database
-    cursor.execute('INSERT INTO tasks (task, og_timelog) VALUES (%s, NOW())', (task,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return redirect('/task_mysql')
+# @app.route('/add_task', methods=['POST'])
+# def add_task():
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     task = request.form['task']
+#     # Insert the new task into the database
+#     cursor.execute('INSERT INTO tasks (task, og_timelog) VALUES (%s, NOW())', (task,))
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+#     return redirect('/task_mysql')
 
-@app.route('/delete_task/<int:task_id>', methods=['POST'])
-def delete_task(task_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # Delete the task from the database
-    cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return redirect('/task_mysql')
+# @app.route('/delete_task/<int:task_id>', methods=['POST'])
+# def delete_task(task_id):
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     # Delete the task from the database
+#     cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+#     return redirect('/task_mysql')
 
-@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
-def edit_task(task_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    if request.method == 'POST':
-        new_task = request.form['task']
-        # Update the task in the database
-        cursor.execute('UPDATE tasks SET task = %s WHERE id = %s', (new_task, task_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return redirect('/task_mysql')
-    else:
-        # Retrieve the task from the database
-        cursor.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
-        task = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return render_template('edit_task.html', task=task)
+# @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
+# def edit_task(task_id):
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     if request.method == 'POST':
+#         new_task = request.form['task']
+#         # Update the task in the database
+#         cursor.execute('UPDATE tasks SET task = %s WHERE id = %s', (new_task, task_id))
+#         conn.commit()
+#         cursor.close()
+#         conn.close()
+#         return redirect('/task_mysql')
+#     else:
+#         # Retrieve the task from the database
+#         cursor.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
+#         task = cursor.fetchone()
+#         cursor.close()
+#         conn.close()
+#         return render_template('edit_task.html', task=task)
 
 
 
@@ -388,56 +390,56 @@ def edit_task(task_id):
 ######################################
 ######################################
 
-class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(200), nullable=False)
-    # completed = db.Column(db.Integer, default=0)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+# class Todo(db.Model):
+#     id = db.Column(db.Integer, primary_key=True)
+#     content = db.Column(db.String(200), nullable=False)
+#     # completed = db.Column(db.Integer, default=0)
+#     date_created = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def __repr__(self):
-        return '<Task %r>' % self.id
+#     def __repr__(self):
+#         return '<Task %r>' % self.id
 
-@app.route('/task_db', methods=['POST', 'GET'])
-def index():
-    if request.method == 'POST':
-        task_content = request.form['content']
-        new_task = Todo(content=task_content)
+# @app.route('/task_db', methods=['POST', 'GET'])
+# def index():
+#     if request.method == 'POST':
+#         task_content = request.form['content']
+#         new_task = Todo(content=task_content)
 
-        try:
-            db.session.add(new_task)
-            db.session.commit()
-            return redirect('/task_db')
-        except:
-            return 'There was an issue adding your task'
-    else:
-        tasks = Todo.query.order_by(Todo.date_created).all()
-        return render_template('task_db.html', tasks=tasks)
+#         try:
+#             db.session.add(new_task)
+#             db.session.commit()
+#             return redirect('/task_db')
+#         except:
+#             return 'There was an issue adding your task'
+#     else:
+#         tasks = Todo.query.order_by(Todo.date_created).all()
+#         return render_template('task_db.html', tasks=tasks)
 
-@app.route('/delete/<int:id>')
-def delete(id):
-    task_to_delete = Todo.query.get_or_404(id)
+# @app.route('/delete/<int:id>')
+# def delete(id):
+#     task_to_delete = Todo.query.get_or_404(id)
 
-    try:
-        db.session.delete(task_to_delete)
-        db.session.commit()
-        return redirect('/task_db')
-    except:
-        return 'There was a problem deleting that task'
+#     try:
+#         db.session.delete(task_to_delete)
+#         db.session.commit()
+#         return redirect('/task_db')
+#     except:
+#         return 'There was a problem deleting that task'
 
-@app.route('/update/<int:id>', methods=['GET', 'POST'])
-def update(id):
-    task = Todo.query.get_or_404(id)
+# @app.route('/update/<int:id>', methods=['GET', 'POST'])
+# def update(id):
+#     task = Todo.query.get_or_404(id)
 
-    if request.method == 'POST':
-        task.content = request.form['content']
+#     if request.method == 'POST':
+#         task.content = request.form['content']
         
-        try:
-            db.session.commit()
-            return redirect('/task_db')
-        except:
-            return 'There was an issue updating your task'
-    else:
-        return render_template('update.html', task=task)
+#         try:
+#             db.session.commit()
+#             return redirect('/task_db')
+#         except:
+#             return 'There was an issue updating your task'
+#     else:
+#         return render_template('update.html', task=task)
 
 
 
@@ -2060,3 +2062,6 @@ if __name__ == "__main__":
 ### buildpacks previously used, currently removed
 # https://github.com/heroku/heroku-buildpack-google-chrome
 # https://github.com/heroku/heroku-buildpack-chromedriver
+
+
+
