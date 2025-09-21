@@ -4,6 +4,8 @@ from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 # from flask_sqlalchemy import SQLAlchemy
 from flask_sslify import SSLify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import pandas as pd
 import os
 import datetime
@@ -180,6 +182,14 @@ def log_page_visit(page_name_value):
 ########## Other SQL stuff ##########
 
 app = Flask(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["2000 per day", "500 per hour"],
+    storage_uri="memory://"  # Use in-memory storage
+)
 
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 # app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -822,6 +832,7 @@ def run_common_denominator():
 
 
 @app.route("/blossom", methods=["POST", "GET"])
+@limiter.limit("30 per minute")
 def blossom_solver():
     try:
 
@@ -1887,7 +1898,6 @@ def mtg_prices():
 
 
 
-
 ######################################
 ######################################
 ##### Hex Game
@@ -2024,6 +2034,9 @@ def catch_all(path):
 
     return render_template('error.html', return_type=return_type), 404
 
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return render_template('error.html', return_type='Rate Limit Exceeded - Too Many Requests'), 429
 
 
 
