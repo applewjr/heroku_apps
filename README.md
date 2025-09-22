@@ -45,13 +45,6 @@
 - Multi-table data parsing: players, champions, match history
 - Automated email notifications for pipeline status monitoring
 
-### 📊 <a href="https://www.jamesapplewhite.com/data_summary" target="_blank" rel="noopener noreferrer">CSV Analytics Tool</a>
-*Instant statistical analysis for uploaded datasets*
-- Comprehensive stats: descriptive, correlation, distribution analysis
-- Advanced imputation: MICE for numeric, frequency-based for categorical
-- Multiple linear regression with R-squared and p-value reporting
-- Automated correlation heatmaps and significance testing
-
 ### 📺 <a href="https://www.jamesapplewhite.com/youtube_trending" target="_blank" rel="noopener noreferrer">YouTube Trending Analytics</a>
 *Daily trending content analysis and aggregation*
 - Migration from web scraping → official YouTube API for better data quality

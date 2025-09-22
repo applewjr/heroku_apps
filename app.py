@@ -30,7 +30,7 @@ from functions import wordle
 
 # from functions import stocks
 from functions import all_words
-from functions import data_analysis
+# from functions import data_analysis
 from functions import plot_viz
 from functions import espresso
 
@@ -49,9 +49,9 @@ words = word_df['0'].to_list()
 words = set(words)
 words_blossom = all_words.filter_words_for_blossom(words)
 
-df_demo_realtor = pd.read_csv(os.path.join(data_folder, 'realtor_data.csv'))
-df_demo_titanic = pd.read_csv(os.path.join(data_folder, 'titanic_dataset.csv'))
-df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
+# df_demo_realtor = pd.read_csv(os.path.join(data_folder, 'realtor_data.csv'))
+# df_demo_titanic = pd.read_csv(os.path.join(data_folder, 'titanic_dataset.csv'))
+# df_demo_diabetes = pd.read_csv(os.path.join(data_folder, 'diabetes.csv'))
 
 with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_file:
     espresso_points = json.load(json_file)
@@ -1283,31 +1283,31 @@ def run_wordiply():
 ######################################
 ######################################
 
-@app.route('/data_summary', methods=['GET', 'POST'])
-def data_summ():
+# @app.route('/data_summary', methods=['GET', 'POST'])
+# def data_summ():
 
-    if request.method == 'POST':
+#     if request.method == 'POST':
 
-        csv_pick = request.form["csv_pick"]
+#         csv_pick = request.form["csv_pick"]
 
-        if csv_pick == 'Realtor':
-            df = df_demo_realtor
-        elif csv_pick == 'Titanic':
-            df = df_demo_titanic
-        else:
-            df = df_demo_diabetes
+#         if csv_pick == 'Realtor':
+#             df = df_demo_realtor
+#         elif csv_pick == 'Titanic':
+#             df = df_demo_titanic
+#         else:
+#             df = df_demo_diabetes
 
-        ### disable using CSV imports
-        # file = request.files['file']
-        # df = pd.read_csv(file)
+#         ### disable using CSV imports
+#         # file = request.files['file']
+#         # df = pd.read_csv(file)
 
-        summary = data_analysis.summarize_df(df)
+#         summary = data_analysis.summarize_df(df)
 
-        heatmap_data = data_analysis.generate_heatmap(df)
+#         heatmap_data = data_analysis.generate_heatmap(df)
 
-        return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, csv_pick_val=csv_pick)
+#         return render_template('data_summary.html', summary=summary, heatmap_data=heatmap_data, csv_pick_val=csv_pick)
 
-    return render_template('data_summary.html', summary=data_analysis.summarize_df(df_demo_realtor), heatmap_data=data_analysis.generate_heatmap(df_demo_realtor), csv_pick_val='Realtor')
+#     return render_template('data_summary.html', summary=data_analysis.summarize_df(df_demo_realtor), heatmap_data=data_analysis.generate_heatmap(df_demo_realtor), csv_pick_val='Realtor')
 
 
 
