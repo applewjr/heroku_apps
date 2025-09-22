@@ -30,7 +30,7 @@ from functions import wordle
 
 # from functions import stocks
 from functions import all_words
-from functions import data_analysis
+# from functions import data_analysis
 from functions import plot_viz
 from functions import espresso
 
