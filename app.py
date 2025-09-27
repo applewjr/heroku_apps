@@ -20,6 +20,7 @@ import secrets
 import logging
 import smtplib
 from email.mime.text import MIMEText
+# import uuid
 
 ########## local functions ##########
 
@@ -33,6 +34,7 @@ from functions import all_words
 # from functions import data_analysis
 from functions import plot_viz
 from functions import espresso
+# from functions.rpg_game_logic import GameEngine, GameState
 
 
 ########## local data ##########
@@ -901,6 +903,8 @@ def blossom_solver():
             session.permanent = True
 
             # log clicks and inputs - use actual displayed count
+            conn = None
+            cursor = None
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -910,6 +914,9 @@ def blossom_solver():
                 """
                 cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
                 conn.commit()
+            except mysql.connector.PoolError:
+                # Pool exhausted - just skip logging, don't break the app
+                print("Skipping page visit log - connection pool busy")
             except mysql.connector.Error as err:
                 print("Error:", err)
             finally:
@@ -1318,12 +1325,12 @@ def run_wordiply():
 ######################################
 ######################################
 
-@app.route('/resume')
-def resume():
+# @app.route('/resume')
+# def resume():
 
-    # log_page_visit('resume.html')
+#     # log_page_visit('resume.html')
 
-    return render_template('resume.html')
+#     return render_template('resume.html')
 
 
 
@@ -1914,6 +1921,78 @@ def hex_game():
 
 
 
+
+
+######################################
+######################################
+##### RPG
+######################################
+######################################
+
+# def get_game_state():
+#     """Retrieve game state from session"""
+#     if 'game_id' not in session:
+#         session['game_id'] = str(uuid.uuid4())
+    
+#     if 'game_state' not in session:
+#         session['game_state'] = GameState().to_dict()
+    
+#     game_state = GameState()
+#     game_state.from_dict(session['game_state'])
+#     return game_state
+
+# def save_game_state(game_state):
+#     """Save game state to session"""
+#     session['game_state'] = game_state.to_dict()
+#     session.permanent = True
+
+# @app.route('/rpg')
+# def index():
+#     """Serve the game HTML at /rpg"""
+#     return render_template('rpg.html')
+
+# @app.route('/api/start', methods=['POST'])
+# def start_game():
+#     """Start a new game"""
+#     data = request.json
+#     player_name = data.get('name', 'Hero').strip() or 'Hero'
+    
+#     # Use GameEngine to create new game
+#     game_state = GameEngine.create_new_game(player_name)
+#     save_game_state(game_state)
+    
+#     return jsonify({
+#         'success': True,
+#         'game_state': game_state.to_dict()
+#     })
+
+# @app.route('/api/command', methods=['POST'])
+# def process_command():
+#     """Process a game command"""
+#     data = request.json
+#     command = data.get('command', '').lower().strip()
+    
+#     # Get current game state
+#     game_state = get_game_state()
+    
+#     if not game_state.player:
+#         return jsonify({'error': 'Game not started'})
+    
+#     # Use GameEngine to process command
+#     game_state = GameEngine.process_command(game_state, command)
+    
+#     # Save updated state
+#     save_game_state(game_state)
+    
+#     return jsonify({
+#         'success': True,
+#         'game_state': game_state.to_dict()
+#     })
+
+
+
+
+
 ######################################
 ######################################
 ##### privacy policy
@@ -2005,9 +2084,9 @@ def favicon_ico():
 def page_not_found(e):
     return_type = '404 - Page Not Found'
 
-    referrer = request.headers.get('Referer', '')
-    if 'blossom' in referrer.lower():
-        log_page_visit(f'error.html (404: {e})')
+    # referrer = request.headers.get('Referer', '')
+    # if 'blossom' in referrer.lower():
+        # log_page_visit(f'error.html (404: {e})')
 
     print(e)
     return render_template('error.html', return_type=return_type), 404
@@ -2016,9 +2095,9 @@ def page_not_found(e):
 def handle_exception(e):
     return_type = '500 - Error'
 
-    referrer = request.headers.get('Referer', '')
-    if 'blossom' in referrer.lower():
-        log_page_visit(f'error.html (500: {e})')
+    # referrer = request.headers.get('Referer', '')
+    # if 'blossom' in referrer.lower():
+        # log_page_visit(f'error.html (500: {e})')
 
     print(e)
     return render_template('error.html', return_type=return_type), 500
@@ -2028,9 +2107,9 @@ def handle_exception(e):
 def catch_all(path):
     return_type = '404 - Undefined Path'
 
-    referrer = request.headers.get('Referer', '')
-    if 'blossom' in referrer.lower():
-        log_page_visit(f'error.html (undefined path: {path})')
+    # referrer = request.headers.get('Referer', '')
+    # if 'blossom' in referrer.lower():
+        # log_page_visit(f'error.html (undefined path: {path})')
 
     return render_template('error.html', return_type=return_type), 404
 
