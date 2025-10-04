@@ -344,7 +344,7 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     show_load_more = total_valid_words > list_len
     
     # Get only the words to display (up to list_len)
-    top_df = df.head(list_len)
+    top_df = df.head(list_len).copy()
     
     # Add checkbox column with session-based checking
     checkbox_html = []
