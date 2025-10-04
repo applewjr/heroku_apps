@@ -306,12 +306,11 @@ def length_score(word_length):
         return 12
     else:
         return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
-    
 
 def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None):
     """
     Enhanced version that includes checkbox column for session-based word tracking
-    and supports load more functionality
+    and supports load more functionality with hyperlinked words
     """
     if used_words is None:
         used_words = []
@@ -355,8 +354,18 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     
     top_df.insert(0, 'Used', checkbox_html)
     
-    # Convert to HTML with escape=False to render HTML checkboxes
-    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', 'Pangram'], escape=False)
+    # Convert words to hyperlinks that open in new tab
+    word_links = []
+    for word in top_df['Word']:
+        word_link = f'<a href="https://www.merriam-webster.com/dictionary/{word}" target="_blank" rel="noopener noreferrer" style="color: #0066cc; text-decoration: none;" onmouseover="this.style.textDecoration=\'underline\'; this.style.color=\'#0052a3\'" onmouseout="this.style.textDecoration=\'none\'; this.style.color=\'#0066cc\'">{word}</a>'
+        word_links.append(word_link)
+    
+    # Replace the Word column with the hyperlinked version
+    top_df['Word'] = word_links
+    top_df.rename(columns={'Word': 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>'}, inplace=True)
+
+    # Convert to HTML with escape=False to render HTML checkboxes and links
+    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>', 'Score', 'Pangram'], escape=False)
         
     # Return table, total count, and load more flag
     return blossom_table, total_valid_words, show_load_more
