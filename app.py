@@ -1616,6 +1616,7 @@ def favicon_ico():
 
 # Error handler for 404 Not Found
 @app.errorhandler(404)
+@limiter.limit("30 per minute")
 def page_not_found(e):
     return_type = '404 - Page Not Found'
     print(e)
@@ -1629,7 +1630,15 @@ def handle_exception(e):
 
 # Optional: Catch-all route for undefined paths
 @app.route('/<path:path>')
+@limiter.limit("10 per minute")
 def catch_all(path):
+    path_lower = path.lower()
+
+    suspicious_patterns = ['.php', '.asp', '.env', 'wp-', '.git', 'phpmyadmin']
+    
+    if any(pattern in path_lower for pattern in suspicious_patterns):
+        app.logger.warning(f"Scanner detected - Path: {path} - IP: {request.remote_addr}")
+    
     return_type = '404 - Undefined Path'
     return render_template('error.html', return_type=return_type), 404
 
