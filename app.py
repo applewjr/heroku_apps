@@ -1620,12 +1620,6 @@ def favicon_ico():
 def page_not_found(e):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
 
-@app.errorhandler(Exception)
-def handle_exception(e):
-    return_type = '500 - Error'
-    print(e)
-    return render_template('error.html', return_type=return_type), 500
-
 # Catch-all route for undefined paths
 @app.route('/<path:path>')
 @limiter.limit("10 per minute")
@@ -1635,6 +1629,12 @@ def catch_all(path):
 @app.errorhandler(429)
 def ratelimit_handler(e):
     return render_template('error.html', return_type='Rate Limit Exceeded - Too Many Requests'), 429
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return_type = '500 - Error'
+    print(e)
+    return render_template('error.html', return_type=return_type), 500
 
 @app.route('/antiwordle_og')
 def antiwordle_og_redirect():
