@@ -1616,13 +1616,13 @@ def favicon_ico():
 
 # Error handler for 404 Not Found
 @app.errorhandler(404)
-@limiter.limit("30 per minute")
+@limiter.limit("10 per minute; 30 per hour")
 def page_not_found(e):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
 
 # Catch-all route for undefined paths
 @app.route('/<path:path>')
-@limiter.limit("10 per minute")
+@limiter.limit("10 per minute; 30 per hour")
 def catch_all(path):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
 
