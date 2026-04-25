@@ -1,0 +1,18 @@
+name: Restart Heroku Dyno
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 3am PST (UTC-7)
+    - cron: '0 22 * * *'   # 3pm PST (UTC-7)
+  workflow_dispatch:        # adds a manual Run button for testing
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restart web dyno
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          curl -n -X DELETE https://api.heroku.com/apps/apple-apps/dynos/web \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Authorization: Bearer $HEROKU_API_KEY"
