@@ -1,15 +1,29 @@
 name: Restart Heroku Dyno
 on:
   schedule:
-    - cron: '0 10 * * *'   # 3am PST (UTC-7)
-    - cron: '0 22 * * *'   # 3pm PST (UTC-7)
+    - cron: '0 10 * * *'    # 3am PST (UTC-7)
+    - cron: '0 22 * * *'    # 3pm PST (UTC-7)
   workflow_dispatch:        # adds a manual Run button for testing
 
 jobs:
   restart:
     runs-on: ubuntu-latest
     steps:
+      - name: Check Heroku status
+        run: |
+          STATUS=$(curl -s https://status.heroku.com/api/v4/current-status)
+          echo "Heroku status response: $STATUS"
+          ISSUES=$(echo "$STATUS" | jq '[.status[] | select(.status != "green")] | length')
+          if [ "$ISSUES" -gt "0" ]; then
+            echo "Heroku incident detected, skipping restart to avoid downtime risk."
+            echo "SKIP_RESTART=true" >> $GITHUB_ENV
+          else
+            echo "Heroku status is all green, proceeding with restart."
+            echo "SKIP_RESTART=false" >> $GITHUB_ENV
+          fi
+
       - name: Restart web dyno
+        if: env.SKIP_RESTART == 'false'
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: |
