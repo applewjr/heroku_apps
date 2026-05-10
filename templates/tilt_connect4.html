@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tilt Connect 4</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: rgb(28, 32, 48);
+        font-family: Arial, sans-serif;
+        color: rgb(235, 235, 245);
+        overflow: hidden;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+    }
+    #stage {
+        position: relative;
+        background: rgb(28, 32, 48);
+    }
+    canvas {
+        display: block;
+        background: rgb(28, 32, 48);
+    }
+</style>
+</head>
+<body>
+<div id="stage">
+    <canvas id="game" tabindex="0"></canvas>
+</div>
+
+<script>
+"use strict";
+
+// ===========================================================================
+// Configuration
+// ===========================================================================
+const SIZE = 7;
+const ROWS = SIZE;
+const COLS = SIZE;
+
+const CELL_SIZE = 80;
+const MARGIN = 40;
+const HUD_HEIGHT = 80;
+const BUTTON_RADIUS = 38;
+const BUTTON_GAP = 24;
+
+const BOARD_WIDTH = COLS * CELL_SIZE;
+const BOARD_HEIGHT = ROWS * CELL_SIZE;
+const WINDOW_WIDTH = BOARD_WIDTH + MARGIN * 2 + (BUTTON_RADIUS * 2 + BUTTON_GAP) * 2;
+const WINDOW_HEIGHT = BOARD_HEIGHT + MARGIN * 2 + HUD_HEIGHT;
+
+// Colors as rgb strings (matching the pygame palette exactly)
+const BG_COLOR = "rgb(28,32,48)";
+const BOARD_COLOR = "rgb(40,80,180)";
+const BOARD_SHADOW = "rgb(20,50,130)";
+const EMPTY_COLOR = "rgb(18,22,36)";
+const PLAYER1_COLOR = "rgb(235,80,80)";
+const PLAYER1_DARK = "rgb(160,40,40)";
+const PLAYER2_COLOR = "rgb(245,210,70)";
+const PLAYER2_DARK = "rgb(180,150,30)";
+const TEXT_COLOR = "rgb(235,235,245)";
+const HUD_COLOR = "rgb(20,24,38)";
+const WIN_LINE_COLOR = "rgb(80,255,120)";
+
+const BUTTON_COLOR = "rgb(70,80,110)";
+const BUTTON_HOVER = "rgb(100,115,155)";
+const BUTTON_DISABLED = "rgb(45,50,65)";
+const BUTTON_ICON = "rgb(235,235,245)";
+const BUTTON_ICON_DISABLED = "rgb(110,115,130)";
+
+const HINT_COLOR_RGB = [120, 220, 255];
+const HINT_PULSE_HZ = 1.6;
+
+const EMPTY = 0;
+const PLAYER1 = 1;
+const PLAYER2 = 2;
+
+const TILT_DURATION = 0.45;   // seconds
+const FALL_DURATION = 0.40;
+
+const WIN_SCORE = 10000000;
+const AI_DEPTH = 4;
+const AI_DEPTH_MIN = 1;
+const AI_DEPTH_MAX = 6;
+
+// ===========================================================================
+// Canvas setup
+// ===========================================================================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = WINDOW_WIDTH;
+canvas.height = WINDOW_HEIGHT;
+canvas.focus();
+
+// Scale the canvas to fit the viewport while preserving the aspect ratio.
+function fitCanvas() {
+    const stage = document.getElementById("stage");
+    const scale = Math.min(
+        window.innerWidth / WINDOW_WIDTH,
+        window.innerHeight / WINDOW_HEIGHT,
+        1
+    );
+    canvas.style.width = (WINDOW_WIDTH * scale) + "px";
+    canvas.style.height = (WINDOW_HEIGHT * scale) + "px";
+    stage.style.width = (WINDOW_WIDTH * scale) + "px";
+    stage.style.height = (WINDOW_HEIGHT * scale) + "px";
+}
+fitCanvas();
+window.addEventListener("resize", fitCanvas);
+
+// Translate page mouse coords to canvas coords (accounting for CSS scaling).
+function getMousePos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width;
+    const sy = canvas.height / rect.height;
+    return {
+        x: (evt.clientX - rect.left) * sx,
+        y: (evt.clientY - rect.top) * sy,
+    };
+}
+
+// ===========================================================================
+// Board logic
+// ===========================================================================
+function makeBoard() {
+    const b = [];
+    for (let r = 0; r < ROWS; r++) {
+        const row = [];
+        for (let c = 0; c < COLS; c++) row.push(EMPTY);
+        b.push(row);
+    }
+    return b;
+}
+
+function clone(board) {
+    return board.map(row => row.slice());
+}
+
+function rotateLeft(board) {
+    const rows = board.length, cols = board[0].length;
+    const newRows = cols, newCols = rows;
+    const nb = [];
+    for (let i = 0; i < newRows; i++) {
+        const row = [];
+        for (let j = 0; j < newCols; j++) {
+            row.push(board[j][cols - 1 - i]);
+        }
+        nb.push(row);
+    }
+    return nb;
+}
+
+function rotateRight(board) {
+    const rows = board.length, cols = board[0].length;
+    const newRows = cols, newCols = rows;
+    const nb = [];
+    for (let i = 0; i < newRows; i++) {
+        const row = [];
+        for (let j = 0; j < newCols; j++) {
+            row.push(board[newCols - 1 - j][i]);
+        }
+        nb.push(row);
+    }
+    return nb;
+}
+
+function applyGravity(board) {
+    const rows = board.length, cols = board[0].length;
+    for (let c = 0; c < cols; c++) {
+        const column = [];
+        for (let r = 0; r < rows; r++) {
+            if (board[r][c] !== EMPTY) column.push(board[r][c]);
+        }
+        const newCol = [];
+        for (let i = 0; i < rows - column.length; i++) newCol.push(EMPTY);
+        for (const v of column) newCol.push(v);
+        for (let r = 0; r < rows; r++) board[r][c] = newCol[r];
+    }
+}
+
+function gravityLandings(board) {
+    const rows = board.length, cols = board[0].length;
+    const landings = {};
+    for (let c = 0; c < cols; c++) {
+        let writeR = rows - 1;
+        for (let r = rows - 1; r >= 0; r--) {
+            if (board[r][c] !== EMPTY) {
+                landings[r + "," + c] = [writeR, c];
+                writeR--;
+            }
+        }
+    }
+    return landings;
+}
+
+function checkWinner(board, preferred) {
+    const rows = board.length, cols = board[0].length;
+    const wins = { 1: [], 2: [] };
+
+    // horizontal
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            const v = board[r][c];
+            if (v !== EMPTY && board[r][c+1] === v && board[r][c+2] === v && board[r][c+3] === v) {
+                wins[v].push([[r,c],[r,c+1],[r,c+2],[r,c+3]]);
+            }
+        }
+    }
+    // vertical
+    for (let r = 0; r < rows - 3; r++) {
+        for (let c = 0; c < cols; c++) {
+            const v = board[r][c];
+            if (v !== EMPTY && board[r+1][c] === v && board[r+2][c] === v && board[r+3][c] === v) {
+                wins[v].push([[r,c],[r+1,c],[r+2,c],[r+3,c]]);
+            }
+        }
+    }
+    // diag down-right
+    for (let r = 0; r < rows - 3; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            const v = board[r][c];
+            if (v !== EMPTY && board[r+1][c+1] === v && board[r+2][c+2] === v && board[r+3][c+3] === v) {
+                wins[v].push([[r,c],[r+1,c+1],[r+2,c+2],[r+3,c+3]]);
+            }
+        }
+    }
+    // diag up-right
+    for (let r = 3; r < rows; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            const v = board[r][c];
+            if (v !== EMPTY && board[r-1][c+1] === v && board[r-2][c+2] === v && board[r-3][c+3] === v) {
+                wins[v].push([[r,c],[r-1,c+1],[r-2,c+2],[r-3,c+3]]);
+            }
+        }
+    }
+
+    const p1won = wins[PLAYER1].length > 0;
+    const p2won = wins[PLAYER2].length > 0;
+    if (!p1won && !p2won) return [null, null];
+    if (p1won && !p2won) return [PLAYER1, wins[PLAYER1][0]];
+    if (p2won && !p1won) return [PLAYER2, wins[PLAYER2][0]];
+    if (preferred === PLAYER1 || preferred === PLAYER2) {
+        return [preferred, wins[preferred][0]];
+    }
+    return [PLAYER1, wins[PLAYER1][0]];
+}
+
+function boardIsFull(board) {
+    const cols = board[0].length;
+    for (let c = 0; c < cols; c++) {
+        if (board[0][c] === EMPTY) return false;
+    }
+    return true;
+}
+
+function legalDropCols(board) {
+    const cols = board[0].length;
+    const out = [];
+    for (let c = 0; c < cols; c++) {
+        if (board[0][c] === EMPTY) out.push(c);
+    }
+    return out;
+}
+
+function applyDrop(board, col, player) {
+    const rows = board.length;
+    const nb = clone(board);
+    for (let r = rows - 1; r >= 0; r--) {
+        if (nb[r][col] === EMPTY) {
+            nb[r][col] = player;
+            return nb;
+        }
+    }
+    return null;
+}
+
+function applyTilt(board, direction) {
+    const rotated = direction === 'left' ? rotateLeft(board) : rotateRight(board);
+    applyGravity(rotated);
+    return rotated;
+}
+
+function boardsEqual(a, b) {
+    if (a.length !== b.length) return false;
+    for (let r = 0; r < a.length; r++) {
+        if (a[r].length !== b[r].length) return false;
+        for (let c = 0; c < a[r].length; c++) {
+            if (a[r][c] !== b[r][c]) return false;
+        }
+    }
+    return true;
+}
+
+// ===========================================================================
+// AI: minimax with alpha-beta
+// ===========================================================================
+function scoreWindow(window, player) {
+    const opponent = player === PLAYER1 ? PLAYER2 : PLAYER1;
+    let p = 0, o = 0, e = 0;
+    for (const v of window) {
+        if (v === player) p++;
+        else if (v === opponent) o++;
+        else e++;
+    }
+    if (p > 0 && o > 0) return 0;
+    let s = 0;
+    if (p === 4) s += 100000;
+    else if (p === 3 && e === 1) s += 50;
+    else if (p === 2 && e === 2) s += 5;
+    if (o === 4) s -= 100000;
+    else if (o === 3 && e === 1) s -= 80;
+    else if (o === 2 && e === 2) s -= 5;
+    return s;
+}
+
+function evaluateBoard(board, player) {
+    const rows = board.length, cols = board[0].length;
+    let score = 0;
+    const centerC = Math.floor(cols / 2);
+    for (let r = 0; r < rows; r++) {
+        if (board[r][centerC] === player) score += 3;
+        else if (board[r][centerC] !== EMPTY) score -= 3;
+    }
+    // horizontal
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            score += scoreWindow([board[r][c], board[r][c+1], board[r][c+2], board[r][c+3]], player);
+        }
+    }
+    // vertical
+    for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows - 3; r++) {
+            score += scoreWindow([board[r][c], board[r+1][c], board[r+2][c], board[r+3][c]], player);
+        }
+    }
+    // diag dr
+    for (let r = 0; r < rows - 3; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            score += scoreWindow([board[r][c], board[r+1][c+1], board[r+2][c+2], board[r+3][c+3]], player);
+        }
+    }
+    // diag ur
+    for (let r = 3; r < rows; r++) {
+        for (let c = 0; c < cols - 3; c++) {
+            score += scoreWindow([board[r][c], board[r-1][c+1], board[r-2][c+2], board[r-3][c+3]], player);
+        }
+    }
+    return score;
+}
+
+function terminalValue(board, aiPlayer, lastMover) {
+    const [winner, _] = checkWinner(board, lastMover);
+    if (winner === aiPlayer) return [true, WIN_SCORE];
+    if (winner !== null) return [true, -WIN_SCORE];
+    if (boardIsFull(board)) return [true, 0];
+    return [false, 0];
+}
+
+function generateMoves(board, player) {
+    const cols = board[0].length;
+    const center = Math.floor(cols / 2);
+    const dropOrder = legalDropCols(board).slice().sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
+    const moves = [];
+    for (const c of dropOrder) {
+        const nb = applyDrop(board, c, player);
+        if (nb !== null) moves.push([['drop', c], nb]);
+    }
+    for (const d of ['left', 'right']) {
+        const nb = applyTilt(board, d);
+        if (!boardsEqual(nb, board)) moves.push([['tilt', d], nb]);
+    }
+    return moves;
+}
+
+function minimax(board, depth, alpha, beta, maximizing, aiPlayer, lastMover) {
+    const [isTerm, val] = terminalValue(board, aiPlayer, lastMover);
+    if (isTerm) {
+        if (val > 0) return [val + depth, null];
+        if (val < 0) return [val - depth, null];
+        return [0, null];
+    }
+    if (depth === 0) return [evaluateBoard(board, aiPlayer), null];
+
+    const opponent = aiPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+    const playerToMove = maximizing ? aiPlayer : opponent;
+    const moves = generateMoves(board, playerToMove);
+    if (moves.length === 0) return [evaluateBoard(board, aiPlayer), null];
+
+    let bestMove = null;
+    if (maximizing) {
+        let best = -Infinity;
+        for (const [move, nb] of moves) {
+            const [s, _] = minimax(nb, depth - 1, alpha, beta, false, aiPlayer, playerToMove);
+            if (s > best) { best = s; bestMove = move; }
+            if (best > alpha) alpha = best;
+            if (alpha >= beta) break;
+        }
+        return [best, bestMove];
+    } else {
+        let best = Infinity;
+        for (const [move, nb] of moves) {
+            const [s, _] = minimax(nb, depth - 1, alpha, beta, true, aiPlayer, playerToMove);
+            if (s < best) { best = s; bestMove = move; }
+            if (best < beta) beta = best;
+            if (alpha >= beta) break;
+        }
+        return [best, bestMove];
+    }
+}
+
+function chooseAiMove(board, aiPlayer, depth) {
+    const opponent = aiPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+    // Fast path: immediate win
+    for (const c of legalDropCols(board)) {
+        const nb = applyDrop(board, c, aiPlayer);
+        if (nb !== null && checkWinner(nb)[0] === aiPlayer) return ['drop', c];
+    }
+    for (const d of ['left', 'right']) {
+        const nb = applyTilt(board, d);
+        if (checkWinner(nb, aiPlayer)[0] === aiPlayer) return ['tilt', d];
+    }
+    const moves = generateMoves(board, aiPlayer);
+    if (moves.length === 0) return null;
+
+    const scored = [];
+    for (const [move, nb] of moves) {
+        // does this hand opponent an immediate win?
+        let oppCanWin = false;
+        for (const oc of legalDropCols(nb)) {
+            const onb = applyDrop(nb, oc, opponent);
+            if (onb !== null && checkWinner(onb)[0] === opponent) { oppCanWin = true; break; }
+        }
+        if (!oppCanWin) {
+            for (const od of ['left', 'right']) {
+                const onb = applyTilt(nb, od);
+                if (checkWinner(onb, opponent)[0] === opponent) { oppCanWin = true; break; }
+            }
+        }
+        if (oppCanWin) {
+            scored.push([-Math.floor(WIN_SCORE / 2), move]);
+            continue;
+        }
+        const [s, _] = minimax(nb, depth - 1, -Infinity, Infinity, false, aiPlayer, aiPlayer);
+        scored.push([s, move]);
+    }
+    let bestScore = -Infinity;
+    for (const [s, _] of scored) if (s > bestScore) bestScore = s;
+    const bestMoves = scored.filter(([s, _]) => s === bestScore).map(([, m]) => m);
+    const drops = bestMoves.filter(m => m[0] === 'drop');
+    if (drops.length > 0) return drops[Math.floor(Math.random() * drops.length)];
+    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+}
+
+// ===========================================================================
+// Layout
+// ===========================================================================
+function boardLayout(rows, cols) {
+    const availW = WINDOW_WIDTH - MARGIN * 2 - (BUTTON_RADIUS * 2 + BUTTON_GAP) * 2;
+    const availH = WINDOW_HEIGHT - MARGIN * 2 - HUD_HEIGHT;
+    const cell = Math.min(Math.floor(availW / cols), Math.floor(availH / rows));
+    const boardW = cell * cols;
+    const boardH = cell * rows;
+    const offsetX = Math.floor((WINDOW_WIDTH - boardW) / 2);
+    const offsetY = HUD_HEIGHT + MARGIN + Math.floor((availH - boardH) / 2);
+    return [offsetX, offsetY, cell];
+}
+
+function buttonCenters(rows, cols) {
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+    const boardW = cell * cols;
+    const boardH = cell * rows;
+    const cy = offsetY + Math.floor(boardH / 2);
+    const leftCx = offsetX - BUTTON_GAP - BUTTON_RADIUS;
+    const rightCx = offsetX + boardW + BUTTON_GAP + BUTTON_RADIUS;
+    return [[leftCx, cy], [rightCx, cy]];
+}
+
+function pieceColor(player) {
+    if (player === PLAYER1) return [PLAYER1_COLOR, PLAYER1_DARK];
+    return [PLAYER2_COLOR, PLAYER2_DARK];
+}
+
+// ===========================================================================
+// Drawing primitives
+// ===========================================================================
+function fillRoundRect(ctx, x, y, w, h, r, fill) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+    }
+}
+
+function strokeRoundRect(ctx, x, y, w, h, r, stroke, lineWidth) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.lineWidth = lineWidth || 2;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+}
+
+function fillCircle(ctx, x, y, r, fill) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+}
+
+function strokeCircle(ctx, x, y, r, stroke, lineWidth) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.lineWidth = lineWidth || 2;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+}
+
+function drawPiece(ctx, color, dark, cx, cy, radius) {
+    fillCircle(ctx, cx, cy, radius, color);
+    strokeCircle(ctx, cx, cy, radius, dark, 2);
+}
+
+// Render the board onto a fresh offscreen canvas (mirrors render_board_surface).
+function renderBoardSurface(board, cell) {
+    const rows = board.length, cols = board[0].length;
+    const w = cols * cell, h = rows * cell;
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const c = off.getContext("2d");
+    fillRoundRect(c, 0, 0, w, h, 8, BOARD_SHADOW);
+    fillRoundRect(c, 3, 3, w - 6, h - 6, 6, BOARD_COLOR);
+    for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+            const cx = col * cell + Math.floor(cell / 2);
+            const cy = r * cell + Math.floor(cell / 2);
+            const radius = Math.floor(cell / 2) - 6;
+            const v = board[r][col];
+            if (v === EMPTY) {
+                fillCircle(c, cx, cy, radius, EMPTY_COLOR);
+            } else {
+                const [pc, pd] = pieceColor(v);
+                drawPiece(c, pc, pd, cx, cy, radius);
+            }
+        }
+    }
+    return off;
+}
+
+function renderEmptyBoardSurface(rows, cols, cell) {
+    const w = cols * cell, h = rows * cell;
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const c = off.getContext("2d");
+    fillRoundRect(c, 0, 0, w, h, 8, BOARD_SHADOW);
+    fillRoundRect(c, 3, 3, w - 6, h - 6, 6, BOARD_COLOR);
+    for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+            const cx = col * cell + Math.floor(cell / 2);
+            const cy = r * cell + Math.floor(cell / 2);
+            const radius = Math.floor(cell / 2) - 6;
+            fillCircle(c, cx, cy, radius, EMPTY_COLOR);
+        }
+    }
+    return off;
+}
+
+function drawArrowHead(ctx, tipX, tipY, tx, ty, color) {
+    const mag = Math.hypot(tx, ty) || 1.0;
+    tx /= mag; ty /= mag;
+    const px = -ty, py = tx;
+    const length = 10, width = 6;
+    const baseX = tipX - tx * length;
+    const baseY = tipY - ty * length;
+    const p1 = [tipX, tipY];
+    const p2 = [baseX + px * width, baseY + py * width];
+    const p3 = [baseX - px * width, baseY - py * width];
+    ctx.beginPath();
+    ctx.moveTo(p1[0], p1[1]);
+    ctx.lineTo(p2[0], p2[1]);
+    ctx.lineTo(p3[0], p3[1]);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function drawCurvedArrow(ctx, cx, cy, radius, direction, color) {
+    const arcRadius = Math.floor(radius * 0.55);
+    let startDeg, endDeg;
+    if (direction === 'left') {
+        startDeg = 70; endDeg = 340;
+    } else {
+        startDeg = 110; endDeg = -160;
+    }
+    const segments = 28;
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const ang = (startDeg + (endDeg - startDeg) * t) * Math.PI / 180;
+        const x = cx + arcRadius * Math.cos(ang);
+        const y = cy - arcRadius * Math.sin(ang);
+        pts.push([x, y]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
+
+    const tip = pts[pts.length - 1];
+    const ang = endDeg * Math.PI / 180;
+    let tx, ty;
+    if (direction === 'left') {
+        tx = -Math.sin(ang); ty = -Math.cos(ang);
+    } else {
+        tx = Math.sin(ang); ty = Math.cos(ang);
+    }
+    drawArrowHead(ctx, tip[0], tip[1], tx, ty, color);
+}
+
+function drawTiltButton(ctx, cx, cy, direction, hovered, enabled) {
+    let bg, icon;
+    if (!enabled) { bg = BUTTON_DISABLED; icon = BUTTON_ICON_DISABLED; }
+    else if (hovered) { bg = BUTTON_HOVER; icon = BUTTON_ICON; }
+    else { bg = BUTTON_COLOR; icon = BUTTON_ICON; }
+    fillCircle(ctx, cx, cy, BUTTON_RADIUS, bg);
+    strokeCircle(ctx, cx, cy, BUTTON_RADIUS, "rgb(15,18,28)", 2);
+    drawCurvedArrow(ctx, cx, cy, BUTTON_RADIUS, direction, icon);
+}
+
+// Hint button (in HUD)
+function hintButtonRect() {
+    const w = 90, h = 38;
+    const rightEdge = WINDOW_WIDTH - 80;
+    const x = rightEdge - w;
+    const y = Math.floor((HUD_HEIGHT - h) / 2);
+    return { x, y, w, h };
+}
+
+function pointInRect(px, py, r) {
+    return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+}
+
+function drawHintButton(ctx, hovered, enabled, thinking) {
+    const rect = hintButtonRect();
+    let bg, fg;
+    if (!enabled) { bg = BUTTON_DISABLED; fg = BUTTON_ICON_DISABLED; }
+    else if (hovered) { bg = BUTTON_HOVER; fg = BUTTON_ICON; }
+    else { bg = BUTTON_COLOR; fg = BUTTON_ICON; }
+    fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    const label = thinking ? "Hint..." : "Hint ?";
+    ctx.fillStyle = fg;
+    ctx.font = "18px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+}
+
+function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking) {
+    ctx.fillStyle = HUD_COLOR;
+    ctx.fillRect(0, 0, WINDOW_WIDTH, HUD_HEIGHT);
+    ctx.fillStyle = TEXT_COLOR;
+    ctx.font = "bold 26px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(statusText, 20, 18);
+    if (currentPlayer !== null && !animating) {
+        const [color, dark] = pieceColor(currentPlayer);
+        const center = [WINDOW_WIDTH - 40, Math.floor(HUD_HEIGHT / 2)];
+        fillCircle(ctx, center[0], center[1], 22, color);
+        strokeCircle(ctx, center[0], center[1], 22, dark, 2);
+        drawHintButton(ctx, hintBtnHovered, hintBtnEnabled, hintThinking);
+    }
+    ctx.fillStyle = "rgb(160,170,190)";
+    ctx.font = "18px Arial";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [N] menu, [ESC] quit",
+                 20, WINDOW_HEIGHT - 12);
+}
+
+function hoveredButton(mx, my, rows, cols) {
+    const [leftC, rightC] = buttonCenters(rows, cols);
+    const dl2 = (mx - leftC[0]) ** 2 + (my - leftC[1]) ** 2;
+    const dr2 = (mx - rightC[0]) ** 2 + (my - rightC[1]) ** 2;
+    if (dl2 <= BUTTON_RADIUS * BUTTON_RADIUS) return 'left';
+    if (dr2 <= BUTTON_RADIUS * BUTTON_RADIUS) return 'right';
+    return null;
+}
+
+function columnFromMouse(mx, my, offsetX, offsetY, cell, rows, cols) {
+    if (mx < offsetX || mx >= offsetX + cell * cols) return null;
+    if (!(my >= offsetY - cell && my < offsetY + cell * rows)) return null;
+    const col = Math.floor((mx - offsetX) / cell);
+    if (col >= 0 && col < cols) return col;
+    return null;
+}
+
+function hintPulseAlpha(nowSeconds) {
+    const s = 0.5 + 0.5 * Math.sin(2 * Math.PI * HINT_PULSE_HZ * nowSeconds);
+    return Math.floor(60 + s * 100);
+}
+
+function drawHintOverlay(ctx, board, hintMove, currentPlayer, nowSeconds) {
+    if (hintMove === null || hintMove === undefined) return;
+    const rows = board.length, cols = board[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+    const pulse = hintPulseAlpha(nowSeconds);
+    const kind = hintMove[0];
+    if (kind === 'drop') {
+        const col = hintMove[1];
+        if (col < 0 || col >= cols || board[0][col] !== EMPTY) return;
+        const colX = offsetX + col * cell;
+        // Translucent column shimmer
+        ctx.save();
+        ctx.fillStyle = `rgba(${HINT_COLOR_RGB[0]},${HINT_COLOR_RGB[1]},${HINT_COLOR_RGB[2]},${(pulse / 2) / 255})`;
+        ctx.fillRect(colX, offsetY, cell, rows * cell);
+        // Outline column
+        strokeRoundRect(ctx, colX, offsetY, cell, rows * cell, 6,
+                        `rgb(${HINT_COLOR_RGB[0]},${HINT_COLOR_RGB[1]},${HINT_COLOR_RGB[2]})`, 3);
+        ctx.restore();
+        // Ghost piece floating above
+        if (currentPlayer !== null) {
+            const cx = offsetX + col * cell + Math.floor(cell / 2);
+            const cy = offsetY - Math.floor(cell / 2) - 5;
+            const [color] = pieceColor(currentPlayer);
+            const radius = Math.floor(cell / 2) - 6;
+            // semi-transparent fill + cyan ring
+            // Need rgba from pieceColor
+            const rgbaFill = colorToRgba(color, 200);
+            fillCircle(ctx, cx, cy, radius, rgbaFill);
+            strokeCircle(ctx, cx, cy, radius,
+                `rgb(${HINT_COLOR_RGB[0]},${HINT_COLOR_RGB[1]},${HINT_COLOR_RGB[2]})`, 3);
+        }
+    } else {
+        const direction = hintMove[1];
+        const [leftC, rightC] = buttonCenters(rows, cols);
+        const center = direction === 'left' ? leftC : rightC;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = `rgba(${HINT_COLOR_RGB[0]},${HINT_COLOR_RGB[1]},${HINT_COLOR_RGB[2]},${pulse / 255})`;
+        ctx.beginPath();
+        ctx.arc(center[0], center[1], BUTTON_RADIUS + 8, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+
+function colorToRgba(rgbStr, alpha) {
+    // "rgb(r,g,b)" -> "rgba(r,g,b,a/255)"
+    const m = rgbStr.match(/rgb\((\d+),(\d+),(\d+)\)/);
+    if (!m) return rgbStr;
+    return `rgba(${m[1]},${m[2]},${m[3]},${alpha / 255})`;
+}
+
+function drawStaticScene(board, hoverCol, hoveredBtn, currentPlayer, statusText, winCells,
+                         gameOver, hintMove, hintBtnHovered, hintBtnEnabled, hintThinking,
+                         nowSeconds) {
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking);
+
+    const rows = board.length, cols = board[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+
+    if (hoverCol !== null && hoverCol >= 0 && hoverCol < cols
+        && currentPlayer !== null && board[0][hoverCol] === EMPTY) {
+        const cx = offsetX + hoverCol * cell + Math.floor(cell / 2);
+        const cy = offsetY - Math.floor(cell / 2) - 5;
+        const [color, dark] = pieceColor(currentPlayer);
+        const radius = Math.floor(cell / 2) - 6;
+        drawPiece(ctx, color, dark, cx, cy, radius);
+    }
+
+    const surf = renderBoardSurface(board, cell);
+    ctx.drawImage(surf, offsetX, offsetY);
+
+    if (hintMove !== null && !gameOver) {
+        drawHintOverlay(ctx, board, hintMove, currentPlayer, nowSeconds);
+    }
+
+    if (winCells) {
+        const pts = [];
+        for (const [r, c] of winCells) {
+            const cx = offsetX + c * cell + Math.floor(cell / 2);
+            const cy = offsetY + r * cell + Math.floor(cell / 2);
+            pts.push([cx, cy]);
+        }
+        if (pts.length >= 2) {
+            ctx.strokeStyle = WIN_LINE_COLOR;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+            ctx.stroke();
+            ctx.lineCap = 'butt';
+            for (const p of pts) {
+                fillCircle(ctx, p[0], p[1], 8, WIN_LINE_COLOR);
+            }
+        }
+    }
+
+    const [leftC, rightC] = buttonCenters(rows, cols);
+    const enabled = !gameOver;
+    drawTiltButton(ctx, leftC[0], leftC[1], 'left', hoveredBtn === 'left' && enabled, enabled);
+    drawTiltButton(ctx, rightC[0], rightC[1], 'right', hoveredBtn === 'right' && enabled, enabled);
+
+    return [offsetX, offsetY, cell, rows, cols];
+}
+
+function drawDisabledButtons(rows, cols) {
+    const [leftC, rightC] = buttonCenters(rows, cols);
+    drawTiltButton(ctx, leftC[0], leftC[1], 'left', false, false);
+    drawTiltButton(ctx, rightC[0], rightC[1], 'right', false, false);
+}
+
+// ===========================================================================
+// Easing
+// ===========================================================================
+function easeInOut(t) { return 0.5 - 0.5 * Math.cos(Math.PI * t); }
+function easeInQuad(t) { return t * t; }
+
+// ===========================================================================
+// Animation helpers (promise-based, so they pause the game loop neatly)
+// ===========================================================================
+function nextFrame() {
+    return new Promise(resolve => requestAnimationFrame(t => resolve(t / 1000)));
+}
+
+async function animateTilt(board, direction, statusText, currentPlayer) {
+    const rows = board.length, cols = board[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+    const preSurf = renderBoardSurface(board, cell);
+    const boardW = cell * cols, boardH = cell * rows;
+    const cx = offsetX + boardW / 2;
+    const cy = offsetY + boardH / 2;
+    const angleTarget = direction === 'left' ? 90 : -90;
+
+    const startTime = await nextFrame();
+    let elapsed = 0;
+    while (elapsed < TILT_DURATION) {
+        const now = await nextFrame();
+        elapsed = Math.min(now - startTime, TILT_DURATION);
+        const t = easeInOut(elapsed / TILT_DURATION);
+        // pygame.transform.rotate uses CCW for positive angles. Canvas rotate is CW.
+        const angleDeg = angleTarget * t;
+        const angleRad = -angleDeg * Math.PI / 180; // negate to keep CCW visually
+
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false);
+        drawDisabledButtons(rows, cols);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angleRad);
+        ctx.drawImage(preSurf, -boardW / 2, -boardH / 2);
+        ctx.restore();
+    }
+}
+
+async function animateFall(postTiltBoard, statusText, currentPlayer) {
+    const rows = postTiltBoard.length, cols = postTiltBoard[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+    const emptyFrame = renderEmptyBoardSurface(rows, cols, cell);
+    const radius = Math.floor(cell / 2) - 6;
+
+    const landings = gravityLandings(postTiltBoard);
+    const pieces = [];
+    for (const key in landings) {
+        const [origR, origC] = key.split(",").map(Number);
+        const [newR, _newC] = landings[key];
+        const player = postTiltBoard[origR][origC];
+        const startY = offsetY + origR * cell + Math.floor(cell / 2);
+        const endY = offsetY + newR * cell + Math.floor(cell / 2);
+        const x = offsetX + origC * cell + Math.floor(cell / 2);
+        pieces.push({ player, x, startY, endY });
+    }
+    let anyMove = false;
+    for (const p of pieces) if (p.startY !== p.endY) { anyMove = true; break; }
+    if (!anyMove) return;
+
+    const startTime = await nextFrame();
+    let elapsed = 0;
+    while (elapsed < FALL_DURATION) {
+        const now = await nextFrame();
+        elapsed = Math.min(now - startTime, FALL_DURATION);
+        const t = easeInQuad(elapsed / FALL_DURATION);
+
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false);
+        drawDisabledButtons(rows, cols);
+        ctx.drawImage(emptyFrame, offsetX, offsetY);
+        for (const p of pieces) {
+            const y = p.startY + (p.endY - p.startY) * t;
+            const [color, dark] = pieceColor(p.player);
+            drawPiece(ctx, color, dark, Math.round(p.x), Math.round(y), radius);
+        }
+    }
+}
+
+async function animateDrop(boardBefore, col, player, statusText) {
+    const rows = boardBefore.length, cols = boardBefore[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+
+    let landingR = null;
+    for (let r = rows - 1; r >= 0; r--) {
+        if (boardBefore[r][col] === EMPTY) { landingR = r; break; }
+    }
+    if (landingR === null) return null;
+
+    const radius = Math.floor(cell / 2) - 6;
+    const x = offsetX + col * cell + Math.floor(cell / 2);
+    const startY = offsetY - Math.floor(cell / 2);
+    const endY = offsetY + landingR * cell + Math.floor(cell / 2);
+    const distanceCells = landingR + 1;
+    const duration = 0.08 + 0.04 * distanceCells;
+
+    const baseSurf = renderBoardSurface(boardBefore, cell);
+    const [color, dark] = pieceColor(player);
+
+    const startTime = await nextFrame();
+    let elapsed = 0;
+    while (elapsed < duration) {
+        const now = await nextFrame();
+        elapsed = Math.min(now - startTime, duration);
+        const t = easeInQuad(elapsed / duration);
+
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        drawHud(ctx, statusText, player, true, false, false, false);
+        drawDisabledButtons(rows, cols);
+        ctx.drawImage(baseSurf, offsetX, offsetY);
+        const y = startY + (endY - startY) * t;
+        drawPiece(ctx, color, dark, Math.round(x), Math.round(y), radius);
+    }
+    return landingR;
+}
+
+// ===========================================================================
+// Mouse / keyboard state
+// ===========================================================================
+const mouseState = { x: 0, y: 0, clicked: false, clickX: 0, clickY: 0 };
+const keyQueue = [];
+
+canvas.addEventListener("mousemove", evt => {
+    const p = getMousePos(evt);
+    mouseState.x = p.x;
+    mouseState.y = p.y;
+});
+
+canvas.addEventListener("mousedown", evt => {
+    if (evt.button !== 0) return;
+    const p = getMousePos(evt);
+    mouseState.clicked = true;
+    mouseState.clickX = p.x;
+    mouseState.clickY = p.y;
+    canvas.focus();
+});
+
+window.addEventListener("keydown", evt => {
+    keyQueue.push(evt.key);
+    // Prevent space/arrow scroll, etc.
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(evt.key)) {
+        evt.preventDefault();
+    }
+});
+
+function consumeClick() {
+    if (mouseState.clicked) {
+        mouseState.clicked = false;
+        return [mouseState.clickX, mouseState.clickY];
+    }
+    return null;
+}
+
+function consumeKey() {
+    if (keyQueue.length === 0) return null;
+    return keyQueue.shift();
+}
+
+function clearInputs() {
+    mouseState.clicked = false;
+    keyQueue.length = 0;
+}
+
+// ===========================================================================
+// Menu screens
+// ===========================================================================
+function playerName(p) { return p === PLAYER1 ? "Red" : "Yellow"; }
+
+async function showStartMenu() {
+    const btnW = 365, btnH = 64;
+    const cx = Math.floor(WINDOW_WIDTH / 2);
+    const startY = 290;
+    const gap = 20;
+    const buttons = [
+        { key: 'pvp', label: "Two Players (Local)", human: null },
+        { key: 'pvc_red', label: "Play Computer as Red (go first)", human: PLAYER1 },
+        { key: 'pvc_yellow', label: "Play Computer as Yellow (go second)", human: PLAYER2 },
+    ];
+    const rects = buttons.map((_, i) => ({
+        x: cx - btnW / 2,
+        y: startY + i * (btnH + gap),
+        w: btnW, h: btnH,
+    }));
+
+    while (true) {
+        const click = consumeClick();
+        if (click !== null) {
+            for (let i = 0; i < rects.length; i++) {
+                if (pointInRect(click[0], click[1], rects[i])) {
+                    const b = buttons[i];
+                    if (b.key === 'pvp') return { mode: 'pvp' };
+                    return { mode: 'pvc', human: b.human };
+                }
+            }
+        }
+        const k = consumeKey();
+        if (k === 'Escape') return null;
+
+        // render
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "bold 42px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Tilt Connect 4", cx, 60);
+
+        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.font = "22px Arial";
+        ctx.fillText("Connect 4, but you can rotate the board", cx, 105);
+
+        // Game blurb
+        ctx.fillStyle = "rgb(200,210,225)";
+        ctx.font = "17px Arial";
+        const blurbLines = [
+            "On your turn, drop a piece into a column OR spend your turn",
+            "tilting the whole board 90 degrees left or right. After a tilt,",
+            "all pieces fall under gravity into their new orientation, which",
+            "can rearrange threats, build new ones, or undo your opponent's.",
+            "First to four in a row (any direction) wins.",
+        ];
+        for (let i = 0; i < blurbLines.length; i++) {
+            ctx.fillText(blurbLines[i], cx, 145 + i * 22);
+        }
+
+        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.font = "22px Arial";
+        ctx.fillText("Choose a game mode", cx, 262);
+
+        for (let i = 0; i < rects.length; i++) {
+            const r = rects[i];
+            const b = buttons[i];
+            const hovered = pointInRect(mouseState.x, mouseState.y, r);
+            const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
+            fillRoundRect(ctx, r.x, r.y, r.w, r.h, 10, bg);
+            strokeRoundRect(ctx, r.x, r.y, r.w, r.h, 10, "rgb(15,18,28)", 2);
+
+            ctx.fillStyle = TEXT_COLOR;
+            ctx.font = "18px Arial";
+            let textCx = r.x + r.w / 2;
+            const textCy = r.y + r.h / 2;
+            if (b.human !== null) {
+                const chipCx = r.x + 36;
+                const chipCy = r.y + r.h / 2;
+                const [color, dark] = pieceColor(b.human);
+                fillCircle(ctx, chipCx, chipCy, 18, color);
+                strokeCircle(ctx, chipCx, chipCy, 18, dark, 2);
+                textCx = (r.x + r.w + chipCx + 22) / 2;
+            }
+            ctx.fillText(b.label, textCx, textCy);
+        }
+
+        ctx.fillStyle = "rgb(140,150,170)";
+        ctx.font = "18px Arial";
+        ctx.fillText("Press ESC to quit", cx, WINDOW_HEIGHT - 40);
+
+        await nextFrame();
+    }
+}
+
+async function showDifficultyMenu(humanPlayer) {
+    const cx = Math.floor(WINDOW_WIDTH / 2);
+    const levels = [];
+    for (let l = AI_DEPTH_MIN; l <= AI_DEPTH_MAX; l++) levels.push(l);
+    const labels = {
+        1: ["1 - Beginner", "Looks 1 ply ahead"],
+        2: ["2 - Easy", "Looks 2 plies ahead"],
+        3: ["3 - Casual", "Looks 3 plies ahead"],
+        4: ["4 - Standard", "Looks 4 plies ahead"],
+        5: ["5 - Hard", "Looks 5 plies ahead"],
+        6: ["6 - Expert", "Looks 6 plies ahead"],
+    };
+    const btnW = 220, btnH = 70;
+    const gx = 16, gy = 16;
+    const colsPerRow = 3;
+    const gridW = btnW * colsPerRow + gx * (colsPerRow - 1);
+    const gridX0 = cx - gridW / 2;
+    const gridY0 = 220;
+
+    const btnRects = [];
+    for (let i = 0; i < levels.length; i++) {
+        const col = i % colsPerRow;
+        const row = Math.floor(i / colsPerRow);
+        const x = gridX0 + col * (btnW + gx);
+        const y = gridY0 + row * (btnH + gy);
+        btnRects.push({ rect: { x, y, w: btnW, h: btnH }, lvl: levels[i] });
+    }
+    const backW = 160, backH = 44;
+    const backRect = {
+        x: cx - backW / 2,
+        y: gridY0 + 2 * (btnH + gy) + 20,
+        w: backW, h: backH,
+    };
+
+    while (true) {
+        const click = consumeClick();
+        if (click !== null) {
+            if (pointInRect(click[0], click[1], backRect)) return 'back';
+            for (const { rect, lvl } of btnRects) {
+                if (pointInRect(click[0], click[1], rect)) return lvl;
+            }
+        }
+        const k = consumeKey();
+        if (k === 'Escape') return 'back';
+        if (k && /^[1-6]$/.test(k)) return parseInt(k, 10);
+
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "bold 42px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Choose Difficulty", cx, 90);
+
+        let subText = "";
+        if (humanPlayer !== null) {
+            subText = `You are playing as ${playerName(humanPlayer)}`;
+        }
+        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.font = "22px Arial";
+        ctx.fillText(subText, cx, 140);
+
+        if (humanPlayer !== null) {
+            // Approximate the "left of subtitle" chip placement
+            const subWidth = ctx.measureText(subText).width;
+            const chipCx = cx - subWidth / 2 - 28;
+            const [color, dark] = pieceColor(humanPlayer);
+            fillCircle(ctx, chipCx, 140, 14, color);
+            strokeCircle(ctx, chipCx, 140, 14, dark, 2);
+        }
+
+        ctx.fillStyle = "rgb(160,170,190)";
+        ctx.font = "18px Arial";
+        ctx.fillText("Higher = stronger but slower thinking", cx, 180);
+
+        for (const { rect, lvl } of btnRects) {
+            const hovered = pointInRect(mouseState.x, mouseState.y, rect);
+            const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
+            fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10, bg);
+            strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10, "rgb(15,18,28)", 2);
+            const [label, desc] = labels[lvl];
+            ctx.fillStyle = TEXT_COLOR;
+            ctx.font = "bold 26px Arial";
+            ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 - 12);
+            ctx.fillStyle = "rgb(180,190,210)";
+            ctx.font = "18px Arial";
+            ctx.fillText(desc, rect.x + rect.w / 2, rect.y + rect.h / 2 + 16);
+        }
+
+        const backHovered = pointInRect(mouseState.x, mouseState.y, backRect);
+        fillRoundRect(ctx, backRect.x, backRect.y, backRect.w, backRect.h, 8,
+                      backHovered ? BUTTON_HOVER : BUTTON_COLOR);
+        strokeRoundRect(ctx, backRect.x, backRect.y, backRect.w, backRect.h, 8, "rgb(15,18,28)", 2);
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "18px Arial";
+        ctx.fillText("Back", backRect.x + backRect.w / 2, backRect.y + backRect.h / 2);
+
+        ctx.fillStyle = "rgb(140,150,170)";
+        ctx.font = "18px Arial";
+        ctx.fillText("Press 1-6 to pick, ESC to go back", cx, WINDOW_HEIGHT - 40);
+
+        await nextFrame();
+    }
+}
+
+// ===========================================================================
+// Game loop
+// ===========================================================================
+async function playGame(humanPlayer, aiPlayer, aiDepth) {
+    const isPvc = humanPlayer !== null;
+    let board = makeBoard();
+    let currentPlayer = PLAYER1;
+    let winCells = null;
+    let gameOver = false;
+    let statusText = `Player 1 (${playerName(PLAYER1)}) to move`;
+
+    // AI thinking is synchronous in JS (no real threads). To avoid freezing
+    // the UI, we yield via setTimeout before computing.
+    let aiThinking = false;
+    let aiPending = null;
+
+    let hintMove = null;
+    let hintThinking = false;
+    let hintPending = null;
+
+    function isAiTurn() { return isPvc && currentPlayer === aiPlayer && !gameOver; }
+
+    function canRequestHint() {
+        if (gameOver) return false;
+        if (isAiTurn()) return false;
+        if (hintThinking) return false;
+        return true;
+    }
+
+    function startAiThinking() {
+        aiThinking = true;
+        const snapshot = clone(board);
+        const player = aiPlayer;
+        const depth = aiDepth;
+        // Defer one tick so the UI redraws "is thinking..." first.
+        setTimeout(() => {
+            aiPending = chooseAiMove(snapshot, player, depth);
+            aiThinking = false;
+        }, 30);
+    }
+
+    function requestHint() {
+        if (!canRequestHint()) return;
+        hintThinking = true;
+        const snapshot = clone(board);
+        const player = currentPlayer;
+        const depth = isPvc ? aiDepth : AI_DEPTH;
+        setTimeout(() => {
+            hintPending = chooseAiMove(snapshot, player, depth);
+            hintThinking = false;
+        }, 30);
+    }
+
+    function clearHint() {
+        hintMove = null;
+        hintPending = null;
+    }
+
+    if (isAiTurn()) {
+        statusText = `Computer (${playerName(aiPlayer)}) is thinking...`;
+        startAiThinking();
+    }
+
+    while (true) {
+        const acceptingHuman = !gameOver && (!isPvc || currentPlayer === humanPlayer);
+        const [_ox, _oy, cell, rows, cols] = boardLayout(ROWS, COLS).concat([ROWS, COLS]);
+        const offsetX = boardLayout(ROWS, COLS)[0];
+        const offsetY = boardLayout(ROWS, COLS)[1];
+
+        const hoverCol = acceptingHuman
+            ? columnFromMouse(mouseState.x, mouseState.y, offsetX, offsetY, cell, rows, cols)
+            : null;
+        const hovBtn = acceptingHuman ? hoveredButton(mouseState.x, mouseState.y, rows, cols) : null;
+        const hintBtnRect = hintButtonRect();
+        const hintBtnHovered = acceptingHuman && pointInRect(mouseState.x, mouseState.y, hintBtnRect);
+
+        let action = null;
+        let actionCol = null;
+
+        // Process input
+        const k = consumeKey();
+        if (k !== null) {
+            if (k === 'Escape') { return 'quit'; }
+            else if (k === 'n' || k === 'N') { return 'menu'; }
+            else if (acceptingHuman && (k === 'h' || k === 'H')) { requestHint(); }
+            else if (acceptingHuman && (k === 'l' || k === 'L')) { action = 'left'; }
+            else if (acceptingHuman && (k === 'r' || k === 'R')) { action = 'right'; }
+        }
+
+        const click = consumeClick();
+        if (click !== null && acceptingHuman) {
+            if (pointInRect(click[0], click[1], hintBtnRect)) {
+                requestHint();
+            } else {
+                const btn = hoveredButton(click[0], click[1], rows, cols);
+                if (btn === 'left') action = 'left';
+                else if (btn === 'right') action = 'right';
+                else {
+                    const col = columnFromMouse(click[0], click[1], offsetX, offsetY, cell, rows, cols);
+                    if (col !== null && board[0][col] === EMPTY) {
+                        action = 'drop';
+                        actionCol = col;
+                    }
+                }
+            }
+        }
+
+        // Pick up hint result if ready
+        if (hintPending !== null) {
+            hintMove = hintPending;
+            hintPending = null;
+        }
+
+        // Pick up AI move if ready
+        if (isAiTurn() && aiPending !== null) {
+            const move = aiPending;
+            aiPending = null;
+            if (move !== null) {
+                if (move[0] === 'drop') {
+                    action = 'drop';
+                    actionCol = move[1];
+                } else {
+                    action = move[1]; // 'left' or 'right'
+                }
+            }
+        }
+
+        if (action !== null) clearHint();
+
+        if (action === 'drop') {
+            const mover = currentPlayer;
+            await animateDrop(board, actionCol, mover, statusText);
+            for (let r = board.length - 1; r >= 0; r--) {
+                if (board[r][actionCol] === EMPTY) {
+                    board[r][actionCol] = mover;
+                    break;
+                }
+            }
+            const [w, cells] = checkWinner(board, mover);
+            if (w !== null) {
+                winCells = cells;
+                gameOver = true;
+                if (isPvc) {
+                    statusText = (w === humanPlayer)
+                        ? `You win! (${playerName(w)})`
+                        : `Computer wins (${playerName(w)})`;
+                } else {
+                    statusText = `Player ${w} (${playerName(w)}) wins!`;
+                }
+            } else if (boardIsFull(board)) {
+                gameOver = true;
+                statusText = "Draw!";
+            } else {
+                currentPlayer = currentPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+                if (isPvc && currentPlayer === aiPlayer) {
+                    statusText = `Computer (${playerName(aiPlayer)}) is thinking...`;
+                    startAiThinking();
+                } else if (isPvc) {
+                    statusText = `Your turn (${playerName(humanPlayer)})`;
+                } else {
+                    statusText = `Player ${currentPlayer} (${playerName(currentPlayer)}) to move`;
+                }
+            }
+        } else if (action === 'left' || action === 'right') {
+            const mover = currentPlayer;
+            await animateTilt(board, action, statusText, mover);
+            const postTilt = action === 'left' ? rotateLeft(board) : rotateRight(board);
+            await animateFall(postTilt, statusText, mover);
+            const settled = clone(postTilt);
+            applyGravity(settled);
+            board = settled;
+
+            const [w, cells] = checkWinner(board, mover);
+            if (w !== null) {
+                winCells = cells;
+                gameOver = true;
+                if (isPvc) {
+                    statusText = (w === humanPlayer)
+                        ? `You win! (${playerName(w)})`
+                        : `Computer wins (${playerName(w)})`;
+                } else {
+                    statusText = `Player ${w} (${playerName(w)}) wins!`;
+                }
+            } else if (boardIsFull(board)) {
+                gameOver = true;
+                statusText = "Draw!";
+            } else {
+                currentPlayer = currentPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+                const tiltWord = action === 'left' ? "left" : "right";
+                if (isPvc && currentPlayer === aiPlayer) {
+                    statusText = `Tilted ${tiltWord}. Computer (${playerName(aiPlayer)}) is thinking...`;
+                    startAiThinking();
+                } else if (isPvc) {
+                    statusText = `Tilted ${tiltWord}. Your turn (${playerName(humanPlayer)})`;
+                } else {
+                    statusText = `Tilted ${tiltWord}. Player ${currentPlayer} (${playerName(currentPlayer)}) to move`;
+                }
+            }
+        }
+
+        const cur = gameOver ? null : currentPlayer;
+        const nowSeconds = performance.now() / 1000;
+        drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
+                        gameOver, hintMove, hintBtnHovered, canRequestHint(),
+                        hintThinking, nowSeconds);
+        await nextFrame();
+    }
+}
+
+// ===========================================================================
+// Top-level driver
+// ===========================================================================
+async function main() {
+    while (true) {
+        clearInputs();
+        const choice = await showStartMenu();
+        if (choice === null) {
+            // Show a "closed" screen
+            ctx.fillStyle = BG_COLOR;
+            ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            ctx.fillStyle = TEXT_COLOR;
+            ctx.font = "bold 32px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("Thanks for playing!", WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
+            // Wait then reopen menu after a key press
+            while (consumeKey() === null && consumeClick() === null) {
+                await nextFrame();
+            }
+            continue;
+        }
+        let aiDepth = AI_DEPTH;
+        let humanPlayer = null;
+        let aiPlayer = null;
+        if (choice.mode === 'pvc') {
+            humanPlayer = choice.human;
+            aiPlayer = humanPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+            clearInputs();
+            const dchoice = await showDifficultyMenu(humanPlayer);
+            if (dchoice === 'back') continue;
+            aiDepth = dchoice;
+        }
+        clearInputs();
+        const result = await playGame(humanPlayer, aiPlayer, aiDepth);
+        if (result === 'quit') {
+            // Loop back to menu (in browser there's no "quit" target)
+            continue;
+        }
+    }
+}
+
+main();
+</script>
+</body>
+</html>
