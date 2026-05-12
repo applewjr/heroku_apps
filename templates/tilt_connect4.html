@@ -27,6 +27,9 @@
     canvas {
         display: block;
         background: rgb(28, 32, 48);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        outline: none;
     }
 </style>
 </head>
@@ -668,8 +671,23 @@ function hintButtonRect() {
     return { x, y, w, h };
 }
 
+// Menu button (in HUD, sits to the left of Hint)
+function menuButtonRect() {
+    const w = 90, h = 38;
+    const hint = hintButtonRect();
+    const x = hint.x - 12 - w;
+    const y = hint.y;
+    return { x, y, w, h };
+}
+
 function pointInRect(px, py, r) {
     return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+}
+
+// Pad a rect outward for a more forgiving touch hit target (used on tap input).
+function pointInRectPadded(px, py, r, pad) {
+    return px >= r.x - pad && px < r.x + r.w + pad
+        && py >= r.y - pad && py < r.y + r.h + pad;
 }
 
 function drawHintButton(ctx, hovered, enabled, thinking) {
@@ -688,7 +706,20 @@ function drawHintButton(ctx, hovered, enabled, thinking) {
     ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
 
-function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking) {
+function drawMenuButton(ctx, hovered) {
+    const rect = menuButtonRect();
+    const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
+    const fg = BUTTON_ICON;
+    fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    ctx.fillStyle = fg;
+    ctx.font = "18px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Menu", rect.x + rect.w / 2, rect.y + rect.h / 2);
+}
+
+function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered) {
     ctx.fillStyle = HUD_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, HUD_HEIGHT);
     ctx.fillStyle = TEXT_COLOR;
@@ -703,10 +734,12 @@ function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hint
         strokeCircle(ctx, center[0], center[1], 22, dark, 2);
         drawHintButton(ctx, hintBtnHovered, hintBtnEnabled, hintThinking);
     }
+    // Menu button is always drawn so it's accessible on mobile, even mid-animation.
+    drawMenuButton(ctx, !!menuBtnHovered);
     ctx.fillStyle = "rgb(160,170,190)";
     ctx.font = "18px Arial";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [N] menu, [ESC] quit",
+    ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [N]/Menu, [ESC] quit",
                  20, WINDOW_HEIGHT - 12);
 }
 
@@ -784,10 +817,10 @@ function colorToRgba(rgbStr, alpha) {
 
 function drawStaticScene(board, hoverCol, hoveredBtn, currentPlayer, statusText, winCells,
                          gameOver, hintMove, hintBtnHovered, hintBtnEnabled, hintThinking,
-                         nowSeconds) {
+                         nowSeconds, menuBtnHovered) {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking);
+    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered);
 
     const rows = board.length, cols = board[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
@@ -968,12 +1001,21 @@ async function animateDrop(boardBefore, col, player, statusText) {
 }
 
 // ===========================================================================
-// Mouse / keyboard state
+// Mouse / touch / keyboard state
 // ===========================================================================
 const mouseState = { x: 0, y: 0, clicked: false, clickX: 0, clickY: 0 };
 const keyQueue = [];
 
+// When a touch lands, browsers also synthesize mouse events ~300ms later.
+// We track the timestamp of the last touch and ignore mouse events for a
+// short window after, so taps don't fire twice.
+let lastTouchTime = 0;
+function isSyntheticMouseEvent() {
+    return (performance.now() - lastTouchTime) < 500;
+}
+
 canvas.addEventListener("mousemove", evt => {
+    if (isSyntheticMouseEvent()) return;
     const p = getMousePos(evt);
     mouseState.x = p.x;
     mouseState.y = p.y;
@@ -981,12 +1023,59 @@ canvas.addEventListener("mousemove", evt => {
 
 canvas.addEventListener("mousedown", evt => {
     if (evt.button !== 0) return;
+    if (isSyntheticMouseEvent()) return;
     const p = getMousePos(evt);
     mouseState.clicked = true;
     mouseState.clickX = p.x;
     mouseState.clickY = p.y;
-    canvas.focus();
 });
+
+// Touch: register a tap on touchend at the touchstart position so brief
+// scrolls/swipes don't fire. Also record the position for hover-style cues.
+let touchStartPos = null;
+canvas.addEventListener("touchstart", evt => {
+    lastTouchTime = performance.now();
+    if (evt.touches.length !== 1) { touchStartPos = null; return; }
+    const t = evt.touches[0];
+    const p = getMousePosFromPoint(t.clientX, t.clientY);
+    touchStartPos = p;
+    // Treat the touch as the current pointer position so hover-state cues update.
+    mouseState.x = p.x;
+    mouseState.y = p.y;
+    evt.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchmove", evt => {
+    lastTouchTime = performance.now();
+    if (evt.touches.length !== 1) return;
+    const t = evt.touches[0];
+    const p = getMousePosFromPoint(t.clientX, t.clientY);
+    mouseState.x = p.x;
+    mouseState.y = p.y;
+    evt.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchend", evt => {
+    lastTouchTime = performance.now();
+    if (touchStartPos === null) return;
+    // Use the last known touch position (set by touchstart/touchmove).
+    mouseState.clicked = true;
+    mouseState.clickX = mouseState.x;
+    mouseState.clickY = mouseState.y;
+    touchStartPos = null;
+    evt.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchcancel", () => {
+    touchStartPos = null;
+});
+
+function getMousePosFromPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width;
+    const sy = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+}
 
 window.addEventListener("keydown", evt => {
     keyQueue.push(evt.key);
@@ -1012,6 +1101,73 @@ function consumeKey() {
 function clearInputs() {
     mouseState.clicked = false;
     keyQueue.length = 0;
+}
+
+// ===========================================================================
+// Confirmation modal
+// ===========================================================================
+// Renders a "Are you sure?" overlay on top of the existing scene (which
+// must already be in the framebuffer). Pumps its own input loop and
+// returns true if the user confirms, false if they cancel.
+async function confirmDialog(message, confirmLabel, cancelLabel) {
+    // Snapshot the current canvas so we can redraw it each frame under the dim overlay.
+    const snap = document.createElement("canvas");
+    snap.width = canvas.width;
+    snap.height = canvas.height;
+    snap.getContext("2d").drawImage(canvas, 0, 0);
+
+    const boxW = 460, boxH = 200;
+    const boxX = Math.floor((WINDOW_WIDTH - boxW) / 2);
+    const boxY = Math.floor((WINDOW_HEIGHT - boxH) / 2);
+    const btnW = 170, btnH = 56;
+    const btnGap = 28;
+    const btnY = boxY + boxH - btnH - 24;
+    const confirmRect = { x: boxX + boxW / 2 - btnW - btnGap / 2, y: btnY, w: btnW, h: btnH };
+    const cancelRect  = { x: boxX + boxW / 2 + btnGap / 2,         y: btnY, w: btnW, h: btnH };
+
+    clearInputs();
+    while (true) {
+        const click = consumeClick();
+        if (click !== null) {
+            if (pointInRect(click[0], click[1], confirmRect)) return true;
+            if (pointInRect(click[0], click[1], cancelRect)) return false;
+        }
+        const k = consumeKey();
+        if (k !== null) {
+            if (k === 'Escape' || k === 'n' || k === 'N') return false;
+            if (k === 'Enter' || k === 'y' || k === 'Y') return true;
+        }
+
+        // Redraw the snapshot, then dim, then the dialog.
+        ctx.drawImage(snap, 0, 0);
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        fillRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "rgb(36,42,60)");
+        strokeRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "rgb(15,18,28)", 2);
+
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "bold 24px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(message, boxX + boxW / 2, boxY + 56);
+
+        const confirmHover = pointInRect(mouseState.x, mouseState.y, confirmRect);
+        const cancelHover  = pointInRect(mouseState.x, mouseState.y, cancelRect);
+        fillRoundRect(ctx, confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 10,
+                      confirmHover ? "rgb(200,80,80)" : "rgb(170,60,60)");
+        strokeRoundRect(ctx, confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 10, "rgb(15,18,28)", 2);
+        fillRoundRect(ctx, cancelRect.x, cancelRect.y, cancelRect.w, cancelRect.h, 10,
+                      cancelHover ? BUTTON_HOVER : BUTTON_COLOR);
+        strokeRoundRect(ctx, cancelRect.x, cancelRect.y, cancelRect.w, cancelRect.h, 10, "rgb(15,18,28)", 2);
+
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "bold 20px Arial";
+        ctx.fillText(confirmLabel, confirmRect.x + confirmRect.w / 2, confirmRect.y + confirmRect.h / 2);
+        ctx.fillText(cancelLabel,  cancelRect.x  + cancelRect.w  / 2, cancelRect.y  + cancelRect.h  / 2);
+
+        await nextFrame();
+    }
 }
 
 // ===========================================================================
@@ -1293,36 +1449,60 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const hovBtn = acceptingHuman ? hoveredButton(mouseState.x, mouseState.y, rows, cols) : null;
         const hintBtnRect = hintButtonRect();
         const hintBtnHovered = acceptingHuman && pointInRect(mouseState.x, mouseState.y, hintBtnRect);
+        const menuBtnRect = menuButtonRect();
+        const menuBtnHovered = pointInRect(mouseState.x, mouseState.y, menuBtnRect);
 
         let action = null;
         let actionCol = null;
+        let confirmMenuRequest = false;
 
         // Process input
         const k = consumeKey();
         if (k !== null) {
             if (k === 'Escape') { return 'quit'; }
-            else if (k === 'n' || k === 'N') { return 'menu'; }
+            else if (k === 'n' || k === 'N') { confirmMenuRequest = true; }
             else if (acceptingHuman && (k === 'h' || k === 'H')) { requestHint(); }
             else if (acceptingHuman && (k === 'l' || k === 'L')) { action = 'left'; }
             else if (acceptingHuman && (k === 'r' || k === 'R')) { action = 'right'; }
         }
 
+        // Touch-friendly hit padding for the small HUD/tilt buttons.
+        const TAP_PAD = 14;
+
         const click = consumeClick();
-        if (click !== null && acceptingHuman) {
-            if (pointInRect(click[0], click[1], hintBtnRect)) {
-                requestHint();
-            } else {
-                const btn = hoveredButton(click[0], click[1], rows, cols);
-                if (btn === 'left') action = 'left';
-                else if (btn === 'right') action = 'right';
-                else {
-                    const col = columnFromMouse(click[0], click[1], offsetX, offsetY, cell, rows, cols);
-                    if (col !== null && board[0][col] === EMPTY) {
-                        action = 'drop';
-                        actionCol = col;
+        if (click !== null) {
+            // Menu button is always tappable, even during AI turn / animations / game over.
+            if (pointInRectPadded(click[0], click[1], menuBtnRect, TAP_PAD)) {
+                confirmMenuRequest = true;
+            } else if (acceptingHuman) {
+                if (pointInRectPadded(click[0], click[1], hintBtnRect, TAP_PAD)) {
+                    requestHint();
+                } else {
+                    const btn = hoveredButton(click[0], click[1], rows, cols);
+                    if (btn === 'left') action = 'left';
+                    else if (btn === 'right') action = 'right';
+                    else {
+                        const col = columnFromMouse(click[0], click[1], offsetX, offsetY, cell, rows, cols);
+                        if (col !== null && board[0][col] === EMPTY) {
+                            action = 'drop';
+                            actionCol = col;
+                        }
                     }
                 }
             }
+        }
+
+        if (confirmMenuRequest) {
+            // Redraw current scene first so the confirm dialog has fresh content underneath.
+            const cur = gameOver ? null : currentPlayer;
+            const nowSeconds = performance.now() / 1000;
+            drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
+                            gameOver, hintMove, hintBtnHovered, canRequestHint(),
+                            hintThinking, nowSeconds, menuBtnHovered);
+            const yes = await confirmDialog("Return to main menu?", "Yes, exit", "Keep playing");
+            clearInputs();
+            if (yes) return 'menu';
+            continue;
         }
 
         // Pick up hint result if ready
@@ -1422,7 +1602,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const nowSeconds = performance.now() / 1000;
         drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
                         gameOver, hintMove, hintBtnHovered, canRequestHint(),
-                        hintThinking, nowSeconds);
+                        hintThinking, nowSeconds, menuBtnHovered);
         await nextFrame();
     }
 }
