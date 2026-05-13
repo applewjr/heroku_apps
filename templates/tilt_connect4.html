@@ -130,6 +130,146 @@ function getMousePos(evt) {
 }
 
 // ===========================================================================
+// Sound effects (Web Audio API synth, no external files)
+// ===========================================================================
+let audioCtx = null;
+let soundEnabled = true;
+function getAudioCtx() {
+    if (audioCtx === null) {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            soundEnabled = false;
+            return null;
+        }
+    }
+    // Browsers suspend AudioContext until a user gesture. Resume on first call.
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+
+// Short, punchy "thunk" when a piece lands. Low sine with fast decay plus a click transient.
+function playDropSound() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Body: low sine, drops in pitch
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.2);
+    // Click transient
+    const click = ctx.createOscillator();
+    const clickGain = ctx.createGain();
+    click.type = 'square';
+    click.frequency.setValueAtTime(800, now);
+    clickGain.gain.setValueAtTime(0.08, now);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    click.connect(clickGain).connect(ctx.destination);
+    click.start(now);
+    click.stop(now + 0.04);
+}
+
+// "Whoosh" for tilt: filtered noise sweep.
+function playTiltSound() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const duration = 0.45;
+    // Generate a noise buffer
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(400, now);
+    filter.frequency.exponentialRampToValueAtTime(1800, now + duration * 0.6);
+    filter.frequency.exponentialRampToValueAtTime(300, now + duration);
+    filter.Q.value = 2.5;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    noise.connect(filter).connect(gain).connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + duration);
+}
+
+// Soft cascade tick for individual pieces landing during gravity fall.
+function playFallTick(pitch) {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(pitch, now);
+    osc.frequency.exponentialRampToValueAtTime(pitch * 0.6, now + 0.08);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+}
+
+// Triumphant arpeggio for wins.
+function playWinSound() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // C major triad up + octave: C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+        const t = now + i * 0.11;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+    });
+}
+
+// Sad-trombone-lite for losses (in PvC). Two-note descending.
+function playLoseSound() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [392.0, 311.13];
+    notes.forEach((freq, i) => {
+        const t = now + i * 0.18;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.18, t + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.45);
+    });
+}
+
+// ===========================================================================
 // Board logic
 // ===========================================================================
 function makeBoard() {
@@ -301,6 +441,17 @@ function boardsEqual(a, b) {
     return true;
 }
 
+// Compact string serialization of a board, used as a Map key for repetition tracking.
+function boardKey(board) {
+    let s = "";
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[r].length; c++) {
+            s += board[r][c];
+        }
+    }
+    return s;
+}
+
 // ===========================================================================
 // AI: minimax with alpha-beta
 // ===========================================================================
@@ -418,7 +569,7 @@ function minimax(board, depth, alpha, beta, maximizing, aiPlayer, lastMover) {
     }
 }
 
-function chooseAiMove(board, aiPlayer, depth) {
+function chooseAiMove(board, aiPlayer, depth, positionHistory) {
     const opponent = aiPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
     // Fast path: immediate win
     for (const c of legalDropCols(board)) {
@@ -431,6 +582,21 @@ function chooseAiMove(board, aiPlayer, depth) {
     }
     const moves = generateMoves(board, aiPlayer);
     if (moves.length === 0) return null;
+
+    // Threefold-repetition penalty (soft): if a candidate move would land in a
+    // position we've already been in, knock its score down so minimax ties
+    // resolve toward novel positions. Penalty per prior visit is small enough
+    // not to override real tactical scores, but large enough to break ties.
+    // Only applied to non-terminal scores so we never refuse a forced win or
+    // accept a forced loss for the sake of variety.
+    const REPETITION_PENALTY = 60;
+    const TERMINAL_FLOOR = Math.floor(WIN_SCORE / 2);
+    const settledKey = (rawBoard) => {
+        // For tilt moves, generateMoves already returns the post-gravity board.
+        // For drops, applyDrop also returns a settled board. So a single key
+        // off the candidate board is fine.
+        return boardKey(rawBoard);
+    };
 
     const scored = [];
     for (const [move, nb] of moves) {
@@ -450,7 +616,12 @@ function chooseAiMove(board, aiPlayer, depth) {
             scored.push([-Math.floor(WIN_SCORE / 2), move]);
             continue;
         }
-        const [s, _] = minimax(nb, depth - 1, -Infinity, Infinity, false, aiPlayer, aiPlayer);
+        let [s, _] = minimax(nb, depth - 1, -Infinity, Infinity, false, aiPlayer, aiPlayer);
+        // Apply repetition penalty only to non-terminal evaluations.
+        if (positionHistory && Math.abs(s) < TERMINAL_FLOOR) {
+            const prior = positionHistory.get(settledKey(nb)) || 0;
+            if (prior > 0) s -= REPETITION_PENALTY * prior;
+        }
         scored.push([s, move]);
     }
     let bestScore = -Infinity;
@@ -546,6 +717,24 @@ function strokeCircle(ctx, x, y, r, stroke, lineWidth) {
 function drawPiece(ctx, color, dark, cx, cy, radius) {
     fillCircle(ctx, cx, cy, radius, color);
     strokeCircle(ctx, cx, cy, radius, dark, 2);
+}
+
+// Draw a piece with vertical squash (scaleY < 1) for impact feedback.
+// Squashed piece widens slightly to roughly preserve area.
+function drawSquashedPiece(ctx, color, dark, cx, cy, radius, squashY) {
+    const scaleY = squashY;
+    const scaleX = 1 + (1 - scaleY) * 0.6;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scaleX, scaleY);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = dark;
+    ctx.stroke();
+    ctx.restore();
 }
 
 // Render the board onto a fresh offscreen canvas (mirrors render_board_surface).
@@ -719,7 +908,12 @@ function drawMenuButton(ctx, hovered) {
     ctx.fillText("Menu", rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
 
-function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered) {
+function difficultyLabel(depth) {
+    const names = { 1: "Beginner", 2: "Easy", 3: "Casual", 4: "Standard", 5: "Hard", 6: "Expert" };
+    return names[depth] || `Depth ${depth}`;
+}
+
+function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth) {
     ctx.fillStyle = HUD_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, HUD_HEIGHT);
     ctx.fillStyle = TEXT_COLOR;
@@ -739,8 +933,19 @@ function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hint
     ctx.fillStyle = "rgb(160,170,190)";
     ctx.font = "18px Arial";
     ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
     ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [N]/Menu, [ESC] quit",
                  20, WINDOW_HEIGHT - 12);
+    // Difficulty label, bottom-right, only shown in PvC mode.
+    if (aiDepth !== null && aiDepth !== undefined) {
+        ctx.fillStyle = "rgb(160,170,190)";
+        ctx.font = "18px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(`AI: ${aiDepth} - ${difficultyLabel(aiDepth)}`,
+                     WINDOW_WIDTH - 20, WINDOW_HEIGHT - 12);
+        ctx.textAlign = "left";
+    }
 }
 
 function hoveredButton(mx, my, rows, cols) {
@@ -817,10 +1022,10 @@ function colorToRgba(rgbStr, alpha) {
 
 function drawStaticScene(board, hoverCol, hoveredBtn, currentPlayer, statusText, winCells,
                          gameOver, hintMove, hintBtnHovered, hintBtnEnabled, hintThinking,
-                         nowSeconds, menuBtnHovered) {
+                         nowSeconds, menuBtnHovered, aiDepth) {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered);
+    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth);
 
     const rows = board.length, cols = board[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
@@ -890,7 +1095,7 @@ function nextFrame() {
     return new Promise(resolve => requestAnimationFrame(t => resolve(t / 1000)));
 }
 
-async function animateTilt(board, direction, statusText, currentPlayer) {
+async function animateTilt(board, direction, statusText, currentPlayer, aiDepth) {
     const rows = board.length, cols = board[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
     const preSurf = renderBoardSurface(board, cell);
@@ -899,6 +1104,7 @@ async function animateTilt(board, direction, statusText, currentPlayer) {
     const cy = offsetY + boardH / 2;
     const angleTarget = direction === 'left' ? 90 : -90;
 
+    playTiltSound();
     const startTime = await nextFrame();
     let elapsed = 0;
     while (elapsed < TILT_DURATION) {
@@ -911,7 +1117,7 @@ async function animateTilt(board, direction, statusText, currentPlayer) {
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, currentPlayer, true, false, false, false);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth);
         drawDisabledButtons(rows, cols);
         ctx.save();
         ctx.translate(cx, cy);
@@ -921,7 +1127,7 @@ async function animateTilt(board, direction, statusText, currentPlayer) {
     }
 }
 
-async function animateFall(postTiltBoard, statusText, currentPlayer) {
+async function animateFall(postTiltBoard, statusText, currentPlayer, aiDepth) {
     const rows = postTiltBoard.length, cols = postTiltBoard[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
     const emptyFrame = renderEmptyBoardSurface(rows, cols, cell);
@@ -936,33 +1142,82 @@ async function animateFall(postTiltBoard, statusText, currentPlayer) {
         const startY = offsetY + origR * cell + Math.floor(cell / 2);
         const endY = offsetY + newR * cell + Math.floor(cell / 2);
         const x = offsetX + origC * cell + Math.floor(cell / 2);
-        pieces.push({ player, x, startY, endY });
+        // Per-piece stagger: random delay 0-90ms, duration varies +/- 15%.
+        // Pieces that don't actually move get zero delay/duration so we skip them cleanly.
+        const willMove = startY !== endY;
+        const delay = willMove ? Math.random() * 0.09 : 0;
+        const duration = willMove ? FALL_DURATION * (0.85 + Math.random() * 0.3) : 0;
+        pieces.push({
+            player, x, startY, endY, delay, duration, willMove,
+            soundPlayed: false,
+            squashedAt: null,  // wall-clock time the piece landed, for the impact squash
+            origR, newR,
+        });
     }
     let anyMove = false;
-    for (const p of pieces) if (p.startY !== p.endY) { anyMove = true; break; }
+    for (const p of pieces) if (p.willMove) { anyMove = true; break; }
     if (!anyMove) return;
+
+    // Total animation length = longest (delay + duration) + squash time.
+    const SQUASH_TIME = 0.14;
+    let maxEnd = 0;
+    for (const p of pieces) {
+        if (p.willMove && p.delay + p.duration > maxEnd) maxEnd = p.delay + p.duration;
+    }
+    const totalDuration = maxEnd + SQUASH_TIME;
 
     const startTime = await nextFrame();
     let elapsed = 0;
-    while (elapsed < FALL_DURATION) {
+    while (elapsed < totalDuration) {
         const now = await nextFrame();
-        elapsed = Math.min(now - startTime, FALL_DURATION);
-        const t = easeInQuad(elapsed / FALL_DURATION);
+        elapsed = Math.min(now - startTime, totalDuration);
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, currentPlayer, true, false, false, false);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth);
         drawDisabledButtons(rows, cols);
         ctx.drawImage(emptyFrame, offsetX, offsetY);
+
         for (const p of pieces) {
-            const y = p.startY + (p.endY - p.startY) * t;
             const [color, dark] = pieceColor(p.player);
-            drawPiece(ctx, color, dark, Math.round(p.x), Math.round(y), radius);
+            if (!p.willMove) {
+                // Already at rest, draw normally.
+                drawPiece(ctx, color, dark, Math.round(p.x), Math.round(p.startY), radius);
+                continue;
+            }
+            const localT = elapsed - p.delay;
+            if (localT <= 0) {
+                // Hasn't started falling yet, draw at start position.
+                drawPiece(ctx, color, dark, Math.round(p.x), Math.round(p.startY), radius);
+            } else if (localT < p.duration) {
+                // Falling.
+                const t = easeInQuad(localT / p.duration);
+                const y = p.startY + (p.endY - p.startY) * t;
+                drawPiece(ctx, color, dark, Math.round(p.x), Math.round(y), radius);
+            } else {
+                // Landed. Fire a tick the first time we cross.
+                if (!p.soundPlayed) {
+                    p.soundPlayed = true;
+                    p.squashedAt = elapsed;
+                    // Pitch varies by destination row so cascades sound musical.
+                    const pitch = 320 - p.newR * 18 + (Math.random() - 0.5) * 20;
+                    playFallTick(pitch);
+                }
+                const squashElapsed = elapsed - p.squashedAt;
+                if (squashElapsed < SQUASH_TIME) {
+                    const u = squashElapsed / SQUASH_TIME;
+                    const squashY = 1 - 0.18 * Math.sin(Math.PI * u);
+                    const verticalOffset = radius * (1 - squashY);
+                    drawSquashedPiece(ctx, color, dark, p.x, p.endY + verticalOffset, radius, squashY);
+                } else {
+                    drawPiece(ctx, color, dark, Math.round(p.x), Math.round(p.endY), radius);
+                }
+            }
         }
     }
 }
 
-async function animateDrop(boardBefore, col, player, statusText) {
+async function animateDrop(boardBefore, col, player, statusText, aiDepth) {
     const rows = boardBefore.length, cols = boardBefore[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
 
@@ -991,13 +1246,143 @@ async function animateDrop(boardBefore, col, player, statusText) {
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, player, true, false, false, false);
+        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth);
         drawDisabledButtons(rows, cols);
         ctx.drawImage(baseSurf, offsetX, offsetY);
         const y = startY + (endY - startY) * t;
         drawPiece(ctx, color, dark, Math.round(x), Math.round(y), radius);
     }
+
+    // Impact: thunk sound + brief squash. Pitch scales with fall distance for variety.
+    playDropSound();
+    const squashDuration = 0.14;
+    const squashStart = await nextFrame();
+    let squashElapsed = 0;
+    while (squashElapsed < squashDuration) {
+        const now = await nextFrame();
+        squashElapsed = Math.min(now - squashStart, squashDuration);
+        const u = squashElapsed / squashDuration;
+        // Quick squash down then back up. squashY goes 1.0 -> 0.78 -> 1.0
+        const squashY = 1 - 0.22 * Math.sin(Math.PI * u);
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth);
+        drawDisabledButtons(rows, cols);
+        ctx.drawImage(baseSurf, offsetX, offsetY);
+        // Squashed pieces visually sit on the floor of the cell. Adjust Y so the
+        // bottom edge stays put rather than the center.
+        const verticalOffset = radius * (1 - squashY);
+        drawSquashedPiece(ctx, color, dark, x, endY + verticalOffset, radius, squashY);
+    }
     return landingR;
+}
+
+// ===========================================================================
+// Win sequence: progressive line draw + winning-piece pulse
+// ===========================================================================
+// Replaces the static green line/dots that drawStaticScene would draw.
+// Caller is responsible for not passing winCells to drawStaticScene while this runs.
+async function animateWin(board, winCells, hudState) {
+    const rows = board.length, cols = board[0].length;
+    const [offsetX, offsetY, cell] = boardLayout(rows, cols);
+    const boardSurf = renderBoardSurface(board, cell);
+
+    const pts = winCells.map(([r, c]) => [
+        offsetX + c * cell + Math.floor(cell / 2),
+        offsetY + r * cell + Math.floor(cell / 2),
+    ]);
+
+    const LINE_DURATION = 0.45;   // time to draw the full line
+    const PULSE_DURATION = 0.6;   // time for winning pieces to pulse out and back
+    const HOLD_DURATION = 0.25;   // brief hold after the full effect
+
+    const winnerColor = board[winCells[0][0]][winCells[0][1]];
+    const [winColor, winDark] = pieceColor(winnerColor);
+    const radius = Math.floor(cell / 2) - 6;
+
+    const totalDuration = LINE_DURATION + PULSE_DURATION + HOLD_DURATION;
+    const startTime = await nextFrame();
+    let elapsed = 0;
+
+    function redrawBaseScene() {
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        drawHud(ctx, hudState.statusText, null, false,
+                false, false, false, hudState.menuBtnHovered, hudState.aiDepth);
+        ctx.drawImage(boardSurf, offsetX, offsetY);
+        // Show the tilt buttons disabled, since the game is over.
+        drawDisabledButtons(rows, cols);
+    }
+
+    while (elapsed < totalDuration) {
+        const now = await nextFrame();
+        elapsed = Math.min(now - startTime, totalDuration);
+        redrawBaseScene();
+
+        // Phase 1: progressive line draw.
+        // We parameterize a fraction (0..1) of the polyline from pts[0] to pts[last].
+        const lineProgress = Math.min(1, elapsed / LINE_DURATION);
+        if (lineProgress > 0 && pts.length >= 2) {
+            const startPt = pts[0];
+            const endPt = pts[pts.length - 1];
+            const curX = startPt[0] + (endPt[0] - startPt[0]) * lineProgress;
+            const curY = startPt[1] + (endPt[1] - startPt[1]) * lineProgress;
+            ctx.strokeStyle = WIN_LINE_COLOR;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(startPt[0], startPt[1]);
+            ctx.lineTo(curX, curY);
+            ctx.stroke();
+            ctx.lineCap = 'butt';
+
+            // Draw dots on cells the line has reached so far.
+            for (let i = 0; i < pts.length; i++) {
+                const f = i / (pts.length - 1);
+                if (f <= lineProgress + 0.001) {
+                    fillCircle(ctx, pts[i][0], pts[i][1], 8, WIN_LINE_COLOR);
+                }
+            }
+        }
+
+        // Phase 2: pulse winning pieces (starts as line completes).
+        const pulseT = elapsed - LINE_DURATION;
+        if (pulseT > 0) {
+            const u = Math.min(1, pulseT / PULSE_DURATION);
+            // Stagger each piece's pulse so they ripple from start to end of the line.
+            for (let i = 0; i < winCells.length; i++) {
+                const [r, c] = winCells[i];
+                const stagger = i * 0.07;
+                const localU = Math.max(0, Math.min(1, (pulseT - stagger) / (PULSE_DURATION * 0.7)));
+                if (localU <= 0) continue;
+                // Piece scales 1.0 -> 1.25 -> 1.0 on a sine curve.
+                const scale = 1 + 0.25 * Math.sin(Math.PI * localU);
+                // Glow ring fades in then out.
+                const glowAlpha = Math.sin(Math.PI * localU);
+                const pcx = offsetX + c * cell + Math.floor(cell / 2);
+                const pcy = offsetY + r * cell + Math.floor(cell / 2);
+                // Erase the underlying piece first so the scaled one doesn't peek through.
+                fillCircle(ctx, pcx, pcy, radius + 1, EMPTY_COLOR);
+                // Glow ring behind piece.
+                ctx.save();
+                ctx.globalAlpha = glowAlpha * 0.7;
+                strokeCircle(ctx, pcx, pcy, radius + 6, WIN_LINE_COLOR, 4);
+                ctx.restore();
+                // Scaled piece.
+                ctx.save();
+                ctx.translate(pcx, pcy);
+                ctx.scale(scale, scale);
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = winColor;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = winDark;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+    }
 }
 
 // ===========================================================================
@@ -1385,6 +1770,16 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
     let gameOver = false;
     let statusText = `Player 1 (${playerName(PLAYER1)}) to move`;
 
+    // Track every settled board position we've reached this game. The AI uses
+    // this to softly discourage revisiting the same position, so it'll vary
+    // its play instead of locking into a tilt-loop with equal-value evaluations.
+    const positionHistory = new Map();
+    function recordPosition(b) {
+        const k = boardKey(b);
+        positionHistory.set(k, (positionHistory.get(k) || 0) + 1);
+    }
+    recordPosition(board);
+
     // AI thinking is synchronous in JS (no real threads). To avoid freezing
     // the UI, we yield via setTimeout before computing.
     let aiThinking = false;
@@ -1408,9 +1803,10 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const snapshot = clone(board);
         const player = aiPlayer;
         const depth = aiDepth;
+        const historySnapshot = new Map(positionHistory);
         // Defer one tick so the UI redraws "is thinking..." first.
         setTimeout(() => {
-            aiPending = chooseAiMove(snapshot, player, depth);
+            aiPending = chooseAiMove(snapshot, player, depth, historySnapshot);
             aiThinking = false;
         }, 30);
     }
@@ -1498,7 +1894,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
             const nowSeconds = performance.now() / 1000;
             drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
                             gameOver, hintMove, hintBtnHovered, canRequestHint(),
-                            hintThinking, nowSeconds, menuBtnHovered);
+                            hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null);
             const yes = await confirmDialog("Return to main menu?", "Yes, exit", "Keep playing");
             clearInputs();
             if (yes) return 'menu';
@@ -1529,24 +1925,33 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
 
         if (action === 'drop') {
             const mover = currentPlayer;
-            await animateDrop(board, actionCol, mover, statusText);
+            await animateDrop(board, actionCol, mover, statusText, isPvc ? aiDepth : null);
             for (let r = board.length - 1; r >= 0; r--) {
                 if (board[r][actionCol] === EMPTY) {
                     board[r][actionCol] = mover;
                     break;
                 }
             }
+            recordPosition(board);
             const [w, cells] = checkWinner(board, mover);
             if (w !== null) {
-                winCells = cells;
                 gameOver = true;
                 if (isPvc) {
                     statusText = (w === humanPlayer)
                         ? `You win! (${playerName(w)})`
                         : `Computer wins (${playerName(w)})`;
+                    if (w === humanPlayer) playWinSound();
+                    else playLoseSound();
                 } else {
                     statusText = `Player ${w} (${playerName(w)}) wins!`;
+                    playWinSound();
                 }
+                await animateWin(board, cells, {
+                    statusText,
+                    menuBtnHovered: false,
+                    aiDepth: isPvc ? aiDepth : null,
+                });
+                winCells = cells;
             } else if (boardIsFull(board)) {
                 gameOver = true;
                 statusText = "Draw!";
@@ -1563,24 +1968,33 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
             }
         } else if (action === 'left' || action === 'right') {
             const mover = currentPlayer;
-            await animateTilt(board, action, statusText, mover);
+            await animateTilt(board, action, statusText, mover, isPvc ? aiDepth : null);
             const postTilt = action === 'left' ? rotateLeft(board) : rotateRight(board);
-            await animateFall(postTilt, statusText, mover);
+            await animateFall(postTilt, statusText, mover, isPvc ? aiDepth : null);
             const settled = clone(postTilt);
             applyGravity(settled);
             board = settled;
+            recordPosition(board);
 
             const [w, cells] = checkWinner(board, mover);
             if (w !== null) {
-                winCells = cells;
                 gameOver = true;
                 if (isPvc) {
                     statusText = (w === humanPlayer)
                         ? `You win! (${playerName(w)})`
                         : `Computer wins (${playerName(w)})`;
+                    if (w === humanPlayer) playWinSound();
+                    else playLoseSound();
                 } else {
                     statusText = `Player ${w} (${playerName(w)}) wins!`;
+                    playWinSound();
                 }
+                await animateWin(board, cells, {
+                    statusText,
+                    menuBtnHovered: false,
+                    aiDepth: isPvc ? aiDepth : null,
+                });
+                winCells = cells;
             } else if (boardIsFull(board)) {
                 gameOver = true;
                 statusText = "Draw!";
@@ -1602,7 +2016,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const nowSeconds = performance.now() / 1000;
         drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
                         gameOver, hintMove, hintBtnHovered, canRequestHint(),
-                        hintThinking, nowSeconds, menuBtnHovered);
+                        hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null);
         await nextFrame();
     }
 }
