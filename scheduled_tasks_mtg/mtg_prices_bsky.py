@@ -4,6 +4,7 @@ from datetime import datetime, date
 import os
 import smtplib
 from email.mime.text import MIMEText
+import httpx
 
 pd.options.mode.chained_assignment = None
 
@@ -37,6 +38,13 @@ def load_config():
 
 def get_bsky_client(handle, app_password):
     client = Client()
+    if 'IS_HEROKU' in os.environ:
+        proxy_url = os.environ.get('QUOTAGUARDSTATIC_URL')
+        if proxy_url:
+            client.request._client = httpx.Client(
+                proxy=proxy_url,
+                timeout=30.0,
+            )
     client.login(handle, app_password)
     return client
 
