@@ -49,22 +49,20 @@ def get_bsky_client(handle, app_password):
     return client
 
 
-def get_price_change_summary(df, diff_col, weeks, ascending, max_name_len, max_set_len):
+def get_price_change_summary(df, diff_col, weeks, ascending):
     df_sorted = df.sort_values(by=diff_col, ascending=ascending)
-    name = df_sorted['name'].iloc[0]
-    if len(name) > max_name_len:
-        name = name[:max_name_len] + "..."
-    set_name = df_sorted['set_name'].iloc[0]
-    if len(set_name) > max_set_len:
-        set_name = set_name[:max_set_len] + "..."
     return {
         'weeks': weeks,
-        'name': name,
-        'set_name': set_name,
+        'name': df_sorted['name'].iloc[0],
+        'set_name': df_sorted['set_name'].iloc[0],
         'old_price': df_sorted[f"{weeks.lower()}_ago_price"].iloc[0],
         'new_price': df_sorted["today_price"].iloc[0],
         'tcg_id': df_sorted["tcgplayer_id"].iloc[0],
     }
+
+
+def truncate(s, max_len):
+    return s if len(s) <= max_len else s[:max_len] + "..."
 
 
 def post_to_bsky(client, header_line, summaries, url):
@@ -73,9 +71,11 @@ def post_to_bsky(client, header_line, summaries, url):
     tb.text(f' - {header_line}\n\n')
 
     for i, s in enumerate(summaries):
+        name = truncate(s["name"], MAX_NAME_LEN)
+        set_name = truncate(s["set_name"], MAX_SET_LEN)
         tb.text(f'{s["weeks"]}: ')
-        tb.link(s["name"], str(s["tcg_id"]))
-        tb.text(f' ({s["set_name"]}) ${s["old_price"]}\u2192${s["new_price"]}')
+        tb.link(name, str(s["tcg_id"]))
+        tb.text(f' ({set_name}) ${s["old_price"]}\u2192${s["new_price"]}')
         if i < len(summaries) - 1:
             tb.text('\n')
 
@@ -101,18 +101,30 @@ def send_email(gmail_sender_email, gmail_receiver_email, gmail_subject, gmail_me
         print('Email sent')
 
 
-def summary_to_text(s):
-    """Plain-text version of a summary dict, for the confirmation email."""
-    tcg_url = str(s["tcg_id"])
-    tcg_id = tcg_url.rsplit("/", 1)[-1]
-    return f'{s["weeks"]}: {s["name"]} ${s["old_price"]}\u2192${s["new_price"]} #{tcg_id}'
+def summary_to_email_text(s):
+    """Rich version for the email. Full names, full clickable URL."""
+    return (
+        f'{s["weeks"]}: {s["name"]} ({s["set_name"]})\n'
+        f'  ${s["old_price"]} \u2192 ${s["new_price"]}\n'
+        f'  {s["tcg_id"]}'
+    )
 
 
 # Load configuration
 bsky_handle, bsky_app_password, GMAIL_PASS, MTG_PATH = load_config()
 
 # Get bluesky client
-client = get_bsky_client(bsky_handle, bsky_app_password)
+try:
+    client = get_bsky_client(bsky_handle, bsky_app_password)
+except Exception as e:
+    send_email(
+        gmail_sender_email,
+        gmail_receiver_email,
+        'FAILED: ' + gmail_subject,
+        f'Bluesky client login failed: {type(e).__name__}: {e}',
+        GMAIL_PASS,
+    )
+    raise
 
 # Read in data
 df = pd.read_csv(MTG_PATH)
@@ -125,54 +137,80 @@ actual_today = date.today()
 
 if data_date == actual_today:
     # Price increase summaries
-    increase_1wk = get_price_change_summary(df, '1wk_diff', '1Wk', ascending=False, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
-    increase_2wk = get_price_change_summary(df, '2wk_diff', '2Wk', ascending=False, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
-    increase_4wk = get_price_change_summary(df, '4wk_diff', '4Wk', ascending=False, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
+    increase_1wk = get_price_change_summary(df, '1wk_diff', '1Wk', ascending=False)
+    increase_2wk = get_price_change_summary(df, '2wk_diff', '2Wk', ascending=False)
+    increase_4wk = get_price_change_summary(df, '4wk_diff', '4Wk', ascending=False)
 
     # Price decrease summaries
-    decrease_1wk = get_price_change_summary(df, '1wk_diff', '1Wk', ascending=True, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
-    decrease_2wk = get_price_change_summary(df, '2wk_diff', '2Wk', ascending=True, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
-    decrease_4wk = get_price_change_summary(df, '4wk_diff', '4Wk', ascending=True, max_name_len=MAX_NAME_LEN, max_set_len=MAX_SET_LEN)
+    decrease_1wk = get_price_change_summary(df, '1wk_diff', '1Wk', ascending=True)
+    decrease_2wk = get_price_change_summary(df, '2wk_diff', '2Wk', ascending=True)
+    decrease_4wk = get_price_change_summary(df, '4wk_diff', '4Wk', ascending=True)
 
     mtg_url = 'https://www.jamesapplewhite.com/mtg'
 
+    post_results = {}
+    post_error = None
+
     # Post decreases
-    post_to_bsky(
-        client,
-        f'Top Price Decreases ({current_date})',
-        [decrease_1wk, decrease_2wk, decrease_4wk],
-        mtg_url,
-    )
+    try:
+        post_to_bsky(
+            client,
+            f'Top Price Decreases ({current_date})',
+            [decrease_1wk, decrease_2wk, decrease_4wk],
+            mtg_url,
+        )
+        post_results['decreases'] = 'OK'
+    except Exception as e:
+        post_results['decreases'] = f'FAILED: {type(e).__name__}: {e}'
+        post_error = e
 
     # Post increases
-    post_to_bsky(
-        client,
-        f'Top Price Increases ({current_date})',
-        [increase_1wk, increase_2wk, increase_4wk],
-        mtg_url,
-    )
+    try:
+        post_to_bsky(
+            client,
+            f'Top Price Increases ({current_date})',
+            [increase_1wk, increase_2wk, increase_4wk],
+            mtg_url,
+        )
+        post_results['increases'] = 'OK'
+    except Exception as e:
+        post_results['increases'] = f'FAILED: {type(e).__name__}: {e}'
+        post_error = e
 
-    # Email confirmation
+    # Email confirmation (always sent, success or fail)
+    status_header = 'mtg bluesky post is complete' if not post_error else 'mtg bluesky post FAILED'
+    subject = gmail_subject if not post_error else 'FAILED: ' + gmail_subject
+
     gmail_message = '\n'.join([
-        'mtg bluesky post is complete',
+        status_header,
+        '',
+        f'Decreases post: {post_results["decreases"]}',
+        f'Increases post: {post_results["increases"]}',
         '',
         f'Decreases ({current_date}):',
-        summary_to_text(decrease_1wk),
-        summary_to_text(decrease_2wk),
-        summary_to_text(decrease_4wk),
+        summary_to_email_text(decrease_1wk),
+        '',
+        summary_to_email_text(decrease_2wk),
+        '',
+        summary_to_email_text(decrease_4wk),
         '',
         f'Increases ({current_date}):',
-        summary_to_text(increase_1wk),
-        summary_to_text(increase_2wk),
-        summary_to_text(increase_4wk),
+        summary_to_email_text(increase_1wk),
+        '',
+        summary_to_email_text(increase_2wk),
+        '',
+        summary_to_email_text(increase_4wk),
     ])
     send_email(
         gmail_sender_email,
         gmail_receiver_email,
-        gmail_subject,
+        subject,
         gmail_message,
         GMAIL_PASS,
     )
+
+    if post_error:
+        raise post_error
 else:
     gmail_message = f'WARNING: Data is not timely. Data date: {data_date}, Today: {actual_today}. No posts made.'
     send_email(
