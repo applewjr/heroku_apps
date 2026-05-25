@@ -129,3 +129,5 @@ dmypy.json
 secret_pass.py
 secret_pass_test.py
 static/yt*.png
+static/espresso*.png
+static/scatter*.png
