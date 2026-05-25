@@ -869,6 +869,15 @@ function menuButtonRect() {
     return { x, y, w, h };
 }
 
+// Mute button (in HUD, sits to the left of Menu)
+function muteButtonRect() {
+    const w = 90, h = 38;
+    const menu = menuButtonRect();
+    const x = menu.x - 12 - w;
+    const y = menu.y;
+    return { x, y, w, h };
+}
+
 function pointInRect(px, py, r) {
     return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
 }
@@ -908,12 +917,26 @@ function drawMenuButton(ctx, hovered) {
     ctx.fillText("Menu", rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
 
+function drawMuteButton(ctx, hovered, muted) {
+    const rect = muteButtonRect();
+    const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
+    const fg = BUTTON_ICON;
+    fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    ctx.fillStyle = fg;
+    ctx.font = "18px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const label = muted ? "🔇" : "🔊";
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+}
+
 function difficultyLabel(depth) {
     const names = { 1: "Beginner", 2: "Easy", 3: "Casual", 4: "Standard", 5: "Hard", 6: "Expert" };
     return names[depth] || `Depth ${depth}`;
 }
 
-function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth) {
+function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth, muteBtnHovered, muted) {
     ctx.fillStyle = HUD_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, HUD_HEIGHT);
     ctx.fillStyle = TEXT_COLOR;
@@ -928,13 +951,14 @@ function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hint
         strokeCircle(ctx, center[0], center[1], 22, dark, 2);
         drawHintButton(ctx, hintBtnHovered, hintBtnEnabled, hintThinking);
     }
+    drawMuteButton(ctx, !!muteBtnHovered, muted);
     // Menu button is always drawn so it's accessible on mobile, even mid-animation.
     drawMenuButton(ctx, !!menuBtnHovered);
     ctx.fillStyle = "rgb(160,170,190)";
     ctx.font = "18px Arial";
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
-    ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [N]/Menu, [ESC] quit",
+    ctx.fillText("Click column to drop. Side buttons or [L]/[R] to tilt. [H] hint, [M] mute, [N]/Menu, [ESC] quit",
                  20, WINDOW_HEIGHT - 12);
     // Difficulty label, bottom-right, only shown in PvC mode.
     if (aiDepth !== null && aiDepth !== undefined) {
@@ -1022,10 +1046,10 @@ function colorToRgba(rgbStr, alpha) {
 
 function drawStaticScene(board, hoverCol, hoveredBtn, currentPlayer, statusText, winCells,
                          gameOver, hintMove, hintBtnHovered, hintBtnEnabled, hintThinking,
-                         nowSeconds, menuBtnHovered, aiDepth) {
+                         nowSeconds, menuBtnHovered, aiDepth, muteBtnHovered, muted) {
     ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth);
+    drawHud(ctx, statusText, currentPlayer, false, hintBtnHovered, hintBtnEnabled, hintThinking, menuBtnHovered, aiDepth, muteBtnHovered, muted);
 
     const rows = board.length, cols = board[0].length;
     const [offsetX, offsetY, cell] = boardLayout(rows, cols);
@@ -1117,7 +1141,7 @@ async function animateTilt(board, direction, statusText, currentPlayer, aiDepth)
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth, false, !soundEnabled);
         drawDisabledButtons(rows, cols);
         ctx.save();
         ctx.translate(cx, cy);
@@ -1174,7 +1198,7 @@ async function animateFall(postTiltBoard, statusText, currentPlayer, aiDepth) {
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth);
+        drawHud(ctx, statusText, currentPlayer, true, false, false, false, false, aiDepth, false, !soundEnabled);
         drawDisabledButtons(rows, cols);
         ctx.drawImage(emptyFrame, offsetX, offsetY);
 
@@ -1246,7 +1270,7 @@ async function animateDrop(boardBefore, col, player, statusText, aiDepth) {
 
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth);
+        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth, false, !soundEnabled);
         drawDisabledButtons(rows, cols);
         ctx.drawImage(baseSurf, offsetX, offsetY);
         const y = startY + (endY - startY) * t;
@@ -1266,7 +1290,7 @@ async function animateDrop(boardBefore, col, player, statusText, aiDepth) {
         const squashY = 1 - 0.22 * Math.sin(Math.PI * u);
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth);
+        drawHud(ctx, statusText, player, true, false, false, false, false, aiDepth, false, !soundEnabled);
         drawDisabledButtons(rows, cols);
         ctx.drawImage(baseSurf, offsetX, offsetY);
         // Squashed pieces visually sit on the floor of the cell. Adjust Y so the
@@ -1308,7 +1332,7 @@ async function animateWin(board, winCells, hudState) {
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         drawHud(ctx, hudState.statusText, null, false,
-                false, false, false, hudState.menuBtnHovered, hudState.aiDepth);
+                false, false, false, hudState.menuBtnHovered, hudState.aiDepth, false, !soundEnabled);
         ctx.drawImage(boardSurf, offsetX, offsetY);
         // Show the tilt buttons disabled, since the game is over.
         drawDisabledButtons(rows, cols);
@@ -1847,6 +1871,8 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const hintBtnHovered = acceptingHuman && pointInRect(mouseState.x, mouseState.y, hintBtnRect);
         const menuBtnRect = menuButtonRect();
         const menuBtnHovered = pointInRect(mouseState.x, mouseState.y, menuBtnRect);
+        const muteBtnRect = muteButtonRect();
+        const muteBtnHovered = pointInRect(mouseState.x, mouseState.y, muteBtnRect);
 
         let action = null;
         let actionCol = null;
@@ -1857,6 +1883,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         if (k !== null) {
             if (k === 'Escape') { return 'quit'; }
             else if (k === 'n' || k === 'N') { confirmMenuRequest = true; }
+            else if (k === 'm' || k === 'M') { soundEnabled = !soundEnabled; }
             else if (acceptingHuman && (k === 'h' || k === 'H')) { requestHint(); }
             else if (acceptingHuman && (k === 'l' || k === 'L')) { action = 'left'; }
             else if (acceptingHuman && (k === 'r' || k === 'R')) { action = 'right'; }
@@ -1867,8 +1894,10 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
 
         const click = consumeClick();
         if (click !== null) {
-            // Menu button is always tappable, even during AI turn / animations / game over.
-            if (pointInRectPadded(click[0], click[1], menuBtnRect, TAP_PAD)) {
+            // Mute button is always tappable
+            if (pointInRectPadded(click[0], click[1], muteBtnRect, TAP_PAD)) {
+                soundEnabled = !soundEnabled;
+            } else if (pointInRectPadded(click[0], click[1], menuBtnRect, TAP_PAD)) {
                 confirmMenuRequest = true;
             } else if (acceptingHuman) {
                 if (pointInRectPadded(click[0], click[1], hintBtnRect, TAP_PAD)) {
@@ -1894,7 +1923,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
             const nowSeconds = performance.now() / 1000;
             drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
                             gameOver, hintMove, hintBtnHovered, canRequestHint(),
-                            hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null);
+                            hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null, muteBtnHovered, !soundEnabled);
             const yes = await confirmDialog("Return to main menu?", "Yes, exit", "Keep playing");
             clearInputs();
             if (yes) return 'menu';
@@ -2016,7 +2045,7 @@ async function playGame(humanPlayer, aiPlayer, aiDepth) {
         const nowSeconds = performance.now() / 1000;
         drawStaticScene(board, hoverCol, hovBtn, cur, statusText, winCells,
                         gameOver, hintMove, hintBtnHovered, canRequestHint(),
-                        hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null);
+                        hintThinking, nowSeconds, menuBtnHovered, isPvc ? aiDepth : null, muteBtnHovered, !soundEnabled);
         await nextFrame();
     }
 }
