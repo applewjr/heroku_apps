@@ -125,18 +125,18 @@
             <thead>
                 <tr>
                     <th>Category</th>
-                    <th>Top 1 Count</th>
-                    <th>Top 10 Count</th>
                     <th>Top 50 Count</th>
+                    <th>Top 10 Count</th>
+                    <th>Top 1 Count</th>
                 </tr>
             </thead>
             <tbody>
                 {% for index, row in top_categories.iterrows() %}
                 <tr>
                     <td>{{ row['Category'] }}</td>
-                    <td>{{ row['Top 1 Count'] }}</td>
-                    <td>{{ row['Top 10 Count'] }}</td>
                     <td>{{ row['Top 50 Count'] }}</td>
+                    <td>{{ row['Top 10 Count'] }}</td>
+                    <td>{{ row['Top 1 Count'] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
