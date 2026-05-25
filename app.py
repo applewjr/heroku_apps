@@ -1020,88 +1020,28 @@ def youtube_trending():
 
     cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
-    top_10_today = """
-    WITH vid_rank AS (
-        SELECT video, MIN(vid_rank) AS best_vid_rank
-        FROM youtube_trending
-        WHERE vid_rank <= 10
-        GROUP BY video
-        )
-    ,rank_yesterday AS (
-        SELECT video, chnl, vid_rank AS rank_yesterday
-        FROM youtube_trending
-        WHERE collected_date = CURDATE()-1
-            AND vid_rank <= 10
-        )
-    SELECT
-     yt.vid_rank
-    ,yt.video
-    ,yt.chnl
-    ,vid_rank.best_vid_rank
-    ,CASE WHEN rank_yesterday.rank_yesterday IS NULL THEN "New"
-        ELSE rank_yesterday.rank_yesterday
-        END AS vid_rank_yesterday
-    FROM youtube_trending AS yt
-    LEFT JOIN vid_rank ON yt.video = vid_rank.video
-    LEFT JOIN rank_yesterday ON yt.video = rank_yesterday.video AND yt.chnl = rank_yesterday.chnl
-    WHERE yt.collected_date = curdate()
-        AND vid_rank <= 10
-    ORDER BY yt.vid_rank ASC;
-    """
+    top_10_today = """SELECT * FROM vw_prod_youtube_top_10_today;"""
     cursor.execute(top_10_today)
     top_10_today = cursor.fetchall()
     top_10_today = pd.DataFrame(top_10_today, columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
 
 
-    top_10_title = """
-    SELECT
-     video
-    ,chnl
-    ,COUNT(*) AS occurrences
-    ,MIN(vid_rank) AS best_vid_rank
-    FROM youtube_trending
-    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
-    GROUP BY video
-    ORDER BY occurrences DESC, best_vid_rank ASC
-    LIMIT 10;
-    """
+    top_10_title = """SELECT * FROM vw_prod_youtube_top_10_title;"""
     cursor.execute(top_10_title)
     top_10_title = cursor.fetchall()
     top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
 
 
-    top_10_channel = """
-    SELECT
-     chnl
-    ,COUNT(*) AS occurrences
-    ,MIN(vid_rank) AS best_channel_rank
-    FROM youtube_trending
-    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
-    GROUP BY chnl
-    ORDER BY occurrences DESC, best_channel_rank ASC
-    LIMIT 10;
-    """
+    top_10_channel = """SELECT * FROM vw_prod_youtube_top_10_channel;"""
     cursor.execute(top_10_channel)
     top_10_channel = cursor.fetchall()
     top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
 
 
-    top_categories = """
-    SELECT
-     category
-    ,SUM(CASE WHEN vid_rank <= 1 THEN 1 ELSE 0 END) AS top_1_count
-    ,SUM(CASE WHEN vid_rank <= 10 THEN 1 ELSE 0 END) AS top_10_count
-    ,SUM(CASE WHEN vid_rank <= 50 THEN 1 ELSE 0 END) AS top_50_count
-    FROM youtube_trending AS yt
-    LEFT JOIN youtube_cat AS cat ON yt.vid_cat_id = cat.id
-    WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
-    GROUP BY category
-    ORDER BY top_1_count DESC, top_10_count DESC, top_50_count DESC  
-    ;
-    """
+    top_categories = """SELECT * FROM vw_prod_youtube_top_categories;"""
     cursor.execute(top_categories)
     top_categories = cursor.fetchall()
-    top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 1 Count', 'Top 10 Count', 'Top 50 Count'])
+    top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
 
     cursor.close()
     conn.close()
