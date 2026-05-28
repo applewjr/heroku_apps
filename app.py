@@ -18,6 +18,7 @@ import secrets
 import logging
 import smtplib
 from email.mime.text import MIMEText
+import matplotlib.pyplot as plt
 
 # import uuid
 
@@ -838,6 +839,8 @@ def blossom_feedback():
 
         # Log inputs to new feedback_blossom table
         feedback_id = None
+        conn = None
+        cursor = None
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -1049,14 +1052,17 @@ def youtube_trending():
     yt_video_scatter = plot_viz.yt_video_scatter()
     temp_yt_video_scatter = 'static/yt_video_scatter.png'
     yt_video_scatter.savefig(temp_yt_video_scatter)
+    plt.close(yt_video_scatter)
 
     yt_chnl_scatter = plot_viz.yt_chnl_scatter()
     temp_yt_chnl_scatter = 'static/yt_chnl_scatter.png'
     yt_chnl_scatter.savefig(temp_yt_chnl_scatter)
+    plt.close(yt_chnl_scatter)
 
-    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot() # set last due to custom figsize
+    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot()
     temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
     yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
+    plt.close(yt_stacked_bar_plot)
 
     return render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
@@ -1239,6 +1245,7 @@ def espresso_plot():
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
+        plt.close(espresso_scatter_plot)
 
         return render_template('espresso_plot.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col \
@@ -1251,6 +1258,7 @@ def espresso_plot():
         espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
         temp_espresso_scatter_plot = 'static/espresso_scatter.png'
         espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
+        plt.close(espresso_scatter_plot)
 
         return render_template('espresso_plot.html', valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
             ,espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col \
@@ -1326,6 +1334,7 @@ def espresso_explore():
         scatter_3d = espresso.plot_3d_scatter(df_scatter)
         temp_scatter_3d_plot = 'static/scatter_3d.png'
         scatter_3d.savefig(temp_scatter_3d_plot)
+        plt.close(scatter_3d)
 
         return render_template('espresso_explore.html' \
             ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
@@ -1347,6 +1356,7 @@ def espresso_explore():
         scatter_3d = espresso.plot_3d_scatter(df_scatter)
         temp_scatter_3d_plot = 'static/scatter_3d.png'
         scatter_3d.savefig(temp_scatter_3d_plot)
+        plt.close(scatter_3d)
 
         return render_template('espresso_explore.html' \
             ,valid_user_name_list=valid_user_name_list, valid_roast_list=valid_roast_list, valid_shots_list=valid_shots_list \
