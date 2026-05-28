@@ -5,7 +5,7 @@
 {% block meta %}
 <style>
     .connect4-wrapper {
-        background: rgb(28, 32, 48);
+        background: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -14,11 +14,13 @@
     }
     #stage {
         position: relative;
-        background: rgb(28, 32, 48);
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
     }
     canvas {
         display: block;
-        background: rgb(28, 32, 48);
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
         outline: none;
@@ -55,23 +57,23 @@ const WINDOW_WIDTH = BOARD_WIDTH + MARGIN * 2 + (BUTTON_RADIUS * 2 + BUTTON_GAP)
 const WINDOW_HEIGHT = BOARD_HEIGHT + MARGIN * 2 + HUD_HEIGHT;
 
 // Colors as rgb strings (matching the pygame palette exactly)
-const BG_COLOR = "rgb(28,32,48)";
+const BG_COLOR = "#f8f9fa";
 const BOARD_COLOR = "rgb(40,80,180)";
 const BOARD_SHADOW = "rgb(20,50,130)";
 const EMPTY_COLOR = "rgb(18,22,36)";
 const PLAYER1_COLOR = "rgb(235,80,80)";
 const PLAYER1_DARK = "rgb(160,40,40)";
-const PLAYER2_COLOR = "rgb(245,210,70)";
-const PLAYER2_DARK = "rgb(180,150,30)";
-const TEXT_COLOR = "rgb(235,235,245)";
-const HUD_COLOR = "rgb(20,24,38)";
+const PLAYER2_COLOR = "rgb(210,160,20)";
+const PLAYER2_DARK = "rgb(150,110,10)";
+const TEXT_COLOR = "#212529";
+const HUD_COLOR = "#ffffff";
 const WIN_LINE_COLOR = "rgb(80,255,120)";
 
-const BUTTON_COLOR = "rgb(70,80,110)";
-const BUTTON_HOVER = "rgb(100,115,155)";
-const BUTTON_DISABLED = "rgb(45,50,65)";
-const BUTTON_ICON = "rgb(235,235,245)";
-const BUTTON_ICON_DISABLED = "rgb(110,115,130)";
+const BUTTON_COLOR = "#e9ecef";
+const BUTTON_HOVER = "#dee2e6";
+const BUTTON_DISABLED = "#f8f9fa";
+const BUTTON_ICON = "#495057";
+const BUTTON_ICON_DISABLED = "#adb5bd";
 
 const HINT_COLOR_RGB = [120, 220, 255];
 const HINT_PULSE_HZ = 1.6;
@@ -847,7 +849,7 @@ function drawTiltButton(ctx, cx, cy, direction, hovered, enabled) {
     else if (hovered) { bg = BUTTON_HOVER; icon = BUTTON_ICON; }
     else { bg = BUTTON_COLOR; icon = BUTTON_ICON; }
     fillCircle(ctx, cx, cy, BUTTON_RADIUS, bg);
-    strokeCircle(ctx, cx, cy, BUTTON_RADIUS, "rgb(15,18,28)", 2);
+    strokeCircle(ctx, cx, cy, BUTTON_RADIUS, "#ced4da", 2);
     drawCurvedArrow(ctx, cx, cy, BUTTON_RADIUS, direction, icon);
 }
 
@@ -895,7 +897,7 @@ function drawHintButton(ctx, hovered, enabled, thinking) {
     else if (hovered) { bg = BUTTON_HOVER; fg = BUTTON_ICON; }
     else { bg = BUTTON_COLOR; fg = BUTTON_ICON; }
     fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
-    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "#ced4da", 2);
     const label = thinking ? "Hint..." : "Hint ?";
     ctx.fillStyle = fg;
     ctx.font = "18px Arial";
@@ -909,7 +911,7 @@ function drawMenuButton(ctx, hovered) {
     const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
     const fg = BUTTON_ICON;
     fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
-    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "#ced4da", 2);
     ctx.fillStyle = fg;
     ctx.font = "18px Arial";
     ctx.textAlign = "center";
@@ -922,7 +924,7 @@ function drawMuteButton(ctx, hovered, muted) {
     const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
     const fg = BUTTON_ICON;
     fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, bg);
-    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "rgb(15,18,28)", 2);
+    strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8, "#ced4da", 2);
     ctx.fillStyle = fg;
     ctx.font = "18px Arial";
     ctx.textAlign = "center";
@@ -954,7 +956,7 @@ function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hint
     drawMuteButton(ctx, !!muteBtnHovered, muted);
     // Menu button is always drawn so it's accessible on mobile, even mid-animation.
     drawMenuButton(ctx, !!menuBtnHovered);
-    ctx.fillStyle = "rgb(160,170,190)";
+    ctx.fillStyle = "#6c757d";
     ctx.font = "18px Arial";
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
@@ -962,7 +964,7 @@ function drawHud(ctx, statusText, currentPlayer, animating, hintBtnHovered, hint
                  20, WINDOW_HEIGHT - 12);
     // Difficulty label, bottom-right, only shown in PvC mode.
     if (aiDepth !== null && aiDepth !== undefined) {
-        ctx.fillStyle = "rgb(160,170,190)";
+        ctx.fillStyle = "#6c757d";
         ctx.font = "18px Arial";
         ctx.textAlign = "right";
         ctx.textBaseline = "alphabetic";
@@ -1552,8 +1554,8 @@ async function confirmDialog(message, confirmLabel, cancelLabel) {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        fillRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "rgb(36,42,60)");
-        strokeRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "rgb(15,18,28)", 2);
+        fillRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "#f8f9fa");
+        strokeRoundRect(ctx, boxX, boxY, boxW, boxH, 14, "#ced4da", 2);
 
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = "bold 24px Arial";
@@ -1565,10 +1567,10 @@ async function confirmDialog(message, confirmLabel, cancelLabel) {
         const cancelHover  = pointInRect(mouseState.x, mouseState.y, cancelRect);
         fillRoundRect(ctx, confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 10,
                       confirmHover ? "rgb(200,80,80)" : "rgb(170,60,60)");
-        strokeRoundRect(ctx, confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 10, "rgb(15,18,28)", 2);
+        strokeRoundRect(ctx, confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 10, "#ced4da", 2);
         fillRoundRect(ctx, cancelRect.x, cancelRect.y, cancelRect.w, cancelRect.h, 10,
                       cancelHover ? BUTTON_HOVER : BUTTON_COLOR);
-        strokeRoundRect(ctx, cancelRect.x, cancelRect.y, cancelRect.w, cancelRect.h, 10, "rgb(15,18,28)", 2);
+        strokeRoundRect(ctx, cancelRect.x, cancelRect.y, cancelRect.w, cancelRect.h, 10, "#ced4da", 2);
 
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = "bold 20px Arial";
@@ -1624,12 +1626,12 @@ async function showStartMenu() {
         ctx.textBaseline = "middle";
         ctx.fillText("Tilt Connect 4", cx, 60);
 
-        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.fillStyle = "#495057";
         ctx.font = "22px Arial";
         ctx.fillText("Connect 4, but you can rotate the board", cx, 105);
 
         // Game blurb
-        ctx.fillStyle = "rgb(200,210,225)";
+        ctx.fillStyle = "#6c757d";
         ctx.font = "17px Arial";
         const blurbLines = [
             "On your turn, drop a piece into a column OR spend your turn",
@@ -1642,7 +1644,7 @@ async function showStartMenu() {
             ctx.fillText(blurbLines[i], cx, 145 + i * 22);
         }
 
-        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.fillStyle = "#495057";
         ctx.font = "22px Arial";
         ctx.fillText("Choose a game mode", cx, 262);
 
@@ -1652,7 +1654,7 @@ async function showStartMenu() {
             const hovered = pointInRect(mouseState.x, mouseState.y, r);
             const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
             fillRoundRect(ctx, r.x, r.y, r.w, r.h, 10, bg);
-            strokeRoundRect(ctx, r.x, r.y, r.w, r.h, 10, "rgb(15,18,28)", 2);
+            strokeRoundRect(ctx, r.x, r.y, r.w, r.h, 10, "#ced4da", 2);
 
             ctx.fillStyle = TEXT_COLOR;
             ctx.font = "18px Arial";
@@ -1669,7 +1671,7 @@ async function showStartMenu() {
             ctx.fillText(b.label, textCx, textCy);
         }
 
-        ctx.fillStyle = "rgb(140,150,170)";
+        ctx.fillStyle = "#6c757d";
         ctx.font = "18px Arial";
         ctx.fillText("Press ESC to quit", cx, WINDOW_HEIGHT - 40);
 
@@ -1736,7 +1738,7 @@ async function showDifficultyMenu(humanPlayer) {
         if (humanPlayer !== null) {
             subText = `You are playing as ${playerName(humanPlayer)}`;
         }
-        ctx.fillStyle = "rgb(180,190,210)";
+        ctx.fillStyle = "#495057";
         ctx.font = "22px Arial";
         ctx.fillText(subText, cx, 140);
 
@@ -1749,7 +1751,7 @@ async function showDifficultyMenu(humanPlayer) {
             strokeCircle(ctx, chipCx, 140, 14, dark, 2);
         }
 
-        ctx.fillStyle = "rgb(160,170,190)";
+        ctx.fillStyle = "#6c757d";
         ctx.font = "18px Arial";
         ctx.fillText("Higher = stronger but slower thinking", cx, 180);
 
@@ -1757,12 +1759,12 @@ async function showDifficultyMenu(humanPlayer) {
             const hovered = pointInRect(mouseState.x, mouseState.y, rect);
             const bg = hovered ? BUTTON_HOVER : BUTTON_COLOR;
             fillRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10, bg);
-            strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10, "rgb(15,18,28)", 2);
+            strokeRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10, "#ced4da", 2);
             const [label, desc] = labels[lvl];
             ctx.fillStyle = TEXT_COLOR;
             ctx.font = "bold 26px Arial";
             ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 - 12);
-            ctx.fillStyle = "rgb(180,190,210)";
+            ctx.fillStyle = "#495057";
             ctx.font = "18px Arial";
             ctx.fillText(desc, rect.x + rect.w / 2, rect.y + rect.h / 2 + 16);
         }
@@ -1770,12 +1772,12 @@ async function showDifficultyMenu(humanPlayer) {
         const backHovered = pointInRect(mouseState.x, mouseState.y, backRect);
         fillRoundRect(ctx, backRect.x, backRect.y, backRect.w, backRect.h, 8,
                       backHovered ? BUTTON_HOVER : BUTTON_COLOR);
-        strokeRoundRect(ctx, backRect.x, backRect.y, backRect.w, backRect.h, 8, "rgb(15,18,28)", 2);
+        strokeRoundRect(ctx, backRect.x, backRect.y, backRect.w, backRect.h, 8, "#ced4da", 2);
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = "18px Arial";
         ctx.fillText("Back", backRect.x + backRect.w / 2, backRect.y + backRect.h / 2);
 
-        ctx.fillStyle = "rgb(140,150,170)";
+        ctx.fillStyle = "#6c757d";
         ctx.font = "18px Arial";
         ctx.fillText("Press 1-6 to pick, ESC to go back", cx, WINDOW_HEIGHT - 40);
 
