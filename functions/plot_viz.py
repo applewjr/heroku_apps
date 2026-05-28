@@ -126,36 +126,27 @@ def yt_stacked_bar_plot():
     new_top_categories_df['Other'] = top_categories_df[other_categories].sum(axis=1)
     new_top_categories = top_categories + ['Other']
 
-    plt.clf()
-
-    # Plot the stacked bar chart
-    plt.figure(figsize=(10, 6))  # Adjust the figure size as per your preference
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     bottom = np.zeros(len(dates))
 
     for category in new_top_categories:
         values = new_top_categories_df[category].tolist()[::-1]  # Reverse the order of values
-        plt.bar(range(len(dates)), values, bottom=bottom, label=category)
+        ax.bar(range(len(dates)), values, bottom=bottom, label=category)
         bottom += np.array(values)
 
-    # Set the x-axis ticks and labels
-    plt.xticks(range(len(dates)), dates, rotation=90, ha='center')
+    ax.set_xticks(range(len(dates)))
+    ax.set_xticklabels(dates, rotation=90, ha='center')
 
-    # Add labels and title
-    plt.xlabel('Date (Last 30 Days)')
-    plt.ylabel('Video Count')
-    plt.suptitle('Daily 50 Trending Videos By Category', fontsize=16)
-    # plt.title('Last 30 days', fontsize=10)
-    # plt.text(0.5, -0.35, 'Last 30 days', fontsize=10, ha='center', transform=plt.gca().transAxes)
-    # plt.title('Top Categories')
+    ax.set_xlabel('Date (Last 30 Days)')
+    ax.set_ylabel('Video Count')
+    fig.suptitle('Daily 50 Trending Videos By Category', fontsize=16)
 
-    # Adjust the legend placement
-    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
 
-    # Show the plot
-    plt.tight_layout()
+    fig.tight_layout()
 
-    return plt
+    return fig
 
 def yt_video_scatter():
     conn = mysql.connector.connect(**config)
@@ -179,41 +170,28 @@ def yt_video_scatter():
     y = [item[1] for item in data]
     names = [item[2] for item in data]
 
-    plt.clf()
+    fig, ax = plt.subplots()
 
-    # Create scatter plot
-    plt.scatter(x, y)
-    # plt.margins(0.1)
+    ax.scatter(x, y)
 
-    # Find the indices of the 5 most extreme outliers
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
 
-    # Plot the names for the 5 most extreme outliers
     texts = []
     for i in extreme_indices:
-        texts.append(plt.text(x[i], y[i], names[i], ha='left', va='bottom'))
+        texts.append(ax.text(x[i], y[i], names[i], ha='left', va='bottom'))
 
-    # Adjust the text positions to avoid overlap
     adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
 
-    # Set labels and title
-    plt.xlabel('Video Likes')
-    plt.ylabel('Video Views')
-    plt.suptitle('Trending Videos: Views ~ Likes', fontsize=16)
-    # plt.title('Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10)
-    plt.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10, ha='center', transform=plt.gca().transAxes)
-    # plt.title('Channels with Trending Videos')
+    ax.set_xlabel('Video Likes')
+    ax.set_ylabel('Video Views')
+    fig.suptitle('Trending Videos: Views ~ Likes', fontsize=16)
+    ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
 
-    # Format the x-axis ticks as abbreviated values
-    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
 
-    # Format the y-axis ticks as abbreviated values
-    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
-
-    plt.tight_layout()
-    # Show the plot
-    # plt.show()
-    return plt
+    fig.tight_layout()
+    return fig
 
 
 
@@ -239,38 +217,25 @@ def yt_chnl_scatter():
     y = [item[1] for item in data]
     names = [item[2] for item in data]
 
-    plt.clf()
+    fig, ax = plt.subplots()
 
-    # Create scatter plot
-    plt.scatter(x, y)
-    # plt.margins(0.1)
+    ax.scatter(x, y)
 
-    # Find the indices of the 5 most extreme outliers
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
 
-    # Plot the names for the 5 most extreme outliers
     texts = []
     for i in extreme_indices:
-        texts.append(plt.text(x[i], y[i], names[i], ha='left', va='bottom'))
+        texts.append(ax.text(x[i], y[i], names[i], ha='left', va='bottom'))
 
-    # Adjust the text positions to avoid overlap
     adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
 
-    # Set labels and title
-    plt.xlabel('Channel Subs')
-    plt.ylabel('Channel Views')
-    plt.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16)
-    # plt.title('Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10)
-    plt.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Channels Tagged', fontsize=10, ha='center', transform=plt.gca().transAxes)
-    # plt.title('Channels with Trending Videos')
+    ax.set_xlabel('Channel Subs')
+    ax.set_ylabel('Channel Views')
+    fig.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16)
+    ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
 
-    # Format the x-axis ticks as abbreviated values
-    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
 
-    # Format the y-axis ticks as abbreviated values
-    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
-
-    plt.tight_layout()
-    # Show the plot
-    # plt.show()
-    return plt
+    fig.tight_layout()
+    return fig

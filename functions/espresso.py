@@ -418,28 +418,28 @@ def espresso_dynamic_scatter(df_analyze, espresso_x_col, espresso_y_col, espress
     colors = [(0, 'orange'), (1, 'blue')]
     cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', colors)
 
-    plt.clf()
+    fig, ax = plt.subplots()
 
     # Generate the scatter plot
-    plt.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], c=z_values, cmap=cmap, norm=norm, alpha=0.8)
+    sc = ax.scatter(df_analyze[espresso_x_col], df_analyze[espresso_y_col], c=z_values, cmap=cmap, norm=norm, alpha=0.8)
 
     # Set labels and title
     x_label = col_labels.get(espresso_x_col, espresso_x_col)
     y_label = col_labels.get(espresso_y_col, espresso_y_col)
     z_label = col_labels.get(espresso_z_col, espresso_z_col)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.title(f'{x_label} vs {y_label}')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(f'{x_label} vs {y_label}')
 
     # Format date axes if necessary
     if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_x_col]):
-        plt.gcf().autofmt_xdate()
+        fig.autofmt_xdate()
     if pd.api.types.is_datetime64_any_dtype(df_analyze[espresso_y_col]):
-        plt.gcf().autofmt_xdate()
+        fig.autofmt_xdate()
 
-    plt.colorbar(label=z_label)  # Add a colorbar for context
+    fig.colorbar(sc, ax=ax, label=z_label)
 
-    return plt
+    return fig
 
 def get_furthest_point_multidimensional(df
     ,distance_grind_min, distance_grind_max, distance_grind_default
@@ -487,6 +487,4 @@ def plot_3d_scatter(df):
     ax.set_xlabel('Grind')
     ax.set_ylabel('Coffee Grams')
     ax.set_zlabel('Espresso Grams')
-    # plt.show()
-
-    return plt
+    return fig
