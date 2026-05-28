@@ -3,13 +3,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import json
 import numpy as np
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
-from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from scipy.spatial.distance import cdist
-from sklearn.inspection import permutation_importance
 
 def get_naive_espresso_points(roast, dose, espresso_points):
 
@@ -305,6 +300,11 @@ def find_optimal_espresso_parameters(df_analyze):
     X = df_analyze.drop(['final_score', 'timestamp'], axis=1)
     y = df_analyze['final_score']
 
+    from sklearn.neighbors import KNeighborsRegressor
+    from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.inspection import permutation_importance
+
     # Initialize cross-validator
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -463,6 +463,7 @@ def get_furthest_point_multidimensional(df
     potential_points = mesh.T.reshape(-1, len(allowed_ranges))
 
     # Calculate distances between potential points and existing points
+    from scipy.spatial.distance import cdist
     existing_points = df.to_numpy()
     distances = cdist(potential_points, existing_points, metric='euclidean')
 
