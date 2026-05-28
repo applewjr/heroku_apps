@@ -1,24 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tilt Connect 4</title>
+{% extends "base.html" %}
+
+{% block title %}Tilt Connect 4{% endblock %}
+
+{% block meta %}
 <style>
-    html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
+    .connect4-wrapper {
         background: rgb(28, 32, 48);
-        font-family: Arial, sans-serif;
-        color: rgb(235, 235, 245);
-        overflow: hidden;
-    }
-    body {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 100vh;
+        width: 100%;
+        overflow: hidden;
     }
     #stage {
         position: relative;
@@ -32,10 +24,13 @@
         outline: none;
     }
 </style>
-</head>
-<body>
-<div id="stage">
-    <canvas id="game" tabindex="0"></canvas>
+{% endblock %}
+
+{% block content %}
+<div class="connect4-wrapper" id="connect4-wrapper">
+    <div id="stage">
+        <canvas id="game" tabindex="0"></canvas>
+    </div>
 </div>
 
 <script>
@@ -102,18 +97,23 @@ canvas.width = WINDOW_WIDTH;
 canvas.height = WINDOW_HEIGHT;
 canvas.focus();
 
-// Scale the canvas to fit the viewport while preserving the aspect ratio.
+// Scale the canvas to fit the viewport below the navbar while preserving aspect ratio.
 function fitCanvas() {
     const stage = document.getElementById("stage");
+    const wrapper = document.getElementById("connect4-wrapper");
+    const navbar = document.querySelector('.navbar');
+    const navbarH = navbar ? navbar.offsetHeight : 0;
+    const availH = window.innerHeight - navbarH;
     const scale = Math.min(
         window.innerWidth / WINDOW_WIDTH,
-        window.innerHeight / WINDOW_HEIGHT,
+        availH / WINDOW_HEIGHT,
         1
     );
     canvas.style.width = (WINDOW_WIDTH * scale) + "px";
     canvas.style.height = (WINDOW_HEIGHT * scale) + "px";
     stage.style.width = (WINDOW_WIDTH * scale) + "px";
     stage.style.height = (WINDOW_HEIGHT * scale) + "px";
+    if (wrapper) wrapper.style.height = availH + "px";
 }
 fitCanvas();
 window.addEventListener("resize", fitCanvas);
@@ -2094,5 +2094,4 @@ async function main() {
 
 main();
 </script>
-</body>
-</html>
+{% endblock %}
