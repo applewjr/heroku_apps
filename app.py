@@ -1439,7 +1439,7 @@ def hex_game():
 ######################################
 ######################################
 
-@app.route("/connect4tilt")
+@app.route("/tiltconnect4")
 def connect4tilt_game():
 
     return render_template("tilt_connect4.html")
