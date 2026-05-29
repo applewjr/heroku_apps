@@ -93,9 +93,8 @@
     display: inline-block;
     position: relative;
     z-index: 10;
-    margin-top: -40px;
-    width: auto; /* Prevent width changes */
-    white-space: nowrap; /* Prevent text wrapping */
+    width: auto;
+    white-space: nowrap;
     transition: all 0.2s ease;
   }
 
@@ -636,8 +635,6 @@ table.blossom-info {
     display: inline-block;
     position: relative;
     z-index: 10;
-    margin-top: -40px;
-    margin-right: 10px;
     transition: all 0.2s ease;
 }
 
@@ -661,7 +658,7 @@ table.blossom-info {
 }
 
 .show-letter-btn {
-    background-color: #02484d;
+    background-color: #8B5A96;
     color: white;
     padding: 4px 12px;
     border: none;
@@ -672,7 +669,7 @@ table.blossom-info {
 }
 
 .show-letter-btn:hover {
-    background-color: #03282b;
+    background-color: #7A4D87;
 }
 
 .show-letter-btn:disabled {
@@ -824,8 +821,19 @@ td.show-letter-cell {
   </button>
   </div>
   
-  <!-- Fixed Reset Letters Button -->
-  <a href="#" class="reset-letters-btn" onclick="showResetConfirmation(event);">Reset Letters</a>
+  <!-- Buttons row: Reset + Show more -->
+  <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: -40px; position: relative; z-index: 10;">
+    <a href="#" class="reset-letters-btn" style="margin-top: 0;" onclick="showResetConfirmation(event);">Reset Letters</a>
+    {% if show_load_more %}
+    <form method="POST" action="/blossom" style="display: inline; margin: 0;">
+      <input type="hidden" name="must_have" value="{{must_have_val}}">
+      <input type="hidden" name="may_have" value="{{may_have_val}}">
+      <input type="hidden" name="petal_letter" value="{{petal_letter}}">
+      <input type="hidden" name="current_count" value="{{current_count}}">
+      <button type="submit" name="load_more" value="true" class="reset-letters-btn" style="margin-top: 0;">+ Show 25 more</button>
+    </form>
+    {% endif %}
+  </div>
   <br>
   <br>
 
@@ -834,27 +842,6 @@ td.show-letter-cell {
     <div class="word-results-container">
       {{blossom_table|safe}}
     </div>
-    <br>
-    {% if show_load_more %}
-    <form method="POST" action="/blossom" style="display: inline;">
-      <input type="hidden" name="must_have" value="{{must_have_val}}">
-      <input type="hidden" name="may_have" value="{{may_have_val}}">
-      <input type="hidden" name="petal_letter" value="{{petal_letter}}">
-      <input type="hidden" name="current_count" value="{{current_count}}">
-      <button type="submit" name="load_more" value="true" style="
-          background-color: #f5f5f5;
-          border: 1px solid #ddd;
-          color: #666;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 13px;
-          font-family: inherit;
-      ">+ Show 25 more</button>
-    </form>
-    <br>
-    <br>
-    {% endif %}
     {{valid_word_count}}
   </div>
 

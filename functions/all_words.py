@@ -365,11 +365,10 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     
     # Replace the Word column with the hyperlinked version
     top_df['Word'] = word_links
-    word_col = 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>'
-    top_df.rename(columns={'Word': word_col, 'Pangram': '🌸'}, inplace=True)
+    top_df.rename(columns={'Word': 'Word', 'Pangram': '🌸'}, inplace=True)
 
     # Convert to HTML with escape=False to render HTML checkboxes and links
-    blossom_table = top_df.to_html(index=False, columns=['Used', word_col, 'Score', '🌸'], escape=False, classes='blossom-results').replace(' border="1"', '')
+    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', '🌸'], escape=False, classes='blossom-results').replace(' border="1"', '')
 
     # Style pangram rows and replace Yes/No with visual indicator
     rows = blossom_table.split('</tr>')
