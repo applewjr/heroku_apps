@@ -3,19 +3,58 @@
 {% block title %}Blossom Word Finder & Solver - Find All Words Instantly{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.">
+<meta name="description" content="Stuck on today's Blossom puzzle? Enter your 7 letters and instantly see every valid word, ranked by score with pangrams highlighted.">
 <link rel="canonical" href="https://jamesapplewhite.com/blossom">
 <meta name="keywords" content="blossom, blossom solver, blossom word finder, merriam webster blossom, blossom game solver, word game solver, blossom hints">
 <meta property="og:title" content="Blossom Word Finder & Solver - Find All Words Instantly">
-<meta property="og:description" content="Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.">
+<meta property="og:description" content="Stuck on today's Blossom puzzle? Enter your 7 letters and instantly see every valid word, ranked by score with pangrams highlighted.">
 <meta property="og:url" content="https://jamesapplewhite.com/blossom">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
-{% endblock %}
-
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is the Blossom word game?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Blossom is Merriam-Webster's free daily word puzzle. You are given a center letter and six surrounding petal letters and must find words of 4 or more letters — each word must contain the center letter. Clicking a petal doubles your score for any word containing that bonus letter."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this Blossom solver free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, completely free. No account, no sign-up, and no download required. Just enter your 7 letters and instantly see all valid words ranked by score."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I use the Blossom word finder?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type your center letter into the yellow circle, then enter your six petal letters into the surrounding petals. Once all 7 letters are filled in, click any petal to see all valid words that score double with that bonus letter, ranked from highest to lowest score. Check off words as you play them to track your progress."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why are some words missing from the results?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list. If you find a valid word that is missing, or a result that should not be valid, use the Report Invalid/Missing Word button to let us know and we will update it."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -879,8 +918,29 @@ td.show-letter-cell {
     </div>
   </div>
 
-  </p>
-  <p style="text-align: center; max-width: 800px; margin: 0 auto; padding: 0 20px;">
+  <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+    <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+    <div style="border-top: 1px solid #e9ecef;">
+      <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+        <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the Blossom word game?</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Blossom is Merriam-Webster's free daily word puzzle. You are given a center letter and six surrounding petal letters and must find words of 4 or more letters — each word must contain the center letter. Clicking a petal doubles your score for any word containing that bonus letter.</p>
+      </div>
+      <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+        <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Blossom solver free to use?</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, completely free. No account, no sign-up, and no download required. Just enter your 7 letters and instantly see all valid words ranked by score.</p>
+      </div>
+      <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+        <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I use the Blossom word finder?</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type your center letter into the yellow circle, then enter your six petal letters into the surrounding petals. Once all 7 letters are filled in, click any petal to see all valid words that score double with that bonus letter, ranked from highest to lowest score. Check off words as you play them to track your progress.</p>
+      </div>
+      <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+        <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why are some words missing from the results?</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list. If you find a valid word that's missing, or a result that shouldn't be valid, use the "Report Invalid/Missing Word" button to let us know and we'll update it.</p>
+      </div>
+    </div>
+  </section>
+
+  <p style="text-align: center; max-width: 800px; margin: 10px auto 0; padding: 0 20px;">
     <span class="disclaimer-tooltip">
       About this tool
       <span class="tooltip-content">
