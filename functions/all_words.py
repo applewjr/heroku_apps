@@ -323,7 +323,7 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     valid_words_scores = [
         (
             str(word),
-            length_score(len(str(word))) + (str(word).lower().count(petal.lower()) * 5) + is_pangram_revamp(str(word), required_letters),
+            length_score(len(str(word))) + (str(word).lower().count(petal.lower()) * 5 if petal else 0) + is_pangram_revamp(str(word), required_letters),
             'Yes' if is_pangram_revamp(str(word), required_letters) > 0 else 'No'
         )
         for word in words
@@ -336,10 +336,13 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     df = pd.DataFrame(valid_words_scores, columns=['Word', 'Score', 'Pangram'])
     df.sort_values(by='Score', ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
-    
+
     # Get total count of all valid words
     total_valid_words = len(df)
-    
+
+    # Extract all pangrams before truncation
+    pangrams = df[df['Pangram'] == 'Yes']['Word'].tolist()
+
     # Determine if there are more words to show
     show_load_more = total_valid_words > list_len
     
@@ -362,13 +365,26 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     
     # Replace the Word column with the hyperlinked version
     top_df['Word'] = word_links
-    top_df.rename(columns={'Word': 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>'}, inplace=True)
+    word_col = 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>'
+    top_df.rename(columns={'Word': word_col, 'Pangram': '🌸'}, inplace=True)
 
     # Convert to HTML with escape=False to render HTML checkboxes and links
-    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word <span class="word-info-tooltip" style="color: #666; cursor: help; font-size: 14px;">ⓘ<span class="word-tooltip-content">Click any word to view its definition</span></span>', 'Score', 'Pangram'], escape=False)
-        
+    blossom_table = top_df.to_html(index=False, columns=['Used', word_col, 'Score', '🌸'], escape=False, classes='blossom-results').replace(' border="1"', '')
+
+    # Style pangram rows and replace Yes/No with visual indicator
+    rows = blossom_table.split('</tr>')
+    processed_rows = []
+    for row in rows:
+        if '<td>Yes</td>' in row:
+            row = row.replace('<tr>', '<tr class="pangram-row">')
+            row = row.replace('<td>Yes</td>', '<td>🌸</td>')
+        else:
+            row = row.replace('<td>No</td>', '<td></td>')
+        processed_rows.append(row)
+    blossom_table = '</tr>'.join(processed_rows)
+
     # Return table, total count, and load more flag
-    return blossom_table, total_valid_words, show_load_more
+    return blossom_table, total_valid_words, show_load_more, pangrams
 
 def filter_words_for_blossom(words):
     """

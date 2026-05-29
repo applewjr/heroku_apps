@@ -624,7 +624,7 @@ def blossom_solver():
 
             # Get the blossom table and modify it to include checkboxes
             words_blossom_filtered = get_filtered_blossom_words()
-            blossom_table, total_valid_words, show_load_more = all_words.filter_words_blossom_revamp(
+            blossom_table, total_valid_words, show_load_more, pangrams = all_words.filter_words_blossom_revamp(
                 must_have, may_have, petal_letter, current_count, words_blossom_filtered, used_words
             )
             valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
@@ -669,15 +669,16 @@ def blossom_solver():
             # except:
             #     print('blossom_logging_failed')
 
-            return render_template("blossom.html", 
-                                blossom_table=blossom_table, 
-                                must_have_val=must_have, 
-                                may_have_val=may_have, 
-                                petal_letter=petal_letter, 
+            return render_template("blossom.html",
+                                blossom_table=blossom_table,
+                                must_have_val=must_have,
+                                may_have_val=may_have,
+                                petal_letter=petal_letter,
                                 valid_word_count=valid_word_count,
                                 used_words=used_words,
                                 current_count=current_count,
                                 show_load_more=show_load_more,
+                                pangrams=pangrams,
                                 schema_data=schema_data)
 
         else:
