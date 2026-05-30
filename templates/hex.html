@@ -30,13 +30,49 @@
 
         .instructions {
             background-color: #f8f9fa;
-            padding: 15px 20px;
             border-radius: 8px;
             margin: 0 auto 30px auto;
             max-width: 700px;
             font-size: 14px;
             border: 1px solid #e9ecef;
+            overflow: hidden;
+        }
+
+        .instructions-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            cursor: pointer;
+            user-select: none;
+            color: #495057;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .instructions-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .instructions-chevron {
+            font-size: 10px;
+            transition: transform 0.2s ease;
+            color: #868e96;
+        }
+
+        .instructions.collapsed .instructions-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .instructions-body {
+            padding: 0 20px 15px 20px;
             text-align: center;
+            transition: none;
+        }
+
+        .instructions.collapsed .instructions-body {
+            display: none;
         }
 
         .instructions strong {
@@ -203,23 +239,29 @@
     <div class="container">
         <h1>Hex Game</h1>
 
-        <div class="instructions">
-            <strong>How to play:</strong> Click any hexagon to toggle its color and its neighbors' colors.
-            <div class="mode-legend" id="mode-legend">
-                <div class="legend-item">
-                    <div class="legend-circle legend-white"></div>
-                    <span>White</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-circle legend-black"></div>
-                    <span>Black</span>
-                </div>
+        <div class="instructions" id="instructions">
+            <div class="instructions-header" id="instructions-toggle">
+                <span>How to play</span>
+                <span class="instructions-chevron">▼</span>
             </div>
-            Your goal: <strong>Turn ALL hexagons BLACK to win!</strong> Try to win with the fewest clicks possible.
+            <div class="instructions-body">
+                Click any hexagon to toggle its color and its neighbors' colors.
+                <div class="mode-legend" id="mode-legend">
+                    <div class="legend-item">
+                        <div class="legend-circle legend-white"></div>
+                        <span>White</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-circle legend-black"></div>
+                        <span>Black</span>
+                    </div>
+                </div>
+                Your goal: <strong>Turn ALL hexagons BLACK to win!</strong> Try to win with the fewest clicks possible.
+            </div>
         </div>
 
         <div id="game-container">
-            <canvas id="gameCanvas" width="1000" height="700"></canvas>
+            <canvas id="gameCanvas" width="500" height="600"></canvas>
 
             <div class="game-controls">
                 <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
@@ -238,8 +280,8 @@
 
 <script>
     // Configuration
-    const SCREEN_WIDTH = 1000;
-    const SCREEN_HEIGHT = 700;
+    const SCREEN_WIDTH = 500;
+    const SCREEN_HEIGHT = 600;
     const HEX_RADIUS = 32;
     const HEX_SPACING_X = HEX_RADIUS * 1.75;
     const HEX_SPACING_Y = HEX_RADIUS * 1.5;
@@ -287,7 +329,7 @@
     // Canvas scaling for mobile
     function resizeCanvas() {
         const container = document.getElementById('game-container');
-        const maxWidth = Math.min(container.clientWidth - 40, SCREEN_WIDTH);
+        const maxWidth = Math.min(container.clientWidth - 20, SCREEN_WIDTH);
 
         if (maxWidth < SCREEN_WIDTH) {
             scaleFactor = maxWidth / SCREEN_WIDTH;
@@ -612,6 +654,17 @@
             statusDiv.textContent = "";
         }
     }
+
+    // Instructions collapse
+    const instructionsEl = document.getElementById('instructions');
+    const instructionsToggle = document.getElementById('instructions-toggle');
+    if (localStorage.getItem('hexInstructionsCollapsed') === '1') {
+        instructionsEl.classList.add('collapsed');
+    }
+    instructionsToggle.addEventListener('click', () => {
+        const collapsed = instructionsEl.classList.toggle('collapsed');
+        localStorage.setItem('hexInstructionsCollapsed', collapsed ? '1' : '0');
+    });
 
     initGame();
 </script>
