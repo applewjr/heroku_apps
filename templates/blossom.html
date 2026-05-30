@@ -613,6 +613,44 @@ table.blossom-info {
   }
 }
 
+/* Loading overlay */
+#blossom-loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.75);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#blossom-loading-overlay.active {
+  display: flex;
+}
+
+.blossom-spinner {
+  width: 52px;
+  height: 52px;
+  border: 5px solid #e0cce5;
+  border-top-color: #8B5A96;
+  border-radius: 50%;
+  animation: blossomSpin 0.7s linear infinite;
+}
+
+@keyframes blossomSpin {
+  to { transform: rotate(360deg); }
+}
+
+.blossom-loading-text {
+  color: #8B5A96;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
 /* Subtle entrance animation to draw attention */
 @keyframes warningSlideIn {
   0% {
@@ -749,6 +787,11 @@ td.show-letter-cell {
 
 </style>
 
+<div id="blossom-loading-overlay" aria-live="polite" aria-label="Loading results">
+  <div class="blossom-spinner"></div>
+  <span class="blossom-loading-text">Finding words…</span>
+</div>
+
 <form name="form1" action="/blossom" method="post">
   <center>
 
@@ -838,7 +881,7 @@ td.show-letter-cell {
       <input type="hidden" name="may_have" value="{{may_have_val}}">
       <input type="hidden" name="petal_letter" value="{{petal_letter}}">
       <input type="hidden" name="current_count" value="{{current_count}}">
-      <button type="submit" name="load_more" value="true" class="reset-letters-btn" style="margin-top: 0;">+ Show 25 more</button>
+      <button type="submit" name="load_more" value="true" class="reset-letters-btn" style="margin-top: 0;" onclick="showLoadingOverlay()">+ Show 25 more</button>
     </form>
     {% endif %}
   </div>
@@ -1003,6 +1046,28 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeBlossomApp() {
+  const loadingPhrases = [
+    'Scanning the garden…',
+    'Pollinating the word list…',
+    'Counting petals…',
+    'Checking the hive…',
+    'Sniffing out words…',
+    'Rustling through the leaves…',
+    'Asking the bees…',
+    'Blooming shortly…',
+    'Picking the best words…',
+    'Consulting the flowers…',
+  ];
+
+  function showLoadingOverlay() {
+    const overlay = document.getElementById('blossom-loading-overlay');
+    const label = overlay.querySelector('.blossom-loading-text');
+    label.textContent = loadingPhrases[Math.floor(Math.random() * loadingPhrases.length)];
+    overlay.classList.add('active');
+  }
+
+  window.showLoadingOverlay = showLoadingOverlay;
+
   // Simple, lightweight tracking only for essential functionality
   let centerLetter = '';
   let petalLetters = ['', '', '', '', '', ''];
@@ -1176,7 +1241,8 @@ function initializeBlossomApp() {
       
       document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
       document.querySelector(`.petal-${index + 1}`).classList.add('selected');
-      
+
+      showLoadingOverlay();
       document.querySelector('form[name="form1"]').submit();
     }
   }
