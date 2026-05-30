@@ -7,7 +7,7 @@ from flask_limiter.util import get_remote_address
 import pandas as pd
 import os
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import yaml
 import redis
@@ -300,6 +300,8 @@ def run_wordle_revamp():
             "url": "https://jamesapplewhite.com/wordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -359,6 +361,8 @@ def run_antiwordle_revamp():
             "url": "https://jamesapplewhite.com/antiwordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -417,6 +421,8 @@ def run_quordle_revamp():
             "url": "https://jamesapplewhite.com/quordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -577,6 +583,7 @@ def blossom_solver():
                 "url": "https://jamesapplewhite.com/blossom",
                 "applicationCategory": "GameApplication",
                 "isAccessibleForFree": True,
+                "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "offers": {
                     "@type": "Offer",
                     "price": "0",
@@ -986,6 +993,8 @@ def run_wordiply():
             "url": "https://jamesapplewhite.com/wordiply",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -1564,6 +1573,20 @@ def feedback_received():
 @app.route('/robots.txt')
 def robots_txt():
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
+
+@app.route('/sitemap.xml')
+def sitemap():
+    pages = [
+        '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
+        '/blossom', '/any_word', '/feedback', '/privacy-policy',
+        '/mtg', '/youtube_trending', '/hex', '/tiltconnect4',
+    ]
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for page in pages:
+        xml.append(f'  <url><loc>https://jamesapplewhite.com{page}</loc></url>')
+    xml.append('</urlset>')
+    return '\n'.join(xml), 200, {'Content-Type': 'application/xml'}
 
 @app.route('/ads.txt')
 def ads_txt():

@@ -3,19 +3,68 @@
 {% block title %}Wordiply Solver - Find the Longest Words Instantly{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.">
+<meta name="description" content="Free Wordiply solver — instantly find the longest words containing your letter sequence. Type any letters and get ranked results in milliseconds. No signup needed.">
 <link rel="canonical" href="https://jamesapplewhite.com/wordiply">
-<meta name="keywords" content="wordiply, wordiply solver, wordiply help, wordiply strategy, word game solver, wordiply hints, longest word finder">
+<meta name="keywords" content="wordiply solver, wordiply answer today, wordiply help, wordiply cheat, longest word finder, wordiply hints, word game solver">
 <meta property="og:title" content="Wordiply Solver - Find the Longest Words Instantly">
-<meta property="og:description" content="Free Wordiply solver and word finder. Find the longest words containing your letters for today's puzzle instantly.">
+<meta property="og:description" content="Free Wordiply solver — type your letters and instantly see the longest words for today's puzzle. No signup, no ads blocking your results.">
 <meta property="og:url" content="https://jamesapplewhite.com/wordiply">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
-{% endblock %}
 
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Wordiply?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Wordiply is a daily word game where the goal is to find the longest word that contains a given sequence of letters. The letters must appear together in the exact order shown, anywhere within the word."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this Wordiply solver work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type the letter sequence from your Wordiply puzzle into the input box. The solver instantly searches a large dictionary and returns the longest words that contain those letters in order, ranked from longest to shortest."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this Wordiply solver free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, this Wordiply solver is completely free to use with no signup or account required."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the best strategy for Wordiply?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The best Wordiply strategy is to look for common prefixes and suffixes around the required letters. Prefixes like UN-, RE-, PRE-, OVER- and suffixes like -ING, -TION, -NESS, -LESS, and -MENT can significantly extend the length of your word."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where can I play Wordiply?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "You can play Wordiply at wordiply.com. A new puzzle is released every day."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -270,6 +319,26 @@
             font-size: 14px;
             transition: all 0.2s ease;
         " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Clear</a>
+    </div>
+
+    <div style="max-width: 600px; margin: 30px auto; text-align: left;">
+        <h2 style="font-size: 1.1rem; color: #333; margin-bottom: 12px; text-align: center;">Wordiply FAQ</h2>
+        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
+            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">What is Wordiply?</summary>
+            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Wordiply is a daily word game where the goal is to find the longest word that contains a given sequence of letters. The letters must appear together in the exact order shown, anywhere within the word.</p>
+        </details>
+        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
+            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">How does this solver work?</summary>
+            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Type the letter sequence from your Wordiply puzzle into the box above. The solver instantly searches a large dictionary and returns the longest words containing those letters in order, ranked from longest to shortest.</p>
+        </details>
+        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
+            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">What's the best Wordiply strategy?</summary>
+            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Look for common prefixes and suffixes around the required letters. Prefixes like UN-, RE-, PRE-, OVER- and suffixes like -ING, -TION, -NESS, -LESS, and -MENT can significantly extend your word length.</p>
+        </details>
+        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
+            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">Is this solver free?</summary>
+            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Yes — completely free, no signup required.</p>
+        </details>
     </div>
 
     <div style="margin-top: 20px;">
