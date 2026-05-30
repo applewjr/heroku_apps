@@ -569,6 +569,7 @@ def blossom_solver():
     try:
 
         try:
+            from datetime import datetime, timezone
             schema_data = {
                 "@context": "https://schema.org",
                 "@type": "WebApplication",
@@ -577,6 +578,7 @@ def blossom_solver():
                 "url": "https://jamesapplewhite.com/blossom",
                 "applicationCategory": "GameApplication",
                 "isAccessibleForFree": True,
+                "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "offers": {
                     "@type": "Offer",
                     "price": "0",
