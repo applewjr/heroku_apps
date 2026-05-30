@@ -7,7 +7,7 @@ from flask_limiter.util import get_remote_address
 import pandas as pd
 import os
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import yaml
 import redis
@@ -300,6 +300,8 @@ def run_wordle_revamp():
             "url": "https://jamesapplewhite.com/wordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -359,6 +361,8 @@ def run_antiwordle_revamp():
             "url": "https://jamesapplewhite.com/antiwordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -417,6 +421,8 @@ def run_quordle_revamp():
             "url": "https://jamesapplewhite.com/quordle",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -569,7 +575,6 @@ def blossom_solver():
     try:
 
         try:
-            from datetime import datetime, timezone
             schema_data = {
                 "@context": "https://schema.org",
                 "@type": "WebApplication",
@@ -988,6 +993,8 @@ def run_wordiply():
             "url": "https://jamesapplewhite.com/wordiply",
             "applicationCategory": "GameApplication",
             "isAccessibleForFree": True,
+            "operatingSystem": "Web",
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "offers": {
                 "@type": "Offer",
                 "price": "0",
