@@ -50,12 +50,41 @@
 
 .instructions {
     background-color: #f8f9fa;
-    padding: 15px;
     border-radius: 8px;
     margin: 20px auto;
     max-width: 600px;
     font-size: 14px;
     border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover {
+    background-color: #e9ecef;
+}
+.instructions-toggle-icon {
+    font-size: 11px;
+    color: #888;
+    transition: transform 0.2s ease;
+}
+.instructions-body {
+    padding: 0 15px 15px 15px;
+}
+.instructions.collapsed .instructions-body {
+    display: none;
+}
+.instructions.collapsed .instructions-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+#wordle-grid .wordle-row.active-row .wordle-box {
+    border-color: #02484d;
 }
 
 .color-legend {
@@ -96,6 +125,90 @@
     color: gray;
 }
 
+.suggestion-btn {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    transition: all 0.15s ease;
+    display: inline-block;
+    margin: 4px;
+}
+.suggestion-btn:hover {
+    background-color: #02484d;
+    color: white;
+    border-color: #02484d;
+}
+.suggestion-label {
+    font-size: 12px;
+    color: #888;
+    display: block;
+    margin-bottom: 2px;
+    letter-spacing: 0;
+    font-weight: normal;
+}
+#recommendations {
+    margin: 10px 0;
+}
+.options-remaining {
+    display: block;
+    width: fit-content;
+    margin: 10px auto 0;
+    padding: 5px 14px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #555;
+    letter-spacing: 0.3px;
+}
+
+#smart-assign-toggle {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #ccc;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    user-select: none;
+    position: relative;
+}
+#smart-assign-toggle.active {
+    background-color: #6aaa64;
+    color: white;
+    border-color: #6aaa64;
+}
+#smart-assign-toggle .tooltip {
+    visibility: hidden;
+    opacity: 0;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    width: 230px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+#smart-assign-toggle:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
 @media (max-width: 768px) {
     .browse-button {
         flex: 1 0 46%;
@@ -124,22 +237,34 @@
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordle Solver & Strategy Tool</h1>
     
-    <div class="instructions">
-        <strong>How to use:</strong> Type your letters, then click each box to change its color based on your Wordle results.
-        <div class="color-legend">
-            <div class="legend-item">
-                <div class="legend-box color-1"></div>
-                <span>Gray: Not in word</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-box color-2"></div>
-                <span>Yellow: Wrong position</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-box color-3"></div>
-                <span>Green: Correct position</span>
+    <div class="instructions" id="instructions-panel">
+        <div class="instructions-header" id="instructions-toggle">
+            <strong>How to use</strong>
+            <span class="instructions-toggle-icon">&#9660;</span>
+        </div>
+        <div class="instructions-body">
+            Click a suggestion to fill the row, then click each box to set its color based on your Wordle results. You can also type letters manually.
+            <div class="color-legend">
+                <div class="legend-item">
+                    <div class="legend-box color-1"></div>
+                    <span>Gray: Not in word</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box color-2"></div>
+                    <span>Yellow: Wrong position</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box color-3"></div>
+                    <span>Green: Correct position</span>
+                </div>
             </div>
         </div>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+        <button id="smart-assign-toggle" type="button">Smart Assign: Off
+            <span class="tooltip">When on: typed letters auto-assume gray. Green letters carried to the same position in the next row.</span>
+        </button>
     </div>
 
     <form id="wordle-form" method="post" action="/wordle">
@@ -148,7 +273,7 @@
         {% for row in range(6) %}
         <div class="wordle-row" data-row="{{ row + 1 }}" {% if row > 1 %}style="display: none;"{% endif %}>
             {% for col in range(5) %}
-            <input type="text" maxlength="1" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
+            <input type="text" maxlength="1" inputmode="none" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
             {% endfor %}
         </div>
         {% endfor %}
@@ -289,7 +414,45 @@ window.initialRecommendations = {
 document.addEventListener('DOMContentLoaded', () => {
     const boxes = document.querySelectorAll('#wordle-grid .wordle-box');
     const rows = document.querySelectorAll('#wordle-grid .wordle-row');
-    
+    // Instructions collapse
+    const instructionsPanel = document.getElementById('instructions-panel');
+    const instructionsToggle = document.getElementById('instructions-toggle');
+    if (localStorage.getItem('wordleInstructionsCollapsed') === 'true') {
+        instructionsPanel.classList.add('collapsed');
+    }
+    instructionsToggle.addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        localStorage.setItem('wordleInstructionsCollapsed', instructionsPanel.classList.contains('collapsed'));
+    });
+
+    let smartAssign = localStorage.getItem('wordleSmartAssign') !== 'false';
+
+    const smartAssignBtn = document.getElementById('smart-assign-toggle');
+
+    function applySmartAssignState() {
+        smartAssignBtn.childNodes[0].textContent = `Smart Assign: ${smartAssign ? 'On' : 'Off'}`;
+        smartAssignBtn.classList.toggle('active', smartAssign);
+    }
+
+    applySmartAssignState();
+
+    smartAssignBtn.addEventListener('click', () => {
+        smartAssign = !smartAssign;
+        localStorage.setItem('wordleSmartAssign', smartAssign);
+        applySmartAssignState();
+    });
+
+    function updateActiveRow(focusedBox) {
+        rows.forEach(row => row.classList.remove('active-row'));
+        if (focusedBox) {
+            focusedBox.closest('.wordle-row').classList.add('active-row');
+        }
+    }
+
+    boxes.forEach(box => {
+        box.addEventListener('focus', () => updateActiveRow(box));
+    });
+
     // Set focus to the first box as soon as the page loads
     if (boxes.length > 0) {
         boxes[0].focus();
@@ -346,13 +509,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     boxes.forEach((box, index) => {
+        box.addEventListener('touchstart', () => {
+            box.inputMode = box.value.trim() === '' ? 'text' : 'none';
+        }, { passive: true });
+
         box.addEventListener('input', (event) => {
             box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
-            
-            // If the box is now empty, reset color to default
+            box.inputMode = 'none';
+
             if (box.value === '') {
                 box.dataset.state = '0';
                 box.className = 'wordle-box color-0';
+            } else if (smartAssign && box.dataset.state === '0') {
+                const thisRow = parseInt(box.dataset.row);
+                const thisPos = box.dataset.position;
+                const prevRowBox = document.querySelector(
+                    `#wordle-grid .wordle-box[data-row="${thisRow - 1}"][data-position="${thisPos}"]`
+                );
+                if (prevRowBox && prevRowBox.dataset.state === '3' && prevRowBox.value === box.value) {
+                    box.dataset.state = '3';
+                    box.className = 'wordle-box color-3';
+                } else {
+                    box.dataset.state = '1';
+                    box.className = 'wordle-box color-1';
+                }
             }
             
             triggerUpdate();
@@ -458,14 +638,48 @@ function updateUI(data) {
     const recommendationsContainer = document.getElementById('recommendations');
     recommendationsContainer.innerHTML = '';
 
-    ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5', 'final_out_end'].forEach(key => {
+    ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5'].forEach(key => {
         if (data[key]) {
-            const para = document.createElement("p");
-            para.textContent = data[key];
-            recommendationsContainer.appendChild(para);
+            const match = data[key].match(/^Pick (\d+): ([A-Za-z]+)$/);
+            if (match) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'suggestion-btn';
+                btn.innerHTML = `<span class="suggestion-label">Pick ${match[1]}</span>${match[2].toUpperCase()}`;
+                btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                recommendationsContainer.appendChild(btn);
+            }
         }
     });
 
+    if (data['final_out_end']) {
+        const chip = document.createElement('div');
+        chip.className = 'options-remaining';
+        chip.textContent = data['final_out_end'];
+        recommendationsContainer.appendChild(chip);
+    }
+}
+
+function fillNextRow(word) {
+    const rows = document.querySelectorAll('#wordle-grid .wordle-row');
+    const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+
+    let targetRow = null;
+    for (const row of visibleRows) {
+        const rowBoxes = Array.from(row.querySelectorAll('.wordle-box'));
+        if (rowBoxes.every(box => box.value.trim() === '')) {
+            targetRow = row;
+            break;
+        }
+    }
+    if (!targetRow) return;
+
+    const targetBoxes = Array.from(targetRow.querySelectorAll('.wordle-box'));
+    for (let i = 0; i < word.length && i < targetBoxes.length; i++) {
+        targetBoxes[i].value = word[i];
+        targetBoxes[i].dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 100);
 }
 
 </script>
