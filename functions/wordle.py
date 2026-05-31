@@ -177,6 +177,21 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
             for i in not_present[j]:
                 df = df[df[k] != (','.join(i))]
 
+    # extract already-guessed words and exclude them from suggestions
+    guessed_words = {}
+    for entry in wordle_data_dict:
+        if entry['letter']:
+            row = entry['row']
+            pos = int(entry['position'])
+            guessed_words.setdefault(row, {})[pos] = entry['letter'].lower()
+    guessed_word_set = {
+        ''.join(letters[p] for p in sorted(letters))
+        for letters in guessed_words.values()
+        if len(letters) == 5
+    }
+    if guessed_word_set:
+        df = df[~df['word'].isin(guessed_word_set)]
+
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
     df = df.sort_values(by = 'word_score', ascending = False)
 
@@ -207,9 +222,9 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
 
 # Quordle solver function
 # main solver function --- for web deploy
-def quordle_solver_split(import_df, 
+def quordle_solver_split(import_df,
 
-    must_not_be_present1: str, 
+    must_not_be_present1: str,
     present1_1: str, present1_2: str, present1_3: str, present1_4: str, present1_5: str,
     not_present1_1: str, not_present1_2: str, not_present1_3: str, not_present1_4: str, not_present1_5: str,
 
@@ -221,9 +236,10 @@ def quordle_solver_split(import_df,
     present3_1: str, present3_2: str, present3_3: str, present3_4: str, present3_5: str,
     not_present3_1: str, not_present3_2: str, not_present3_3: str, not_present3_4: str, not_present3_5: str,
 
-    must_not_be_present4: str, 
+    must_not_be_present4: str,
     present4_1: str, present4_2: str, present4_3: str, present4_4: str, present4_5: str,
-    not_present4_1: str, not_present4_2: str, not_present4_3: str, not_present4_4: str, not_present4_5: str):
+    not_present4_1: str, not_present4_2: str, not_present4_3: str, not_present4_4: str, not_present4_5: str,
+    guessed_words_per_puzzle=None):
 
     must_not_be_present1 = must_not_be_present1.lower()
     present1_1 = present1_1.lower()
@@ -305,6 +321,8 @@ def quordle_solver_split(import_df,
                 df1 = df1[df1[k] != (','.join(i))]
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
     df1 = df1.sort_values(by = 'word_score', ascending =  False)
+    if guessed_words_per_puzzle and guessed_words_per_puzzle.get(1):
+        df1 = df1[~df1['word'].isin(guessed_words_per_puzzle[1])]
 
     # puzzle 2
     # split individual letters into lists
@@ -335,6 +353,8 @@ def quordle_solver_split(import_df,
                 df2 = df2[df2[k] != (','.join(i))]
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
     df2 = df2.sort_values(by = 'word_score', ascending =  False)
+    if guessed_words_per_puzzle and guessed_words_per_puzzle.get(2):
+        df2 = df2[~df2['word'].isin(guessed_words_per_puzzle[2])]
 
     # puzzle 3
     # split individual letters into lists
@@ -365,6 +385,8 @@ def quordle_solver_split(import_df,
                 df3 = df3[df3[k] != (','.join(i))]
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
     df3 = df3.sort_values(by = 'word_score', ascending =  False)
+    if guessed_words_per_puzzle and guessed_words_per_puzzle.get(3):
+        df3 = df3[~df3['word'].isin(guessed_words_per_puzzle[3])]
 
     # puzzle 4
     # split individual letters into lists
@@ -395,6 +417,8 @@ def quordle_solver_split(import_df,
                 df4 = df4[df4[k] != (','.join(i))]
     # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
     df4 = df4.sort_values(by = 'word_score', ascending =  False)
+    if guessed_words_per_puzzle and guessed_words_per_puzzle.get(4):
+        df4 = df4[~df4['word'].isin(guessed_words_per_puzzle[4])]
 
     # all puzzle calcs
 
@@ -708,21 +732,38 @@ def quordle_solver_split_revamp(import_df, quordle_data_dict):
             'not_present': not_present_strings
         }
     
+    # extract already-guessed words per puzzle
+    guessed_words_by_puzzle_row = {}
+    for entry in quordle_data_dict:
+        if entry['letter']:
+            puzzle = int(entry['puzzle'])
+            row = entry['row']
+            pos = int(entry['position'])
+            guessed_words_by_puzzle_row.setdefault(puzzle, {}).setdefault(row, {})[pos] = entry['letter'].lower()
+    guessed_words_per_puzzle = {}
+    for puzzle, rows in guessed_words_by_puzzle_row.items():
+        guessed_words_per_puzzle[puzzle] = {
+            ''.join(letters[p] for p in sorted(letters))
+            for letters in rows.values()
+            if len(letters) == 5
+        }
+
     # Call the existing quordle_solver_split function with the formatted parameters
     results = quordle_solver_split(
         import_df,
-        puzzle_params[1]['must_not_be_present'], 
-        *puzzle_params[1]['present'], 
+        puzzle_params[1]['must_not_be_present'],
+        *puzzle_params[1]['present'],
         *puzzle_params[1]['not_present'],
-        puzzle_params[2]['must_not_be_present'], 
-        *puzzle_params[2]['present'], 
+        puzzle_params[2]['must_not_be_present'],
+        *puzzle_params[2]['present'],
         *puzzle_params[2]['not_present'],
-        puzzle_params[3]['must_not_be_present'], 
-        *puzzle_params[3]['present'], 
+        puzzle_params[3]['must_not_be_present'],
+        *puzzle_params[3]['present'],
         *puzzle_params[3]['not_present'],
-        puzzle_params[4]['must_not_be_present'], 
-        *puzzle_params[4]['present'], 
-        *puzzle_params[4]['not_present']
+        puzzle_params[4]['must_not_be_present'],
+        *puzzle_params[4]['present'],
+        *puzzle_params[4]['not_present'],
+        guessed_words_per_puzzle
     )
     
     return results
@@ -944,11 +985,26 @@ def antiwordle_solver_split_revamp(import_df, wordle_data_dict):
         if condition and len(df) > 0:  # Check if df is not empty
             df.loc[df['word'].str[i].isin(list(condition)), 'word_score'] *= bonus
 
+    # extract already-guessed words and exclude them from suggestions
+    guessed_words = {}
+    for entry in wordle_data_dict:
+        if entry['letter']:
+            row = entry['row']
+            pos = int(entry['position'])
+            guessed_words.setdefault(row, {})[pos] = entry['letter'].lower()
+    guessed_word_set = {
+        ''.join(letters[p] for p in sorted(letters))
+        for letters in guessed_words.values()
+        if len(letters) == 5
+    }
+    if guessed_word_set:
+        df = df[~df['word'].isin(guessed_word_set)]
+
     # Check if dataframe is empty before sorting
     if len(df) == 0:
         # Return "No words found" for all outputs when dataframe is empty
-        return ('No words found', '', '', '', '', 
-                f'Options remaining: 0/{total_len} (0.0%)', 
+        return ('No words found', '', '', '', '',
+                f'Options remaining: 0/{total_len} (0.0%)',
                 first_incomplete_row, complete_rows)
 
     # finalize - only sort if we have data
