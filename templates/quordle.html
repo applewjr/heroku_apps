@@ -40,8 +40,8 @@
 @media (max-width: 767px) {
     .puzzles-container {
         grid-template-columns: 1fr;
-        margin: 20px 10px; /* Add horizontal margin */
-        padding: 0 5px; /* Add padding */
+        margin: 20px 10px;
+        padding: 0 5px;
     }
 }
 
@@ -85,36 +85,65 @@
     box-sizing: border-box !important;
 }
 
-/* Define color states - same as wordle - with !important to override main.css */
-.quordle-box.color-0 { 
-    background-color: #fff !important; 
+/* Define color states */
+.quordle-box.color-0 {
+    background-color: #fff !important;
     color: #000 !important;
     border: 2px solid #d3d6da !important;
 }
-.quordle-box.color-1 { 
-    background-color: #787c7e !important; 
+.quordle-box.color-1 {
+    background-color: #787c7e !important;
     color: white !important;
     border: 2px solid #787c7e !important;
 }
-.quordle-box.color-2 { 
-    background-color: #c9b458 !important; 
+.quordle-box.color-2 {
+    background-color: #c9b458 !important;
     color: white !important;
     border: 2px solid #c9b458 !important;
 }
-.quordle-box.color-3 { 
-    background-color: #6aaa64 !important; 
+.quordle-box.color-3 {
+    background-color: #6aaa64 !important;
     color: white !important;
     border: 2px solid #6aaa64 !important;
 }
 
+.quordle-row.active-row .quordle-box.color-0 {
+    border-color: #02484d !important;
+}
+
 .instructions {
     background-color: #f8f9fa;
-    padding: 15px;
     border-radius: 8px;
     margin: 20px auto;
     max-width: 800px;
     font-size: 14px;
     border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover {
+    background-color: #e9ecef;
+}
+.instructions-toggle-icon {
+    font-size: 11px;
+    color: #888;
+    transition: transform 0.2s ease;
+}
+.instructions-body {
+    padding: 0 15px 15px 15px;
+}
+.instructions.collapsed .instructions-body {
+    display: none;
+}
+.instructions.collapsed .instructions-toggle-icon {
+    transform: rotate(-90deg);
 }
 
 .color-legend {
@@ -139,6 +168,10 @@
     border-radius: 3px;
 }
 
+.legend-box.color-1 { background-color: #787c7e !important; }
+.legend-box.color-2 { background-color: #c9b458 !important; }
+.legend-box.color-3 { background-color: #6aaa64 !important; }
+
 .global-recommendations {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -149,6 +182,13 @@
     text-align: center;
 }
 
+#global-recommendations {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    justify-content: center;
+}
+
 .global-recommendations h3 {
     margin-top: 0;
     color: #6aaa64;
@@ -156,9 +196,9 @@
 }
 
 .puzzle-recommendations {
-    text-align: center;
     margin-top: 13px;
     font-size: 13px;
+    text-align: center;
 }
 
 .puzzle-recommendations p {
@@ -181,44 +221,111 @@
     color: gray;
 }
 
-.legend-box.color-1 { 
-    background-color: #787c7e !important; 
+.suggestion-btn {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    transition: all 0.15s ease;
+    flex: 1 1 0;
+    min-width: 0;
 }
-.legend-box.color-2 { 
-    background-color: #c9b458 !important; 
+.suggestion-btn:hover {
+    background-color: #02484d;
+    color: white;
+    border-color: #02484d;
 }
-.legend-box.color-3 { 
-    background-color: #6aaa64 !important; 
+.suggestion-label {
+    font-size: 11px;
+    color: #888;
+    display: block;
+    margin-bottom: 2px;
+    letter-spacing: 0;
+    font-weight: normal;
+}
+.suggestion-btn:hover .suggestion-label {
+    color: rgba(255,255,255,0.8);
+}
+
+.options-remaining {
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+    padding: 4px 12px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.3px;
+    box-sizing: border-box;
+}
+
+#smart-assign-toggle {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #ccc;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    user-select: none;
+    position: relative;
+}
+#smart-assign-toggle.active {
+    background-color: #6aaa64;
+    color: white;
+    border-color: #6aaa64;
+}
+#smart-assign-toggle .tooltip {
+    visibility: hidden;
+    opacity: 0;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    width: 250px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+#smart-assign-toggle:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
 }
 
 /* Mobile-specific styles */
 @media (max-width: 768px) {
-    /* Prevent horizontal overflow */
-    body {
-        overflow-x: hidden;
-    }
-    
-    /* Fix puzzle container width */
+    body { overflow-x: hidden; }
+
     .puzzle {
         width: 100%;
-        max-width: calc(100vw - 40px); /* Account for margins */
+        max-width: calc(100vw - 40px);
         box-sizing: border-box;
-        overflow: hidden; /* Prevent overflow */
+        overflow: hidden;
         padding: 15px;
     }
-    
-    /* Ensure grid doesn't overflow */
+
     .quordle-grid {
         width: 100%;
-        overflow-x: auto; /* Allow scroll if needed */
+        overflow-x: auto;
     }
-    
-    .quordle-row {
-        justify-content: center;
-        width: 100%;
-    }
-    
-    /* Smaller boxes on mobile */
+
+    .quordle-row { justify-content: center; width: 100%; }
+
     .quordle-grid .quordle-box {
         width: 40px;
         height: 40px;
@@ -226,13 +333,8 @@
         margin: 2px;
     }
 
-    .puzzle-title {
-        font-size: 16px;
-    }
-
-    .puzzle-recommendations {
-        font-size: 12px;
-    }
+    .puzzle-title { font-size: 16px; }
+    .puzzle-recommendations { font-size: 12px; }
 
     .browse-button {
         flex: 1 0 46%;
@@ -252,8 +354,7 @@
         align-items: center;
         gap: 10px;
     }
-    
-    /* Adjust instructions and recommendations for mobile */
+
     .instructions,
     .global-recommendations {
         margin: 20px 10px;
@@ -268,28 +369,40 @@
     <center>
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Quordle & Sequence Solver</h1>
-    
-    <div class="instructions">
-        <strong>How to use:</strong> Quordle = 4 Wordles at once! Type your letters (they appear in all 4 puzzles), then click each box to change its color based on your Quordle results.
-        <div class="color-legend">
-            <div class="legend-item">
-                <div class="legend-box color-1"></div>
-                <span>Gray: Not in word</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-box color-2"></div>
-                <span>Yellow: Wrong position</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-box color-3"></div>
-                <span>Green: Correct position</span>
-            </div>
+
+    <div class="instructions" id="instructions-panel">
+        <div class="instructions-header" id="instructions-toggle">
+            <strong>How to use</strong>
+            <span class="instructions-toggle-icon">&#9660;</span>
         </div>
-        <small><em>💡 Strategy: Use "All Puzzles" suggestions until you have solid leads on individual puzzles. Same word appears in all grids automatically!</em></small>
+        <div class="instructions-body">
+            Click a suggestion to fill the row across all 4 puzzles, then click each box to set its color. You can also type letters manually — they appear in all 4 puzzles automatically.
+            <div class="color-legend">
+                <div class="legend-item">
+                    <div class="legend-box color-1"></div>
+                    <span>Gray: Not in word</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box color-2"></div>
+                    <span>Yellow: Wrong position</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box color-3"></div>
+                    <span>Green: Correct position</span>
+                </div>
+            </div>
+            <small><em>💡 Strategy: Use "Best Words for All Puzzles" suggestions until you have solid leads on individual puzzles.</em></small>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+        <button id="smart-assign-toggle" type="button">Smart Assign: Off
+            <span class="tooltip">When on: typed letters auto-assume gray. Green letters carried to the same position in the next row (tracked per puzzle).</span>
+        </button>
     </div>
 
     <form id="quordle-form" method="post" action="/quordle">
-    
+
     <!-- Global Recommendations -->
     <div class="global-recommendations">
         <h3>🎯 Best Words for All Puzzles</h3>
@@ -370,7 +483,7 @@
     <input type="hidden" name="quordle_data" id="quordle-data">
     </form>
     <br>
-    <div style="margin: 20px 0; text-align: center;"></div>
+    <div style="margin: 20px 0; text-align: center;">
         <a href="https://www.merriam-webster.com/games/quordle/#/" target="_blank" style="
             background-color: #f8f9fa;
             color: #495057;
@@ -445,7 +558,7 @@
                 text-align: center;
                 box-sizing: border-box;
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
-            
+
             <a href="/wordle" style="
                 background-color: #f8f9fa;
                 color: #495057;
@@ -460,7 +573,7 @@
                 text-align: center;
                 box-sizing: border-box;
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
-            
+
             <a href="/antiwordle" style="
                 background-color: #f8f9fa;
                 color: #495057;
@@ -500,40 +613,31 @@
 
 <script>
 
-// Store initial data like wordle
+// Store initial data
 window.initialRecommendations = {
-    // All puzzles
     final_out_all_1: "{{ initial_out_all_1|default('') }}",
     final_out_all_2: "{{ initial_out_all_2|default('') }}",
     final_out_all_3: "{{ initial_out_all_3|default('') }}",
     final_out_all_4: "{{ initial_out_all_4|default('') }}",
     final_out_all_5: "{{ initial_out_all_5|default('') }}",
-    
-    // Puzzle 1
     final_out1_1: "{{ initial_out1_1|default('') }}",
     final_out1_2: "{{ initial_out1_2|default('') }}",
     final_out1_3: "{{ initial_out1_3|default('') }}",
     final_out1_4: "{{ initial_out1_4|default('') }}",
     final_out1_5: "{{ initial_out1_5|default('') }}",
     final_out_end1: "{{ initial_out_end1|default('') }}",
-    
-    // Puzzle 2
     final_out2_1: "{{ initial_out2_1|default('') }}",
     final_out2_2: "{{ initial_out2_2|default('') }}",
     final_out2_3: "{{ initial_out2_3|default('') }}",
     final_out2_4: "{{ initial_out2_4|default('') }}",
     final_out2_5: "{{ initial_out2_5|default('') }}",
     final_out_end2: "{{ initial_out_end2|default('') }}",
-    
-    // Puzzle 3
     final_out3_1: "{{ initial_out3_1|default('') }}",
     final_out3_2: "{{ initial_out3_2|default('') }}",
     final_out3_3: "{{ initial_out3_3|default('') }}",
     final_out3_4: "{{ initial_out3_4|default('') }}",
     final_out3_5: "{{ initial_out3_5|default('') }}",
     final_out_end3: "{{ initial_out_end3|default('') }}",
-    
-    // Puzzle 4
     final_out4_1: "{{ initial_out4_1|default('') }}",
     final_out4_2: "{{ initial_out4_2|default('') }}",
     final_out4_3: "{{ initial_out4_3|default('') }}",
@@ -542,14 +646,259 @@ window.initialRecommendations = {
     final_out_end4: "{{ initial_out_end4|default('') }}"
 };
 
+// Module-level state shared between DOMContentLoaded and global functions
+let smartAssign = false;
+let isProcessingInput = false;
+let focusTimeout = null;
+let processingResetTimeout = null;
+let updateTimeout;
+
+function setProcessingInput(val) {
+    isProcessingInput = val;
+    if (processingResetTimeout) clearTimeout(processingResetTimeout);
+    if (val) {
+        // Safety net: always release the lock within 300ms
+        processingResetTimeout = setTimeout(() => { isProcessingInput = false; }, 300);
+    }
+}
+
+function isPuzzleSolved(puzzleNum) {
+    const rowMap = {};
+    document.querySelectorAll(`.quordle-box[data-puzzle="${puzzleNum}"]`).forEach(box => {
+        const r = box.dataset.row;
+        if (!rowMap[r]) rowMap[r] = [];
+        rowMap[r].push(box);
+    });
+    return Object.values(rowMap).some(boxes =>
+        boxes.length === 5 && boxes.every(box => box.dataset.state === '3')
+    );
+}
+
+function getTrackingPuzzle() {
+    for (let p = 1; p <= 4; p++) {
+        if (!isPuzzleSolved(p)) return p;
+    }
+    return 1;
+}
+
+function applySmartAssignToBox(box) {
+    const thisRow = parseInt(box.dataset.row);
+    const thisPos = box.dataset.position;
+    const thisPuzzle = box.dataset.puzzle;
+
+    let inheritState = null;
+    for (let r = 1; r < thisRow; r++) {
+        const priorBox = document.querySelector(
+            `.quordle-box[data-puzzle="${thisPuzzle}"][data-row="${r}"][data-position="${thisPos}"]`
+        );
+        if (priorBox && priorBox.value === box.value && (priorBox.dataset.state === '3' || priorBox.dataset.state === '2')) {
+            inheritState = priorBox.dataset.state;
+            break;
+        }
+    }
+
+    if (inheritState) {
+        box.dataset.state = inheritState;
+        box.className = `quordle-box color-${inheritState}`;
+    } else {
+        box.dataset.state = '1';
+        box.className = 'quordle-box color-1';
+    }
+}
+
+function showNextRowIfNeeded() {
+    const trackingPuzzle = getTrackingPuzzle();
+    const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
+    let lastFilledRowIndex = -1;
+
+    for (let i = 0; i < trackingRows.length; i++) {
+        const row = trackingRows[i];
+        if (row.style.display !== 'none') {
+            const rowBoxes = row.querySelectorAll('.quordle-box');
+            const allFilled = Array.from(rowBoxes).every(box => box.value.trim() !== '');
+            if (allFilled) lastFilledRowIndex = i;
+        }
+    }
+
+    if (lastFilledRowIndex >= 0 && lastFilledRowIndex + 1 < trackingRows.length) {
+        const nextRowIndex = lastFilledRowIndex + 1;
+        for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
+            const nextRow = document.querySelector(
+                `.puzzle:nth-child(${puzzleNum}) .quordle-row[data-row="${nextRowIndex + 1}"]`
+            );
+            if (nextRow) nextRow.style.display = 'flex';
+        }
+        const nextRowFirstBox = trackingRows[nextRowIndex].querySelector('.quordle-box[data-position="1"]');
+        if (nextRowFirstBox) {
+            if (focusTimeout) clearTimeout(focusTimeout);
+            focusTimeout = setTimeout(() => {
+                if (!isProcessingInput) nextRowFirstBox.focus();
+            }, 100);
+        }
+    }
+}
+
+function fillNextRow(word) {
+    const trackingPuzzle = getTrackingPuzzle();
+    const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
+    let targetRowNum = null;
+
+    for (const row of trackingRows) {
+        if (row.style.display !== 'none') {
+            const rowBoxes = Array.from(row.querySelectorAll('.quordle-box'));
+            if (rowBoxes.every(box => box.value.trim() === '')) {
+                targetRowNum = row.dataset.row;
+                break;
+            }
+        }
+    }
+    if (!targetRowNum) return;
+
+    for (let pos = 1; pos <= word.length; pos++) {
+        const letter = word[pos - 1];
+        for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
+            if (isPuzzleSolved(puzzleNum)) continue;
+            const box = document.querySelector(
+                `.quordle-box[data-puzzle="${puzzleNum}"][data-row="${targetRowNum}"][data-position="${pos}"]`
+            );
+            if (!box) continue;
+            box.value = letter;
+            box.dataset.lastValue = letter;
+            if (smartAssign) {
+                applySmartAssignToBox(box);
+            } else {
+                box.dataset.state = '0';
+                box.className = 'quordle-box color-0';
+            }
+        }
+    }
+
+    showNextRowIfNeeded();
+    triggerUpdate();
+}
+
+function triggerUpdate() {
+    clearTimeout(updateTimeout);
+    updateTimeout = setTimeout(() => {
+        const data = collectData();
+        fetch('/quordle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({quordle_data: data}),
+        })
+        .then(response => response.json())
+        .then(data => { updateUI(data); })
+        .catch((error) => { console.error('Error:', error); });
+    }, 300);
+}
+
+function collectData() {
+    const data = [];
+    document.querySelectorAll('.quordle-box').forEach((box) => {
+        data.push({
+            letter: box.value.toUpperCase(),
+            position: box.getAttribute('data-position'),
+            color: box.dataset.state,
+            row: box.getAttribute('data-row'),
+            puzzle: box.getAttribute('data-puzzle')
+        });
+    });
+    return data;
+}
+
+function updateUI(data) {
+    const globalContainer = document.getElementById('global-recommendations');
+    globalContainer.innerHTML = '';
+    ['final_out_all_1', 'final_out_all_2', 'final_out_all_3', 'final_out_all_4', 'final_out_all_5'].forEach(key => {
+        if (data[key]) {
+            const match = data[key].match(/^Pick (\d+): ([A-Za-z]+)$/);
+            if (match) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'suggestion-btn';
+                btn.innerHTML = `<span class="suggestion-label">Pick ${match[1]}</span>${match[2].toUpperCase()}`;
+                btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                globalContainer.appendChild(btn);
+            }
+        }
+    });
+    if (!globalContainer.innerHTML) {
+        globalContainer.innerHTML = '<p>Start typing to get word suggestions!</p>';
+    }
+
+    for (let i = 1; i <= 4; i++) {
+        const container = document.getElementById(`puzzle${i}-recommendations`);
+        container.innerHTML = '';
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;flex-wrap:nowrap;gap:5px;justify-content:center;width:100%';
+
+        [`final_out${i}_1`, `final_out${i}_2`, `final_out${i}_3`, `final_out${i}_4`, `final_out${i}_5`].forEach(key => {
+            if (data[key]) {
+                const match = data[key].match(/^Pick (\d+): ([A-Za-z]+)$/);
+                if (match) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'suggestion-btn';
+                    btn.innerHTML = `<span class="suggestion-label">Pick ${match[1]}</span>${match[2].toUpperCase()}`;
+                    btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                    btnRow.appendChild(btn);
+                }
+            }
+        });
+
+        if (btnRow.children.length) container.appendChild(btnRow);
+
+        const endKey = `final_out_end${i}`;
+        if (data[endKey]) {
+            const chip = document.createElement('div');
+            chip.className = 'options-remaining';
+            chip.textContent = data[endKey];
+            container.appendChild(chip);
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const boxes = document.querySelectorAll('.quordle-box');
-    const rows = document.querySelectorAll('.quordle-row');
-    
-    // Add flag to prevent focus loops
-    let isProcessingInput = false;
-    let focusTimeout = null;
-    
+
+    // Instructions collapse
+    const instructionsPanel = document.getElementById('instructions-panel');
+    const instructionsToggle = document.getElementById('instructions-toggle');
+    if (localStorage.getItem('quordleInstructionsCollapsed') === 'true') {
+        instructionsPanel.classList.add('collapsed');
+    }
+    instructionsToggle.addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        localStorage.setItem('quordleInstructionsCollapsed', instructionsPanel.classList.contains('collapsed'));
+    });
+
+    // Smart Assign
+    smartAssign = localStorage.getItem('quordleSmartAssign') !== 'false';
+    const smartAssignBtn = document.getElementById('smart-assign-toggle');
+
+    function applySmartAssignState() {
+        smartAssignBtn.childNodes[0].textContent = `Smart Assign: ${smartAssign ? 'On' : 'Off'}`;
+        smartAssignBtn.classList.toggle('active', smartAssign);
+    }
+    applySmartAssignState();
+    smartAssignBtn.addEventListener('click', () => {
+        smartAssign = !smartAssign;
+        localStorage.setItem('quordleSmartAssign', smartAssign);
+        applySmartAssignState();
+    });
+
+    // Active row highlight — highlights same row number across all 4 puzzles
+    function updateActiveRow(focusedBox) {
+        document.querySelectorAll('.quordle-row').forEach(row => row.classList.remove('active-row'));
+        if (focusedBox) {
+            const rowNum = focusedBox.dataset.row;
+            document.querySelectorAll(`.quordle-row[data-row="${rowNum}"]`).forEach(row => {
+                row.classList.add('active-row');
+            });
+        }
+    }
+
     // Set focus to the first box as soon as the page loads
     if (boxes.length > 0) {
         boxes[0].focus();
@@ -559,92 +908,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.initialRecommendations && window.initialRecommendations.final_out_all_1) {
         updateUI(window.initialRecommendations);
     } else {
-        // Show default message if no initial recommendations
         const globalContainer = document.getElementById('global-recommendations');
         if (globalContainer) {
             globalContainer.innerHTML = '<p>Start typing to get word suggestions!</p>';
         }
     }
 
-    function showNextRowIfNeeded() {
-        // Get all visible rows for puzzle 1
-        const puzzle1Rows = document.querySelectorAll('.puzzle:first-child .quordle-row');
-        let lastFilledRowIndex = -1;
-        
-        // Find the last row that has all boxes filled
-        for (let i = 0; i < puzzle1Rows.length; i++) {
-            const row = puzzle1Rows[i];
-            if (row.style.display !== 'none') {
-                const boxes = row.querySelectorAll('.quordle-box');
-                const allFilled = Array.from(boxes).every(box => box.value.trim() !== '');
-                
-                if (allFilled) {
-                    lastFilledRowIndex = i;
-                }
-            }
-        }
-        
-        // If we found a filled row and there's a next row available, show it
-        if (lastFilledRowIndex >= 0 && lastFilledRowIndex + 1 < puzzle1Rows.length) {
-            const nextRowIndex = lastFilledRowIndex + 1;
-            
-            // Show next row in all puzzles
-            for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
-                const nextRow = document.querySelector(
-                    `.puzzle:nth-child(${puzzleNum}) .quordle-row[data-row="${nextRowIndex + 1}"]`
-                );
-                if (nextRow) {
-                    nextRow.style.display = 'flex';
-                }
-            }
-            
-            // Focus first box of new row in puzzle 1
-            const nextRowFirstBox = puzzle1Rows[nextRowIndex].querySelector('.quordle-box[data-position="1"]');
-            if (nextRowFirstBox) {
-                // Clear any pending focus operations
-                if (focusTimeout) {
-                    clearTimeout(focusTimeout);
-                }
-                focusTimeout = setTimeout(() => {
-                    if (!isProcessingInput) {
-                        nextRowFirstBox.focus();
-                    }
-                }, 100);
-            }
-        }
-    }
-
     function hideEmptyRowsFromEnd() {
-        const puzzle1Rows = document.querySelectorAll('.puzzle:first-child .quordle-row');
-        
-        // Hide rows from the end if they're completely empty
-        for (let i = puzzle1Rows.length - 1; i >= 2; i--) { // Keep at least first 2 rows
-            const row = puzzle1Rows[i];
+        const trackingPuzzle = getTrackingPuzzle();
+        const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
+        for (let i = trackingRows.length - 1; i >= 2; i--) {
+            const row = trackingRows[i];
             if (row.style.display !== 'none') {
                 const rowBoxes = row.querySelectorAll('.quordle-box');
                 const isEmpty = Array.from(rowBoxes).every(box => box.value.trim() === '');
-                
                 if (isEmpty) {
-                    // Check if previous row has content
                     if (i > 0) {
-                        const prevRow = puzzle1Rows[i - 1];
-                        const prevRowBoxes = prevRow.querySelectorAll('.quordle-box');
-                        const prevRowHasContent = Array.from(prevRowBoxes).some(box => box.value.trim() !== '');
-                        
+                        const prevRow = trackingRows[i - 1];
+                        const prevRowHasContent = Array.from(prevRow.querySelectorAll('.quordle-box')).some(box => box.value.trim() !== '');
                         if (prevRowHasContent) {
-                            // Hide this row in all puzzles
                             for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
                                 const rowToHide = document.querySelector(
                                     `.puzzle:nth-child(${puzzleNum}) .quordle-row[data-row="${i + 1}"]`
                                 );
-                                if (rowToHide) {
-                                    rowToHide.style.display = 'none';
-                                }
+                                if (rowToHide) rowToHide.style.display = 'none';
                             }
                         }
                     }
                 } else {
-                    break; // Stop at first non-empty row from the end
+                    break;
                 }
             }
         }
@@ -654,118 +946,86 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = sourceBox.dataset.row;
         const position = sourceBox.dataset.position;
         const letter = sourceBox.value;
-        
-        // Find all boxes in the same row and position across all puzzles
-        const allBoxesInPosition = document.querySelectorAll(
-            `.quordle-box[data-row="${row}"][data-position="${position}"]`
-        );
-        
-        allBoxesInPosition.forEach(box => {
+
+        document.querySelectorAll(`.quordle-box[data-row="${row}"][data-position="${position}"]`).forEach(box => {
             if (box !== sourceBox) {
+                if (isPuzzleSolved(box.dataset.puzzle)) return;
                 box.value = letter;
-                // Reset color when mirroring if letter is empty
                 if (letter === '') {
                     box.dataset.state = '0';
                     box.className = 'quordle-box color-0';
+                } else if (smartAssign && box.dataset.state === '0') {
+                    applySmartAssignToBox(box);
                 }
             }
         });
     }
 
-    // Function to move to next box with debouncing
     function moveToNextBox(currentBox) {
         if (isProcessingInput) return;
-        
         const currentPuzzle = currentBox.dataset.puzzle;
         const currentRow = currentBox.dataset.row;
         const currentPosition = parseInt(currentBox.dataset.position);
-        
+
         if (currentPosition < 5) {
-            // Move to next position in same puzzle and row
             const nextBox = document.querySelector(
                 `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
             );
             if (nextBox) {
-                // Clear any pending focus operations
-                if (focusTimeout) {
-                    clearTimeout(focusTimeout);
-                }
-                isProcessingInput = true;
+                if (focusTimeout) clearTimeout(focusTimeout);
+                setProcessingInput(true);
                 focusTimeout = setTimeout(() => {
                     nextBox.focus();
                     nextBox.select();
-                    isProcessingInput = false;
+                    setProcessingInput(false);
                 }, 50);
             }
         } else {
-            // If we're at the last position (5), check if we should show the next row
-            setTimeout(() => {
-                showNextRowIfNeeded();
-            }, 100);
+            setTimeout(() => { showNextRowIfNeeded(); }, 100);
         }
     }
 
-    boxes.forEach((box, index) => {
-        // Simplified input handler
+    boxes.forEach((box) => {
         box.addEventListener('input', (event) => {
-            // Prevent processing if we're already handling input
             if (isProcessingInput) {
                 event.preventDefault();
                 return;
             }
-            
+
             const oldValue = box.dataset.lastValue || '';
             const newValue = box.value.toUpperCase().replace(/[^A-Z]/g, '');
-            
-            // Only keep the first character if multiple were pasted/typed
-            if (newValue.length > 1) {
-                box.value = newValue[0];
-            } else {
-                box.value = newValue;
-            }
-            
-            // Store the last value
+            box.value = newValue.length > 1 ? newValue[0] : newValue;
             box.dataset.lastValue = box.value;
-            
-            // If the box is now empty, reset color to default
+
             if (box.value === '') {
                 box.dataset.state = '0';
                 box.className = 'quordle-box color-0';
+            } else if (smartAssign && box.dataset.state === '0') {
+                applySmartAssignToBox(box);
             }
 
-            // Mirror this letter to the same position in all other puzzles in the same row
             mirrorLetterToAllPuzzles(box);
-            
-            // Only move to next box if we added a letter (not if we deleted one)
+
             if (box.value && box.value !== oldValue && box.value.length === 1) {
                 moveToNextBox(box);
             }
-            
+
             triggerUpdate();
         });
 
-        // Prevent beforeinput when we're processing
         box.addEventListener('beforeinput', (event) => {
-            if (isProcessingInput) {
-                event.preventDefault();
-                return;
-            }
+            if (isProcessingInput) event.preventDefault();
         });
 
         box.addEventListener('click', (event) => {
-            event.preventDefault(); 
-
-            // Only allow color change if there's a letter in the box
+            event.preventDefault();
+            setProcessingInput(false); // user click resets any stuck lock
             if (box.value && box.value.trim() !== '') {
                 let currentState = parseInt(box.dataset.state);
                 let newState = (currentState + 1) % 4;
-                // Skip state 0 (white) when cycling through colors for filled boxes
-                if (newState === 0) {
-                    newState = 1;
-                }
+                if (newState === 0) newState = 1;
                 box.dataset.state = newState;
                 box.className = `quordle-box color-${newState}`;
-
                 triggerUpdate();
             }
         });
@@ -773,39 +1033,31 @@ document.addEventListener('DOMContentLoaded', () => {
         box.addEventListener('keydown', (event) => {
             if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 0)) {
                 event.preventDefault();
-                
                 const currentPuzzle = box.dataset.puzzle;
                 const currentRow = box.dataset.row;
                 const currentPosition = parseInt(box.dataset.position);
-                
+
                 if (box.value === '' && currentPosition > 1) {
-                    // Move to previous position in same puzzle and row
                     const prevBox = document.querySelector(
                         `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition - 1}"]`
                     );
                     if (prevBox) {
-                        // Clear any pending focus operations
-                        if (focusTimeout) {
-                            clearTimeout(focusTimeout);
-                        }
-                        isProcessingInput = true;
+                        if (focusTimeout) clearTimeout(focusTimeout);
+                        setProcessingInput(true);
                         focusTimeout = setTimeout(() => {
                             prevBox.focus();
                             prevBox.select();
-                            isProcessingInput = false;
+                            setProcessingInput(false);
                         }, 50);
                         prevBox.value = '';
                         prevBox.dataset.lastValue = '';
-                        // Reset color when clearing the box
                         prevBox.dataset.state = '0';
                         prevBox.className = 'quordle-box color-0';
-                        // Mirror the clearing to all puzzles
                         mirrorLetterToAllPuzzles(prevBox);
                         triggerUpdate();
                         hideEmptyRowsFromEnd();
                     }
                 } else if (box.value !== '') {
-                    // Just clear current box
                     box.value = '';
                     box.dataset.lastValue = '';
                     box.dataset.state = '0';
@@ -816,84 +1068,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Simplified focus handler
         box.addEventListener('focus', (event) => {
-            if (!isProcessingInput) {
-                setTimeout(() => {
-                    box.select();
-                }, 50);
-            }
+            updateActiveRow(box);
         });
     });
 });
-
-let updateTimeout;
-
-function triggerUpdate() {
-    clearTimeout(updateTimeout);
-    updateTimeout = setTimeout(() => {
-        const data = collectData();
-
-        fetch('/quordle', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({quordle_data: data}),
-        })
-        .then(response => response.json())
-        .then(data => {
-            updateUI(data);
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-        });
-    }, 300); // 300ms delay
-}
-  
-function collectData() {
-    const data = [];
-    document.querySelectorAll('.quordle-box').forEach((box, index) => {
-        const row = box.getAttribute('data-row');
-        const position = box.getAttribute('data-position');
-        const puzzle = box.getAttribute('data-puzzle');
-        const letter = box.value.toUpperCase();
-        const color = box.dataset.state;
-
-        data.push({ letter, position, color, row, puzzle });
-    });
-    return data;
-}
-  
-function updateUI(data) {
-    console.log("Updating UI with data:", data);
-
-    // Update global recommendations
-    const globalContainer = document.getElementById('global-recommendations');
-    globalContainer.innerHTML = '';
-    
-    ['final_out_all_1', 'final_out_all_2', 'final_out_all_3', 'final_out_all_4', 'final_out_all_5'].forEach(key => {
-        if (data[key]) {
-            const para = document.createElement("p");
-            para.textContent = data[key];
-            globalContainer.appendChild(para);
-        }
-    });
-
-    // Update individual puzzle recommendations
-    for (let i = 1; i <= 4; i++) {
-        const container = document.getElementById(`puzzle${i}-recommendations`);
-        container.innerHTML = '';
-        
-        [`final_out${i}_1`, `final_out${i}_2`, `final_out${i}_3`, `final_out${i}_4`, `final_out${i}_5`, `final_out_end${i}`].forEach(key => {
-            if (data[key]) {
-                const para = document.createElement("p");
-                para.textContent = data[key];
-                container.appendChild(para);
-            }
-        });
-    }
-}
 
 </script>
 
