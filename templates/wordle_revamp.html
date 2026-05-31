@@ -155,6 +155,18 @@
 #recommendations {
     margin: 10px 0;
 }
+.options-remaining {
+    display: block;
+    width: fit-content;
+    margin: 10px auto 0;
+    padding: 5px 14px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #555;
+    letter-spacing: 0.3px;
+}
 
 #smart-assign-toggle {
     background-color: #f8f9fa;
@@ -636,10 +648,10 @@ function updateUI(data) {
     });
 
     if (data['final_out_end']) {
-        const para = document.createElement('p');
-        para.style.cssText = 'font-size:13px; color:#888; margin-top:10px;';
-        para.textContent = data['final_out_end'];
-        recommendationsContainer.appendChild(para);
+        const chip = document.createElement('div');
+        chip.className = 'options-remaining';
+        chip.textContent = data['final_out_end'];
+        recommendationsContainer.appendChild(chip);
     }
 }
 
