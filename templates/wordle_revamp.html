@@ -509,8 +509,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     boxes.forEach((box, index) => {
+        box.addEventListener('touchstart', () => {
+            box.inputMode = box.value.trim() === '' ? 'text' : 'none';
+        }, { passive: true });
+
         box.addEventListener('input', (event) => {
             box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
+            box.inputMode = 'none';
 
             if (box.value === '') {
                 box.dataset.state = '0';

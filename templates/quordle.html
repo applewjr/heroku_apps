@@ -997,6 +997,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     boxes.forEach((box) => {
+        box.addEventListener('touchstart', () => {
+            box.inputMode = box.value.trim() === '' ? 'text' : 'none';
+        }, { passive: true });
+
         box.addEventListener('input', (event) => {
             if (isProcessingInput) {
                 event.preventDefault();
@@ -1007,6 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newValue = box.value.toUpperCase().replace(/[^A-Z]/g, '');
             box.value = newValue.length > 1 ? newValue[0] : newValue;
             box.dataset.lastValue = box.value;
+            box.inputMode = 'none';
 
             if (box.value === '') {
                 box.dataset.state = '0';
