@@ -336,6 +336,16 @@
     .puzzle-title { font-size: 16px; }
     .puzzle-recommendations { font-size: 12px; }
 
+    .suggestion-btn {
+        padding: 6px 4px;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+    }
+
+    #global-recommendations {
+        gap: 3px;
+    }
+
     .browse-button {
         flex: 1 0 46%;
         margin: 5px;
@@ -775,6 +785,7 @@ function fillNextRow(word) {
 
     showNextRowIfNeeded();
     triggerUpdate();
+    setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 150);
 }
 
 function triggerUpdate() {

@@ -674,6 +674,7 @@ function fillNextRow(word) {
         targetBoxes[i].value = word[i];
         targetBoxes[i].dispatchEvent(new Event('input', { bubbles: true }));
     }
+    setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 100);
 }
 
 </script>
