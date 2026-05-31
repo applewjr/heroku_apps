@@ -218,7 +218,7 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
         final_out5 = ''
     final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
 
-    return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows
+    return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, ''.join(must_not_be_present), guessed_word_set
 
 
 # Quordle solver function
@@ -822,11 +822,13 @@ def _pick_word(pick_str):
     return m.group(1).lower() if m else None
 
 
-def compute_alt_picks(import_df, picks):
+def compute_alt_picks(import_df, picks, gray_letters='', guessed_word_set=None):
     """
     Given the top picks, check if Pick 1/2/3 differ by <=2 letter positions from each other.
     If so, collect the unique letters in the varying positions across all top picks and find
     eliminator words that cover as many of those letters as possible.
+    Searches the full word list minus gray (eliminated) letters so eliminators aren't
+    constrained to the answer candidate pool.
     Returns (show_alt, alt1, alt2, alt3, alt4, alt5).
     """
     words = [_pick_word(p) for p in picks[:3]]
@@ -852,7 +854,28 @@ def compute_alt_picks(import_df, picks):
     if not varying_letters:
         return False, '', '', '', '', ''
 
-    raw = find_word_with_letters(import_df, ''.join(sorted(varying_letters)))
+    # Search full word list, filtered to only gray (eliminated) letters
+    search_df = import_df.copy()
+    for letter in gray_letters:
+        search_df = search_df[~search_df['word'].str.contains(letter)]
+
+    # Exclude words already shown as regular picks or already guessed on the board
+    top_word_set = set(all_words)
+    if guessed_word_set:
+        top_word_set |= guessed_word_set
+    search_df = search_df[~search_df['word'].isin(top_word_set)]
+
+    # find_word_with_letters uses df['word'][i] with range(len(df)), so needs a clean index
+    search_df = search_df.reset_index(drop=True)
+
+    raw = find_word_with_letters(search_df, ''.join(sorted(varying_letters)))
+
+    # Suppress if the best alt pick tests fewer than 2 varying letters
+    if raw[0]:
+        m = re.search(r'\((\d+) match\)', raw[0])
+        if not m or int(m.group(1)) < 4:
+            return False, '', '', '', '', ''
+
     relabeled = [re.sub(r'^Pick \d+:', f'Alt Pick {i}:', r) if r else '' for i, r in enumerate(raw, 1)]
     return True, relabeled[0], relabeled[1], relabeled[2], relabeled[3], relabeled[4]
 

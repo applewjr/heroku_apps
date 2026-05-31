@@ -144,6 +144,10 @@
     color: white;
     border-color: #02484d;
 }
+.suggestion-btn.alt-pick {
+    background-color: #f0f4ff;
+    border-color: #c5d0e8;
+}
 .suggestion-label {
     font-size: 12px;
     color: #888;
@@ -678,8 +682,7 @@ function updateUI(data) {
                 if (match) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
-                    btn.className = 'suggestion-btn';
-                    btn.style.cssText = 'background-color: #f0f4ff; border-color: #c5d0e8;';
+                    btn.className = 'suggestion-btn alt-pick';
                     const matchLabel = match[3] ? ` · ${match[3]} match` : '';
                     btn.innerHTML = `<span class="suggestion-label">Alt Pick ${match[1]}${matchLabel}</span>${match[2].toUpperCase()}`;
                     btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));

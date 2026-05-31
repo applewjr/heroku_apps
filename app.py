@@ -317,7 +317,7 @@ def run_wordle_revamp():
 
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
         first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
         complete_rows = 'Complete Rows: ' + str(complete_rows)
 
@@ -332,7 +332,7 @@ def run_wordle_revamp():
             print('wordle_logging_failed')
 
         show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
-            df, [final_out1, final_out2, final_out3, final_out4, final_out5]
+            df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
         )
         return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
             first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
@@ -340,9 +340,9 @@ def run_wordle_revamp():
     else:
         # Call the solver with empty data to get initial recommendations
         empty_data = []
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, empty_data)
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, empty_data)
         show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
-            df, [final_out1, final_out2, final_out3, final_out4, final_out5]
+            df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
         )
 
         # Pass the results to JavaScript on page load
