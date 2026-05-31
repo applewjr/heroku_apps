@@ -274,7 +274,7 @@
         {% for row in range(30) %}
         <div class="wordle-row" data-row="{{ row + 1 }}" {% if row > 1 %}style="display: none;"{% endif %}>
             {% for col in range(5) %}
-            <input type="text" maxlength="1" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
+            <input type="text" maxlength="1" inputmode="none" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
             {% endfor %}
         </div>
         {% endfor %}
