@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Hex Game{% endblock %}
+{% block title %}Umbra{% endblock %}
 
 {% block meta %}
-    <meta name="description" content="Hex puzzle game - toggle hexagons to turn them all black">
+    <meta name="description" content="Umbra puzzle game - toggle hexagons to turn them all black">
     <style>
         * {
             box-sizing: border-box;
@@ -237,7 +237,7 @@
 {% block content %}
 <div class="hex-page-wrapper">
     <div class="container">
-        <h1>Hex Game</h1>
+        <h1>Umbra</h1>
 
         <div class="instructions" id="instructions">
             <div class="instructions-header" id="instructions-toggle">
@@ -306,7 +306,7 @@
 
     // Local Storage for High Scores
     function loadHighScores() {
-        const stored = localStorage.getItem('hexGameHighScores');
+        const stored = localStorage.getItem('umbraHighScores');
         if (stored) {
             highScores = JSON.parse(stored);
         }
@@ -315,7 +315,7 @@
     function saveHighScore() {
         if (!highScores[colorMode] || clickCount < highScores[colorMode]) {
             highScores[colorMode] = clickCount;
-            localStorage.setItem('hexGameHighScores', JSON.stringify(highScores));
+            localStorage.setItem('umbraHighScores', JSON.stringify(highScores));
             return true;
         }
         return false;
@@ -658,12 +658,12 @@
     // Instructions collapse
     const instructionsEl = document.getElementById('instructions');
     const instructionsToggle = document.getElementById('instructions-toggle');
-    if (localStorage.getItem('hexInstructionsCollapsed') === '1') {
+    if (localStorage.getItem('umbraInstructionsCollapsed') === '1') {
         instructionsEl.classList.add('collapsed');
     }
     instructionsToggle.addEventListener('click', () => {
         const collapsed = instructionsEl.classList.toggle('collapsed');
-        localStorage.setItem('hexInstructionsCollapsed', collapsed ? '1' : '0');
+        localStorage.setItem('umbraInstructionsCollapsed', collapsed ? '1' : '0');
     });
 
     initGame();

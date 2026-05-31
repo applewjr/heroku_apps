@@ -1447,12 +1447,16 @@ def mtg_prices():
 
 ######################################
 ######################################
-##### Hex Game
+##### Umbra
 ######################################
 ######################################
 
 @app.route("/hex")
-def hex_game():
+def hex_game_redirect():
+    return redirect("/umbra", code=301)
+
+@app.route("/umbra")
+def umbra_game():
 
     return render_template("hex.html")
 
@@ -1592,7 +1596,7 @@ def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/any_word', '/feedback', '/privacy-policy',
-        '/mtg', '/youtube_trending', '/hex', '/tiltconnect4',
+        '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4',
     ]
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
