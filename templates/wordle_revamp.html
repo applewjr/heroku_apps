@@ -408,7 +408,13 @@ window.initialRecommendations = {
     final_out3: "{{ initial_out3|default('') }}",
     final_out4: "{{ initial_out4|default('') }}",
     final_out5: "{{ initial_out5|default('') }}",
-    final_out_end: "{{ initial_out_end|default('') }}"
+    final_out_end: "{{ initial_out_end|default('') }}",
+    show_alt_picks: "{{ initial_show_alt_picks|default('') }}" === "True",
+    alt_out1: "{{ initial_alt_out1|default('') }}",
+    alt_out2: "{{ initial_alt_out2|default('') }}",
+    alt_out3: "{{ initial_alt_out3|default('') }}",
+    alt_out4: "{{ initial_alt_out4|default('') }}",
+    alt_out5: "{{ initial_alt_out5|default('') }}"
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -657,6 +663,31 @@ function updateUI(data) {
         chip.className = 'options-remaining';
         chip.textContent = data['final_out_end'];
         recommendationsContainer.appendChild(chip);
+    }
+
+    if (data['show_alt_picks']) {
+        const divider = document.createElement('div');
+        divider.style.cssText = 'margin: 12px 0 4px; font-size: 12px; color: #888; letter-spacing: 0.3px;';
+        divider.textContent = 'Alt Picks — test the uncertain letters in one guess:';
+        recommendationsContainer.appendChild(divider);
+
+        const altRow = document.createElement('div');
+        ['alt_out1', 'alt_out2', 'alt_out3', 'alt_out4', 'alt_out5'].forEach(key => {
+            if (data[key]) {
+                const match = data[key].match(/^Alt Pick (\d+): ([A-Za-z]+)(?: \((\d+) match\))?$/);
+                if (match) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'suggestion-btn';
+                    btn.style.cssText = 'background-color: #f0f4ff; border-color: #c5d0e8;';
+                    const matchLabel = match[3] ? ` · ${match[3]} match` : '';
+                    btn.innerHTML = `<span class="suggestion-label">Alt Pick ${match[1]}${matchLabel}</span>${match[2].toUpperCase()}`;
+                    btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                    altRow.appendChild(btn);
+                }
+            }
+        });
+        recommendationsContainer.appendChild(altRow);
     }
 }
 

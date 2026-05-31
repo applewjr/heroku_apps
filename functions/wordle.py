@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 
 # Wordle solver function
@@ -812,6 +813,48 @@ def find_word_with_letters(import_df, must_be_present: str):
         final_out5 = ''
 
     return final_out1, final_out2, final_out3, final_out4, final_out5
+
+
+def _pick_word(pick_str):
+    if not pick_str:
+        return None
+    m = re.match(r'^Pick \d+: ([A-Za-z]+)', pick_str)
+    return m.group(1).lower() if m else None
+
+
+def compute_alt_picks(import_df, picks):
+    """
+    Given the top picks, check if Pick 1/2/3 differ by <=2 letter positions from each other.
+    If so, collect the unique letters in the varying positions across all top picks and find
+    eliminator words that cover as many of those letters as possible.
+    Returns (show_alt, alt1, alt2, alt3, alt4, alt5).
+    """
+    words = [_pick_word(p) for p in picks[:3]]
+    if len(words) < 3 or any(w is None for w in words):
+        return False, '', '', '', '', ''
+
+    def pos_diff(a, b):
+        return sum(1 for x, y in zip(a, b) if x != y)
+
+    pairs = [(words[0], words[1]), (words[0], words[2]), (words[1], words[2])]
+    if not all(pos_diff(a, b) <= 2 for a, b in pairs):
+        return False, '', '', '', '', ''
+
+    all_words = [_pick_word(p) for p in picks if p]
+    all_words = [w for w in all_words if w is not None]
+
+    varying_letters = set()
+    for pos in range(5):
+        letters_at_pos = {w[pos] for w in all_words if len(w) > pos}
+        if len(letters_at_pos) > 1:
+            varying_letters.update(letters_at_pos)
+
+    if not varying_letters:
+        return False, '', '', '', '', ''
+
+    raw = find_word_with_letters(import_df, ''.join(sorted(varying_letters)))
+    relabeled = [re.sub(r'^Pick \d+:', f'Alt Pick {i}:', r) if r else '' for i, r in enumerate(raw, 1)]
+    return True, relabeled[0], relabeled[1], relabeled[2], relabeled[3], relabeled[4]
 
 
 # Antiwordle solver function
