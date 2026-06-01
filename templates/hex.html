@@ -222,15 +222,6 @@
             }
         }
 
-        @keyframes celebrate {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-
-        .celebrating {
-            animation: celebrate 0.6s ease-in-out;
-        }
     </style>
 {% endblock %}
 
@@ -264,8 +255,8 @@
             <canvas id="gameCanvas" width="420" height="560"></canvas>
 
             <div class="game-controls">
-                <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
                 <button id="modeButton" class="hex-btn">🎨 Switch Mode</button>
+                <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
             </div>
             <div class="game-stats">
                 <div id="clickCount" class="stat-item">Clicks: 0</div>
@@ -300,9 +291,11 @@
     let board = [];
     let won = false;
     let clickCount = 0;
-    let animationFrameId;
     let highScores = {};
     let scaleFactor = 1;
+    let winAnim = null;
+    let confettiParticles = [];
+    let hoveredTile = null;
 
     // Local Storage for High Scores
     function loadHighScores() {
@@ -516,6 +509,31 @@
         return true;
     }
 
+    function spawnWinAnimation() {
+        const now = performance.now();
+        winAnim = { startTime: now, duration: 2500 };
+        confettiParticles = [];
+        const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#96CEB4', '#FFEAA7', '#ffffff'];
+        for (let i = 0; i < 80; i++) {
+            confettiParticles.push({
+                x: Math.random() * SCREEN_WIDTH,
+                y: -10 - Math.random() * 80,
+                vx: (Math.random() - 0.5) * 4,
+                vy: Math.random() * 2 + 2,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                w: Math.random() * 8 + 4,
+                h: Math.random() * 4 + 3,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.15,
+            });
+        }
+    }
+
+    function updateModeButton() {
+        const nextMode = colorMode === "2color" ? "3-Color" : colorMode === "3color" ? "4-Color" : "2-Color";
+        document.getElementById("modeButton").textContent = `🎨 Switch to ${nextMode}`;
+    }
+
     function updateModeLegend() {
         const legend = document.getElementById("mode-legend");
         legend.innerHTML = '';
@@ -546,8 +564,13 @@
         scrambleBoard(board, TOGGLES);
         won = false;
         clickCount = 0;
+        winAnim = null;
+        confettiParticles = [];
+        hoveredTile = null;
         updateHighScoreDisplay();
         updateModeLegend();
+        updateModeButton();
+        if (board.length) drawGame();
     }
 
     function switchMode() {
@@ -596,13 +619,12 @@
                         clickCount++;
                         if (checkWin(board)) {
                             won = true;
-                            const isNewHighScore = saveHighScore();
-                            if (isNewHighScore) {
-                                canvas.classList.add('celebrating');
-                                setTimeout(() => canvas.classList.remove('celebrating'), 600);
-                            }
+                            saveHighScore();
                             updateHighScoreDisplay();
+                            spawnWinAnimation();
+                            requestAnimationFrame(animLoop);
                         }
+                        drawGame();
                         return;
                     }
                 }
@@ -613,12 +635,38 @@
         canvas.addEventListener("touchstart", handleInput);
         window.addEventListener('resize', resizeCanvas);
 
-        gameLoop();
+        canvas.addEventListener("mousemove", (evt) => {
+            if (won) {
+                if (hoveredTile) { hoveredTile = null; drawGame(); }
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const mx = (evt.clientX - rect.left) / scaleFactor;
+            const my = (evt.clientY - rect.top) / scaleFactor;
+            let found = null;
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < board[r].length; c++) {
+                    if (pointInPolygon(mx, my, board[r][c].corners)) {
+                        found = { r, c };
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+            if (found?.r !== hoveredTile?.r || found?.c !== hoveredTile?.c) {
+                hoveredTile = found;
+                drawGame();
+            }
+        });
+
+        canvas.addEventListener("mouseleave", () => { hoveredTile = null; drawGame(); });
+
+        drawGame();
     }
 
-    function gameLoop() {
+    function animLoop() {
         drawGame();
-        animationFrameId = requestAnimationFrame(gameLoop);
+        if (winAnim) requestAnimationFrame(animLoop);
     }
 
     function drawGame() {
@@ -627,6 +675,74 @@
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; board[r] && c < board[r].length; c++) {
                 board[r][c].draw(ctx);
+            }
+        }
+
+        // Hover highlight (desktop only — touch never sets hoveredTile)
+        if (hoveredTile) {
+            const hoverGroup = [
+                { r: hoveredTile.r, c: hoveredTile.c },
+                ...getNeighbors(board, hoveredTile.r, hoveredTile.c)
+            ];
+            hoverGroup.forEach(({ r, c }) => {
+                const tile = board[r][c];
+                const isLight = tile.color === WHITE;
+                ctx.fillStyle = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.22)';
+                ctx.beginPath();
+                ctx.moveTo(tile.corners[0].x, tile.corners[0].y);
+                for (let i = 1; i < tile.corners.length; i++) ctx.lineTo(tile.corners[i].x, tile.corners[i].y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.4)' : 'rgba(255, 255, 255, 0.7)';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            });
+        }
+
+        // Win animation: gold ripple + confetti
+        if (winAnim) {
+            const elapsed = performance.now() - winAnim.startTime;
+
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; board[r] && c < board[r].length; c++) {
+                    const tile = board[r][c];
+                    const d = distance(tile.center.x, tile.center.y, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+                    const normDist = d / 200;
+                    const waveFront = elapsed / 600;
+                    const distFromWave = waveFront - normDist;
+                    if (distFromWave > 0 && distFromWave < 1) {
+                        const alpha = Math.sin(distFromWave * Math.PI) * 0.75;
+                        ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+                        ctx.beginPath();
+                        ctx.moveTo(tile.corners[0].x, tile.corners[0].y);
+                        for (let i = 1; i < tile.corners.length; i++) ctx.lineTo(tile.corners[i].x, tile.corners[i].y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+            }
+
+            const fadeStart = winAnim.duration * 0.7;
+            const globalAlpha = elapsed > fadeStart
+                ? Math.max(0, 1 - (elapsed - fadeStart) / (winAnim.duration * 0.3))
+                : 1;
+            ctx.globalAlpha = globalAlpha;
+            confettiParticles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotation += p.rotSpeed;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1;
+
+            if (elapsed >= winAnim.duration) {
+                winAnim = null;
+                confettiParticles = [];
             }
         }
 
