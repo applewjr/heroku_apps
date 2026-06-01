@@ -316,27 +316,29 @@ def run_wordle_revamp():
         schema_data = None
 
     if request.method == "POST":
-        wordle_data_dict = request.get_json().get('wordle_data')
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
-        first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
-        complete_rows = 'Complete Rows: ' + str(complete_rows)
-
-        wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
-
-        stream_name = 'wordle_logging'
-
-        # insert into a redis cloud instance
         try:
-            add_data_to_stream(stream_name, wordle_data_dict_abbr)
-        except:
-            print('wordle_logging_failed')
+            wordle_data_dict = request.get_json().get('wordle_data')
+            final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
+            first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
+            complete_rows = 'Complete Rows: ' + str(complete_rows)
 
-        show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
-            df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
-        )
-        return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
-            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
-            show_alt_picks=show_alt_picks, alt_out1=alt_out1, alt_out2=alt_out2, alt_out3=alt_out3, alt_out4=alt_out4, alt_out5=alt_out5)
+            try:
+                wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
+                add_data_to_stream('wordle_logging', wordle_data_dict_abbr)
+            except:
+                print('wordle_logging_failed')
+
+            show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
+                df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
+            )
+            return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
+                first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
+                show_alt_picks=show_alt_picks, alt_out1=alt_out1, alt_out2=alt_out2, alt_out3=alt_out3, alt_out4=alt_out4, alt_out5=alt_out5)
+        except Exception:
+            return jsonify(final_out1='No words found', final_out2='', final_out3='', final_out4='', final_out5='',
+                           final_out_end='Options remaining: 0/5710 (0.0%)',
+                           first_incomplete_row='First Incomplete Row: None', complete_rows='Complete Rows: []',
+                           show_alt_picks=False, alt_out1='', alt_out2='', alt_out3='', alt_out4='', alt_out5='')
     else:
         # Call the solver with empty data to get initial recommendations
         empty_data = []
@@ -390,23 +392,24 @@ def run_antiwordle_revamp():
         schema_data = None
 
     if request.method == "POST":
-        wordle_data_dict = request.get_json().get('wordle_data')
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
-        first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
-        complete_rows = 'Complete Rows: ' + str(complete_rows)
-
-        wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
-
-        stream_name = 'antiwordle_logging'
-
-        # insert into a redis cloud instance
         try:
-            add_data_to_stream(stream_name, wordle_data_dict_abbr)
-        except:
-            print('antiwordle_logging_failed')
+            wordle_data_dict = request.get_json().get('wordle_data')
+            final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
+            first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
+            complete_rows = 'Complete Rows: ' + str(complete_rows)
 
-        return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
-            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
+            try:
+                wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
+                add_data_to_stream('antiwordle_logging', wordle_data_dict_abbr)
+            except:
+                print('antiwordle_logging_failed')
+
+            return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
+                first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
+        except Exception:
+            return jsonify(final_out1='No words found', final_out2='', final_out3='', final_out4='', final_out5='',
+                           final_out_end='Options remaining: 0/5710 (0.0%)',
+                           first_incomplete_row='First Incomplete Row: None', complete_rows='Complete Rows: []')
     else:
         # Call the solver with empty data to get initial recommendations
         empty_data = []
@@ -450,50 +453,59 @@ def run_quordle_revamp():
         schema_data = None
 
     if request.method == "POST":
-        quordle_data_dict = request.get_json().get('quordle_data')
-        
-        # Call the new solver function
-        results = wordle.quordle_solver_split_revamp(df, quordle_data_dict)
-        
-        # Unpack all the results
-        (final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all,
-         final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1,
-         final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2,
-         final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3,
-         final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4) = results
-        
-        # try:
-        #     stream_name = 'quordle_logging'
-        #     add_data_to_stream(stream_name, quordle_data_dict)
-        # except:
-        #     print('quordle_logging_failed')
-        
-        return jsonify(
-            # All puzzle results
-            final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2, 
-            final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4, 
-            final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all,
-            
-            # Puzzle 1 results
-            final_out1_1=final_out1_1, final_out1_2=final_out1_2, 
-            final_out1_3=final_out1_3, final_out1_4=final_out1_4, 
-            final_out1_5=final_out1_5, final_out_end1=final_out_end1,
-            
-            # Puzzle 2 results
-            final_out2_1=final_out2_1, final_out2_2=final_out2_2, 
-            final_out2_3=final_out2_3, final_out2_4=final_out2_4, 
-            final_out2_5=final_out2_5, final_out_end2=final_out_end2,
-            
-            # Puzzle 3 results
-            final_out3_1=final_out3_1, final_out3_2=final_out3_2, 
-            final_out3_3=final_out3_3, final_out3_4=final_out3_4, 
-            final_out3_5=final_out3_5, final_out_end3=final_out_end3,
-            
-            # Puzzle 4 results
-            final_out4_1=final_out4_1, final_out4_2=final_out4_2, 
-            final_out4_3=final_out4_3, final_out4_4=final_out4_4, 
-            final_out4_5=final_out4_5, final_out_end4=final_out_end4
-        )
+        try:
+            quordle_data_dict = request.get_json().get('quordle_data')
+
+            # Call the new solver function
+            results = wordle.quordle_solver_split_revamp(df, quordle_data_dict)
+
+            # Unpack all the results
+            (final_out_all_1, final_out_all_2, final_out_all_3, final_out_all_4, final_out_all_5, final_out_end_all,
+             final_out1_1, final_out1_2, final_out1_3, final_out1_4, final_out1_5, final_out_end1,
+             final_out2_1, final_out2_2, final_out2_3, final_out2_4, final_out2_5, final_out_end2,
+             final_out3_1, final_out3_2, final_out3_3, final_out3_4, final_out3_5, final_out_end3,
+             final_out4_1, final_out4_2, final_out4_3, final_out4_4, final_out4_5, final_out_end4) = results
+
+            # try:
+            #     stream_name = 'quordle_logging'
+            #     add_data_to_stream(stream_name, quordle_data_dict)
+            # except:
+            #     print('quordle_logging_failed')
+
+            return jsonify(
+                # All puzzle results
+                final_out_all_1=final_out_all_1, final_out_all_2=final_out_all_2,
+                final_out_all_3=final_out_all_3, final_out_all_4=final_out_all_4,
+                final_out_all_5=final_out_all_5, final_out_end_all=final_out_end_all,
+
+                # Puzzle 1 results
+                final_out1_1=final_out1_1, final_out1_2=final_out1_2,
+                final_out1_3=final_out1_3, final_out1_4=final_out1_4,
+                final_out1_5=final_out1_5, final_out_end1=final_out_end1,
+
+                # Puzzle 2 results
+                final_out2_1=final_out2_1, final_out2_2=final_out2_2,
+                final_out2_3=final_out2_3, final_out2_4=final_out2_4,
+                final_out2_5=final_out2_5, final_out_end2=final_out_end2,
+
+                # Puzzle 3 results
+                final_out3_1=final_out3_1, final_out3_2=final_out3_2,
+                final_out3_3=final_out3_3, final_out3_4=final_out3_4,
+                final_out3_5=final_out3_5, final_out_end3=final_out_end3,
+
+                # Puzzle 4 results
+                final_out4_1=final_out4_1, final_out4_2=final_out4_2,
+                final_out4_3=final_out4_3, final_out4_4=final_out4_4,
+                final_out4_5=final_out4_5, final_out_end4=final_out_end4
+            )
+        except Exception:
+            return jsonify(
+                final_out_all_1='No words found', final_out_all_2='', final_out_all_3='', final_out_all_4='', final_out_all_5='', final_out_end_all='Options remaining: 0/5710 (0.0%)',
+                final_out1_1='No words found', final_out1_2='', final_out1_3='', final_out1_4='', final_out1_5='', final_out_end1='Options remaining: 0/5710 (0.0%)',
+                final_out2_1='No words found', final_out2_2='', final_out2_3='', final_out2_4='', final_out2_5='', final_out_end2='Options remaining: 0/5710 (0.0%)',
+                final_out3_1='No words found', final_out3_2='', final_out3_3='', final_out3_4='', final_out3_5='', final_out_end3='Options remaining: 0/5710 (0.0%)',
+                final_out4_1='No words found', final_out4_2='', final_out4_3='', final_out4_4='', final_out4_5='', final_out_end4='Options remaining: 0/5710 (0.0%)'
+            )
     else:
         # Call the solver with empty data to get initial recommendations
         empty_data = []
