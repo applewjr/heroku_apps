@@ -317,7 +317,7 @@ def run_wordle_revamp():
 
     if request.method == "POST":
         wordle_data_dict = request.get_json().get('wordle_data')
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
         first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
         complete_rows = 'Complete Rows: ' + str(complete_rows)
 
@@ -331,21 +331,34 @@ def run_wordle_revamp():
         except:
             print('wordle_logging_failed')
 
+        show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
+            df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
+        )
         return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
-            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
+            first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
+            show_alt_picks=show_alt_picks, alt_out1=alt_out1, alt_out2=alt_out2, alt_out3=alt_out3, alt_out4=alt_out4, alt_out5=alt_out5)
     else:
         # Call the solver with empty data to get initial recommendations
         empty_data = []
-        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.wordle_solver_split_revamp(df, empty_data)
+        final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, empty_data)
+        show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
+            df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
+        )
 
         # Pass the results to JavaScript on page load
-        return render_template("wordle_revamp.html", 
+        return render_template("wordle_revamp.html",
                             initial_out1=final_out1,
-                            initial_out2=final_out2, 
+                            initial_out2=final_out2,
                             initial_out3=final_out3,
                             initial_out4=final_out4,
                             initial_out5=final_out5,
                             initial_out_end=final_out_end,
+                            initial_show_alt_picks=show_alt_picks,
+                            initial_alt_out1=alt_out1,
+                            initial_alt_out2=alt_out2,
+                            initial_alt_out3=alt_out3,
+                            initial_alt_out4=alt_out4,
+                            initial_alt_out5=alt_out5,
                             schema_data=schema_data)
 
 
@@ -1434,12 +1447,16 @@ def mtg_prices():
 
 ######################################
 ######################################
-##### Hex Game
+##### Umbra
 ######################################
 ######################################
 
 @app.route("/hex")
-def hex_game():
+def hex_game_redirect():
+    return redirect("/umbra", code=301)
+
+@app.route("/umbra")
+def umbra_game():
 
     return render_template("hex.html")
 
@@ -1579,7 +1596,7 @@ def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/any_word', '/feedback', '/privacy-policy',
-        '/mtg', '/youtube_trending', '/hex', '/tiltconnect4',
+        '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4',
     ]
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
