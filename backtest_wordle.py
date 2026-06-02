@@ -66,16 +66,24 @@ def extract_word(pick_str: str) -> str | None:
     return m.group(1).lower() if m else None
 
 
-def simulate_game(df: pd.DataFrame, target: str) -> int | None:
+COLOR_LABEL = {'1': 'gray', '2': 'yellow', '3': 'green'}
+COLOR_CHAR  = {'1': '.', '2': '?', '3': '#'}  # . gray  ? yellow  # green
+
+
+def simulate_game(df: pd.DataFrame, target: str, trace: bool = False) -> int | None:
     """
     Simulate one game. Returns number of guesses to solve, or None if failed.
+    With trace=True, prints each step so you can verify against the real UI.
     """
+    if trace:
+        print(f'\n--- Target: {target.upper()} ---')
+
     history = []
 
     for attempt in range(1, MAX_GUESSES + 1):
         wordle_data = build_wordle_data(history)
 
-        pick1, pick2, pick3, pick4, pick5, _, _, _, gray_letters, guessed_set = \
+        pick1, pick2, pick3, pick4, pick5, options_remaining, _, _, gray_letters, guessed_set = \
             wordle_solver_split_revamp(df, wordle_data)
 
         picks = [pick1, pick2, pick3, pick4, pick5]
@@ -83,23 +91,40 @@ def simulate_game(df: pd.DataFrame, target: str) -> int | None:
 
         if show_alt and extract_word(alt1):
             guess = extract_word(alt1)
+            source = f'Alt Pick 1  ({alt1})'
         else:
             guess = extract_word(pick1)
+            source = f'Pick 1      ({pick1})'
 
         if guess is None:
-            return None  # Solver has no candidates
+            if trace:
+                print(f'  Attempt {attempt}: solver has no candidates — FAIL')
+            return None
 
         colors = color_guess(guess, target)
+        colored = ' '.join(f'{g.upper()}({COLOR_CHAR[c]})' for g, c in zip(guess, colors))
+
+        if trace:
+            legend = '  '.join(f'{g.upper()}={COLOR_LABEL[c]}' for g, c in zip(guess, colors))
+            print(f'  Attempt {attempt}: {source}')
+            print(f'    Guess:  {colored}')
+            print(f'    Colors: {legend}')
+            print(f'    {options_remaining}')
+
         history.append((guess, colors))
 
         if guess == target:
+            if trace:
+                print(f'  Solved in {attempt}!')
             return attempt
 
-    return None  # Failed within MAX_GUESSES
+    if trace:
+        print(f'  FAILED after {MAX_GUESSES} guesses')
+    return None
 
 
 def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
-                 order: str = 'alpha', verbose: bool = False):
+                 order: str = 'alpha', verbose: bool = False, trace: bool = False):
     df = load_df()
     if word_list is not None:
         targets = word_list
@@ -116,14 +141,14 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
     fails = []
 
     for i, target in enumerate(targets):
-        if i % 500 == 0:
+        if not trace and i % 500 == 0:
             print(f'  {i}/{len(targets)}...')
-        tries = simulate_game(df, target)
+        tries = simulate_game(df, target, trace=trace)
         if tries is not None:
             results.append(tries)
         else:
             fails.append(target)
-            if verbose:
+            if verbose and not trace:
                 print(f'  FAIL: {target}')
 
     total = len(targets)
@@ -151,10 +176,14 @@ if __name__ == '__main__':
     parser.add_argument('--order', choices=['alpha', 'random'], default='alpha',
                         help='Word order when sampling: alpha (default) or random')
     parser.add_argument('--verbose', action='store_true', help='Print each failed word as it happens')
+    parser.add_argument('--trace', action='store_true',
+                        help='Print full step-by-step play for every word (best with --words or small --sample)')
     args = parser.parse_args()
 
-    run_backtest(word_list=args.words, sample=args.sample, order=args.order, verbose=args.verbose)
+    run_backtest(word_list=args.words, sample=args.sample, order=args.order,
+                 verbose=args.verbose, trace=args.trace)
 
+# python backtest_wordle.py --words aging --trace
 # python backtest_wordle.py --words crane abbey pizza about doggy sword --verbose
 # python backtest_wordle.py --sample 100
 # python backtest_wordle.py --sample 100 --order random
