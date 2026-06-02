@@ -234,13 +234,13 @@ if __name__ == '__main__':
                  verbose=args.verbose, trace=args.trace, workers=args.workers,
                  no_alt=args.no_alt)
 
-"""
-python backtest_wordle.py
---words aging
---trace
---words crane abbey pizza about doggy sword --verbose
---sample 100
---sample 100 --order random
-(--workers 4)
---no-alt
-"""
+# -- Quick reference ---------------------------------------------------------
+# python backtest_wordle.py                              # full run, all words
+# python backtest_wordle.py --sample 100                 # first 100 alphabetically
+# python backtest_wordle.py --sample 100 --order random  # 100 random words
+# python backtest_wordle.py --words crane abbey basis    # specific words
+# python backtest_wordle.py --words aging --trace        # step-by-step debug
+# python backtest_wordle.py --no-alt                     # pick 1 only, no alt picks
+# python backtest_wordle.py --workers 6                  # override parallel workers
+# python backtest_wordle.py --verbose                    # print failures as they happen
+# ----------------------------------------------------------------------------
