@@ -234,13 +234,13 @@ if __name__ == '__main__':
                  verbose=args.verbose, trace=args.trace, workers=args.workers,
                  no_alt=args.no_alt)
 
-# -- Quick reference ---------------------------------------------------------
-# python backtest_wordle.py                              # full run, all words
-# python backtest_wordle.py --sample 100                 # first 100 alphabetically
-# python backtest_wordle.py --sample 100 --order random  # 100 random words
-# python backtest_wordle.py --words crane abbey basis    # specific words
-# python backtest_wordle.py --words aging --trace        # step-by-step debug
-# python backtest_wordle.py --no-alt                     # pick 1 only, no alt picks
-# python backtest_wordle.py --workers 6                  # override parallel workers
-# python backtest_wordle.py --verbose                    # print failures as they happen
+# -- Quick reference (run from heroku_apps/) ---------------------------------
+# python scripts/backtest_wordle.py                              # full run, all words
+# python scripts/backtest_wordle.py --sample 100                 # first 100 alphabetically
+# python scripts/backtest_wordle.py --sample 100 --order random  # 100 random words
+# python scripts/backtest_wordle.py --words crane abbey basis    # specific words
+# python scripts/backtest_wordle.py --words aging --trace        # step-by-step debug
+# python scripts/backtest_wordle.py --no-alt                     # pick 1 only, no alt picks
+# python scripts/backtest_wordle.py --workers 6                  # override parallel workers
+# python scripts/backtest_wordle.py --verbose                    # print failures as they happen
 # ----------------------------------------------------------------------------
