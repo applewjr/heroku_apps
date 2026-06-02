@@ -7,6 +7,8 @@ Runs against every word in the dataset and reports success rate and guess distri
 
 import sys
 import re
+import time
+import multiprocessing as mp
 import pandas as pd
 from collections import Counter
 
@@ -16,6 +18,17 @@ from functions.wordle import wordle_solver_split_revamp, compute_alt_picks
 
 DATASET_PATH = 'c:/Users/james/projects/heroku_apps/datasets/word_data_created.csv'
 MAX_GUESSES = 6
+
+_worker_df = None  # per-process DataFrame, loaded once via pool initializer
+
+
+def _init_worker(dataset_path):
+    global _worker_df
+    _worker_df = pd.read_csv(dataset_path)
+
+
+def _simulate_one_worker(target):
+    return target, simulate_game(_worker_df, target, trace=False)
 
 
 def load_df():
@@ -124,7 +137,8 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False) -> int | N
 
 
 def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
-                 order: str = 'alpha', verbose: bool = False, trace: bool = False):
+                 order: str = 'alpha', verbose: bool = False, trace: bool = False,
+                 workers: int = 1):
     df = load_df()
     if word_list is not None:
         targets = word_list
@@ -139,21 +153,43 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
 
     results = []
     fails = []
+    t0 = time.time()
 
-    for i, target in enumerate(targets):
-        if not trace and i % 500 == 0:
-            print(f'  {i}/{len(targets)}...')
-        tries = simulate_game(df, target, trace=trace)
-        if tries is not None:
-            results.append(tries)
-        else:
-            fails.append(target)
-            if verbose and not trace:
-                print(f'  FAIL: {target}')
+    if trace or workers == 1:
+        for i, target in enumerate(targets):
+            if not trace and i % 500 == 0:
+                print(f'  {i}/{len(targets)}...')
+            tries = simulate_game(df, target, trace=trace)
+            if tries is not None:
+                results.append(tries)
+            else:
+                fails.append(target)
+                if verbose and not trace:
+                    print(f'  FAIL: {target}')
+    else:
+        n = len(targets)
+        chunk = max(1, n // (workers * 8))
+        print(f'  Running {n} games across {workers} workers...')
+        with mp.Pool(workers, initializer=_init_worker, initargs=(DATASET_PATH,)) as pool:
+            done = 0
+            for target, tries in pool.imap(_simulate_one_worker, targets, chunksize=chunk):
+                done += 1
+                if done % 500 == 0:
+                    elapsed = time.time() - t0
+                    rate = done / elapsed
+                    remaining = (n - done) / rate
+                    print(f'  {done}/{n}  ({rate:.0f} games/s, ~{remaining:.0f}s remaining)')
+                if tries is not None:
+                    results.append(tries)
+                else:
+                    fails.append(target)
+                    if verbose:
+                        print(f'  FAIL: {target}')
 
+    elapsed = time.time() - t0
     total = len(targets)
     solved = len(results)
-    print(f'\n=== Backtest Results ({total} words) ===')
+    print(f'\n=== Backtest Results ({total} words, {elapsed:.1f}s) ===')
     print(f'Solved:  {solved}/{total}  ({solved/total*100:.1f}%)')
     print(f'Failed:  {len(fails)}/{total}  ({len(fails)/total*100:.1f}%)')
     if results:
@@ -175,17 +211,23 @@ if __name__ == '__main__':
     parser.add_argument('--sample', type=int, default=None, help='Test N words instead of all')
     parser.add_argument('--order', choices=['alpha', 'random'], default='alpha',
                         help='Word order when sampling: alpha (default) or random')
+    _default_workers = max(1, mp.cpu_count() // 2)  # physical cores, not hyperthreads
+    parser.add_argument('--workers', type=int, default=_default_workers,
+                        help=f'Parallel worker processes (default: {_default_workers} = physical core count)')
     parser.add_argument('--verbose', action='store_true', help='Print each failed word as it happens')
     parser.add_argument('--trace', action='store_true',
                         help='Print full step-by-step play for every word (best with --words or small --sample)')
     args = parser.parse_args()
 
     run_backtest(word_list=args.words, sample=args.sample, order=args.order,
-                 verbose=args.verbose, trace=args.trace)
+                 verbose=args.verbose, trace=args.trace, workers=args.workers)
 
-# python backtest_wordle.py --words aging --trace
-# python backtest_wordle.py --words crane abbey pizza about doggy sword --verbose
-# python backtest_wordle.py --sample 100
-# python backtest_wordle.py --sample 100 --order random
-# python backtest_wordle.py
-
+"""
+python backtest_wordle.py --words aging --trace
+python backtest_wordle.py --words crane abbey pizza about doggy sword --verbose
+python backtest_wordle.py --sample 100
+python backtest_wordle.py --sample 100 --order random
+python backtest_wordle.py
+python backtest_wordle.py --workers 4
+python backtest_wordle.py --sample 100
+"""
