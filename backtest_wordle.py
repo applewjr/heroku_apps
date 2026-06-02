@@ -98,9 +98,19 @@ def simulate_game(df: pd.DataFrame, target: str) -> int | None:
     return None  # Failed within MAX_GUESSES
 
 
-def run_backtest(word_list: list[str] | None = None, verbose: bool = False):
+def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
+                 order: str = 'alpha', verbose: bool = False):
     df = load_df()
-    targets = word_list if word_list is not None else df['word'].tolist()
+    if word_list is not None:
+        targets = word_list
+    else:
+        all_words = df['word'].tolist()
+        if order == 'random':
+            import random
+            all_words = random.sample(all_words, len(all_words))
+        else:
+            all_words = sorted(all_words)
+        targets = all_words[:sample] if sample is not None else all_words
 
     results = []
     fails = []
@@ -137,11 +147,16 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Backtest the Wordle solver')
     parser.add_argument('--words', nargs='*', help='Specific words to test (default: all)')
+    parser.add_argument('--sample', type=int, default=None, help='Test N words instead of all')
+    parser.add_argument('--order', choices=['alpha', 'random'], default='alpha',
+                        help='Word order when sampling: alpha (default) or random')
     parser.add_argument('--verbose', action='store_true', help='Print each failed word as it happens')
     args = parser.parse_args()
 
-    run_backtest(word_list=args.words, verbose=args.verbose)
+    run_backtest(word_list=args.words, sample=args.sample, order=args.order, verbose=args.verbose)
 
 # python backtest_wordle.py --words crane abbey pizza about doggy sword --verbose
+# python backtest_wordle.py --sample 100
+# python backtest_wordle.py --sample 100 --order random
 # python backtest_wordle.py
 
