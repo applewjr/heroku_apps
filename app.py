@@ -640,9 +640,19 @@ def blossom_solver():
                     return jsonify({'status': 'success', 'used_words': session['used_words']})
             
             # Handle form submission for word search
-            must_have = request.form["must_have"]
-            may_have = request.form["may_have"]
-            petal_letter = request.form["petal_letter"]
+            must_have = request.form.get("must_have")
+            may_have = request.form.get("may_have")
+            petal_letter = request.form.get("petal_letter")
+
+            if must_have is None or may_have is None or petal_letter is None:
+                app.logger.error(
+                    f"Blossom POST missing fields - content_type={request.content_type!r} "
+                    f"form_keys={list(request.form.keys())} "
+                    f"data={request.get_data(as_text=True)[:500]!r} "
+                    f"ua={request.headers.get('User-Agent')!r} "
+                    f"ip={request.remote_addr}"
+                )
+                return render_template('error.html', return_type='Blossom Error'), 400
 
             # Handle load more functionality
             current_count = 25  # Default starting count
@@ -731,7 +741,12 @@ def blossom_solver():
                                 schema_data=schema_data)
 
     except Exception as e:
-        app.logger.error(f"Error R99 (Blossom failed): {str(e)} - IP: {request.remote_addr}")
+        app.logger.error(
+            f"Error R99 (Blossom failed): {str(e)} - IP: {request.remote_addr} "
+            f"method={request.method} content_type={request.content_type!r} "
+            f"form_keys={list(request.form.keys())}",
+            exc_info=True
+        )
         return render_template('error.html', return_type='Blossom Error'), 500
 
 
