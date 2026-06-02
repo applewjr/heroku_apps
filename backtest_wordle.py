@@ -229,5 +229,5 @@ python backtest_wordle.py --sample 100
 python backtest_wordle.py --sample 100 --order random
 python backtest_wordle.py
 python backtest_wordle.py --workers 4
-python backtest_wordle.py --sample 100
+python backtest_wordle.py --sample 100 --workers 6
 """
