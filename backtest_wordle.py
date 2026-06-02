@@ -22,13 +22,17 @@ MAX_GUESSES = 6
 _worker_df = None  # per-process DataFrame, loaded once via pool initializer
 
 
-def _init_worker(dataset_path):
-    global _worker_df
+def _init_worker(dataset_path, no_alt):
+    global _worker_df, _worker_no_alt
     _worker_df = pd.read_csv(dataset_path)
+    _worker_no_alt = no_alt
+
+
+_worker_no_alt = False
 
 
 def _simulate_one_worker(target):
-    return target, simulate_game(_worker_df, target, trace=False)
+    return target, simulate_game(_worker_df, target, trace=False, no_alt=_worker_no_alt)
 
 
 def load_df():
@@ -83,10 +87,12 @@ COLOR_LABEL = {'1': 'gray', '2': 'yellow', '3': 'green'}
 COLOR_CHAR  = {'1': '.', '2': '?', '3': '#'}  # . gray  ? yellow  # green
 
 
-def simulate_game(df: pd.DataFrame, target: str, trace: bool = False) -> int | None:
+def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
+                  no_alt: bool = False) -> int | None:
     """
     Simulate one game. Returns number of guesses to solve, or None if failed.
     With trace=True, prints each step so you can verify against the real UI.
+    With no_alt=True, always uses Pick 1 and never consults Alt Pick 1.
     """
     if trace:
         print(f'\n--- Target: {target.upper()} ---')
@@ -99,8 +105,11 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False) -> int | N
         pick1, pick2, pick3, pick4, pick5, options_remaining, _, _, gray_letters, guessed_set = \
             wordle_solver_split_revamp(df, wordle_data)
 
-        picks = [pick1, pick2, pick3, pick4, pick5]
-        show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set)
+        if not no_alt:
+            picks = [pick1, pick2, pick3, pick4, pick5]
+            show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set)
+        else:
+            show_alt = False
 
         if show_alt and extract_word(alt1):
             guess = extract_word(alt1)
@@ -138,7 +147,7 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False) -> int | N
 
 def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
                  order: str = 'alpha', verbose: bool = False, trace: bool = False,
-                 workers: int = 1):
+                 workers: int = 1, no_alt: bool = False):
     df = load_df()
     if word_list is not None:
         targets = word_list
@@ -159,7 +168,7 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
         for i, target in enumerate(targets):
             if not trace and i % 500 == 0:
                 print(f'  {i}/{len(targets)}...')
-            tries = simulate_game(df, target, trace=trace)
+            tries = simulate_game(df, target, trace=trace, no_alt=no_alt)
             if tries is not None:
                 results.append(tries)
             else:
@@ -170,7 +179,7 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
         n = len(targets)
         chunk = max(1, n // (workers * 8))
         print(f'  Running {n} games across {workers} workers...')
-        with mp.Pool(workers, initializer=_init_worker, initargs=(DATASET_PATH,)) as pool:
+        with mp.Pool(workers, initializer=_init_worker, initargs=(DATASET_PATH, no_alt)) as pool:
             done = 0
             for target, tries in pool.imap(_simulate_one_worker, targets, chunksize=chunk):
                 done += 1
@@ -217,17 +226,21 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='Print each failed word as it happens')
     parser.add_argument('--trace', action='store_true',
                         help='Print full step-by-step play for every word (best with --words or small --sample)')
+    parser.add_argument('--no-alt', action='store_true', dest='no_alt',
+                        help='Always use Pick 1, never Alt Pick 1')
     args = parser.parse_args()
 
     run_backtest(word_list=args.words, sample=args.sample, order=args.order,
-                 verbose=args.verbose, trace=args.trace, workers=args.workers)
+                 verbose=args.verbose, trace=args.trace, workers=args.workers,
+                 no_alt=args.no_alt)
 
 """
-python backtest_wordle.py --words aging --trace
-python backtest_wordle.py --words crane abbey pizza about doggy sword --verbose
-python backtest_wordle.py --sample 100
-python backtest_wordle.py --sample 100 --order random
 python backtest_wordle.py
-python backtest_wordle.py --workers 4
-python backtest_wordle.py --sample 100 --workers 6
+--words aging
+--trace
+--words crane abbey pizza about doggy sword --verbose
+--sample 100
+--sample 100 --order random
+(--workers 4)
+--no-alt
 """
