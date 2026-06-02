@@ -8,6 +8,8 @@ Disallow: /task_db
 Disallow: /high_score
 Disallow: /quill
 Disallow: /blossom_admin
+Disallow: /espresso
+Disallow: /espresso/
 
 User-agent: Amazonbot
 Disallow: /
