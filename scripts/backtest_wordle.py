@@ -105,7 +105,7 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
         pick1, pick2, pick3, pick4, pick5, options_remaining, _, _, gray_letters, guessed_set = \
             wordle_solver_split_revamp(df, wordle_data)
 
-        if not no_alt:
+        if not no_alt and attempt < MAX_GUESSES:
             picks = [pick1, pick2, pick3, pick4, pick5]
             show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set)
         else:

@@ -193,8 +193,11 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
     if guessed_word_set:
         df = df[~df['word'].isin(guessed_word_set)]
 
-    # pick the best (aka reasonably good) choice by sorting on the highest 'word_score'
-    df = df.sort_values(by = 'word_score', ascending = False)
+    # on the final 2 guesses sort by popularity; otherwise sort by word_score for information gain
+    if first_incomplete_row is not None and first_incomplete_row == 6:
+        df = df.sort_values(by='popularity_score', ascending=False)
+    else:
+        df = df.sort_values(by='word_score', ascending=False)
 
     try:
         final_out1 = 'Pick 1: ' + df.iat[0, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
