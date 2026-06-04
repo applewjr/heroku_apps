@@ -107,7 +107,13 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
 
         if not no_alt and attempt < MAX_GUESSES:
             picks = [pick1, pick2, pick3, pick4, pick5]
-            show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set)
+            guesses_left = MAX_GUESSES - attempt
+            remaining_count = int(re.search(r'(\d+)/', options_remaining).group(1))
+            # Lower threshold and force eliminator search when running out of guesses
+            min_match = 2 if guesses_left <= 1 else (3 if guesses_left <= 2 else 4)
+            force = remaining_count > guesses_left * 4
+            show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set,
+                                                   min_match=min_match, force=force)
         else:
             show_alt = False
 
