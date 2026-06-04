@@ -219,7 +219,8 @@ def wordle_solver_split_revamp(import_df, wordle_data_dict):
         final_out5 = 'Pick 5: ' + df.iat[4, 0] # print top 5 in case you get trapped in a narrow path of replacing just 1 letter at a time
     except:
         final_out5 = ''
-    final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%)'
+    rank_label = 'popularity' if (first_incomplete_row is not None and first_incomplete_row == 6) else 'word score'
+    final_out_end = f'Options remaining: {len(df)}/{total_len} ({round(len(df)/total_len*100,2)}%) · ranked by {rank_label}'
 
     return final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, ''.join(must_not_be_present), guessed_word_set
 
