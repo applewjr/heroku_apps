@@ -878,6 +878,9 @@ def compute_alt_picks(import_df, picks, gray_letters='', guessed_word_set=None, 
     # find_word_with_letters uses df['word'][i] with range(len(df)), so needs a clean index
     search_df = search_df.reset_index(drop=True)
 
+    if len(search_df) == 0:
+        return False, '', '', '', '', ''
+
     raw = find_word_with_letters(search_df, ''.join(sorted(varying_letters)))
 
     if raw[0]:

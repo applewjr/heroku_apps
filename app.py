@@ -17,6 +17,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 import logging
 import smtplib
+import re
 from email.mime.text import MIMEText
 import matplotlib.pyplot as plt
 
@@ -333,12 +334,11 @@ def run_wordle_revamp():
             if is_final_guess:
                 show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = False, '', '', '', '', ''
             else:
-                import re as _re
-                _remaining_m = _re.search(r'(\d+)/', final_out_end)
+                _remaining_m = re.search(r'(\d+)/', final_out_end)
                 _remaining_count = int(_remaining_m.group(1)) if _remaining_m else 9999
                 _guesses_left = 6 - (row_num or 1)
                 _min_match = 2 if _guesses_left <= 1 else (3 if _guesses_left <= 2 else 4)
-                _force = _remaining_count > _guesses_left * 4
+                _force = _remaining_count > _guesses_left * 4 and _guesses_left <= 3
                 show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
                     df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set,
                     min_match=_min_match, force=_force

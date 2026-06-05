@@ -111,7 +111,7 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
             remaining_count = int(re.search(r'(\d+)/', options_remaining).group(1))
             # Lower threshold and force eliminator search when running out of guesses
             min_match = 2 if guesses_left <= 1 else (3 if guesses_left <= 2 else 4)
-            force = remaining_count > guesses_left * 4
+            force = remaining_count > guesses_left * 4 and guesses_left <= 3
             show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set,
                                                    min_match=min_match, force=force)
         else:
@@ -212,8 +212,7 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
         dist = Counter(results)
         print('\nGuess distribution:')
         for k in sorted(dist):
-            bar = '#' * dist[k]
-            print(f'  {k}: {dist[k]:4d}  {bar}')
+            print(f'  {k}: {dist[k]:4d}')
     if fails:
         print(f'\nFailed words: {fails}')
 
