@@ -1702,9 +1702,8 @@ def ratelimit_handler(e):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    return_type = '500 - Error'
-    print(e)
-    return render_template('error.html', return_type=return_type), 500
+    app.logger.exception("Unhandled exception: %s", e)
+    return render_template('error.html', return_type='500 - Error'), 500
 
 @app.route('/antiwordle_og')
 def antiwordle_og_redirect():
