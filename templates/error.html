@@ -1,27 +1,151 @@
 {% extends 'base.html' %}
 
-{% block title %}Error{% endblock %}
+{% block title %}Page Not Found - JJ Apps{% endblock %}
+
+{% block head %}
+<style>
+    .error-wrap {
+        max-width: 720px;
+        margin: 3.5rem auto;
+        padding: 0 1.25rem 3rem;
+        text-align: center;
+    }
+    .error-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 2.5rem 1.75rem;
+        box-shadow: 0 2px 12px rgba(2, 72, 77, 0.05);
+    }
+    .error-card h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0 0 0.5rem;
+    }
+    .error-sub {
+        font-size: 1rem;
+        color: #6b7280;
+        margin: 0 0 1.75rem;
+        line-height: 1.55;
+    }
+    .error-detail {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        font-family: monospace;
+        margin: 0 0 1.75rem;
+        word-break: break-word;
+    }
+    .error-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+    .error-btn-primary {
+        background-color: #02484d;
+        color: white;
+        padding: 0.7rem 1.4rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 500;
+        transition: background-color 0.15s;
+    }
+    .error-btn-primary:hover {
+        background-color: #03282b;
+        color: white;
+    }
+    .error-btn-secondary {
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 0.7rem 1.4rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.95rem;
+        transition: background-color 0.15s;
+    }
+    .error-btn-secondary:hover {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+    .error-suggest-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: #02484d;
+        margin: 2.5rem 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #02484d;
+        text-align: left;
+    }
+    .error-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
+    .error-app-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 0.95rem 1.1rem;
+        text-align: left;
+        transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+        text-decoration: none;
+        color: inherit;
+    }
+    .error-app-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 18px rgba(2, 72, 77, 0.12);
+        border-color: #02484d;
+        color: inherit;
+    }
+    .error-app-card-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0 0 0.25rem;
+    }
+    .error-app-card-desc {
+        font-size: 0.76rem;
+        color: #6b7280;
+        margin: 0;
+        line-height: 1.45;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<head>
+<div class="error-wrap">
+    <div class="error-card">
+        <h1>Hmm. Can't find that one.</h1>
+        <p class="error-sub">The page you're looking for doesn't exist or was moved.</p>
+        {% if return_type %}
+        <p class="error-detail">{{ return_type }}</p>
+        {% endif %}
+        <div class="error-actions">
+            <a href="/" class="error-btn-primary">Back Home</a>
+            <a href="/feedback" class="error-btn-secondary">Give Feedback</a>
+        </div>
+    </div>
 
-</head>
-
-<body>
-  <center>
-  <br>
-  <br>
-  <h3>Hmm. Can't find that one.</h3>
-  <p>{{return_type}}</p>
-  <br>
-  <br>
-  <a href="/">Back Home</a>
-  <br>
-  <br>
-  <a href="/feedback">Give Feedback Here</a>
-  <br>
-  <br>
-  <br>
-  </center>
-</body>
+    <div class="error-suggest-label">Popular Tools</div>
+    <div class="error-card-grid">
+        <a href="/blossom" class="error-app-card">
+            <div class="error-app-card-title">Blossom Solver</div>
+            <div class="error-app-card-desc">Find the highest-scoring words for the Blossom puzzle</div>
+        </a>
+        <a href="/wordle" class="error-app-card">
+            <div class="error-app-card-title">Wordle Solver</div>
+            <div class="error-app-card-desc">Get optimal guesses based on your current clues</div>
+        </a>
+        <a href="/mtg" class="error-app-card">
+            <div class="error-app-card-title">MTG Prices</div>
+            <div class="error-app-card-desc">Notable recent price increases and decreases</div>
+        </a>
+    </div>
+</div>
 {% endblock %}

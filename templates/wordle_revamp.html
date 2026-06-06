@@ -178,6 +178,63 @@
     color: gray;
 }
 
+.btn-secondary {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-block;
+    margin: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+.btn-secondary:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.action-row {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.related-solvers {
+    margin-top: 20px;
+}
+.related-solvers-label {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 12px;
+}
+.pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    max-width: 300px;
+    margin: 0 auto;
+}
+.pill-button {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 13px;
+    transition: background-color 0.2s ease;
+    flex: 0 0 calc(50% - 2px);
+    text-align: center;
+    box-sizing: border-box;
+}
+.pill-button:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
 .suggestion-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -347,114 +404,19 @@
     <div id="recommendations"></div>
     </form>
     <br>
-    <div style="margin: 20px 0; text-align: center;">
-        <a href="https://www.nytimes.com/games/wordle/index.html" target="_blank" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🧩 Play Wordle</a>
-        <a href="/feedback" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
-        <a href="/wordle" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Puzzle</a>
+    <div class="action-row">
+        <a href="https://www.nytimes.com/games/wordle/index.html" target="_blank" class="btn-secondary">🧩 Play Wordle</a>
+        <a href="/feedback" class="btn-secondary">💬 Give Feedback</a>
+        <a href="/wordle" class="btn-secondary">🔄 Reset Puzzle</a>
     </div>
 
-    <div style="margin-top: 20px;">
-        <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
-        <div style="
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 4px;
-            max-width: 300px;
-            margin: 0 auto;
-        ">
-            <a href="/blossom" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
-            
-            <a href="/quordle" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
-            
-            <a href="/antiwordle" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
-
-            <a href="/wordiply" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
+    <div class="related-solvers">
+        <p class="related-solvers-label">Other Word Game Solvers:</p>
+        <div class="pill-grid">
+            <a href="/blossom" class="pill-button">Blossom</a>
+            <a href="/quordle" class="pill-button">Quordle</a>
+            <a href="/antiwordle" class="pill-button">Antiwordle</a>
+            <a href="/wordiply" class="pill-button">Wordiply</a>
         </div>
     </div>
     <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">

@@ -56,8 +56,20 @@ body, html {
     margin: 0;
     font-family: 'Inter', sans-serif;
     background-color: white;
-    color: gray;
+    color: #374151;
     text-align: center;
+}
+.muted { color: #6b7280; }
+:focus-visible {
+    outline: 2px solid #02484d;
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+input[type=text]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline-offset: 0;
+    border-color: #02484d;
 }
 center {
     margin-left: auto;
@@ -174,8 +186,9 @@ input[type=submit]:hover {
     transition: transform 0.5s ease;
 }
 .pulsing-image27:hover img { transform: scale(1.1); }
-a { color: black; text-decoration: none; }
-a:hover { color: #6aaa64; transform: scale(1.03); }
+a { color: #111; text-decoration: none; }
+a:hover { color: #6aaa64; }
+.link-grow:hover { transform: scale(1.03); }
 .hr_index {
     border: none; height: 1.3px;
     background-color: gray;
@@ -214,7 +227,7 @@ li { margin-bottom: 10px; }
     line-height: 1;
     flex-shrink: 0;
 }
-.jj-brand:hover { color: #02484d !important; transform: none; }
+.jj-brand:hover { color: #02484d !important; }
 .jj-nav-icons {
     display: flex;
     align-items: center;
@@ -229,7 +242,7 @@ li { margin-bottom: 10px; }
     color: inherit !important;
     text-decoration: none !important;
 }
-.jj-icon-link:hover { background: #f3f4f6; transform: none; }
+.jj-icon-link:hover { background: #f3f4f6; }
 .jj-menu-btn {
     display: flex;
     align-items: center;
@@ -314,7 +327,7 @@ li { margin-bottom: 10px; }
     transition: color 0.12s;
     line-height: 1.4;
 }
-.jj-overlay-link:hover { color: white; transform: none; }
+.jj-overlay-link:hover { color: white; }
 .jj-overlay-footer {
     text-align: center;
     padding: 0 2rem 2.5rem;
@@ -324,7 +337,7 @@ li { margin-bottom: 10px; }
     color: rgba(255,255,255,0.3);
     text-decoration: none !important;
 }
-.jj-overlay-footer a:hover { color: rgba(255,255,255,0.6); transform: none; }
+.jj-overlay-footer a:hover { color: rgba(255,255,255,0.6); }
     </style>
 
     {% block head %}{% endblock %}
