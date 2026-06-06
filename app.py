@@ -292,29 +292,26 @@ def abbreviate_keys(data):
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
-            "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
-            "url": "https://jamesapplewhite.com/wordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
+        "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
+        "url": "https://jamesapplewhite.com/wordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -379,29 +376,26 @@ def run_wordle_revamp():
 @app.route("/antiwordle", methods=["POST", "GET"])
 def run_antiwordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
-            "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
-            "url": "https://jamesapplewhite.com/antiwordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
+        "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
+        "url": "https://jamesapplewhite.com/antiwordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -440,29 +434,26 @@ def run_antiwordle_revamp():
 @app.route("/quordle", methods=["POST", "GET"])
 def run_quordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
-            "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
-            "url": "https://jamesapplewhite.com/quordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
+        "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
+        "url": "https://jamesapplewhite.com/quordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -611,28 +602,25 @@ def run_common_denominator():
 def blossom_solver():
     try:
 
-        try:
-            schema_data = {
-                "@context": "https://schema.org",
-                "@type": "WebApplication",
-                "name": "Blossom Word Finder & Solver",
-                "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
-                "url": "https://jamesapplewhite.com/blossom",
-                "applicationCategory": "GameApplication",
-                "isAccessibleForFree": True,
-                "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "offers": {
-                    "@type": "Offer",
-                    "price": "0",
-                    "priceCurrency": "USD"
-                },
-                "creator": {
-                    "@type": "Person",
-                    "name": "James Applewhite"
-                }
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Blossom Word Finder & Solver",
+            "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
+            "url": "https://jamesapplewhite.com/blossom",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
             }
-        except Exception:
-            schema_data = None
+        }
 
         if request.method == "POST":
             # Handle checkbox updates via AJAX
@@ -1052,29 +1040,26 @@ def any_word():
 @app.route("/wordiply", methods=["POST", "GET"])
 def run_wordiply():
     
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Wordiply Solver - Find the Longest Words Instantly",
-            "description": "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
-            "url": "https://jamesapplewhite.com/wordiply",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Wordiply Solver - Find the Longest Words Instantly",
+        "description": "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
+        "url": "https://jamesapplewhite.com/wordiply",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         data = request.get_json()
