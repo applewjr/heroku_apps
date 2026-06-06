@@ -97,7 +97,28 @@
     transition: all 0.15s ease;
 }
 .aw-reset:hover { border-color: #02484d; color: #02484d; }
+.aw-complement-btn {
+    margin-top: 0.45rem;
+    padding: 5px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #374151;
+    background: #f9fafb;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.aw-complement-btn:hover { border-color: #02484d; color: #02484d; background: #f0fafa; }
 </style>
+<script>
+function fillComplement() {
+    const have = document.getElementById('must_have').value.toUpperCase().replace(/[^A-Z]/g, '');
+    const haveSet = new Set(have.split(''));
+    const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const complement = all.split('').filter(c => !haveSet.has(c)).join('');
+    document.getElementById('must_not_have').value = complement;
+}
+</script>
 {% endblock %}
 
 {% block content %}
@@ -111,13 +132,15 @@
 
     <div class="aw-field">
         <label>Letters That Must Be Contained</label>
-        <input type="text" pattern="[A-Za-z]+" name="must_have" style="width:200px;" value="{{must_have_val}}">
+        <input type="text" pattern="[A-Za-z]+" name="must_have" id="must_have" style="width:200px;" value="{{must_have_val}}">
     </div>
     <hr class="aw-divider">
 
     <div class="aw-field">
         <label>Letters That Must Not Be Contained</label>
-        <input type="text" pattern="[A-Za-z]+" name="must_not_have" style="width:200px;" value="{{must_not_have_val}}">
+        <input type="text" pattern="[A-Za-z]+" name="must_not_have" id="must_not_have" style="width:200px;" value="{{must_not_have_val}}">
+        <br>
+        <button type="button" class="aw-complement-btn" onclick="fillComplement()">Fill with unused letters</button>
     </div>
     <hr class="aw-divider">
 
