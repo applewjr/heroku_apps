@@ -44,6 +44,9 @@
 
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
@@ -51,7 +54,7 @@
     <style>
 body, html {
     margin: 0;
-    font-family: sans-serif;
+    font-family: 'Inter', sans-serif;
     background-color: white;
     color: gray;
     text-align: center;
@@ -198,17 +201,15 @@ li { margin-bottom: 10px; }
 
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="/">JJ Apps</a>
+    <nav class="navbar navbar-expand-lg navbar-light" style="background: white; border-bottom: 1px solid #e5e7eb; padding: 0.6rem 1rem;">
+        <a class="navbar-brand" href="/" style="font-weight: 600; color: #02484d; font-size: 1.1rem; letter-spacing: -0.3px; padding-top: 0; padding-bottom: 0; line-height: 1;">JJ Apps</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul class="navbar-nav mr-auto">
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Pages
-              </a>
+          <ul class="navbar-nav mr-auto" style="align-items: center;">
+            <li class="nav-item dropdown" style="display: flex; align-items: center;">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="font-size: 0.9rem; color: #374151; padding-top: 0; padding-bottom: 0; line-height: 1;">Pages</a>
               <div class="dropdown-menu" aria-labelledby="navbarDropdown">
 
                 <h6 class="dropdown-header">Data Engineering and Analytics</h6>
@@ -247,26 +248,24 @@ li { margin-bottom: 10px; }
               </div>
             </li>
 
-            <li class="nav-item">
-              <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
+            <li class="nav-item d-flex align-items-center">
+              <a class="nav-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer" style="padding-top: 0; padding-bottom: 0; line-height: 1;">
                 <div class="pulsing-image25">
                   <img alt="GitHub" src="/static/github_logo5.png" width=25 height=25 loading="lazy">
                 </div>
               </a>
             </li>
-            
-            <li class="nav-item">
-              <a class="nav-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">
+            <li class="nav-item d-flex align-items-center">
+              <a class="nav-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer" style="padding-top: 0; padding-bottom: 0; line-height: 1;">
                 <div class="pulsing-image27">
                   <img alt="LinkedIn" src="/static/linkedin_logo2.jpg" width=27 height=27 loading="lazy">
                 </div>
               </a>
             </li>
-            
-            <li class="nav-item">
-              <a class="nav-link tracked-link" href="https://twitter.com/J_R_Applewhite" target="_blank" rel="noopener noreferrer">
+            <li class="nav-item d-flex align-items-center">
+              <a class="nav-link tracked-link" href="https://bsky.app/profile/mtgprices.bsky.social" target="_blank" rel="noopener noreferrer" style="padding-top: 0; padding-bottom: 0; line-height: 1;">
                 <div class="pulsing-image27">
-                    <img alt="Twitter" src="/static/twitter_logo2.png" width=27 height=27 loading="lazy">
+                    <img alt="Bluesky" src="/static/bluesky_logo.png" width=27 height=27 loading="lazy">
                 </div>
               </a>
             </li>
