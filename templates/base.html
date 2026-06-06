@@ -203,7 +203,6 @@ li { margin-bottom: 10px; }
     background: white;
     border-bottom: 1px solid #e5e7eb;
     flex-wrap: wrap;
-    position: relative;
 }
 .jj-brand {
     font-weight: 600;
@@ -215,34 +214,10 @@ li { margin-bottom: 10px; }
     flex-shrink: 0;
 }
 .jj-brand:hover { color: #02484d !important; transform: none; }
-.jj-toggler {
-    display: none;
-    margin-left: auto;
-    background: none;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 5px 8px;
-    cursor: pointer;
-    flex-direction: column;
-    gap: 4px;
-}
-.jj-toggler span {
-    display: block;
-    width: 20px;
-    height: 2px;
-    background: #374151;
-    border-radius: 2px;
-}
 .jj-nav-collapse {
     flex: 1;
     display: flex;
     align-items: center;
-}
-.jj-nav-items {
-    display: flex;
-    align-items: center;
-    gap: 0.1rem;
-    width: 100%;
 }
 .jj-nav-link {
     font-size: 0.88rem;
@@ -272,6 +247,24 @@ li { margin-bottom: 10px; }
     text-decoration: none !important;
 }
 .jj-icon-link:hover { background: #f3f4f6; transform: none; }
+.jj-toggler {
+    display: none;
+    margin-left: 0.5rem;
+    background: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    flex-direction: column;
+    gap: 4px;
+}
+.jj-toggler span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: #374151;
+    border-radius: 2px;
+}
 .jj-dropdown-menu {
     border: 1px solid #e5e7eb !important;
     border-radius: 10px !important;
@@ -304,16 +297,36 @@ li { margin-bottom: 10px; }
 }
 @media (min-width: 992px) {
     .jj-nav-collapse { display: flex !important; }
-    .jj-toggler { display: none; }
+    .jj-toggler { display: none !important; }
 }
 @media (max-width: 991px) {
-    .jj-navbar { height: auto; padding: 0.6rem 1rem; }
+    .jj-navbar { height: auto; padding: 0.65rem 1rem; }
     .jj-toggler { display: flex; }
-    .jj-nav-collapse { display: none; flex-basis: 100%; flex: none; padding: 0.5rem 0 0.75rem; }
-    .jj-nav-collapse.show { display: flex; }
-    .jj-nav-items { flex-direction: column; align-items: flex-start; }
-    .jj-nav-icons { margin-left: 0; padding: 0.25rem 0; }
-    .jj-dropdown-menu { position: static !important; transform: none !important; border: none !important; box-shadow: none !important; padding-left: 0.75rem !important; margin-top: 0 !important; }
+    .jj-nav-icons { margin-left: auto; }
+    .jj-nav-collapse {
+        display: none !important;
+        flex: none;
+        flex-basis: 100%;
+        padding: 0.4rem 0 0.6rem;
+        border-top: 1px solid #f3f4f6;
+        margin-top: 0.4rem;
+    }
+    .jj-nav-collapse.show { display: block !important; }
+    .jj-nav-collapse .dropdown-toggle { display: none; }
+    .jj-nav-collapse .dropdown-menu {
+        display: block !important;
+        position: static !important;
+        float: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        min-width: 0 !important;
+        border-radius: 0 !important;
+    }
+    .jj-nav-collapse .jj-dropdown-item { padding: 0.45rem 0.25rem; }
+    .jj-nav-collapse .jj-dropdown-section { padding: 0.6rem 0.25rem 0.2rem; }
+    .jj-nav-collapse .jj-dropdown-divider { margin: 0.3rem 0; }
 }
     </style>
 
@@ -323,52 +336,50 @@ li { margin-bottom: 10px; }
   <body>
     <nav class="jj-navbar">
       <a href="/" class="jj-brand">JJ Apps</a>
-      <button class="jj-toggler" type="button" aria-label="Toggle navigation" onclick="document.getElementById('jjNav').classList.toggle('show')">
-        <span></span><span></span><span></span>
-      </button>
       <div class="jj-nav-collapse" id="jjNav">
-        <div class="jj-nav-items">
-          <div class="dropdown">
-            <a href="#" class="jj-nav-link dropdown-toggle" data-toggle="dropdown" id="jjPagesDropdown" aria-haspopup="true" aria-expanded="false">Pages</a>
-            <div class="dropdown-menu jj-dropdown-menu" aria-labelledby="jjPagesDropdown">
-              <div class="jj-dropdown-section">Data Engineering &amp; Analytics</div>
-              <a class="jj-dropdown-item" href="/mtg">Magic: The Gathering Prices</a>
-              <a class="jj-dropdown-item" href="/youtube_trending">YouTube Trending</a>
-              <a class="jj-dropdown-item" href="/espresso">Espresso Optimizer</a>
-              <div class="jj-dropdown-divider"></div>
-              <div class="jj-dropdown-section">Game Solvers</div>
-              <a class="jj-dropdown-item" href="/wordle">Wordle Solver</a>
-              <a class="jj-dropdown-item" href="/antiwordle">Antiwordle Solver</a>
-              <a class="jj-dropdown-item" href="/quordle">Quordle &amp; Sequence Solver</a>
-              <a class="jj-dropdown-item" href="/blossom">Blossom Solver</a>
-              <a class="jj-dropdown-item" href="/wordiply">Wordiply Solver</a>
-              <a class="jj-dropdown-item" href="/fixer">"Last Letter" Solver</a>
-              <div class="jj-dropdown-divider"></div>
-              <div class="jj-dropdown-section">Games</div>
-              <a class="jj-dropdown-item" href="/umbra">Umbra</a>
-              <a class="jj-dropdown-item" href="/tiltconnect4">Tilt Connect 4</a>
-              <div class="jj-dropdown-divider"></div>
-              <div class="jj-dropdown-section">Other Tools</div>
-              <a class="jj-dropdown-item" href="/common_denominator">Common Denominator</a>
-              <a class="jj-dropdown-item" href="/any_word">Any Word Finder</a>
-              <a class="jj-dropdown-item" href="/dogs">Dog Counter</a>
-              <div class="jj-dropdown-divider"></div>
-              <a class="jj-dropdown-item" href="/privacy-policy">Privacy Policy</a>
-            </div>
-          </div>
-          <div class="jj-nav-icons">
-            <a class="jj-icon-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
-              <div class="pulsing-image25"><img alt="GitHub" src="/static/github_logo5.png" width="25" height="25" loading="lazy"></div>
-            </a>
-            <a class="jj-icon-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">
-              <div class="pulsing-image27"><img alt="LinkedIn" src="/static/linkedin_logo2.jpg" width="27" height="27" loading="lazy"></div>
-            </a>
-            <a class="jj-icon-link tracked-link" href="https://bsky.app/profile/mtgprices.bsky.social" target="_blank" rel="noopener noreferrer">
-              <div class="pulsing-image27"><img alt="Bluesky" src="/static/bluesky_logo.png" width="27" height="27" loading="lazy"></div>
-            </a>
+        <div class="dropdown">
+          <a href="#" class="jj-nav-link dropdown-toggle" data-toggle="dropdown" id="jjPagesDropdown" aria-haspopup="true" aria-expanded="false">Pages</a>
+          <div class="dropdown-menu jj-dropdown-menu" aria-labelledby="jjPagesDropdown">
+            <div class="jj-dropdown-section">Data Engineering &amp; Analytics</div>
+            <a class="jj-dropdown-item" href="/mtg">Magic: The Gathering Prices</a>
+            <a class="jj-dropdown-item" href="/youtube_trending">YouTube Trending</a>
+            <a class="jj-dropdown-item" href="/espresso">Espresso Optimizer</a>
+            <div class="jj-dropdown-divider"></div>
+            <div class="jj-dropdown-section">Game Solvers</div>
+            <a class="jj-dropdown-item" href="/wordle">Wordle Solver</a>
+            <a class="jj-dropdown-item" href="/antiwordle">Antiwordle Solver</a>
+            <a class="jj-dropdown-item" href="/quordle">Quordle &amp; Sequence Solver</a>
+            <a class="jj-dropdown-item" href="/blossom">Blossom Solver</a>
+            <a class="jj-dropdown-item" href="/wordiply">Wordiply Solver</a>
+            <a class="jj-dropdown-item" href="/fixer">"Last Letter" Solver</a>
+            <div class="jj-dropdown-divider"></div>
+            <div class="jj-dropdown-section">Games</div>
+            <a class="jj-dropdown-item" href="/umbra">Umbra</a>
+            <a class="jj-dropdown-item" href="/tiltconnect4">Tilt Connect 4</a>
+            <div class="jj-dropdown-divider"></div>
+            <div class="jj-dropdown-section">Other Tools</div>
+            <a class="jj-dropdown-item" href="/common_denominator">Common Denominator</a>
+            <a class="jj-dropdown-item" href="/any_word">Any Word Finder</a>
+            <a class="jj-dropdown-item" href="/dogs">Dog Counter</a>
+            <div class="jj-dropdown-divider"></div>
+            <a class="jj-dropdown-item" href="/privacy-policy">Privacy Policy</a>
           </div>
         </div>
       </div>
+      <div class="jj-nav-icons">
+        <a class="jj-icon-link tracked-link" href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">
+          <div class="pulsing-image25"><img alt="GitHub" src="/static/github_logo5.png" width="25" height="25" loading="lazy"></div>
+        </a>
+        <a class="jj-icon-link tracked-link" href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">
+          <div class="pulsing-image27"><img alt="LinkedIn" src="/static/linkedin_logo2.jpg" width="27" height="27" loading="lazy"></div>
+        </a>
+        <a class="jj-icon-link tracked-link" href="https://bsky.app/profile/mtgprices.bsky.social" target="_blank" rel="noopener noreferrer">
+          <div class="pulsing-image27"><img alt="Bluesky" src="/static/bluesky_logo.png" width="27" height="27" loading="lazy"></div>
+        </a>
+      </div>
+      <button class="jj-toggler" type="button" aria-label="Toggle navigation" onclick="document.getElementById('jjNav').classList.toggle('show')">
+        <span></span><span></span><span></span>
+      </button>
     </nav>
       {% block content %}
       {% endblock %}
