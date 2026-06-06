@@ -39,12 +39,6 @@
 
 ## Data & Automation Projects
 
-### 🔄 <a href="https://github.com/applewjr/heroku_apps/blob/main/scheduled_tasks_lol/lol_data_import.py" target="_blank" rel="noopener noreferrer">API-to-MySQL ETL Pipeline</a>
-*Automated daily data ingestion for Power BI dashboard*
-- Riot Games API integration with automated error handling
-- Multi-table data parsing: players, champions, match history
-- Automated email notifications for pipeline status monitoring
-
 ### 📺 <a href="https://www.jamesapplewhite.com/youtube_trending" target="_blank" rel="noopener noreferrer">YouTube Trending Analytics</a>
 *Daily trending content analysis and aggregation*
 - Migration from web scraping → official YouTube API for better data quality
