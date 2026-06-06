@@ -87,17 +87,14 @@ tr:nth-child(even) {
     background-color: white;
 }
 input[type=text], select {
-    width: 50;
     padding: 12px 20px;
     display: inline-block;
     border: 1px solid #013438;
     border-radius: 6px;
-    border-color: #013438;
     box-sizing: border-box;
     color: black;
 }
 input[type=submit] {
-    width: 50;
     background-color: #02484d;
     color: white;
     padding: 10px 20px;
@@ -231,13 +228,16 @@ li { margin-bottom: 10px; }
 .jj-nav-icons {
     display: flex;
     align-items: center;
-    gap: 0.1rem;
+    gap: 0.25rem;
     margin-left: auto;
 }
 .jj-icon-link {
     display: flex;
     align-items: center;
-    padding: 0.3rem;
+    justify-content: center;
+    padding: 0.55rem;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 6px;
     color: inherit !important;
     text-decoration: none !important;
@@ -407,6 +407,10 @@ li { margin-bottom: 10px; }
       <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
 <script>
+  function jjGetFocusable(container) {
+    return Array.from(container.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])'))
+      .filter(el => !el.disabled && el.offsetParent !== null);
+  }
   function jjToggleMenu() {
     const btn = document.getElementById('jjMenuBtn');
     const overlay = document.getElementById('jjMenuOverlay');
@@ -415,11 +419,33 @@ li { margin-bottom: 10px; }
     overlay.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
     document.body.style.overflow = isOpen ? 'hidden' : '';
     document.getElementById('jjMenuLabel').textContent = isOpen ? 'CLOSE' : 'MENU';
+    if (isOpen) {
+      const focusable = jjGetFocusable(overlay);
+      if (focusable.length) focusable[0].focus();
+    } else {
+      btn.focus();
+    }
   }
   document.addEventListener('keydown', function(e) {
+    const btn = document.getElementById('jjMenuBtn');
+    if (!btn || !btn.classList.contains('open')) return;
     if (e.key === 'Escape') {
-      const btn = document.getElementById('jjMenuBtn');
-      if (btn && btn.classList.contains('open')) jjToggleMenu();
+      jjToggleMenu();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const overlay = document.getElementById('jjMenuOverlay');
+      const cycle = [btn, ...jjGetFocusable(overlay)];
+      if (cycle.length === 0) return;
+      const first = cycle[0];
+      const last = cycle[cycle.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 </script>
