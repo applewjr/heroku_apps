@@ -16,6 +16,62 @@
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Wordle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Wordle is the New York Times' free daily word puzzle. You have 6 attempts to guess a secret 5-letter word. After each guess, tiles turn green (right letter, right position), yellow (right letter, wrong position), or gray (letter not in the word)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this Wordle solver free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I use this Wordle solver?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Click a suggested word to fill the row, then click each letter box to cycle its color to match what Wordle showed you: gray for not in the word, yellow for wrong position, green for correct position. The solver updates its suggestions after each row."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the solve rate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The solver achieves a 97% solve rate across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What are Alt Picks?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Alt Picks appear when the top suggestions all differ by only 1-2 letters (e.g. WAVER / RAVER / SAVER). Instead of guessing similar words one by one, an Alt Pick is a word from the full dictionary chosen to test several of those uncertain letters in a single guess, helping you narrow down the answer faster."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidate ranking uses a custom letter-frequency scoring model. Word popularity scores (used on the final guess) are derived from the wordfreq open-source Python library (https://github.com/rspeer/wordfreq). Not affiliated with or endorsed by the New York Times."
+      }
+    }
+  ]
+}
+</script>
 
 {% block content %}
 
@@ -265,6 +321,9 @@
             <div style="margin-top: 12px; font-size: 13px; color: #555;">
                 <strong>Alt Picks:</strong> When the top suggestions differ by only 1-2 letters (e.g. BOOKY / GOOKY / GOOFY), an Alt Picks row appears automatically. These are words that test multiple uncertain letters in a single guess, helping you narrow down the answer faster instead of guessing similar words one by one.
             </div>
+            <div style="margin-top: 12px; font-size: 13px; color: #555;">
+                <strong>Strategy (97% solve rate):</strong> The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an <em>eliminator</em> word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick.
+            </div>
         </div>
     </div>
 
@@ -400,7 +459,35 @@
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
         </div>
     </div>
-    <br>
+    <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+      <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+      <div style="border-top: 1px solid #e9ecef;">
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Wordle?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Wordle is the New York Times' free daily word puzzle. You have 6 attempts to guess a secret 5-letter word. After each guess, tiles turn green (right letter, right position), yellow (right letter, wrong position), or gray (letter not in the word).</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Wordle solver free to use?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I use this Wordle solver?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Click a suggested word to fill the row, then click each letter box to cycle its color to match what Wordle showed you: gray for not in the word, yellow for wrong position, green for correct position. The solver updates its suggestions after each row.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the solve rate?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver achieves a <strong>97% solve rate</strong> across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What are Alt Picks?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Alt Picks appear when the top suggestions all differ by only 1 or 2 letters (e.g. WAVER / RAVER / SAVER). Instead of guessing similar words one by one, an Alt Pick is a word from the full dictionary chosen to test several of those uncertain letters in a single guess, helping you narrow down the answer faster.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidate ranking uses a custom letter-frequency scoring model. Word popularity scores (used on the final guess) are derived from the <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #538d4e;">wordfreq</a> open-source Python library. Not affiliated with or endorsed by the New York Times.</p>
+        </div>
+      </div>
+    </section>
     <br>
     <br>
     </center>

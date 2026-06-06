@@ -17,6 +17,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import secrets
 import logging
 import smtplib
+import re
 from email.mime.text import MIMEText
 import matplotlib.pyplot as plt
 
@@ -319,6 +320,8 @@ def run_wordle_revamp():
         try:
             wordle_data_dict = request.get_json().get('wordle_data')
             final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, gray_letters, guessed_word_set = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
+            is_final_guess = first_incomplete_row == 6
+            row_num = first_incomplete_row  # numeric, before reassignment
             first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
             complete_rows = 'Complete Rows: ' + str(complete_rows)
 
@@ -328,9 +331,18 @@ def run_wordle_revamp():
             except:
                 print('wordle_logging_failed')
 
-            show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
-                df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set
-            )
+            if is_final_guess:
+                show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = False, '', '', '', '', ''
+            else:
+                _remaining_m = re.search(r'(\d+)/', final_out_end)
+                _remaining_count = int(_remaining_m.group(1)) if _remaining_m else 9999
+                _guesses_left = 6 - (row_num or 1)
+                _min_match = 2 if _guesses_left <= 1 else (3 if _guesses_left <= 2 else 4)
+                _force = _remaining_count > _guesses_left * 4 and _guesses_left <= 3
+                show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.compute_alt_picks(
+                    df, [final_out1, final_out2, final_out3, final_out4, final_out5], gray_letters, guessed_word_set,
+                    min_match=_min_match, force=_force
+                )
             return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
                 first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
                 show_alt_picks=show_alt_picks, alt_out1=alt_out1, alt_out2=alt_out2, alt_out3=alt_out3, alt_out4=alt_out4, alt_out5=alt_out5)

@@ -105,9 +105,15 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
         pick1, pick2, pick3, pick4, pick5, options_remaining, _, _, gray_letters, guessed_set = \
             wordle_solver_split_revamp(df, wordle_data)
 
-        if not no_alt:
+        if not no_alt and attempt < MAX_GUESSES:
             picks = [pick1, pick2, pick3, pick4, pick5]
-            show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set)
+            guesses_left = MAX_GUESSES - attempt
+            remaining_count = int(re.search(r'(\d+)/', options_remaining).group(1))
+            # Lower threshold and force eliminator search when running out of guesses
+            min_match = 2 if guesses_left <= 1 else (3 if guesses_left <= 2 else 4)
+            force = remaining_count > guesses_left * 4 and guesses_left <= 3
+            show_alt, alt1, *_ = compute_alt_picks(df, picks, gray_letters, guessed_set,
+                                                   min_match=min_match, force=force)
         else:
             show_alt = False
 
@@ -206,8 +212,7 @@ def run_backtest(word_list: list[str] | None = None, sample: int | None = None,
         dist = Counter(results)
         print('\nGuess distribution:')
         for k in sorted(dist):
-            bar = '#' * dist[k]
-            print(f'  {k}: {dist[k]:4d}  {bar}')
+            print(f'  {k}: {dist[k]:4d}')
     if fails:
         print(f'\nFailed words: {fails}')
 
