@@ -2,83 +2,161 @@
 
 {% block title %}Common Denominator{% endblock %}
 
+{% block head %}
+<style>
+.cd-hero {
+    padding: 2.5rem 1rem 2rem;
+    text-align: center;
+    background: linear-gradient(140deg, #02484d 0%, #013438 100%);
+    margin-bottom: 2rem;
+}
+.cd-hero h1 {
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 0.4rem;
+}
+.cd-hero p {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.72);
+    margin: 0;
+}
+.cd-body {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+    text-align: center;
+}
+.cd-body textarea {
+    width: 100%;
+    max-width: 600px;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #111;
+    resize: vertical;
+    box-sizing: border-box;
+}
+.cd-body textarea:focus {
+    outline: none;
+    border-color: #02484d;
+}
+.cd-label {
+    color: #374151;
+    font-size: 0.9rem;
+    margin: 1.25rem 0 0.4rem;
+}
+.cd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    max-width: 600px;
+    margin: 1.5rem auto 0;
+    text-align: left;
+}
+@media (max-width: 540px) { .cd-grid { grid-template-columns: 1fr; } }
+.cd-grid-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: #374151;
+    margin-bottom: 0.4rem;
+    line-height: 1.4;
+}
+.cd-grid-item input[type=text] {
+    width: 80px;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #111;
+    text-align: center;
+    box-sizing: border-box;
+}
+.cd-grid-item input[type=text]:focus {
+    outline: none;
+    border-color: #02484d;
+}
+.cd-submit {
+    background-color: #02484d;
+    color: white;
+    padding: 10px 28px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 1.75rem 0 0;
+}
+.cd-submit:hover { background-color: #013438; }
+.cd-reset {
+    display: inline-block;
+    margin-top: 1.25rem;
+    padding: 8px 22px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #374151;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+.cd-reset:hover { border-color: #02484d; color: #02484d; }
+.cd-results {
+    margin-top: 1.5rem;
+    color: #374151;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="cd-hero">
+    <h1>Common Denominator</h1>
+    <p>Find the most common word parts across a list</p>
+</div>
+
+<div class="cd-body">
 <form action="#" method="post">
-    <center>
-    <br>
-    <h1 style="text-align: center">Common Denominator</h1>
-    <br>
 
-    <p class="pad_lr_30" class="pad_lr_30" style="text-align: center; color:black">List all words here to determine the most common word parts{{example}}</p>
-    <textarea name="user_match_entry" cols="70" rows="4">{{user_match_entry_val}}</textarea>
-    <p style="text-align: center; color:black">List all values here to exclude</p>
-    <textarea name="user_nope_match_entry" cols="55" rows="2">{{user_nope_match_entry_val}}</textarea>
-    <br>
-    <br>
-    <br>
-    <br>
-    </center>
+    <p class="cd-label">List all words here to determine the most common word parts{{example}}</p>
+    <textarea name="user_match_entry" rows="4">{{user_match_entry_val}}</textarea>
 
-    <div class="row">
-        <div class="column">
-            <p class="pad_lr_30" style="text-align: center; color:black">Minimum desired length of matches</p>
-            <input type="text" name="min_match_len" style="text-align: center;width: 80px;" value={{min_match_len_val}}>
-            <br>
-            <br>
-            <p class="pad_lr_30" style="text-align: center; color:black">Minimum match rate among words (0.01-1)</p>
-            <input type="text" name="min_match_rate" style="text-align: center;width: 80px;" value={{min_match_rate_val}}>
+    <p class="cd-label">List all values here to exclude</p>
+    <textarea name="user_nope_match_entry" rows="2">{{user_nope_match_entry_val}}</textarea>
+
+    <div class="cd-grid">
+        <div class="cd-grid-item">
+            <label>Minimum desired length of matches</label>
+            <input type="text" name="min_match_len" value={{min_match_len_val}}>
         </div>
-        <div class="column">
-            <p class="pad_lr_30" style="text-align: center; color:black">Specify a unique character to serve as proxy for word beginning and end (or leave blank)</p>
-            <input type="text" name="beg_end_str_char" style="text-align: center;width: 80px;" value={{beg_end_str_char_val}}>
-            <br>
-            <br>
-            <p class="pad_lr_30" style="text-align: center; color:black">Specify which value to separate words</p>
-            <input type="text" name="value_split_char" style="text-align: center;width: 80px;" value={{value_split_char_val}}>
+        <div class="cd-grid-item">
+            <label>Minimum match rate among words (0.01&ndash;1)</label>
+            <input type="text" name="min_match_rate" value={{min_match_rate_val}}>
+        </div>
+        <div class="cd-grid-item">
+            <label>Unique character as proxy for word beginning/end (or leave blank)</label>
+            <input type="text" name="beg_end_str_char" value={{beg_end_str_char_val}}>
+        </div>
+        <div class="cd-grid-item">
+            <label>Character used to separate words</label>
+            <input type="text" name="value_split_char" value={{value_split_char_val}}>
         </div>
     </div>
 
-    <center>
-    <br>
-    <br>
-    <input type="submit" value="Calculate">
-    <br>
-    <br>
-    <p class="pad_lr_100" style="text-align: center; color:black">{{num_word_count}}{{num_words_entered}}</p>
-    <!-- <p class="pad_lr_100" style="text-align: center; color:black">{{num_run_count}}{{comparisons}}</p> -->
-    <p class="pad_lr_100" style="text-align: center; color:black">{{top}}{{final_match_list}}</p>
-    <p class="pad_lr_100" style="text-align: center; color:black">{{all}}{{final_out}}</p>
-    <br>
-    <br>
-    <a href="/common_denominator">
-        <div class="spinning-image">
-          <img alt="Reset" src="/static/reset_logo.png">
-        </div>
-    </a>
-    <br>
-    <br>
-    <br>
-    </center>
+    <input type="submit" value="Calculate" class="cd-submit">
+
+    <div class="cd-results">
+        <p>{{num_word_count}}{{num_words_entered}}</p>
+        <p>{{top}}{{final_match_list}}</p>
+        <p>{{all}}{{final_out}}</p>
+    </div>
+
+    <a href="/common_denominator" class="cd-reset">Reset</a>
+    <br><br>
+
 </form>
+</div>
 {% endblock %}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

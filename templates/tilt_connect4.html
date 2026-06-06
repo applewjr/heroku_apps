@@ -3,6 +3,10 @@
 {% block title %}Tilt Connect 4{% endblock %}
 
 {% block meta %}
+<meta name="description" content="Tilt Connect 4 - Connect 4 with a gravity-tilting twist. Drop pieces or rotate the board to shift strategy.">
+{% endblock %}
+
+{% block head %}
 <style>
     .connect4-wrapper {
         background: #ffffff;
@@ -103,7 +107,7 @@ canvas.focus();
 function fitCanvas() {
     const stage = document.getElementById("stage");
     const wrapper = document.getElementById("connect4-wrapper");
-    const navbar = document.querySelector('.navbar');
+    const navbar = document.querySelector('.jj-navbar');
     const navbarH = navbar ? navbar.offsetHeight : 0;
     const availH = window.innerHeight - navbarH;
     const scale = Math.min(

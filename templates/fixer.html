@@ -9,185 +9,205 @@
 {% endblock %}
 
 {% block head %}
-    <style>
-    .example-box {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 20px;
-        margin: 20px auto;
-        max-width: 600px;
-        text-align: left;
-    }
-    
-    .problem-example {
-        background-color: #fff3cd;
-        border: 1px solid #ffeaa7;
-        color: #856404;
-    }
-    
-    .solution-example {
-        background-color: #d1edff;
-        border: 1px solid #74c0fc;
-        color: #0c5460;
-    }
-    
-    .word-sequence {
-        font-family: monospace;
-        font-size: 16px;
-        font-weight: bold;
-        margin: 8px 0;
-        padding: 8px;
-        background-color: rgba(255,255,255,0.7);
-        border-radius: 4px;
-    }
-    
-    .input-section {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 25px;
-        margin: 20px auto;
-        max-width: 500px;
-    }
-    
-    .letter-input {
-        font-size: 18px;
-        padding: 12px;
-        border: 2px solid #6aaa64;
-        border-radius: 6px;
-        text-align: center;
-        width: 200px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        margin: 10px;
-    }
-    
-    .submit-btn {
-        background-color: #6aaa64;
-        color: white;
-        padding: 12px 30px;
-        border: none;
-        border-radius: 6px;
-        font-size: 16px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        margin: 10px;
-    }
-    
-    .submit-btn:hover {
-        background-color: #5a9954;
-    }
-    
-    .results-section {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 20px;
-        margin: 20px auto;
-        max-width: 500px;
-    }
-    
-    .result-word {
-        font-family: monospace;
-        font-size: 18px;
-        font-weight: bold;
-        color: #6aaa64;
-        margin: 8px 0;
-        padding: 8px;
-        background-color: white;
-        border-radius: 4px;
-        border: 1px solid #d4edda;
-    }
-    
-    .back-links {
-        margin: 30px 0;
-    }
-    
-    .back-link {
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 10px 18px;
-        border-radius: 6px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    }
-    
-    .back-link:hover {
-        background-color: #e9ecef;
-        text-decoration: none;
-        color: #495057;
-    }
-    </style>
+<style>
+.fixer-body {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 1.25rem 3rem;
+    text-align: left;
+}
+.fixer-hero {
+    padding: 2.5rem 1rem 2rem;
+    text-align: center;
+    background: linear-gradient(140deg, #02484d 0%, #013438 100%);
+    margin-bottom: 2rem;
+}
+.fixer-hero h1 {
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 600;
+    color: white;
+    margin: 0 0 0.4rem;
+}
+.fixer-hero p {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.72);
+    margin: 0;
+}
+.example-box {
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 1rem;
+    border: 1px solid;
+}
+.problem-example {
+    background-color: #fffbeb;
+    border-color: #fde68a;
+    color: #78350f;
+}
+.solution-example {
+    background-color: #f0fdfa;
+    border-color: #99f6e4;
+    color: #134e4a;
+}
+.example-box h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.word-sequence {
+    font-family: monospace;
+    font-size: 15px;
+    font-weight: bold;
+    margin: 8px 0;
+    padding: 8px 10px;
+    background-color: rgba(255,255,255,0.6);
+    border-radius: 4px;
+}
+.input-section {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 22px 20px;
+    margin: 1.5rem 0;
+    text-align: center;
+}
+.input-section h3 {
+    margin: 0 0 0.4rem;
+    color: #111;
+    font-size: 1rem;
+}
+.input-section p {
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+}
+.letter-input {
+    font-size: 18px;
+    padding: 10px;
+    border: 2px solid #02484d;
+    border-radius: 6px;
+    text-align: center;
+    width: 200px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 8px;
+    color: #111;
+}
+.submit-btn {
+    background-color: #02484d;
+    color: white;
+    padding: 11px 28px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 8px;
+}
+.submit-btn:hover { background-color: #013438; }
+.results-section {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 1.5rem 0;
+}
+.results-section h3 {
+    margin: 0 0 0.4rem;
+    color: #111;
+    font-size: 1rem;
+}
+.result-word {
+    font-family: monospace;
+    font-size: 17px;
+    font-weight: bold;
+    color: #02484d;
+    margin: 6px 0;
+    padding: 7px 10px;
+    background-color: white;
+    border-radius: 4px;
+    border: 1px solid #d1fae5;
+}
+.back-links { margin: 2rem 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.back-link {
+    background-color: #f9fafb;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+.back-link:hover { background-color: #f3f4f6; color: #111; }
+.tips-section { margin: 1.5rem 0; }
+.tips-section h3 { color: #111; font-size: 1rem; margin-bottom: 0.5rem; }
+.tips-section ul { color: #6b7280; line-height: 1.7; padding-left: 1.25rem; }
+.tips-section li strong { color: #374151; }
+</style>
 {% endblock %}
 
 {% block content %}
+<div class="fixer-hero">
+    <h1>Wordle/Quordle Letter Eliminator</h1>
+    <p>Break out of linear guessing patterns</p>
+</div>
 
-<form action="#" method="post">
-    <center>
-    <br>
-    <h1 style="text-align: center; font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.2;">Wordle/Quordle Letter Eliminator Tool</h1>
-    <h2 style="color: #666; font-size: 1.2rem; font-weight: normal; margin-top: -10px;">Break Out of Linear Guessing Patterns</h2>
-    
+<div class="fixer-body">
+    <form action="#" method="post">
+
     <div class="example-box problem-example">
-        <h3 style="margin-top: 0; color: #856404;">❌ The Problem: Linear Guessing</h3>
+        <h3>The Problem: Linear Guessing</h3>
         <p><strong>When Wordle suggests similar words in sequence:</strong></p>
-        <div class="word-sequence">LIGHT → MIGHT → NIGHT → RIGHT → SIGHT...</div>
+        <div class="word-sequence">LIGHT &rarr; MIGHT &rarr; NIGHT &rarr; RIGHT &rarr; SIGHT...</div>
         <p>You're testing one new letter at a time. This is slow and wastes guesses!</p>
     </div>
-    
+
     <div class="example-box solution-example">
-        <h3 style="margin-top: 0; color: #0c5460;">✅ The Solution: Letter Elimination</h3>
+        <h3>The Solution: Letter Elimination</h3>
         <p><strong>Instead, find a word that tests multiple letters:</strong></p>
-        <div class="word-sequence">Enter: L, M, N, R, S → Get: SNARL or MORNS</div>
+        <div class="word-sequence">Enter: L, M, N, R, S &rarr; Get: SNARL or MORNS</div>
         <p>Test 4-5 potential letters in one guess! If "R" hits, go straight to RIGHT.</p>
     </div>
-    
+
     <div class="input-section">
-        <h3 style="margin-top: 0; color: #333;">Enter Your Letters</h3>
-        <p style="color: #666; margin-bottom: 15px;">Type the letters from your similar word suggestions (like L, M, N, R, S from the example above)</p>
+        <h3>Enter Your Letters</h3>
+        <p>Type the letters from your similar word suggestions (like L, M, N, R, S from the example above)</p>
         <input type="text" name="must_be_present" class="letter-input" placeholder="LMNRS" value="{{must_be_present}}" maxlength="10">
         <br>
         <input type="submit" value="Find Eliminator Words" class="submit-btn">
     </div>
-    
+
     {% if final_out1 or final_out2 or final_out3 or final_out4 or final_out5 %}
     <div class="results-section">
-        <h3 style="margin-top: 0; color: #333;">🎯 Suggested Eliminator Words</h3>
-        <p style="color: #666;">Use these words to test multiple letters at once:</p>
+        <h3>Suggested Eliminator Words</h3>
+        <p style="color:#6b7280; font-size:0.85rem;">Use these words to test multiple letters at once:</p>
         {% if final_out1 %}<div class="result-word">{{final_out1}}</div>{% endif %}
         {% if final_out2 %}<div class="result-word">{{final_out2}}</div>{% endif %}
         {% if final_out3 %}<div class="result-word">{{final_out3}}</div>{% endif %}
         {% if final_out4 %}<div class="result-word">{{final_out4}}</div>{% endif %}
         {% if final_out5 %}<div class="result-word">{{final_out5}}</div>{% endif %}
-        <p style="color: #666; font-size: 13px; margin-top: 15px;">💡 <strong>Strategy:</strong> Pick one of these words to quickly eliminate or confirm multiple letters in a single guess!</p>
+        <p style="color:#6b7280; font-size:13px; margin-top:12px;"><strong>Strategy:</strong> Pick one of these words to quickly eliminate or confirm multiple letters in a single guess!</p>
     </div>
     {% endif %}
-    
+
     <div class="back-links">
-        <a href="/wordle" class="back-link">← Back to Wordle Solver</a>
-        <a href="/quordle" class="back-link">← Back to Quordle Solver</a>
-        <a href="/feedback" class="back-link">💬 Give Feedback</a>
+        <a href="/wordle" class="back-link">&larr; Wordle Solver</a>
+        <a href="/quordle" class="back-link">&larr; Quordle Solver</a>
+        <a href="/feedback" class="back-link">Give Feedback</a>
     </div>
-    
-    <div style="margin: 30px 0; max-width: 600px; text-align: left;">
-        <h3 style="color: #333;">When to Use This Tool:</h3>
-        <ul style="color: #666; line-height: 1.6;">
-            <li><strong>Stuck in patterns:</strong> When getting words like STING→STINK→STINT</li>
+
+    <div class="tips-section">
+        <h3>When to Use This Tool</h3>
+        <ul>
+            <li><strong>Stuck in patterns:</strong> When getting words like STING&rarr;STINK&rarr;STINT</li>
             <li><strong>Multiple possibilities:</strong> When several words fit your clues</li>
             <li><strong>Quordle efficiency:</strong> Test letters across multiple puzzles at once</li>
             <li><strong>Late in the game:</strong> When you need to be strategic with remaining guesses</li>
         </ul>
     </div>
-    
-    <br>
-    <br>
-    </center>
-</form>
 
+    </form>
+</div>
 {% endblock %}
