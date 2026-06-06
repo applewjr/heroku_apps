@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory, session
+from flask import Flask, redirect, render_template, request, url_for, Response, jsonify, send_from_directory, session
 from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_sslify import SSLify
