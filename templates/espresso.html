@@ -2,9 +2,7 @@
 
 {% block title %}Espresso Optimizer{% endblock %}
 
-{% block content %}
-
-<head>
+{% block head %}
     <style>
         /* Style the button */
         .custom-button {
@@ -104,9 +102,9 @@
             font-size: larger;
         }
     </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
     <center>
     <h1 style="text-align: center">Espresso Optimizer</h1>
 
@@ -348,7 +346,5 @@
         }
     });
 </script>
-
-</body>
 
 {% endblock %}

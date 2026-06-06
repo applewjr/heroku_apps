@@ -2,9 +2,7 @@
 
 {% block title %}Espresso Optimizer{% endblock %}
 
-{% block content %}
-
-<head>
+{% block head %}
     <style>
         /* Style the button */
         .custom-button {
@@ -105,9 +103,9 @@
         }
 
     </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
     <center>
     <br>
     <form name="form5" action="#" method="post">
@@ -221,7 +219,5 @@
         }
     });
 </script>
-
-</body>
 
 {% endblock %}

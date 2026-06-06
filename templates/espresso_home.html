@@ -2,8 +2,7 @@
 
 {% block title %}Espresso Home{% endblock %}
 
-{% block content %}
-<head>
+{% block head %}
     <style>
         .button-container {
             display: flex;
@@ -36,9 +35,9 @@
             text-decoration: none; /* Ensure no underline appears on hover */
         }
     </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
     <center>
         <h1>Espresso Home</h1>
         <p>Enter your brew data to populate results below</p>
@@ -56,6 +55,5 @@
             <a href="/espresso/baseline" class="browse-button">Baseline Recommendations</a>
         </div>
     </center>
-</body>
 
 {% endblock %}

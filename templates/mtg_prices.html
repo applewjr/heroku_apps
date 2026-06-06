@@ -2,9 +2,8 @@
 
 {% block title %}MTG Prices{% endblock %}
 
-{% block content %}
-<head>
-  <style>
+{% block head %}
+<style>
     body {
       text-align: center;
     }
@@ -90,9 +89,9 @@
       }
     }
   </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
   <br>
   <h1>Magic the Gathering Prices</h1>
   <br>
@@ -118,5 +117,4 @@
   <br>
   <br>
   <br>
-</body>
 {% endblock %}

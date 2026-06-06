@@ -2,8 +2,7 @@
 
 {% block title %}Report Words - Blossom{% endblock %}
 
-{% block content %}
-<head>
+{% block head %}
   <script>
     function validateForm() {
       var body = document.forms["form1"]["feedback_body"].value;
@@ -39,9 +38,9 @@
       updateFormText();
     };
   </script>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
   <form name="form1" action="/blossom_feedback" method="post" onsubmit="return validateForm()">
     <input type="hidden" name="referrer" value="">
     <center>
@@ -94,5 +93,4 @@
       <br>
     </center>
   </form>
-</body>
 {% endblock %}

@@ -13,13 +13,10 @@
 <meta property="og:site_name" content="JJ Apps">
 {% endblock %}
 
+{% block head %}
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
-
-{% block content %}
-
-<head>
 <style>
 .puzzles-container {
     display: grid;
@@ -373,9 +370,10 @@
     }
 }
 </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
+
     <center>
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Quordle & Sequence Solver</h1>
@@ -386,7 +384,7 @@
             <span class="instructions-toggle-icon">&#9660;</span>
         </div>
         <div class="instructions-body">
-            Click a suggestion to fill the row across all 4 puzzles, then click each box to set its color. You can also type letters manually — they appear in all 4 puzzles automatically.
+            Click a suggestion to fill the row across all 4 puzzles, then click each box to set its color. You can also type letters manually - they appear in all 4 puzzles automatically.
             <div class="color-legend">
                 <div class="legend-item">
                     <div class="legend-box color-1"></div>
@@ -619,7 +617,6 @@
     <br>
     <br>
     </center>
-</body>
 
 <script>
 
@@ -899,7 +896,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applySmartAssignState();
     });
 
-    // Active row highlight — highlights same row number across all 4 puzzles
+    // Active row highlight - highlights same row number across all 4 puzzles
     function updateActiveRow(focusedBox) {
         document.querySelectorAll('.quordle-row').forEach(row => row.classList.remove('active-row'));
         if (focusedBox) {

@@ -126,7 +126,7 @@ def simulate_game(df: pd.DataFrame, target: str, trace: bool = False,
 
         if guess is None:
             if trace:
-                print(f'  Attempt {attempt}: solver has no candidates — FAIL')
+                print(f'  Attempt {attempt}: solver has no candidates - FAIL')
             return None
 
         colors = color_guess(guess, target)
