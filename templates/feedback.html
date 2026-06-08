@@ -1,50 +1,116 @@
 {% extends 'base.html' %}
 
-{% block title %}Feedback{% endblock %}
+{% block title %}Feedback - JJ Apps{% endblock %}
+
+{% block head %}
+<style>
+    .feedback-wrap {
+        max-width: 620px;
+        margin: 3rem auto;
+        padding: 0 1.25rem 3rem;
+    }
+    .feedback-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 2rem 1.75rem;
+        text-align: left;
+        box-shadow: 0 2px 12px rgba(2, 72, 77, 0.05);
+    }
+    .feedback-card h1 {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0 0 0.5rem;
+        text-align: center;
+    }
+    .feedback-intro {
+        font-size: 0.95rem;
+        color: #6b7280;
+        margin: 0 0 1.75rem;
+        text-align: center;
+        line-height: 1.55;
+    }
+    .feedback-field {
+        margin-bottom: 1.25rem;
+    }
+    .feedback-field label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #374151;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 0.45rem;
+    }
+    .feedback-field input[type=text],
+    .feedback-field textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.7rem 0.85rem;
+        font-size: 0.95rem;
+        font-family: inherit;
+        color: #111;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: white;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .feedback-field input[type=text]:focus,
+    .feedback-field textarea:focus {
+        border-color: #02484d;
+        box-shadow: 0 0 0 3px rgba(2, 72, 77, 0.12);
+        outline: none;
+    }
+    .feedback-field textarea {
+        resize: vertical;
+        min-height: 120px;
+    }
+    .feedback-submit {
+        display: inline-block;
+        background-color: #02484d;
+        color: white;
+        font-size: 0.95rem;
+        font-weight: 500;
+        padding: 0.7rem 1.6rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.15s;
+    }
+    .feedback-submit:hover {
+        background-color: #03282b;
+    }
+    .feedback-actions {
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<head>
-  <script>
-    function validateForm() {
-      var header = document.forms["form1"]["feedback_header"].value;
-      var body = document.forms["form1"]["feedback_body"].value;
-      if (header == "" || body == "") {
-        alert("Both Topic and Input must be filled out");
-        return false;
-      }
-      return true;
-    }
+<div class="feedback-wrap">
+    <div class="feedback-card">
+        <h1>Feedback</h1>
+        <p class="feedback-intro">Considering this website is a side project of mine, it's cool to see people using it. Any feedback, suggestions, requests, or criticisms are welcome. Thank you!</p>
+        <form name="form1" action="#" method="post">
+            <input type="hidden" name="referrer" id="referrer" value="">
+            <div class="feedback-field">
+                <label for="feedback_header">Topic</label>
+                <input type="text" id="feedback_header" name="feedback_header" maxlength="255" required>
+            </div>
+            <div class="feedback-field">
+                <label for="feedback_body">Your Input</label>
+                <textarea id="feedback_body" name="feedback_body" maxlength="2000" rows="5" required></textarea>
+            </div>
+            <div class="feedback-actions">
+                <button type="submit" class="feedback-submit">Submit</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    function setReferrer() {
-      document.forms["form1"]["referrer"].value = document.referrer;
-    }
-
-    window.onload = setReferrer;
-  </script>
-</head>
-
-<body>
-  <form name="form1" action="#" method="post" onsubmit="return validateForm()">
-    <input type="hidden" name="referrer" value="">
-    <center>
-      <br>
-      <h1 style="text-align: center">Feedback</h1>
-      <br>
-      <p class="pad_lr_30" style="text-align: center">Considering this website is a side project of mine, it's cool to see people using it. Any feedback, suggestions, requests, or criticisms are welcome. Maybe I can support some enhancements. Thank you!</p>
-      <br>
-      <h5 class="pad_lr_30" style="text-align: center">Topic</h5>
-      <input type="text" name="feedback_header" style="text-align: center;width: 300px;" maxlength="255">
-      <br>
-      <br>
-      <h5 class="pad_lr_30" style="text-align: center">Your Input Here</h5>
-      <textarea name="feedback_body" style="width: 500px;" maxlength="2000" rows="5"></textarea>
-      <br>
-      <br>
-      <input type="submit" value="Submit">
-      <br>
-      <br>
-      <br>
-    </center>
-  </form>
-</body>
+<script>
+    document.getElementById('referrer').value = document.referrer;
+</script>
 {% endblock %}

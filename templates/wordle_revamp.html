@@ -13,6 +13,7 @@
 <meta property="og:site_name" content="JJ Apps">
 {% endblock %}
 
+{% block head %}
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
@@ -72,10 +73,6 @@
   ]
 }
 </script>
-
-{% block content %}
-
-<head>
 <style>
 #wordle-grid .wordle-row {
     display: flex;
@@ -181,6 +178,63 @@
     color: gray;
 }
 
+.btn-secondary {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-block;
+    margin: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+.btn-secondary:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.action-row {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.related-solvers {
+    margin-top: 20px;
+}
+.related-solvers-label {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 12px;
+}
+.pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    max-width: 300px;
+    margin: 0 auto;
+}
+.pill-button {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 13px;
+    transition: background-color 0.2s ease;
+    flex: 0 0 calc(50% - 2px);
+    text-align: center;
+    box-sizing: border-box;
+}
+.pill-button:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
 .suggestion-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -214,6 +268,22 @@
 }
 #recommendations {
     margin: 10px 0;
+    transition: opacity 0.15s ease;
+    position: relative;
+}
+#recommendations.loading {
+    opacity: 0.5;
+}
+#recommendations-status {
+    display: none;
+    margin: 6px auto 0;
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+#recommendations-status.visible {
+    display: block;
 }
 .options-remaining {
     display: block;
@@ -290,9 +360,10 @@
     }
 }
 </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
+
     <center>
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordle Solver & Strategy Tool</h1>
@@ -347,116 +418,22 @@
     <input type="hidden" name="wordle_data" id="wordle-data">
     <br>
     <div id="recommendations"></div>
+    <div id="recommendations-status">Updating…</div>
     </form>
     <br>
-    <div style="margin: 20px 0; text-align: center;">
-        <a href="https://www.nytimes.com/games/wordle/index.html" target="_blank" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🧩 Play Wordle</a>
-        <a href="/feedback" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
-        <a href="/wordle" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            margin: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Puzzle</a>
+    <div class="action-row">
+        <a href="https://www.nytimes.com/games/wordle/index.html" target="_blank" class="btn-secondary">🧩 Play Wordle</a>
+        <a href="/feedback" class="btn-secondary">💬 Give Feedback</a>
+        <a href="/wordle" class="btn-secondary">🔄 Reset Puzzle</a>
     </div>
 
-    <div style="margin-top: 20px;">
-        <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
-        <div style="
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 4px;
-            max-width: 300px;
-            margin: 0 auto;
-        ">
-            <a href="/blossom" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
-            
-            <a href="/quordle" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
-            
-            <a href="/antiwordle" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
-
-            <a href="/wordiply" style="
-                background-color: #f8f9fa;
-                color: #495057;
-                border: 1px solid #e9ecef;
-                padding: 8px 16px;
-                border-radius: 6px;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                flex: 0 0 calc(50% - 2px);
-                text-align: center;
-                box-sizing: border-box;
-            " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
+    <div class="related-solvers">
+        <p class="related-solvers-label">Other Word Game Solvers:</p>
+        <div class="pill-grid">
+            <a href="/blossom" class="pill-button">Blossom</a>
+            <a href="/quordle" class="pill-button">Quordle</a>
+            <a href="/antiwordle" class="pill-button">Antiwordle</a>
+            <a href="/wordiply" class="pill-button">Wordiply</a>
         </div>
     </div>
     <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
@@ -491,7 +468,6 @@
     <br>
     <br>
     </center>
-</body>
 
 <script>
 
@@ -692,8 +668,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let updateTimeout;
 
+function setRecommendationsLoading(isLoading) {
+    const container = document.getElementById('recommendations');
+    const status = document.getElementById('recommendations-status');
+    if (container) container.classList.toggle('loading', isLoading);
+    if (status) status.classList.toggle('visible', isLoading);
+}
+
 function triggerUpdate() {
     clearTimeout(updateTimeout);
+    setRecommendationsLoading(true);
     updateTimeout = setTimeout(() => {
         const data = collectData();
 
@@ -710,6 +694,9 @@ function triggerUpdate() {
         })
         .catch((error) => {
             console.error('Error:', error);
+        })
+        .finally(() => {
+            setRecommendationsLoading(false);
         });
     }, 300); // 300ms delay
 }
@@ -755,7 +742,7 @@ function updateUI(data) {
     if (data['show_alt_picks']) {
         const divider = document.createElement('div');
         divider.style.cssText = 'margin: 12px 0 4px; font-size: 12px; color: #888; letter-spacing: 0.3px;';
-        divider.textContent = 'Alt Picks — Test the uncertain letters in one guess:';
+        divider.textContent = 'Alt Picks - Test the uncertain letters in one guess:';
         recommendationsContainer.appendChild(divider);
 
         const altRow = document.createElement('div');

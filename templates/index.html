@@ -2,163 +2,164 @@
 
 {% block title %}JJ Apps{% endblock %}
 
+{% block head %}
+<style>
+    body {
+        background-color: #f4f6f7;
+    }
+    .index-hero {
+        padding: 3.5rem 1rem 3rem;
+        text-align: center;
+        background: linear-gradient(140deg, #02484d 0%, #013438 100%);
+        margin-bottom: 2.5rem;
+    }
+    .index-hero h1 {
+        font-size: 2.8rem;
+        font-weight: 600;
+        color: white;
+        margin: 0 0 0.6rem;
+        letter-spacing: -0.5px;
+    }
+    .index-hero p {
+        font-size: 1.05rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin: 0;
+    }
+    .index-body {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 0 1.5rem 3.5rem;
+    }
+    .section-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: #02484d;
+        margin: 2.5rem 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #02484d;
+        text-align: left;
+    }
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 14px;
+    }
+    .app-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        text-align: left;
+        transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+        text-decoration: none;
+        display: block;
+        color: inherit;
+    }
+    .app-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 18px rgba(2, 72, 77, 0.12);
+        border-color: #02484d;
+        color: inherit;
+        text-decoration: none;
+    }
+    .app-card-title {
+        font-size: 0.93rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0 0 0.3rem;
+    }
+    .app-card-desc {
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin: 0;
+        line-height: 1.45;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<head>
-    <style>
-        body {
-          padding: 0 20px; /* add 20px padding to left and right of the body */
-        }
-    </style>
-</head>
-<body>
-    <form action="#" method="post">
-        <br>
-        <h1 style="text-align: center">JJ Apps</h1>
-        <hr style="width:50%;border: 1px dashed #d3d6da;">
-        <br>
+<div class="index-hero">
+    <h1>JJ Apps</h1>
+    <p>Tools, solvers, and games - built for fun and utility</p>
+</div>
 
-        <h3 style="text-align: center; color:#02484d">Data Engineering and Analytics</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/espresso" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Espresso Optimizer</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/mtg" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Magic: The Gathering Prices</div>
-                </a>
-                <!-- <a href="/data_summary" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Auto Data Summary</div>
-                </a> -->
-            </div>
-            <div class="column3">
-                <a href="/youtube_trending" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">YouTube Trending</div>
-                </a>
-            </div>
-        </div>
-        <br>
-        <br>
+<div class="index-body">
 
-        <h3 style="text-align: center; color:#02484d">Game Solvers</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/wordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Wordle Solver</div>
-                </a>
-                <a href="/antiwordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Antiwordle Solver</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/quordle" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Quordle Solver</div>
-                </a>
-                <a href="/fixer" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">"Last Letter" Solver</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/blossom" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Blossom Solver</div>
-                </a>
-                <a href="/wordiply" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Wordiply Solver</div>
-                </a>
-            </div>
-        </div>
-        <br>
-        <br>
+    <div class="section-label">Data Engineering &amp; Analytics</div>
+    <div class="card-grid">
+        <a href="/mtg" class="app-card">
+            <div class="app-card-title">Magic: The Gathering Prices</div>
+            <div class="app-card-desc">Notable recent price increases and decreases</div>
+        </a>
+        <a href="/youtube_trending" class="app-card">
+            <div class="app-card-title">YouTube Trending</div>
+            <div class="app-card-desc">Explore what's trending on YouTube</div>
+        </a>
+        <a href="/espresso" class="app-card">
+            <div class="app-card-title">Espresso Optimizer</div>
+            <div class="app-card-desc">Dial in your shot with data-driven dose and ratio suggestions</div>
+        </a>
+    </div>
 
-        <h3 style="text-align: center; color:#02484d">Games</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/umbra" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Umbra</div>
-                </a>
+    <div class="section-label">Game Solvers</div>
+    <div class="card-grid">
+        <a href="/wordle" class="app-card">
+            <div class="app-card-title">Wordle Solver</div>
+            <div class="app-card-desc">Get optimal guesses based on your current clues</div>
+        </a>
+        <a href="/antiwordle" class="app-card">
+            <div class="app-card-title">Antiwordle Solver</div>
+            <div class="app-card-desc">Stay alive as long as possible and avoid guessing the word</div>
+        </a>
+        <a href="/quordle" class="app-card">
+            <div class="app-card-title">Quordle & Sequence Solver</div>
+            <div class="app-card-desc">Solve four Wordle boards simultaneously</div>
+        </a>
+        <a href="/blossom" class="app-card">
+            <div class="app-card-title">Blossom Solver</div>
+            <div class="app-card-desc">Find the highest-scoring words for the Blossom puzzle</div>
+        </a>
+        <a href="/wordiply" class="app-card">
+            <div class="app-card-title">Wordiply Solver</div>
+            <div class="app-card-desc">Find the longest word containing the given starter</div>
+        </a>
+        <a href="/fixer" class="app-card">
+            <div class="app-card-title">Last Letter Helper</div>
+            <div class="app-card-desc">Find words that contain specific letters</div>
+        </a>
+    </div>
 
-            </div>
-            <div class="column3">
-                <a href="/tiltconnect4" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Tilt Connect 4</div>
-                </a>
-            </div>
-            <div class="column3">
-            </div>
-        </div>
-        <br>
-        <br>
+    <div class="section-label">Games</div>
+    <div class="card-grid">
+        <a href="/umbra" class="app-card">
+            <div class="app-card-title">Umbra</div>
+            <div class="app-card-desc">A hexagonal-based puzzle game</div>
+        </a>
+        <a href="/tiltconnect4" class="app-card">
+            <div class="app-card-title">Tilt Connect 4</div>
+            <div class="app-card-desc">Connect 4 with a gravity-tilting twist</div>
+        </a>
+    </div>
 
+    <div class="section-label">Other Tools</div>
+    <div class="card-grid">
+        <a href="/common_denominator" class="app-card">
+            <div class="app-card-title">Common Denominator</div>
+            <div class="app-card-desc">Find shared factors across a set of words</div>
+        </a>
+        <a href="/any_word" class="app-card">
+            <div class="app-card-title">Any Word Finder</div>
+            <div class="app-card-desc">Search for words matching a pattern or letter set</div>
+        </a>
+        <a href="/dogs" class="app-card">
+            <div class="app-card-title">Dog Counter</div>
+            <div class="app-card-desc">Live fast, count dogs</div>
+        </a>
+    </div>
 
-        <h3 style="text-align: center; color:#02484d">Other Tools</h3>
-        <div class="row">
-            <!-- <div class="column3">
-                <a href="/stock_analysis" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Stock Analysis</div>
-                </a>
-            </div> -->
-            <div class="column3">
-                <a href="/common_denominator" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Common Denominator</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/any_word" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Any Word Finder</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/dogs" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Dog Counter</div>
-                </a>
-            </div>
-        </div>
-        <br>
-        <br>
-
-        <!-- <h3 style="text-align: center; color:#02484d">Databases and Storage</h3>
-        <div class="row">
-            <div class="column3">
-                <a href="/task_mysql" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">To Do List (MySQL)</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/task_db" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Task List (SQLite)</div>
-                </a>
-            </div>
-            <div class="column3">
-                <a href="/high_score" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">High Score (MySQL)</div>
-                </a>
-            </div>
-        </div>
-        <br>
-        <br> -->
-
-        <!-- <h3 style="text-align: center; color:#02484d">(Testing)</h3>
-        <div class="row">
-            <div class="column3">
-            </div>
-            <div class="column3">
-                <a href="/high_score" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">High Score (MySQL)</div>
-                </a>
-            </div> -->
-            <!-- <div class="column3">
-                <a href="/quill" style="text-decoration: none; color: black; font-weight: bold;">
-                    <div class="box" style="margin-top: 10px;">Text Editor</div>
-                </a>
-            </div>
-            <div class="column3"> -->
-            <!-- </div>
-        </div> -->
-        <br>
-        <br>
-    </form>
-</body>
+</div>
 
 {% endblock %}

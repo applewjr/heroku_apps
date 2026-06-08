@@ -1,4 +1,4 @@
-from flask import Flask, redirect, render_template, request, redirect, url_for, Response, jsonify, send_from_directory, session
+from flask import Flask, redirect, render_template, request, url_for, Response, jsonify, send_from_directory, session
 from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_sslify import SSLify
@@ -292,29 +292,26 @@ def abbreviate_keys(data):
 @app.route("/wordle", methods=["POST", "GET"])
 def run_wordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
-            "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
-            "url": "https://jamesapplewhite.com/wordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
+        "description": "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
+        "url": "https://jamesapplewhite.com/wordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -379,29 +376,26 @@ def run_wordle_revamp():
 @app.route("/antiwordle", methods=["POST", "GET"])
 def run_antiwordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
-            "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
-            "url": "https://jamesapplewhite.com/antiwordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Antiwordle Solver - Beat Antiwordle Game Instantly",
+        "description": "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
+        "url": "https://jamesapplewhite.com/antiwordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -440,29 +434,26 @@ def run_antiwordle_revamp():
 @app.route("/quordle", methods=["POST", "GET"])
 def run_quordle_revamp():
 
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
-            "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
-            "url": "https://jamesapplewhite.com/quordle",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Quordle Solver - Solve 4 Wordles at Once Instantly",
+        "description": "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
+        "url": "https://jamesapplewhite.com/quordle",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         try:
@@ -611,28 +602,25 @@ def run_common_denominator():
 def blossom_solver():
     try:
 
-        try:
-            schema_data = {
-                "@context": "https://schema.org",
-                "@type": "WebApplication",
-                "name": "Blossom Word Finder & Solver",
-                "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
-                "url": "https://jamesapplewhite.com/blossom",
-                "applicationCategory": "GameApplication",
-                "isAccessibleForFree": True,
-                "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "offers": {
-                    "@type": "Offer",
-                    "price": "0",
-                    "priceCurrency": "USD"
-                },
-                "creator": {
-                    "@type": "Person",
-                    "name": "James Applewhite"
-                }
+        schema_data = {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Blossom Word Finder & Solver",
+            "description": "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
+            "url": "https://jamesapplewhite.com/blossom",
+            "applicationCategory": "GameApplication",
+            "isAccessibleForFree": True,
+            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "creator": {
+                "@type": "Person",
+                "name": "James Applewhite"
             }
-        except Exception:
-            schema_data = None
+        }
 
         if request.method == "POST":
             # Handle checkbox updates via AJAX
@@ -776,61 +764,67 @@ def blossom_reset():
 @auth.login_required
 def blossom_admin():
     """Admin page to manage invalid and missing words"""
+    conn = None
+    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get invalid words
         cursor.execute("""
-            SELECT word, added_date 
-            FROM blossom_invalid_words 
+            SELECT word, added_date
+            FROM blossom_invalid_words
             ORDER BY added_date DESC
         """)
         invalid_words = cursor.fetchall()
-        
+
         # Get added words
         cursor.execute("""
-            SELECT word, added_date 
-            FROM blossom_added_words 
+            SELECT word, added_date
+            FROM blossom_added_words
             ORDER BY added_date DESC
         """)
         added_words = cursor.fetchall()
-        
+
         # Get recent feedback
         cursor.execute("""
-            SELECT id, submit_time, report_type, reported_words 
-            FROM feedback_blossom 
-            ORDER BY submit_time DESC 
+            SELECT id, submit_time, report_type, reported_words
+            FROM feedback_blossom
+            ORDER BY submit_time DESC
             LIMIT 10
         """)
         recent_feedback = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('blossom_admin.html', 
+
+        return render_template('blossom_admin.html',
                              invalid_words=invalid_words,
                              added_words=added_words,
                              recent_feedback=recent_feedback)
-        
+
     except Exception as e:
         print(f"Error loading blossom admin: {e}")
         return render_template('error.html', return_type='Admin Error'), 500
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
 
 @app.route('/add_word', methods=['POST'])
 @auth.login_required
 def add_word():
     """Add a word to the added words list (for missing words)"""
+    conn = None
+    cursor = None
     try:
         word = request.form.get('word', '').strip().lower()
         word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
-        
+
         if not word:
             return redirect('/blossom_admin?error=Word is required')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         if word_type == 'missing':
             # Add to blossom_added_words table
             cursor.execute("""
@@ -843,52 +837,60 @@ def add_word():
                 INSERT IGNORE INTO blossom_invalid_words (word, added_date)
                 VALUES (%s, CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
             """, (word,))
-        
+
         conn.commit()
-        cursor.close()
-        conn.close()
-        
+
         # Clear cache to force refresh
         cache.delete('blossom_filtered_words')
-        
+
         action = "added to word list" if word_type == 'missing' else "marked as invalid"
         return redirect(f'/blossom_admin?success=Word {action} successfully')
-        
+
     except Exception as e:
         print(f"Error adding word: {e}")
         return redirect('/blossom_admin?error=Database error')
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
 
 @app.route('/remove_word', methods=['POST'])
 @auth.login_required
 def remove_word():
     """Remove a word from either invalid or added words list"""
+    conn = None
+    cursor = None
     try:
         word = request.form.get('word', '').strip().lower()
         word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
-        
+
         if not word:
             return redirect('/blossom_admin?error=Word is required')
-        
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         if word_type == 'missing':
             cursor.execute("DELETE FROM blossom_added_words WHERE word = %s", (word,))
         else:
             cursor.execute("DELETE FROM blossom_invalid_words WHERE word = %s", (word,))
-        
+
         conn.commit()
-        cursor.close()
-        conn.close()
-        
+
         # Clear cache to force refresh
         cache.delete('blossom_filtered_words')
-        
+
         return redirect('/blossom_admin?success=Word removed successfully')
-        
+
     except Exception as e:
         print(f"Error removing word: {e}")
         return redirect('/blossom_admin?error=Database error')
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
 
 @app.route("/blossom_feedback", methods=["POST", "GET"])
 def blossom_feedback():
@@ -975,29 +977,31 @@ def get_filtered_blossom_words():
     # Get invalid and added words from database
     invalid_words = set()
     added_words = set()
+    conn = None
+    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get invalid words
         cursor.execute("SELECT word FROM blossom_invalid_words")
         results = cursor.fetchall()
         invalid_words = {row[0].lower() for row in results}
-        
+
         # Get added words
         cursor.execute("SELECT word FROM blossom_added_words")
         results = cursor.fetchall()
         added_words = {row[0].lower() for row in results}
-        
+
     except Exception as e:
         print(f"Error fetching word lists: {e}")
         # If database error, use original word list
         invalid_words = set()
         added_words = set()
     finally:
-        if cursor:
+        if cursor is not None:
             cursor.close()
-        if conn and conn.is_connected():
+        if conn is not None and conn.is_connected():
             conn.close()
     
     # Ensure both word lists are lowercase for proper comparison
@@ -1036,29 +1040,26 @@ def any_word():
 @app.route("/wordiply", methods=["POST", "GET"])
 def run_wordiply():
     
-    try:
-        schema_data = {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Wordiply Solver - Find the Longest Words Instantly",
-            "description": "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
-            "url": "https://jamesapplewhite.com/wordiply",
-            "applicationCategory": "GameApplication",
-            "isAccessibleForFree": True,
-            "operatingSystem": "Web",
-            "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "creator": {
-                "@type": "Person",
-                "name": "James Applewhite"
-            }
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Wordiply Solver - Find the Longest Words Instantly",
+        "description": "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
+        "url": "https://jamesapplewhite.com/wordiply",
+        "applicationCategory": "GameApplication",
+        "isAccessibleForFree": True,
+        "operatingSystem": "Web",
+        "dateModified": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "creator": {
+            "@type": "Person",
+            "name": "James Applewhite"
         }
-    except Exception:
-        schema_data = None
+    }
 
     if request.method == "POST":
         data = request.get_json()
@@ -1080,36 +1081,41 @@ def run_wordiply():
 @app.route("/youtube_trending", methods=["POST", "GET"])
 def youtube_trending():
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+        cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
-    top_10_today = """SELECT * FROM vw_prod_youtube_top_10_today;"""
-    cursor.execute(top_10_today)
-    top_10_today = cursor.fetchall()
-    top_10_today = pd.DataFrame(top_10_today, columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
-
-
-    top_10_title = """SELECT * FROM vw_prod_youtube_top_10_title;"""
-    cursor.execute(top_10_title)
-    top_10_title = cursor.fetchall()
-    top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
+        top_10_today = """SELECT * FROM vw_prod_youtube_top_10_today;"""
+        cursor.execute(top_10_today)
+        top_10_today = cursor.fetchall()
+        top_10_today = pd.DataFrame(top_10_today, columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
 
 
-    top_10_channel = """SELECT * FROM vw_prod_youtube_top_10_channel;"""
-    cursor.execute(top_10_channel)
-    top_10_channel = cursor.fetchall()
-    top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
+        top_10_title = """SELECT * FROM vw_prod_youtube_top_10_title;"""
+        cursor.execute(top_10_title)
+        top_10_title = cursor.fetchall()
+        top_10_title = pd.DataFrame(top_10_title, columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
 
 
-    top_categories = """SELECT * FROM vw_prod_youtube_top_categories;"""
-    cursor.execute(top_categories)
-    top_categories = cursor.fetchall()
-    top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
+        top_10_channel = """SELECT * FROM vw_prod_youtube_top_10_channel;"""
+        cursor.execute(top_10_channel)
+        top_10_channel = cursor.fetchall()
+        top_10_channel = pd.DataFrame(top_10_channel, columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
 
-    cursor.close()
-    conn.close()
+
+        top_categories = """SELECT * FROM vw_prod_youtube_top_categories;"""
+        cursor.execute(top_categories)
+        top_categories = cursor.fetchall()
+        top_categories = pd.DataFrame(top_categories, columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
 
     yt_video_scatter = plot_viz.yt_video_scatter()
     temp_yt_video_scatter = 'static/yt_video_scatter.png'
@@ -1155,31 +1161,36 @@ def etl_status_dash(round):
     if round not in valid_rounds:
         return f"Invalid round parameter. Return only: {valid_rounds}", 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    query_dict = {}
-    for name, details in etl_dash_queries.items():
-        if details.get('round') == round:
-            try:
-                query = details['query']
-                cursor.execute(query)
-                result = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-                query_df = pd.DataFrame(result, columns=columns)
-                
-                # Here we add the description to the dictionary entry for this name
-                query_dict[name] = {
-                    'description': details['description'],
-                    'data': query_df
-                }
-            except Exception as e:
-                print(f'{name} not run due to error: {e}')
+        query_dict = {}
+        for name, details in etl_dash_queries.items():
+            if details.get('round') == round:
+                try:
+                    query = details['query']
+                    cursor.execute(query)
+                    result = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    query_df = pd.DataFrame(result, columns=columns)
 
-    cursor.close()
-    conn.close()
+                    # Here we add the description to the dictionary entry for this name
+                    query_dict[name] = {
+                        'description': details['description'],
+                        'data': query_df
+                    }
+                except Exception as e:
+                    print(f'{name} not run due to error: {e}')
 
-    return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
+        return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
 
 
 ######################################
@@ -1599,11 +1610,13 @@ def feedback():
         referrer = request.form['referrer']
 
         # log inputs
+        conn = None
+        cursor = None
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             query = """
-            INSERT INTO feedback (submit_time, referrer, feedback_header, feedback_body) 
+            INSERT INTO feedback (submit_time, referrer, feedback_header, feedback_body)
             VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
             """
             cursor.execute(query, (referrer, feedback_header, feedback_body))
@@ -1674,9 +1687,8 @@ def ratelimit_handler(e):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    return_type = '500 - Error'
-    print(e)
-    return render_template('error.html', return_type=return_type), 500
+    app.logger.exception("Unhandled exception: %s", e)
+    return render_template('error.html', return_type='500 - Error'), 500
 
 @app.route('/antiwordle_og')
 def antiwordle_og_redirect():

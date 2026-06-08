@@ -1,47 +1,61 @@
 {% extends 'base.html' %}
 
-{% block title %}YouTube Trending{% endblock %}
+{% block title %}YouTube Trending - Explore What's Hot Right Now{% endblock %}
+
+{% block meta %}
+<meta name="description" content="See what's trending on YouTube. Browse trending videos by category, region, and time period, with viewing stats and channel info.">
+<link rel="canonical" href="https://jamesapplewhite.com/youtube_trending">
+<meta property="og:title" content="YouTube Trending - Explore What's Hot Right Now">
+<meta property="og:description" content="See what's trending on YouTube. Browse trending videos by category, region, and time period.">
+<meta property="og:url" content="https://jamesapplewhite.com/youtube_trending">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+{% endblock %}
 
 {% block head %}
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        text-align: center;
+    h1 {
+        color: #02484d;
+        margin-bottom: 0.5rem;
     }
     h3 {
-        margin-top: 20px;
+        color: #02484d;
+        margin: 2rem 0 0.5rem 0;
     }
     table {
-        margin-left: auto;
-        margin-right: auto;
         border-collapse: collapse;
+        margin: 10px auto;
+        width: 90%;
+        max-width: 1000px;
         table-layout: auto;
     }
     th, td {
-        border: 1px solid #ddd;
+        border: 1px solid #e5e7eb;
         text-align: left;
-        padding: 8px;
+        padding: 8px 12px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
     th {
-        background-color: #f2f2f2;
+        background-color: #02484d;
+        color: white;
+        font-weight: 600;
     }
+    tr:nth-child(even) { background-color: #f9fafb; }
+    p { color: #6b7280; font-size: 14px; margin: 0.3rem 0; }
+    img { max-width: 90%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 </style>
 {% endblock %}
 
 {% block content %}
-
 <br>
-<h1>YouTube Trending Dashboard</h1>
+<h1>YouTube Trending</h1>
 <br>
 
 <div class="dashboard-section">
     <h3>Top Trending Videos Today</h3>
-    <table class="data-table">
+    <table>
         <thead>
             <tr>
                 <th>Video</th>
@@ -67,7 +81,7 @@
 <div class="dashboard-section">
     <h3>Top Videos</h3>
     <p>Last 30 days</p>
-    <table class="data-table">
+    <table>
         <thead>
             <tr>
                 <th>Video</th>
@@ -93,7 +107,7 @@
 <div class="dashboard-section">
     <h3>Top Channels</h3>
     <p>Last 30 days</p>
-    <table class="data-table">
+    <table>
         <thead>
             <tr>
                 <th>Channel</th>
@@ -117,7 +131,7 @@
 <div class="dashboard-section">
     <h3>Highest Ranked Video Categories</h3>
     <p>Last 30 days</p>
-    <table class="data-table">
+    <table>
         <thead>
             <tr>
                 <th>Category</th>
@@ -141,18 +155,13 @@
 <br>
 
 <img src="{{ yt_stacked_bar_plot }}" alt="Plot">
-<br>
-<br>
+<br><br>
 <img src="{{ yt_video_scatter }}" alt="Plot">
-<br>
-<br>
+<br><br>
 <img src="{{ yt_chnl_scatter }}" alt="Plot">
-<br>
-<br>
+<br><br>
 
 <p>Updates daily at 12 am PST</p>
-<br>
-<br>
-<br>
+<br><br>
 
 {% endblock %}

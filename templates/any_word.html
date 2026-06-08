@@ -1,109 +1,209 @@
 {% extends 'base.html' %}
 
-{% block title %}Any Word Finder{% endblock %}
+{% block title %}Any Word Finder - Search Words by Letters & Patterns{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free word finder tool. Search for words containing specific letters, matching a pattern, or by length. Instant results for word games, crosswords, and puzzles.">
+<link rel="canonical" href="https://jamesapplewhite.com/any_word">
+<meta property="og:title" content="Any Word Finder - Search Words by Letters & Patterns">
+<meta property="og:description" content="Free word finder tool. Search for words containing specific letters or matching a pattern. Instant results for word games and puzzles.">
+<meta property="og:url" content="https://jamesapplewhite.com/any_word">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+{% endblock %}
+
+{% block head %}
+<style>
+.aw-hero {
+    padding: 2.5rem 1rem 2rem;
+    text-align: center;
+    background: linear-gradient(140deg, #02484d 0%, #013438 100%);
+    margin-bottom: 2rem;
+}
+.aw-hero h1 {
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 0.4rem;
+}
+.aw-hero p {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.72);
+    margin: 0;
+}
+.aw-body {
+    max-width: 540px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+    text-align: center;
+}
+.aw-field {
+    margin-bottom: 1.25rem;
+}
+.aw-field label {
+    display: block;
+    font-size: 0.88rem;
+    color: #374151;
+    margin-bottom: 0.4rem;
+}
+.aw-field input[type=text],
+.aw-field select {
+    padding: 9px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #111;
+    text-align: center;
+    font-family: inherit;
+}
+.aw-field input[type=text]:focus,
+.aw-field select:focus {
+    outline: none;
+    border-color: #02484d;
+}
+.aw-divider {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 0.1rem 0 1.25rem;
+}
+.aw-submit {
+    background-color: #02484d;
+    color: white;
+    padding: 10px 28px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-top: 0.5rem;
+}
+.aw-submit:hover { background-color: #013438; }
+.aw-results {
+    margin-top: 1.5rem;
+    list-style: none;
+    padding: 0;
+}
+.aw-results li {
+    font-size: 0.95rem;
+    color: #374151;
+    padding: 4px 0;
+}
+.aw-footer {
+    margin-top: 1rem;
+    font-size: 13px;
+    color: #6b7280;
+}
+.aw-footer a { color: #02484d; }
+.aw-reset {
+    display: inline-block;
+    margin-top: 1.25rem;
+    padding: 8px 22px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #374151;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+.aw-reset:hover { border-color: #02484d; color: #02484d; }
+.aw-complement-btn {
+    margin-top: 0.45rem;
+    padding: 5px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #374151;
+    background: #f9fafb;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.aw-complement-btn:hover { border-color: #02484d; color: #02484d; background: #f0fafa; }
+</style>
+<script>
+function fillComplement() {
+    const have = document.getElementById('must_have').value.toUpperCase().replace(/[^A-Z]/g, '');
+    const haveSet = new Set(have.split(''));
+    const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const complement = all.split('').filter(c => !haveSet.has(c)).join('');
+    document.getElementById('must_not_have').value = complement;
+}
+</script>
+{% endblock %}
 
 {% block content %}
-<head>
+<div class="aw-hero">
+    <h1>Any Word Finder</h1>
+    <p>Search by letters, pattern, and length</p>
+</div>
 
-</head>
-
-<body>
+<div class="aw-body">
   <form name="form1" action="#" method="post">
-    <center>
-    <br>
-    <h1 style="text-align: center">Any Word Finder</h1>
-    <br>
 
-    <p class="pad_lr_30" style="text-align: center">Letters That Must Be Contained in the Word</p>
-    <input type="text" pattern="[A-Za-z]+" name="must_have" style="text-align: center;width: 200px;" value="{{must_have_val}}">
+    <div class="aw-field">
+        <label>Letters That Must Be Contained</label>
+        <input type="text" pattern="[A-Za-z]+" name="must_have" id="must_have" style="width:200px;" value="{{must_have_val}}">
+    </div>
+    <hr class="aw-divider">
 
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
+    <div class="aw-field">
+        <label>Letters That Must Not Be Contained</label>
+        <input type="text" pattern="[A-Za-z]+" name="must_not_have" id="must_not_have" style="width:200px;" value="{{must_not_have_val}}">
+        <br>
+        <button type="button" class="aw-complement-btn" onclick="fillComplement()">Fill with unused letters</button>
+    </div>
+    <hr class="aw-divider">
 
-    <p class="pad_lr_30" style="text-align: center">Letters That Must Not Be Contained in the Word</p>
-    <input type="text" pattern="[A-Za-z]+" name="must_not_have" style="text-align: center;width: 200px;" value="{{must_not_have_val}}">
+    <div class="aw-field">
+        <label>First Letter (single letter or leave blank)</label>
+        <input type="text" pattern="[A-Za-z]+" name="first_letter" style="width:55px;" value="{{first_letter_val}}" maxlength="1">
+    </div>
+    <hr class="aw-divider">
 
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
+    <div class="aw-field">
+        <label>Sort Order</label>
+        <select name="sort_order">
+          <option value="{{sort_order_val}}">{{sort_order_val}}</option>
+          <option disabled>______</option>
+          <option value="Max-Min">Max-Min</option>
+          <option value="Min-Max">Min-Max</option>
+          <option value="A-Z">A-Z</option>
+          <option value="Z-A">Z-A</option>
+          <option value="Random">Random</option>
+        </select>
+    </div>
+    <hr class="aw-divider">
 
+    <div class="aw-field">
+        <label>Count of Words to Produce</label>
+        <input type="text" pattern="[0-9]*" required name="list_len" style="width:95px;" value="{{list_len_val}}">
+    </div>
+    <hr class="aw-divider">
 
+    <div class="aw-field">
+        <label>Min Word Length</label>
+        <input type="text" pattern="[0-9]*" required name="min_length" style="width:95px;" value="{{min_length_val}}">
+    </div>
+    <hr class="aw-divider">
 
+    <div class="aw-field">
+        <label>Max Word Length</label>
+        <input type="text" pattern="[0-9]*" required name="max_length" style="width:95px;" value="{{max_length_val}}">
+    </div>
 
+    <input type="submit" value="Find Words" class="aw-submit">
 
-
-
-    <!-- <p class="pad_lr_30" style="text-align: center">Word Parts That Must Be Contained in the Word</p>
-    <input type="text" name="required_substrings" style="text-align: center;width: 200px;" value="{{required_substrings_val}}">
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-    <p class="pad_lr_30" style="text-align: center">Word Parts That Must Not Be Contained in the Word</p>
-    <input type="text" name="forbidden_substrings" style="text-align: center;width: 200px;" value="{{forbidden_substrings_val}}">
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;"> -->
-
-
-
-
-
-
-    <p class="pad_lr_30" style="text-align: center">First Letter in the Word (Single Letter or Leave Blank)</p>
-    <input type="text" pattern="[A-Za-z]+" name="first_letter" style="text-align: center;width: 55px;" value="{{first_letter_val}}" maxlength="1">
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-    <p class="pad_lr_30">Sort Order</p>
-    <select class="centered-select" name="sort_order">
-      <option value="{{sort_order_val}}">{{sort_order_val}}</option>
-      <option disabled>______</option>
-      <option value="Max-Min">Max-Min</option>
-      <option value="Min-Max">Min-Max</option>
-      <option value="A-Z">A-Z</option>
-      <option value="Z-A">Z-A</option>
-      <option value="Random">Random</option>
-    </select>
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-    <p class="pad_lr_30" style="text-align: center">Count of Words to Produce (Number)</p>
-    <input type="text" pattern="[0-9]*" required name="list_len" style="text-align: center;width: 95px;" value="{{list_len_val}}">
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-    <p class="pad_lr_30" style="text-align: center">Min Word Length (Number)</p>
-    <input type="text" pattern="[0-9]*" required name="min_length" style="text-align: center;width: 95px;" value="{{min_length_val}}">
-
-    <hr style="width:50%;border: 1px dashed #d3d6da;">
-
-    <p class="pad_lr_30" style="text-align: center">Max Word Length (Number)</p>
-    <input type="text" pattern="[0-9]*" required name="max_length" style="text-align: center;width: 95px;" value="{{max_length_val}}">
-
-    <br>
-    <br>
-
-    <input type="submit" value="Calculate">
-    <br>
-    <br>
-    <br>
-    <!-- <p class="pad_lr_100" style="text-align: center; color:black">{{list_out}}</p> -->
-    <ul>
+    <ul class="aw-results">
       {% for item in list_out %}
       <li>{{ item }}</li>
       {% endfor %}
     </ul>
-    <br>
-    <br>
-    <br>
-    <a href="/any_word">
-      <div class="spinning-image">
-        <img alt="Reset" src="/static/reset_logo.png">
-      </div>
-      <br>
-    </a>
-    <p><a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package used for source word list</p>
-    <br>
-    <br>
-    <br>
 
-    </center>
+    <a href="/any_word" class="aw-reset">Reset</a>
+
+    <p class="aw-footer"><a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package used for source word list</p>
+    <br><br>
+
   </form>
-</body>
+</div>
 {% endblock %}

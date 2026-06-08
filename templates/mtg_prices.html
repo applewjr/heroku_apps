@@ -1,10 +1,20 @@
 {% extends 'base.html' %}
 
-{% block title %}MTG Prices{% endblock %}
+{% block title %}MTG Card Prices - Daily Risers & Fallers Tracker{% endblock %}
 
-{% block content %}
-<head>
-  <style>
+{% block meta %}
+<meta name="description" content="Track Magic: The Gathering card price movements. See which cards are rising and falling in value each day, with direct links to TCGplayer listings.">
+<link rel="canonical" href="https://jamesapplewhite.com/mtg">
+<meta name="keywords" content="mtg prices, magic the gathering prices, mtg card prices, tcgplayer, mtg price tracker, mtg movers">
+<meta property="og:title" content="MTG Card Prices - Daily Risers & Fallers Tracker">
+<meta property="og:description" content="Track Magic: The Gathering card price movements. See which cards are rising and falling in value each day.">
+<meta property="og:url" content="https://jamesapplewhite.com/mtg">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+{% endblock %}
+
+{% block head %}
+<style>
     body {
       text-align: center;
     }
@@ -90,9 +100,9 @@
       }
     }
   </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
   <br>
   <h1>Magic the Gathering Prices</h1>
   <br>
@@ -118,5 +128,4 @@
   <br>
   <br>
   <br>
-</body>
 {% endblock %}

@@ -13,13 +13,10 @@
 <meta property="og:site_name" content="JJ Apps">
 {% endblock %}
 
+{% block head %}
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
-
-{% block content %}
-
-<head>
     <style>
     #wordle-grid .wordle-row {
         display: flex;
@@ -230,9 +227,10 @@
         }
     }
     </style>
-</head>
+{% endblock %}
 
-<body>
+{% block content %}
+
     <center>
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Antiwordle Solver & Strategy Tool</h1>
@@ -399,7 +397,6 @@
     <br>
     <br>
     </center>
-</body>
 
 <script>
 
