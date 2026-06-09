@@ -4,7 +4,7 @@
 
 {% block meta %}
 <meta name="description" content="Track Magic: The Gathering card price movements. See which cards are rising and falling in value each day, with direct links to TCGplayer listings.">
-<link rel="canonical" href="https://jamesapplewhite.com/mtg">
+<link rel="canonical" href="https://www.jamesapplewhite.com/mtg">
 <meta name="keywords" content="mtg prices, magic the gathering prices, mtg card prices, tcgplayer, mtg price tracker, mtg movers">
 <meta property="og:title" content="MTG Card Prices - Daily Risers & Fallers Tracker">
 <meta property="og:description" content="Track Magic: The Gathering card price movements. See which cards are rising and falling in value each day.">
@@ -15,34 +15,55 @@
 
 {% block head %}
 <style>
-    body {
-      text-align: center;
-    }
-
     h1 {
       color: #02484d;
-      margin-bottom: 2rem;
+      margin-bottom: 1rem;
     }
 
-    h3 {
-      color: #02484d;
-      margin: 2rem 0 1rem 0;
+    .mtg-wrap {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .mtg-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1800px;
+      margin: 0 auto 12px;
+    }
+
+    #mtg-search {
+      flex: 1 1 240px;
+      max-width: 360px;
+      padding: 9px 14px;
+      font-size: 14px;
+      border: 1px solid #013438;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+
+    .mtg-count {
+      font-size: 13px;
+      color: #666;
+      white-space: nowrap;
     }
 
     table {
       border-collapse: collapse;
-      margin: 10px auto;
-      width: 90%;
-      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      min-width: 900px;
     }
 
     th, td {
-      border: 1px solid black;
-      padding: 8px;
+      border: 1px solid #d9d9d9;
+      padding: 8px 10px;
       text-align: left;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     th {
@@ -50,23 +71,34 @@
       color: white;
       text-align: center;
       font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
     }
 
-    /* Right-align numeric columns */
-    td:nth-child(5), 
-    td:nth-child(6), 
-    td:nth-child(7), 
-    td:nth-child(8) {
+    th:hover { background-color: #03595f; }
+
+    th .arrow {
+      font-size: 10px;
+      opacity: 0.4;
+      margin-left: 4px;
+    }
+    th.sort-asc .arrow,
+    th.sort-desc .arrow { opacity: 1; }
+
+    tbody tr:nth-child(even) { background-color: #f7f9f9; }
+    tbody tr:hover { background-color: #eef5f4; }
+
+    /* Numeric columns: right-aligned monospace */
+    td.num {
       text-align: right;
       font-family: monospace;
     }
+    td.pos { color: #1a7f37; }
+    td.neg { color: #c0392b; }
 
-    /* Center the TCG Link column */
-    td:nth-child(9) {
-      text-align: center;
-    }
-
-    td:nth-child(9) a {
+    td.tcg { text-align: center; }
+    td.tcg a {
       color: #02484d;
       text-decoration: none;
       font-weight: 500;
@@ -74,58 +106,224 @@
       border-radius: 3px;
       transition: all 0.2s ease;
     }
-
-    td:nth-child(9) a:hover {
+    td.tcg a:hover {
       color: white;
       background-color: #02484d;
     }
 
-    /* Info text styling */
-    p {
-      color: #666;
+    .mtg-pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+    .mtg-pagination button {
+      background-color: #02484d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 7px 14px;
       font-size: 14px;
-      margin: 0.5rem 0;
+      cursor: pointer;
+    }
+    .mtg-pagination button:disabled {
+      background-color: #cdd6d6;
+      cursor: default;
+    }
+    .mtg-page-info {
+      font-size: 14px;
+      color: #444;
     }
 
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-      table {
-        font-size: 12px;
-        width: 100%;
-      }
-      
-      th, td {
-        padding: 6px 4px;
-        white-space: normal;
-      }
+    .info-text {
+      color: #666;
+      font-size: 13px;
+      margin: 0.4rem 0;
     }
-  </style>
+
+    @media (max-width: 768px) {
+      th, td { padding: 6px 8px; font-size: 12px; }
+      #mtg-search { max-width: 100%; }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-  <br>
-  <h1>Magic the Gathering Prices</h1>
-  <br>
-  
-  <div class="dashboard-section">
-    <h3>Notable 1 Week Increases</h3>
-    {% for table in tables_increase %}
-      <div class="table-scroll">{{ table|safe }}</div>
-    {% endfor %}
+  <div class="mtg-wrap">
+    <br>
+    <h1>Magic the Gathering Prices</h1>
+
+    <div class="mtg-controls">
+      <input type="text" id="mtg-search" placeholder="Search card or set name…" autocomplete="off">
+      <span class="mtg-count" id="mtg-count"></span>
+    </div>
+
+    <div class="table-scroll">
+      <table id="mtg-table">
+        <thead>
+          <tr>
+            <th data-key="name" data-type="text">Card Name<span class="arrow">▲▼</span></th>
+            <th data-key="set_name" data-type="text">Set Name<span class="arrow">▲▼</span></th>
+            <th data-key="set_type" data-type="text">Set Type<span class="arrow">▲▼</span></th>
+            <th data-key="released_at" data-type="text">Released<span class="arrow">▲▼</span></th>
+            <th data-key="today_price" data-type="num">Current<span class="arrow">▲▼</span></th>
+            <th data-key="p1wk" data-type="num">1wk Ago<span class="arrow">▲▼</span></th>
+            <th data-key="d1wk" data-type="num">1wk ×<span class="arrow">▲▼</span></th>
+            <th data-key="p2wk" data-type="num">2wk Ago<span class="arrow">▲▼</span></th>
+            <th data-key="d2wk" data-type="num">2wk ×<span class="arrow">▲▼</span></th>
+            <th data-key="p4wk" data-type="num">4wk Ago<span class="arrow">▲▼</span></th>
+            <th data-key="d4wk" data-type="num">4wk ×<span class="arrow">▲▼</span></th>
+            <th data-key="tcg_url" data-type="none">TCG</th>
+          </tr>
+        </thead>
+        <tbody id="mtg-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="mtg-pagination">
+      <button id="mtg-prev" type="button">‹ Prev</button>
+      <span class="mtg-page-info" id="mtg-page-info"></span>
+      <button id="mtg-next" type="button">Next ›</button>
+    </div>
+
+    <p class="info-text">Includes: Cards released in the last 10 years, whose current price is at least $1, non-foil</p>
+    <p class="info-text">Current Date: {{ today_price_date_str }}</p>
+    <br>
+    <br>
   </div>
-  <br>
-  
-  <div class="dashboard-section">
-    <h3>Notable 1 Week Decreases</h3>
-    {% for table in tables_decrease %}
-      <div class="table-scroll">{{ table|safe }}</div>
-    {% endfor %}
-  </div>
-  <br>
-  
-  <p>Includes: Cards released in the last 10 years, whose current price is at least $1, non-foil</p>
-  <p>Current Date: {{ today_price_date_str }}</p>
-  <br>
-  <br>
-  <br>
+
+<script type="application/json" id="mtg-data">{{ mtg_data|tojson }}</script>
+<script>
+  const MTG_DATA = JSON.parse(document.getElementById('mtg-data').textContent);
+  const PAGE_SIZE = 25;
+  const DIFF_KEYS = new Set(['d1wk', 'd2wk', 'd4wk']);
+  const NUM_KEYS = new Set(['today_price', 'p1wk', 'd1wk', 'p2wk', 'd2wk', 'p4wk', 'd4wk']);
+
+  let rows = MTG_DATA.slice();          // current filtered view
+  let sortKey = 'd1wk';                  // default sort (matches server order)
+  let sortDir = -1;                      // -1 desc, 1 asc
+  let page = 0;
+
+  const tbody = document.getElementById('mtg-tbody');
+  const searchInput = document.getElementById('mtg-search');
+  const countEl = document.getElementById('mtg-count');
+  const pageInfo = document.getElementById('mtg-page-info');
+  const prevBtn = document.getElementById('mtg-prev');
+  const nextBtn = document.getElementById('mtg-next');
+
+  function esc(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function fmtMoney(v) {
+    return (v === null || v === undefined) ? '—' : '$' + Number(v).toFixed(2);
+  }
+  function fmtMult(v) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toFixed(2) + '×';
+  }
+
+  function applySort() {
+    const numeric = NUM_KEYS.has(sortKey);
+    rows.sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (numeric) {
+        // Nulls always sort to the bottom regardless of direction
+        const an = (av === null || av === undefined), bn = (bv === null || bv === undefined);
+        if (an && bn) return 0;
+        if (an) return 1;
+        if (bn) return -1;
+        return (av - bv) * sortDir;
+      }
+      av = (av === null || av === undefined) ? '' : String(av).toLowerCase();
+      bv = (bv === null || bv === undefined) ? '' : String(bv).toLowerCase();
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+  }
+
+  function render() {
+    const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    if (page >= totalPages) page = totalPages - 1;
+    if (page < 0) page = 0;
+
+    const start = page * PAGE_SIZE;
+    const slice = rows.slice(start, start + PAGE_SIZE);
+
+    let html = '';
+    for (const r of slice) {
+      const diffCls = (v) => (v === null || v === undefined) ? '' : v > 1 ? ' pos' : v < 1 ? ' neg' : '';
+      const link = r.tcg_url
+        ? `<a href="${esc(r.tcg_url)}" target="_blank" rel="noopener noreferrer">Link</a>`
+        : '';
+      html += '<tr>'
+        + `<td>${esc(r.name)}</td>`
+        + `<td>${esc(r.set_name)}</td>`
+        + `<td>${esc(r.set_type)}</td>`
+        + `<td>${esc(r.released_at)}</td>`
+        + `<td class="num">${fmtMoney(r.today_price)}</td>`
+        + `<td class="num">${fmtMoney(r.p1wk)}</td>`
+        + `<td class="num${diffCls(r.d1wk)}">${fmtMult(r.d1wk)}</td>`
+        + `<td class="num">${fmtMoney(r.p2wk)}</td>`
+        + `<td class="num${diffCls(r.d2wk)}">${fmtMult(r.d2wk)}</td>`
+        + `<td class="num">${fmtMoney(r.p4wk)}</td>`
+        + `<td class="num${diffCls(r.d4wk)}">${fmtMult(r.d4wk)}</td>`
+        + `<td class="tcg">${link}</td>`
+        + '</tr>';
+    }
+    tbody.innerHTML = html || '<tr><td colspan="12" style="text-align:center; padding:24px; color:#888;">No cards match your search.</td></tr>';
+
+    countEl.textContent = rows.length + ' card' + (rows.length === 1 ? '' : 's');
+    pageInfo.textContent = `Page ${page + 1} of ${totalPages}`;
+    prevBtn.disabled = page === 0;
+    nextBtn.disabled = page >= totalPages - 1;
+
+    document.querySelectorAll('#mtg-table th').forEach(th => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.key === sortKey) {
+        th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+      }
+    });
+  }
+
+  function applySearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    rows = q
+      ? MTG_DATA.filter(r =>
+          (r.name && r.name.toLowerCase().includes(q)) ||
+          (r.set_name && r.set_name.toLowerCase().includes(q)))
+      : MTG_DATA.slice();
+    applySort();
+    page = 0;
+    render();
+  }
+
+  document.querySelectorAll('#mtg-table th').forEach(th => {
+    if (th.dataset.type === 'none') return;
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (sortKey === key) {
+        sortDir = -sortDir;
+      } else {
+        sortKey = key;
+        // Numbers default to descending (biggest first), text to ascending
+        sortDir = NUM_KEYS.has(key) ? -1 : 1;
+      }
+      applySort();
+      page = 0;
+      render();
+    });
+  });
+
+  searchInput.addEventListener('input', applySearch);
+  prevBtn.addEventListener('click', () => { page--; render(); });
+  nextBtn.addEventListener('click', () => { page++; render(); });
+
+  applySort();
+  render();
+</script>
 {% endblock %}
