@@ -186,6 +186,29 @@
     justify-content: center;
 }
 
+#global-recommendations,
+.puzzle-recommendations {
+    transition: opacity 0.15s ease;
+}
+#quordle-form.loading #global-recommendations,
+#quordle-form.loading .puzzle-recommendations {
+    opacity: 0.5;
+}
+#quordle-form.loading .suggestion-btn {
+    pointer-events: none;
+}
+#recommendations-status {
+    margin: 6px auto 0;
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.3px;
+    text-align: center;
+    visibility: hidden;
+}
+#recommendations-status.visible {
+    visibility: visible;
+}
+
 .global-recommendations h3 {
     margin-top: 0;
     color: #6aaa64;
@@ -415,6 +438,7 @@
     <div class="global-recommendations">
         <h3>🎯 Best Words for All Puzzles</h3>
         <div id="global-recommendations"></div>
+        <div id="recommendations-status">Updating…</div>
     </div>
 
     <!-- Puzzles Grid -->
@@ -785,8 +809,16 @@ function fillNextRow(word) {
     setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 150);
 }
 
+function setRecommendationsLoading(isLoading) {
+    const form = document.getElementById('quordle-form');
+    const status = document.getElementById('recommendations-status');
+    if (form) form.classList.toggle('loading', isLoading);
+    if (status) status.classList.toggle('visible', isLoading);
+}
+
 function triggerUpdate() {
     clearTimeout(updateTimeout);
+    setRecommendationsLoading(true);
     updateTimeout = setTimeout(() => {
         const data = collectData();
         fetch('/quordle', {
@@ -796,7 +828,8 @@ function triggerUpdate() {
         })
         .then(response => response.json())
         .then(data => { updateUI(data); })
-        .catch((error) => { console.error('Error:', error); });
+        .catch((error) => { console.error('Error:', error); })
+        .finally(() => { setRecommendationsLoading(false); });
     }, 300);
 }
 

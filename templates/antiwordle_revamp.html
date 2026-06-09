@@ -151,6 +151,23 @@
     }
     #recommendations {
         margin: 10px 0;
+        transition: opacity 0.15s ease;
+        position: relative;
+    }
+    #recommendations.loading {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+    #recommendations-status {
+        margin: 6px auto 0;
+        font-size: 12px;
+        color: #888;
+        letter-spacing: 0.3px;
+        text-align: center;
+        visibility: hidden;
+    }
+    #recommendations-status.visible {
+        visibility: visible;
     }
     .options-remaining {
         display: block;
@@ -279,6 +296,7 @@
     </div>
     <br>
     <div id="recommendations"></div>
+    <div id="recommendations-status">Updating…</div>
 
     <input type="hidden" name="wordle_data" id="wordle-data">
     </form>
@@ -583,8 +601,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let updateTimeout;
 
+function setRecommendationsLoading(isLoading) {
+    const container = document.getElementById('recommendations');
+    const status = document.getElementById('recommendations-status');
+    if (container) container.classList.toggle('loading', isLoading);
+    if (status) status.classList.toggle('visible', isLoading);
+}
+
 function triggerUpdate() {
     clearTimeout(updateTimeout);
+    setRecommendationsLoading(true);
     updateTimeout = setTimeout(() => {
         const data = collectData();
 
@@ -601,6 +627,9 @@ function triggerUpdate() {
         })
         .catch((error) => {
             console.error('Error:', error);
+        })
+        .finally(() => {
+            setRecommendationsLoading(false);
         });
     }, 300);
 }

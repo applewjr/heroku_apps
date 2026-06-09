@@ -281,17 +281,18 @@
 }
 #recommendations.loading {
     opacity: 0.5;
+    pointer-events: none;
 }
 #recommendations-status {
-    display: none;
     margin: 6px auto 0;
     font-size: 12px;
     color: #888;
     letter-spacing: 0.3px;
     text-align: center;
+    visibility: hidden;
 }
 #recommendations-status.visible {
-    display: block;
+    visibility: visible;
 }
 .options-remaining {
     display: block;
