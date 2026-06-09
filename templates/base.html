@@ -276,12 +276,14 @@ li { margin-bottom: 10px; }
     height: 2px;
     background: currentColor;
     border-radius: 1px;
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
 }
 .jj-line-1 { top: 0; }
-.jj-line-2 { bottom: 0; }
+.jj-line-2 { top: 6px; }
+.jj-line-3 { bottom: 0; }
 .jj-menu-btn.open .jj-line-1 { transform: translateY(6px) rotate(45deg); }
-.jj-menu-btn.open .jj-line-2 { transform: translateY(-6px) rotate(-45deg); }
+.jj-menu-btn.open .jj-line-2 { transform: translateX(-12px); opacity: 0; }
+.jj-menu-btn.open .jj-line-3 { transform: translateY(-6px) rotate(-45deg); }
 .jj-overlay {
     position: fixed;
     inset: 0;
@@ -361,6 +363,7 @@ li { margin-bottom: 10px; }
         <div class="jj-lines-wrap">
           <span class="jj-line jj-line-1"></span>
           <span class="jj-line jj-line-2"></span>
+          <span class="jj-line jj-line-3"></span>
         </div>
         <span id="jjMenuLabel">MENU</span>
       </button>
