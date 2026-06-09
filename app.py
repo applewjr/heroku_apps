@@ -1065,7 +1065,7 @@ def run_wordiply():
         data = request.get_json()
         search_string = data.get('search_string', '')
         
-        results = all_words.wordiply_solver(search_string, words, 15) 
+        results = all_words.wordiply_solver(search_string, words, 90)
        
         return jsonify(results=results)    
     else:

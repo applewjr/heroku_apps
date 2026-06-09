@@ -226,6 +226,23 @@
     opacity: 1;
 }
 
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.show-more-btn:hover {
+    background-color: #03595f;
+}
+
 .copy-hint {
     font-size: 12px;
     color: #888;
@@ -538,21 +555,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 300); // 300ms delay
     });
 
+    const WORDS_STEP = 15;
+    let allResults = [];
+    let visibleCount = WORDS_STEP;
+
     function displayResults(results) {
-        if (!results || results.length === 0) {
+        allResults = results || [];
+        visibleCount = WORDS_STEP;
+        renderWords();
+    }
+
+    function renderWords() {
+        if (allResults.length === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No words found containing those letters</div>';
             document.getElementById('copy-hint').style.display = 'none';
             return;
         }
 
+        const shown = allResults.slice(0, visibleCount);
         let html = '';
-        results.forEach((word, index) => {
+        shown.forEach((word) => {
             html += `
                 <div class="word-result" data-word="${word}">
                     <span class="word-text">${word.toUpperCase()}</span>
                     <span class="word-length">${word.length} letters</span>
                     <a class="define-link"
-                       href="https://www.merriam-webster.com/dictionary/${word.toLowerCase()}"
+                       href="https://en.wiktionary.org/wiki/${word.toLowerCase()}"
                        target="_blank" rel="noopener noreferrer"
                        title="View definition"
                        aria-label="View definition of ${word.toUpperCase()}"
@@ -564,13 +592,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsContainer.innerHTML = html;
         document.getElementById('copy-hint').style.display = 'block';
-        
+
         // Add click handlers to each word result
         document.querySelectorAll('.word-result').forEach(element => {
             element.addEventListener('click', function() {
                 copyToClipboard(this);
             });
         });
+
+        // "Show more" button when results remain
+        const remaining = allResults.length - visibleCount;
+        if (remaining > 0) {
+            const more = Math.min(WORDS_STEP, remaining);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'show-more-btn';
+            btn.textContent = `Show ${more} more (${remaining} remaining)`;
+            btn.addEventListener('click', () => {
+                visibleCount += WORDS_STEP;
+                renderWords();
+            });
+            resultsContainer.appendChild(btn);
+        }
     }
     
     function copyToClipboard(element) {
