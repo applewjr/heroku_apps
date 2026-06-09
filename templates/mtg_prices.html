@@ -110,7 +110,7 @@
   <div class="dashboard-section">
     <h3>Notable 1 Week Increases</h3>
     {% for table in tables_increase %}
-      {{ table|safe }}
+      <div class="table-scroll">{{ table|safe }}</div>
     {% endfor %}
   </div>
   <br>
@@ -118,7 +118,7 @@
   <div class="dashboard-section">
     <h3>Notable 1 Week Decreases</h3>
     {% for table in tables_decrease %}
-      {{ table|safe }}
+      <div class="table-scroll">{{ table|safe }}</div>
     {% endfor %}
   </div>
   <br>
