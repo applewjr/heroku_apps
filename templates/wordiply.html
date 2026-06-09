@@ -182,6 +182,30 @@
     flex-shrink: 0;
 }
 
+.define-link {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 4px 10px;
+    border: 1px solid #cdd8d7;
+    border-radius: 4px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.define-link:hover {
+    background-color: #02484d;
+    color: #fff;
+    border-color: #02484d;
+}
+.word-result.copied .define-link {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.7);
+    background-color: transparent;
+}
+
 .copy-feedback {
     position: absolute;
     right: 50%;
@@ -262,7 +286,12 @@
         font-size: 12px;
         padding: 3px 8px;
     }
-    
+
+    .define-link {
+        font-size: 11px;
+        padding: 3px 7px;
+    }
+
     .results-container {
         padding: 10px;
     }
@@ -309,7 +338,7 @@
     </div>
     
     <div class="copy-hint" id="copy-hint" style="display: none;">
-        Click any word to copy it to clipboard
+        Click a word to copy it · Use “Define ↗” to look it up
     </div>
 
     <br>
@@ -522,6 +551,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="word-result" data-word="${word}">
                     <span class="word-text">${word.toUpperCase()}</span>
                     <span class="word-length">${word.length} letters</span>
+                    <a class="define-link"
+                       href="https://www.merriam-webster.com/dictionary/${word.toLowerCase()}"
+                       target="_blank" rel="noopener noreferrer"
+                       title="View definition"
+                       aria-label="View definition of ${word.toUpperCase()}"
+                       onclick="event.stopPropagation()">Define ↗</a>
                     <div class="copy-feedback">Copied!</div>
                 </div>
             `;
