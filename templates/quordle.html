@@ -17,6 +17,62 @@
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Quordle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Quordle is a word puzzle where you solve four Wordle-style puzzles at the same time. Every guess you type is applied to all four grids, and you have nine total guesses to crack all four secret 5-letter words."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this Quordle solver free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I use this Quordle solver?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type a word or click a suggestion to fill the row across all four puzzles, then click each letter box to set its color for that puzzle: gray for not in the word, yellow for wrong position, green for correct position. The solver updates its suggestions after each change."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does this work for Sequence mode?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time rather than all at once. This solver works for both Quordle and Sequence: enter what you know and follow the suggestions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does \"Best Words for All Puzzles\" mean?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "These are guesses chosen to gather the most information across all four unsolved puzzles at once. Use them early on, then switch to the per-puzzle suggestions once you have a strong lead on an individual puzzle."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial solver for the Quordle and Sequence games, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by the makers of Quordle."
+      }
+    }
+  ]
+}
+</script>
 <style>
 .puzzles-container {
     display: grid;
@@ -637,6 +693,35 @@
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
         </div>
     </div>
+    <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+      <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+      <div style="border-top: 1px solid #e9ecef;">
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Quordle?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Quordle is a word puzzle where you solve four Wordle-style puzzles at the same time. Every guess you type is applied to all four grids, and you have nine total guesses to crack all four secret 5-letter words.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Quordle solver free to use?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I use this Quordle solver?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type a word or click a suggestion to fill the row across all four puzzles, then click each letter box to set its color for that puzzle: gray for not in the word, yellow for wrong position, green for correct position. The solver updates its suggestions after each change.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does this work for Sequence mode?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time rather than all at once. This solver works for both Quordle and Sequence: enter what you know and follow the suggestions.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What does "Best Words for All Puzzles" mean?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">These are guesses chosen to gather the most information across all four unsolved puzzles at once. Use them early on, then switch to the per-puzzle suggestions once you have a strong lead on an individual puzzle.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Quordle and Sequence games, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by the makers of Quordle.</p>
+        </div>
+      </div>
+    </section>
     <br>
     <br>
     <br>

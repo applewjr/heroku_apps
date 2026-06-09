@@ -17,6 +17,62 @@
 {% if schema_data %}
 <script type="application/ld+json">{{ schema_data | tojson }}</script>
 {% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Antiwordle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Antiwordle is a reverse word game. Unlike Wordle, the goal is to avoid guessing the secret 5-letter word for as long as possible. Once a letter is revealed, you are forced to keep using it in later guesses, so each turn becomes harder."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this Antiwordle solver free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I use this Antiwordle solver?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Click a suggested word to fill the row, then click each letter box to cycle its color to match what Antiwordle showed you: gray for not in the word, yellow for in the word but wrong position, red for correct position. The solver updates its suggestions after each row."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is Antiwordle different from Wordle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "In Wordle you try to find the answer as fast as possible. In Antiwordle you try to delay finding it. Revealed letters become mandatory: red letters must stay in place and yellow letters must be reused, so the pool of safe guesses shrinks every turn. The solver suggests words that satisfy these constraints while putting off the solution as long as possible."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do the colors mean?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Gray means the letter is not in the word. Yellow means the letter is in the word but in the wrong position. Red means the letter is in the correct position. In Antiwordle, yellow and red letters are locked in and must be reused on the following guesses."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial solver for the Antiwordle game, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by the makers of Antiwordle."
+      }
+    }
+  ]
+}
+</script>
     <style>
     #wordle-grid .wordle-row {
         display: flex;
@@ -411,6 +467,35 @@
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
         </div>
     </div>
+    <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+      <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+      <div style="border-top: 1px solid #e9ecef;">
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Antiwordle?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Antiwordle is a reverse word game. Unlike Wordle, the goal is to avoid guessing the secret 5-letter word for as long as possible. Once a letter is revealed, you are forced to keep using it in later guesses, so each turn becomes harder.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Antiwordle solver free to use?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, completely free. No account, no sign-up, and no download required. Enter your guess results and get the best next word instantly.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I use this Antiwordle solver?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Click a suggested word to fill the row, then click each letter box to cycle its color to match what Antiwordle showed you: gray for not in the word, yellow for in the word but wrong position, red for correct position. The solver updates its suggestions after each row.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How is Antiwordle different from Wordle?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">In Wordle you try to find the answer as fast as possible. In Antiwordle you try to delay finding it. Revealed letters become mandatory: red letters must stay in place and yellow letters must be reused, so the pool of safe guesses shrinks every turn. The solver suggests words that satisfy these constraints while putting off the solution as long as possible.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What do the colors mean?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Gray means the letter is not in the word. Yellow means the letter is in the word but in the wrong position. Red means the letter is in the correct position. In Antiwordle, yellow and red letters are locked in and must be reused on the following guesses.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Antiwordle game, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by the makers of Antiwordle.</p>
+        </div>
+      </div>
+    </section>
     <br>
     <br>
     <br>
