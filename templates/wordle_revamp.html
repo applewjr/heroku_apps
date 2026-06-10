@@ -4,7 +4,7 @@
 
 {% block meta %}
 <meta name="description" content="Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.">
-<link rel="canonical" href="https://jamesapplewhite.com/wordle">
+<link rel="canonical" href="https://www.jamesapplewhite.com/wordle">
 <meta name="keywords" content="wordle, wordle solver, wordle help, wordle strategy, nyt wordle solver, word game solver, wordle hints">
 <meta property="og:title" content="Wordle Solver - Beat Daily Wordle Puzzle Instantly">
 <meta property="og:description" content="Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle instantly.">
@@ -52,6 +52,14 @@
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "The solver achieves a 97% solve rate across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What strategy does the solver use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an eliminator word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick."
       }
     },
     {
@@ -273,17 +281,18 @@
 }
 #recommendations.loading {
     opacity: 0.5;
+    pointer-events: none;
 }
 #recommendations-status {
-    display: none;
     margin: 6px auto 0;
     font-size: 12px;
     color: #888;
     letter-spacing: 0.3px;
     text-align: center;
+    visibility: hidden;
 }
 #recommendations-status.visible {
-    display: block;
+    visibility: visible;
 }
 .options-remaining {
     display: block;
@@ -375,6 +384,9 @@
         </div>
         <div class="instructions-body">
             Click a suggestion to fill the row, then click each box to set its color based on your Wordle results. You can also type letters manually.
+            <div style="margin-top: 12px; font-size: 13px; color: #555;">
+                <strong>Recommendation:</strong> When an Alt Pick row is shown, use <strong>Alt Pick 1</strong>. Otherwise, use <strong>Pick 1</strong>.
+            </div>
             <div class="color-legend">
                 <div class="legend-item">
                     <div class="legend-box color-1"></div>
@@ -388,12 +400,6 @@
                     <div class="legend-box color-3"></div>
                     <span>Green: Correct position</span>
                 </div>
-            </div>
-            <div style="margin-top: 12px; font-size: 13px; color: #555;">
-                <strong>Alt Picks:</strong> When the top suggestions differ by only 1-2 letters (e.g. BOOKY / GOOKY / GOOFY), an Alt Picks row appears automatically. These are words that test multiple uncertain letters in a single guess, helping you narrow down the answer faster instead of guessing similar words one by one.
-            </div>
-            <div style="margin-top: 12px; font-size: 13px; color: #555;">
-                <strong>Strategy (97% solve rate):</strong> The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an <em>eliminator</em> word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick.
             </div>
         </div>
     </div>
@@ -454,6 +460,10 @@
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the solve rate?</p>
           <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver achieves a <strong>97% solve rate</strong> across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What strategy does the solver use?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an <em>eliminator</em> word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What are Alt Picks?</p>

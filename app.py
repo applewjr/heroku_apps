@@ -1065,7 +1065,7 @@ def run_wordiply():
         data = request.get_json()
         search_string = data.get('search_string', '')
         
-        results = all_words.wordiply_solver(search_string, words, 15) 
+        results = all_words.wordiply_solver(search_string, words, 90)
        
         return jsonify(results=results)    
     else:
@@ -1482,17 +1482,23 @@ def mtg_prices():
 
     df = df[df['tcgplayer_id'].notnull()]
     df = df[df['1wk_diff'].notnull()]
-    df = df[['name', 'set_name', 'set_type', 'released_at', 'today_price', '1wk_diff', '2wk_diff', '4wk_diff', 'tcgplayer_id']]
-    df.columns = ['Card Name', 'Set Name', 'Set Type', 'Release Date', 'Current Price', '1 Week Change', '2 Week Change', '4 Week Change', 'TCG Link']
-    df['TCG Link'] = df['TCG Link'].apply(lambda x: f'<a href="{x}" target="_blank" style="color:blue; text-decoration:underline;">Link</a>')
+    df = df[['name', 'set_name', 'set_type', 'released_at', 'today_price',
+             '1wk_ago_price', '1wk_diff', '2wk_ago_price', '2wk_diff',
+             '4wk_ago_price', '4wk_diff', 'tcgplayer_id']].copy()
+    df.columns = ['name', 'set_name', 'set_type', 'released_at', 'today_price',
+                  'p1wk', 'd1wk', 'p2wk', 'd2wk', 'p4wk', 'd4wk', 'tcg_url']
 
-    df_increase = df.sort_values(by='1 Week Change', ascending=False).head(10).copy()
-    df_increase = df_increase.reset_index(drop=True)
+    # Round the numeric columns for display
+    for col in ['today_price', 'p1wk', 'd1wk', 'p2wk', 'd2wk', 'p4wk', 'd4wk']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
 
-    df_decrease = df.sort_values(by='1 Week Change', ascending=True).head(10).copy()
-    df_decrease = df_decrease.reset_index(drop=True)
+    df = df.sort_values(by='d1wk', ascending=False).reset_index(drop=True)
 
-    return render_template('mtg_prices.html', tables_increase=[df_increase.to_html(escape=False)], tables_decrease=[df_decrease.to_html(escape=False)], titles=df.columns.values, today_price_date_str=today_price_date_str)
+    # Replace NaN with None so the JSON payload is valid (NaN is not valid JSON).
+    # astype(object) first, otherwise None is coerced back to NaN in float columns.
+    mtg_data = df.astype(object).where(pd.notnull(df), None).to_dict(orient='records')
+
+    return render_template('mtg_prices.html', mtg_data=mtg_data, today_price_date_str=today_price_date_str)
 
 
 ######################################
@@ -1653,7 +1659,7 @@ def sitemap():
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in pages:
-        xml.append(f'  <url><loc>https://jamesapplewhite.com{page}</loc></url>')
+        xml.append(f'  <url><loc>https://www.jamesapplewhite.com{page}</loc></url>')
     xml.append('</urlset>')
     return '\n'.join(xml), 200, {'Content-Type': 'application/xml'}
 

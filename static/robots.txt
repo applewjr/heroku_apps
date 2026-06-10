@@ -38,4 +38,4 @@ Disallow: /
 User-agent: PerplexityBot
 Disallow: /
 
-Sitemap: https://jamesapplewhite.com/sitemap.xml
+Sitemap: https://www.jamesapplewhite.com/sitemap.xml

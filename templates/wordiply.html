@@ -4,7 +4,7 @@
 
 {% block meta %}
 <meta name="description" content="Free Wordiply solver - instantly find the longest words containing your letter sequence. Type any letters and get ranked results in milliseconds. No signup needed.">
-<link rel="canonical" href="https://jamesapplewhite.com/wordiply">
+<link rel="canonical" href="https://www.jamesapplewhite.com/wordiply">
 <meta name="keywords" content="wordiply solver, wordiply answer today, wordiply help, wordiply cheat, longest word finder, wordiply hints, word game solver">
 <meta property="og:title" content="Wordiply Solver - Find the Longest Words Instantly">
 <meta property="og:description" content="Free Wordiply solver - type your letters and instantly see the longest words for today's puzzle. No signup, no ads blocking your results.">
@@ -89,13 +89,39 @@
 
 .instructions {
     background-color: #f8f9fa;
-    padding: 20px;
     border-radius: 8px;
     margin: 20px auto;
     max-width: 600px;
-    font-size: 15px;
+    font-size: 14px;
     border: 1px solid #e9ecef;
+    overflow: hidden;
     line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover {
+    background-color: #e9ecef;
+}
+.instructions-toggle-icon {
+    font-size: 11px;
+    color: #888;
+    transition: transform 0.2s ease;
+}
+.instructions-body {
+    padding: 0 15px 15px 15px;
+    text-align: left;
+}
+.instructions.collapsed .instructions-body {
+    display: none;
+}
+.instructions.collapsed .instructions-toggle-icon {
+    transform: rotate(-90deg);
 }
 
 .results-container {
@@ -156,6 +182,30 @@
     flex-shrink: 0;
 }
 
+.define-link {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 4px 10px;
+    border: 1px solid #cdd8d7;
+    border-radius: 4px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.define-link:hover {
+    background-color: #02484d;
+    color: #fff;
+    border-color: #02484d;
+}
+.word-result.copied .define-link {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.7);
+    background-color: transparent;
+}
+
 .copy-feedback {
     position: absolute;
     right: 50%;
@@ -174,6 +224,23 @@
 
 .copy-feedback.show {
     opacity: 1;
+}
+
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.show-more-btn:hover {
+    background-color: #03595f;
 }
 
 .copy-hint {
@@ -236,7 +303,12 @@
         font-size: 12px;
         padding: 3px 8px;
     }
-    
+
+    .define-link {
+        font-size: 11px;
+        padding: 3px 7px;
+    }
+
     .results-container {
         padding: 10px;
     }
@@ -257,10 +329,16 @@
     <br>
     <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Wordiply Solver & Word Finder</h1>
     
-    <div class="instructions">
-        <strong>How to use:</strong> Enter the letters that must appear in the word. The solver will instantly find the longest words containing those letters.
-        <br><br>
-        <strong>Wordiply Rules:</strong> Find the longest word that contains the given letter sequence. The letters must appear together in the exact order shown.
+    <div class="instructions" id="instructions-panel">
+        <div class="instructions-header" id="instructions-toggle">
+            <strong>How to use</strong>
+            <span class="instructions-toggle-icon">&#9660;</span>
+        </div>
+        <div class="instructions-body">
+            Enter the letters that must appear in the word. The solver will instantly find the longest words containing those letters.
+            <br><br>
+            <strong>Wordiply Rules:</strong> Find the longest word that contains the given letter sequence. The letters must appear together in the exact order shown.
+        </div>
     </div>
 
     <form id="wordiply-form">
@@ -277,7 +355,7 @@
     </div>
     
     <div class="copy-hint" id="copy-hint" style="display: none;">
-        Click any word to copy it to clipboard
+        Click a word to copy it · Use “Define ↗” to look it up
     </div>
 
     <br>
@@ -318,26 +396,6 @@
             font-size: 14px;
             transition: all 0.2s ease;
         " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Clear</a>
-    </div>
-
-    <div style="max-width: 600px; margin: 30px auto; text-align: left;">
-        <h2 style="font-size: 1.1rem; color: #333; margin-bottom: 12px; text-align: center;">Wordiply FAQ</h2>
-        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
-            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">What is Wordiply?</summary>
-            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Wordiply is a daily word game where the goal is to find the longest word that contains a given sequence of letters. The letters must appear together in the exact order shown, anywhere within the word.</p>
-        </details>
-        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
-            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">How does this solver work?</summary>
-            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Type the letter sequence from your Wordiply puzzle into the box above. The solver instantly searches a large dictionary and returns the longest words containing those letters in order, ranked from longest to shortest.</p>
-        </details>
-        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
-            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">What's the best Wordiply strategy?</summary>
-            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Look for common prefixes and suffixes around the required letters. Prefixes like UN-, RE-, PRE-, OVER- and suffixes like -ING, -TION, -NESS, -LESS, and -MENT can significantly extend your word length.</p>
-        </details>
-        <details style="border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; background: #f8f9fa;">
-            <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #333;">Is this solver free?</summary>
-            <p style="margin: 10px 0 0; font-size: 13px; color: #555; line-height: 1.6;">Yes - completely free, no signup required.</p>
-        </details>
     </div>
 
     <div style="margin-top: 20px;">
@@ -411,6 +469,31 @@
             " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
         </div>
     </div>
+    <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+      <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+      <div style="border-top: 1px solid #e9ecef;">
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Wordiply?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Wordiply is a daily word game where the goal is to find the longest word that contains a given sequence of letters. The letters must appear together in the exact order shown, anywhere within the word.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Wordiply solver work?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the letter sequence from your Wordiply puzzle into the input box. The solver instantly searches a large dictionary and returns the longest words that contain those letters in order, ranked from longest to shortest.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Wordiply solver free?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, this Wordiply solver is completely free to use with no signup or account required.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the best strategy for Wordiply?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The best Wordiply strategy is to look for common prefixes and suffixes around the required letters. Prefixes like UN-, RE-, PRE-, OVER- and suffixes like -ING, -TION, -NESS, -LESS, and -MENT can significantly extend the length of your word.</p>
+        </div>
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Where can I play Wordiply?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">You can play Wordiply at wordiply.com. A new puzzle is released every day.</p>
+        </div>
+      </div>
+    </section>
     <br>
     <br>
     <br>
@@ -421,6 +504,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input');
     const resultsContainer = document.getElementById('results-container');
     let searchTimeout;
+
+    // Instructions collapse
+    const instructionsPanel = document.getElementById('instructions-panel');
+    const instructionsToggle = document.getElementById('instructions-toggle');
+    if (localStorage.getItem('wordiplyInstructionsCollapsed') === 'true') {
+        instructionsPanel.classList.add('collapsed');
+    }
+    instructionsToggle.addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        localStorage.setItem('wordiplyInstructionsCollapsed', instructionsPanel.classList.contains('collapsed'));
+    });
 
     // Initial display
     if (window.initialResults && window.initialResults.length > 0) {
@@ -461,19 +555,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 300); // 300ms delay
     });
 
+    const WORDS_STEP = 15;
+    let allResults = [];
+    let visibleCount = WORDS_STEP;
+
     function displayResults(results) {
-        if (!results || results.length === 0) {
+        allResults = results || [];
+        visibleCount = WORDS_STEP;
+        renderWords();
+    }
+
+    function renderWords() {
+        if (allResults.length === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No words found containing those letters</div>';
             document.getElementById('copy-hint').style.display = 'none';
             return;
         }
 
+        const shown = allResults.slice(0, visibleCount);
         let html = '';
-        results.forEach((word, index) => {
+        shown.forEach((word) => {
             html += `
                 <div class="word-result" data-word="${word}">
                     <span class="word-text">${word.toUpperCase()}</span>
                     <span class="word-length">${word.length} letters</span>
+                    <a class="define-link"
+                       href="https://en.wiktionary.org/wiki/${word.toLowerCase()}"
+                       target="_blank" rel="noopener noreferrer"
+                       title="View definition"
+                       aria-label="View definition of ${word.toUpperCase()}"
+                       onclick="event.stopPropagation()">Define ↗</a>
                     <div class="copy-feedback">Copied!</div>
                 </div>
             `;
@@ -481,13 +592,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsContainer.innerHTML = html;
         document.getElementById('copy-hint').style.display = 'block';
-        
+
         // Add click handlers to each word result
         document.querySelectorAll('.word-result').forEach(element => {
             element.addEventListener('click', function() {
                 copyToClipboard(this);
             });
         });
+
+        // "Show more" button when results remain
+        const remaining = allResults.length - visibleCount;
+        if (remaining > 0) {
+            const more = Math.min(WORDS_STEP, remaining);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'show-more-btn';
+            btn.textContent = `Show ${more} more (${remaining} remaining)`;
+            btn.addEventListener('click', () => {
+                visibleCount += WORDS_STEP;
+                renderWords();
+            });
+            resultsContainer.appendChild(btn);
+        }
     }
     
     function copyToClipboard(element) {
