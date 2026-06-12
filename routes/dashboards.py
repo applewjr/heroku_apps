@@ -1,0 +1,119 @@
+"""Data dashboards: YouTube trending, ETL status, MTG prices."""
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from flask import Blueprint, redirect, render_template, url_for
+
+import config
+from data import etl_dash_queries
+from extensions import auth, cache, db_cursor
+from functions import plot_viz
+
+bp = Blueprint('dashboards', __name__)
+
+
+@bp.route("/youtube_trending", methods=["POST", "GET"])
+def youtube_trending():
+
+    with db_cursor() as (conn, cursor):
+        cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+
+        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_today;""")
+        top_10_today = pd.DataFrame(cursor.fetchall(), columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
+
+        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_title;""")
+        top_10_title = pd.DataFrame(cursor.fetchall(), columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
+
+        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_channel;""")
+        top_10_channel = pd.DataFrame(cursor.fetchall(), columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
+
+        cursor.execute("""SELECT * FROM vw_prod_youtube_top_categories;""")
+        top_categories = pd.DataFrame(cursor.fetchall(), columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
+
+    yt_video_scatter = plot_viz.yt_video_scatter()
+    temp_yt_video_scatter = 'static/yt_video_scatter.png'
+    yt_video_scatter.savefig(temp_yt_video_scatter)
+    plt.close(yt_video_scatter)
+
+    yt_chnl_scatter = plot_viz.yt_chnl_scatter()
+    temp_yt_chnl_scatter = 'static/yt_chnl_scatter.png'
+    yt_chnl_scatter.savefig(temp_yt_chnl_scatter)
+    plt.close(yt_chnl_scatter)
+
+    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot()
+    temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
+    yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
+    plt.close(yt_stacked_bar_plot)
+
+    return render_template("youtube_trending.html", top_10_today=top_10_today, \
+        top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
+        yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
+        )
+
+
+def get_valid_rounds():
+    rounds = {details.get('round') for _, details in etl_dash_queries.items() if 'round' in details}
+    return rounds
+
+
+@bp.route("/etl_dash")
+def etl_dash_redirect():
+    return redirect(url_for('dashboards.etl_status_dash', round=1))
+
+
+@bp.route("/etl_dash/<int:round>", methods=["POST", "GET"])
+@auth.login_required
+def etl_status_dash(round):
+
+    valid_rounds = get_valid_rounds()
+
+    if round not in valid_rounds:
+        return f"Invalid round parameter. Return only: {valid_rounds}", 400
+
+    with db_cursor() as (conn, cursor):
+        query_dict = {}
+        for name, details in etl_dash_queries.items():
+            if details.get('round') == round:
+                try:
+                    cursor.execute(details['query'])
+                    result = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    query_df = pd.DataFrame(result, columns=columns)
+
+                    # Here we add the description to the dictionary entry for this name
+                    query_dict[name] = {
+                        'description': details['description'],
+                        'data': query_df
+                    }
+                except Exception as e:
+                    print(f'{name} not run due to error: {e}')
+
+        return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
+
+
+@bp.route("/mtg", methods=["POST", "GET"])
+@cache.cached()  # Cache the entire view for the default timeout
+def mtg_prices():
+    df = pd.read_csv(config.MTG_PATH)
+
+    today_price_date_str = df['today_price_date'].head(1).values[0]
+
+    df = df[df['tcgplayer_id'].notnull()]
+    df = df[df['1wk_diff'].notnull()]
+    df = df[['name', 'set_name', 'set_type', 'released_at', 'today_price',
+             '1wk_ago_price', '1wk_diff', '2wk_ago_price', '2wk_diff',
+             '4wk_ago_price', '4wk_diff', 'tcgplayer_id']].copy()
+    df.columns = ['name', 'set_name', 'set_type', 'released_at', 'today_price',
+                  'p1wk', 'd1wk', 'p2wk', 'd2wk', 'p4wk', 'd4wk', 'tcg_url']
+
+    # Round the numeric columns for display
+    for col in ['today_price', 'p1wk', 'd1wk', 'p2wk', 'd2wk', 'p4wk', 'd4wk']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
+
+    df = df.sort_values(by='d1wk', ascending=False).reset_index(drop=True)
+
+    # Replace NaN with None so the JSON payload is valid (NaN is not valid JSON).
+    # astype(object) first, otherwise None is coerced back to NaN in float columns.
+    mtg_data = df.astype(object).where(pd.notnull(df), None).to_dict(orient='records')
+
+    return render_template('mtg_prices.html', mtg_data=mtg_data, today_price_date_str=today_price_date_str)
