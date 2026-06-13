@@ -1,0 +1,46 @@
+name: CI
+
+# Run the test suite on every push to any branch (feature branches included),
+# so you get a green/red signal right after `git push`, before you deploy.
+on:
+  push:
+  workflow_dispatch:   # manual "Run" button
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # The app pings Redis when it is imported, so give it a real one to talk to.
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # secret_pass.py does not exist in CI; config.py falls back to these.
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      SESSION_KEY: ci-test-session-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest

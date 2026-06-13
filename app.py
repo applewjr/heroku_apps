@@ -84,13 +84,3 @@ def handle_exception(e):
 
 if __name__ == "__main__":
     app.run(debug=True, load_dotenv=False)
-
-
-# venv
-
-# env\Scripts\activate
-
-# Install dependencies (from requirements.txt)
-# pip install -r requirements.txt
-
-# pip freeze > requirements.txt
