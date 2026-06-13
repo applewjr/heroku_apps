@@ -38,6 +38,11 @@ def connect4tilt_game():
     return render_template("tilt_connect4.html")
 
 
+@bp.route("/tessera")
+def tessera_game():
+    return render_template("tessera.html")
+
+
 @bp.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
@@ -83,7 +88,7 @@ def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/any_word', '/feedback', '/privacy-policy',
-        '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4',
+        '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4', '/tessera',
     ]
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
