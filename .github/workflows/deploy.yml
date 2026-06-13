@@ -1,0 +1,92 @@
+name: Deploy
+
+# Manual, gated deploy. You trigger it from the Actions tab -> Deploy ->
+# "Run workflow", pick the branch (top dropdown) and the environment. The tests
+# run first; the deploy job only runs if they pass (see `needs: test` below).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Where to deploy"
+        type: choice
+        options:
+          - staging
+          - prod
+        default: staging
+
+jobs:
+  # ---- Gate: this mirrors ci.yml. If it fails, deploy never starts. ----
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      SESSION_KEY: ci-test-session-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest
+
+  # ---- Deploy: only reachable when `test` is green. ----
+  deploy:
+    needs: test                              # <-- the gate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # lets you add a prod approval later
+    env:
+      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # Heroku rejects shallow pushes; need full history
+
+      - name: Choose Heroku app
+        id: app
+        run: |
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo "name=apple-apps" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=apple-apps-staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push to Heroku
+        run: |
+          git push --force \
+            "https://heroku:${HEROKU_API_KEY}@git.heroku.com/${{ steps.app.outputs.name }}.git" \
+            HEAD:refs/heads/main
+
+      # Staging is normally scaled to 0; bring its web dyno up so you can test it.
+      # (Prod is left untouched.)
+      - name: Start staging web dyno
+        if: ${{ inputs.environment == 'staging' }}
+        run: |
+          curl -sS -X PATCH "https://api.heroku.com/apps/apple-apps-staging/formation/web" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Authorization: Bearer ${HEROKU_API_KEY}" \
+            -d '{"quantity": 1}'

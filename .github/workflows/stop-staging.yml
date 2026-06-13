@@ -1,0 +1,21 @@
+name: Stop staging
+
+# One-click spin-down for the ephemeral staging app. Run this from the Actions
+# tab when you're done testing a deploy on staging, to scale its web dyno back
+# to 0 (so it stops running / billing).
+on:
+  workflow_dispatch:
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    env:
+      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+    steps:
+      - name: Scale staging web dyno to 0
+        run: |
+          curl -sS -X PATCH "https://api.heroku.com/apps/apple-apps-staging/formation/web" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/vnd.heroku+json; version=3" \
+            -H "Authorization: Bearer ${HEROKU_API_KEY}" \
+            -d '{"quantity": 0}'
