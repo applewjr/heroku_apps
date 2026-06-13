@@ -482,13 +482,24 @@
     }
 
     function scramble() {
-        let guard = 0;
-        do {
+        // Every spin is reversible, so any scramble is solvable. Try a handful and keep
+        // the one that leaves the fewest hexagons already mended at the start.
+        const solved = tiles.map(t => t.colors.slice());
+        let bestColors = null, bestScore = Infinity;
+        for (let attempt = 0; attempt < 80; attempt++) {
+            tiles.forEach((t, i) => { t.colors = solved[i].slice(); });
             for (let i = 0; i < SCRAMBLE; i++) {
                 const t = tiles[Math.floor(Math.random() * tiles.length)];
                 rotateColors(t, Math.random() < 0.5 ? 1 : -1);
             }
-        } while (isSolved() && emergent.length && guard++ < 8);
+            const score = completedCount();
+            if (score < bestScore) {
+                bestScore = score;
+                bestColors = tiles.map(t => t.colors.slice());
+                if (bestScore === 0) break;
+            }
+        }
+        tiles.forEach((t, i) => { t.colors = bestColors[i].slice(); });
     }
 
     // ---- win logic ----
@@ -775,6 +786,22 @@
             localStorage.setItem('kintsugiBest', JSON.stringify(best));
         }
     }
+    function loadPrefs() {
+        try {
+            const p = JSON.parse(localStorage.getItem('kintsugiPrefs') || '{}');
+            hard = p.hard === true;
+            N = p.N === 3 ? 3 : 2;
+        } catch (e) { /* keep defaults */ }
+    }
+    function savePrefs() {
+        localStorage.setItem('kintsugiPrefs', JSON.stringify({ hard, N }));
+    }
+    function syncControls() {
+        const mb = document.getElementById("modeBtn");
+        mb.textContent = hard ? "Mode: Teal (hard)" : "Mode: Colors";
+        mb.classList.toggle("active", hard);
+        document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : "Large"}`;
+    }
     function updateStats() {
         document.getElementById("moveCount").textContent = `Spins: ${moves}`;
         document.getElementById("progress").textContent = `Hexagons: ${completedCount()}/${emergent.length}`;
@@ -798,15 +825,15 @@
 
     function toggleSize() {
         N = N === 2 ? 3 : 2;
-        document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : "Large"}`;
+        savePrefs();
+        syncControls();
         newPuzzle();
     }
 
     function toggleMode() {
         hard = !hard;
-        const btn = document.getElementById("modeBtn");
-        btn.textContent = hard ? "Mode: Teal (hard)" : "Mode: Colors";
-        btn.classList.toggle("active", hard);
+        savePrefs();
+        syncControls();
         newPuzzle();
     }
 
@@ -826,7 +853,9 @@
 
     // ---- init ----
     function init() {
+        loadPrefs();
         loadBest();
+        syncControls();
         buildBoard();
         resizeCanvas();
         draw(performance.now());
