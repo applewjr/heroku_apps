@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Tessera - Hexagon Color Spinning Puzzle{% endblock %}
+{% block title %}Kintsugi - Hexagon Puzzle Mended in Gold{% endblock %}
 
 {% block meta %}
-    <meta name="description" content="Tessera is a hexagon color puzzle. Spin the tiles so the black, white, and red wedges line up into complete color hexagons. Small and large boards.">
-    <link rel="canonical" href="https://www.jamesapplewhite.com/tessera">
-    <meta property="og:title" content="Tessera - Hexagon Color Spinning Puzzle">
-    <meta property="og:description" content="Spin hexagon tiles until the colors form complete hexagons. A relaxing rotation puzzle.">
-    <meta property="og:url" content="https://jamesapplewhite.com/tessera">
+    <meta name="description" content="Kintsugi is a hexagon spinning puzzle. Spin the tiles so the colors join into hexagons - each match mends the cracks with gold, like the Japanese art of golden repair. Includes a colorless teal hard mode.">
+    <link rel="canonical" href="https://www.jamesapplewhite.com/kintsugi">
+    <meta property="og:title" content="Kintsugi - Hexagon Puzzle Mended in Gold">
+    <meta property="og:description" content="Spin hexagon tiles until the colors join. Each completed hexagon is mended with gold, like kintsugi.">
+    <meta property="og:url" content="https://jamesapplewhite.com/kintsugi">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="JJ Apps">
 {% endblock %}
@@ -243,7 +243,7 @@
 
 <div class="hex-page-wrapper">
     <div class="container">
-        <h1>Tessera</h1>
+        <h1>Kintsugi</h1>
 
         <div class="instructions" id="instructions">
             <div class="instructions-header" id="instructions-toggle">
@@ -251,16 +251,18 @@
                 <span class="instructions-chevron">▼</span>
             </div>
             <div class="instructions-body">
-                <p style="margin:0 0 4px;">Click a hexagon to spin its three colored wedges.</p>
-                <p style="margin:0;">Where tiles meet, the wedges join into new hexagons. Spin the tiles until every
-                joined hexagon is a single solid color.</p>
+                <p style="margin:0 0 4px;">Click a hexagon to spin its three wedges. Where tiles meet, the wedges
+                join into new hexagons.</p>
+                <p style="margin:0;">When a hexagon's colors all match, its cracks are mended with gold &mdash; the art
+                of <em>kintsugi</em>. Mend every hexagon to restore the piece.</p>
                 <div class="mode-legend" id="mode-legend">
                     <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
                     <div class="legend-item"><div class="legend-circle legend-black"></div><span>Black</span></div>
                     <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
                 </div>
-                <p style="margin:0; color:#6b7280; font-size:13px;">Right-click (on desktop) spins the other way.
-                Every puzzle is guaranteed solvable.</p>
+                <p style="margin:0; color:#6b7280; font-size:13px;"><strong style="display:inline;font-size:inherit;color:#374151">Hard mode</strong>
+                hides the colors: every tile is teal, and the spreading gold seams are your only clue. Right-click
+                (desktop) spins the other way. Every puzzle is guaranteed solvable.</p>
             </div>
         </div>
 
@@ -268,6 +270,7 @@
             <canvas id="gameCanvas" width="460" height="460"></canvas>
 
             <div class="game-controls">
+                <button id="modeBtn" class="hex-btn">Mode: Colors</button>
                 <button id="sizeBtn" class="hex-btn">Size: Small</button>
                 <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
             </div>
@@ -290,6 +293,9 @@
     const PALETTE = [WHITE, BLACK, RED];
     const OUTLINE = "#2c2d33";
     const SPOKE   = "rgba(50,50,55,0.22)";
+    const GOLD      = "#d4af37";   // kintsugi gold for mended cracks
+    const GOLD_GLOW = "rgba(212,175,55,0.30)";
+    const HARD_BASE = "#46807f";   // hard mode: teal tile (colors hidden)
 
     const TARGET_W = 440;     // desired logical canvas width (px)
     const SCRAMBLE = 100;     // random spins from a solved board
@@ -301,6 +307,7 @@
     const ctx = canvas.getContext("2d");
 
     // ---- game state ----
+    let hard = false;         // hard mode: hide colors, show teal + gold healing only
     let N = 2;                // hex board radius (Small = 2, Large = 3)
     let HEX_RADIUS = 48;
     let CW = 460, CH = 460;   // logical canvas size
@@ -531,6 +538,29 @@
         ctx.closePath();
     }
 
+    // Mend the cracks of a completed hexagon with gold. The three cracks are the
+    // shared tile edges radiating from the vertex out to its colour-1 corners.
+    function drawHeal(v) {
+        const C = tiles[v.tiles[0].ti].center;
+        const phi = Math.atan2(C.y - v.y, C.x - v.x);
+        const R = HEX_RADIUS;
+        ctx.save();
+        ctx.lineCap = "round";
+        for (let j = 0; j < 3; j++) {
+            const a = phi + Math.PI / 3 + j * (2 * Math.PI / 3);
+            const x = v.x + R * Math.cos(a), y = v.y + R * Math.sin(a);
+            ctx.strokeStyle = GOLD_GLOW;
+            ctx.lineWidth = 2 * GAP + 3;
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(x, y); ctx.stroke();
+            ctx.strokeStyle = GOLD;
+            ctx.lineWidth = GAP + 1.3;
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(x, y); ctx.stroke();
+        }
+        ctx.fillStyle = GOLD;
+        ctx.beginPath(); ctx.arc(v.x, v.y, GAP + 0.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
     function drawTile(t, now) {
         ctx.save();
         if (t.anim) {
@@ -542,10 +572,10 @@
             ctx.translate(-t.cx, -t.cy);
         }
         const cor = t.inner;
-        for (let i = 0; i < 6; i++) fillTri(t.center, cor[i], cor[(i + 1) % 6], t.colors[i]);
+        for (let i = 0; i < 6; i++) fillTri(t.center, cor[i], cor[(i + 1) % 6], hard ? HARD_BASE : t.colors[i]);
 
-        // seams between the three rhombus wedges (kept subtle)
-        ctx.strokeStyle = SPOKE;
+        // seams between the three rhombus wedges (thin black in hard mode for definition)
+        ctx.strokeStyle = hard ? "rgba(18,20,22,0.65)" : SPOKE;
         ctx.lineWidth = 1;
         for (let k = 0; k < 6; k++) {
             if (vColor(t, k) === 1) {
@@ -572,6 +602,11 @@
         ctx.clearRect(0, 0, CW, CH);
 
         tiles.forEach(t => drawTile(t, now));
+
+        // healed hexagons: mend the cracks with gold (the only "fixed" signal in both modes)
+        emergent.forEach(v => {
+            if (isHexComplete(v)) drawHeal(v);
+        });
 
         // momentary flash when three wedges just joined into a complete hexagon
         if (!winAnim) {
@@ -729,15 +764,15 @@
     }
 
     // ---- stats / persistence ----
-    function bestKey() { return `n${N}`; }
+    function bestKey() { return `${hard ? 'h' : 'n'}${N}`; }
     function loadBest() {
-        try { best = JSON.parse(localStorage.getItem('tesseraBest') || '{}'); } catch (e) { best = {}; }
+        try { best = JSON.parse(localStorage.getItem('kintsugiBest') || '{}'); } catch (e) { best = {}; }
     }
     function saveBest() {
         const k = bestKey();
         if (best[k] === undefined || moves < best[k]) {
             best[k] = moves;
-            localStorage.setItem('tesseraBest', JSON.stringify(best));
+            localStorage.setItem('kintsugiBest', JSON.stringify(best));
         }
     }
     function updateStats() {
@@ -764,6 +799,14 @@
     function toggleSize() {
         N = N === 2 ? 3 : 2;
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : "Large"}`;
+        newPuzzle();
+    }
+
+    function toggleMode() {
+        hard = !hard;
+        const btn = document.getElementById("modeBtn");
+        btn.textContent = hard ? "Mode: Teal (hard)" : "Mode: Colors";
+        btn.classList.toggle("active", hard);
         newPuzzle();
     }
 
@@ -805,15 +848,16 @@
         canvas.addEventListener("mouseleave", () => { if (hovered !== -1) { hovered = -1; if (!looping) draw(performance.now()); } });
         window.addEventListener("resize", () => { resizeCanvas(); if (!looping) draw(performance.now()); });
 
+        document.getElementById("modeBtn").addEventListener("click", toggleMode);
         document.getElementById("sizeBtn").addEventListener("click", toggleSize);
         document.getElementById("restartButton").addEventListener("click", newPuzzle);
 
         // collapsible instructions
         const insEl = document.getElementById('instructions');
-        if (localStorage.getItem('tesseraInstructionsCollapsed') === '1') insEl.classList.add('collapsed');
+        if (localStorage.getItem('kintsugiInstructionsCollapsed') === '1') insEl.classList.add('collapsed');
         document.getElementById('instructions-toggle').addEventListener('click', () => {
             const collapsed = insEl.classList.toggle('collapsed');
-            localStorage.setItem('tesseraInstructionsCollapsed', collapsed ? '1' : '0');
+            localStorage.setItem('kintsugiInstructionsCollapsed', collapsed ? '1' : '0');
         });
     }
 
