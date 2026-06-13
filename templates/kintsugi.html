@@ -251,8 +251,8 @@
                 <span class="instructions-chevron">▼</span>
             </div>
             <div class="instructions-body">
-                <p style="margin:0 0 4px;">Click a hexagon to spin its three wedges. Where tiles meet, the wedges
-                join into new hexagons.</p>
+                <p style="margin:0 0 4px;">Tap or click a hexagon to spin its three wedges. On a touch screen, hold to
+                preview the tile, then lift to spin. Where tiles meet, the wedges join into new hexagons.</p>
                 <p style="margin:0;">When a hexagon's colors all match, its cracks are mended with gold - the art
                 of <em>kintsugi</em>. Mend every hexagon to restore the piece.</p>
                 <div class="mode-legend" id="mode-legend">
@@ -767,12 +767,44 @@
         };
     }
 
-    function onClick(evt) {
+    // Desktop: the hover highlight already previews the tile, so a click commits at once.
+    function onMouseDown(evt) {
         evt.preventDefault();
-        if (evt.button !== undefined && evt.button !== 0 && !evt.touches) return;
+        if (evt.button !== undefined && evt.button !== 0) return;
         const { x, y } = toLocal(evt);
         const i = tileAt(x, y);
         if (i >= 0) spinTile(i, 1);
+    }
+
+    // Mobile: a fingertip hides the tile under it, so press-and-hold previews the
+    // selected tile (the same highlight as desktop hover) and the spin only fires on
+    // release. Slide before lifting to pick another tile; lift off the board to cancel.
+    function onTouchStart(evt) {
+        evt.preventDefault();
+        if (won) return;
+        const { x, y } = toLocal(evt);
+        hovered = tileAt(x, y);
+        if (!looping) draw(performance.now());
+    }
+
+    function onTouchMove(evt) {
+        evt.preventDefault();
+        if (won) return;
+        const { x, y } = toLocal(evt);
+        const i = tileAt(x, y);
+        if (i !== hovered) { hovered = i; if (!looping) draw(performance.now()); }
+    }
+
+    function onTouchEnd(evt) {
+        evt.preventDefault();
+        const i = hovered;
+        hovered = -1;
+        if (i >= 0) spinTile(i, 1);
+        else if (!looping) draw(performance.now());
+    }
+
+    function onTouchCancel() {
+        if (hovered !== -1) { hovered = -1; if (!looping) draw(performance.now()); }
     }
 
     // ---- stats / persistence ----
@@ -861,8 +893,11 @@
         resizeCanvas();
         draw(performance.now());
 
-        canvas.addEventListener("mousedown", onClick);
-        canvas.addEventListener("touchstart", onClick, { passive: false });
+        canvas.addEventListener("mousedown", onMouseDown);
+        canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+        canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+        canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+        canvas.addEventListener("touchcancel", onTouchCancel, { passive: false });
         canvas.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             const { x, y } = toLocal(e);
