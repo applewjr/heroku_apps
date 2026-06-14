@@ -169,12 +169,6 @@
             transform: translateY(1px);
         }
 
-        .hex-btn.active {
-            background-color: #02484d;
-            border-color: #02484d;
-            color: #ffffff;
-        }
-
         .game-stats {
             display: flex;
             justify-content: center;
@@ -208,6 +202,83 @@
             margin: 20px 0;
             min-height: 24px;
             color: #02484d;
+        }
+
+        .instructions-section {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid #eef0f2;
+        }
+
+        .instructions-section strong {
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .instructions-section p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .hex-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 23, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .hex-modal-overlay[hidden] { display: none; }
+
+        .hex-modal {
+            background: #ffffff;
+            border-radius: 12px;
+            border-top: 4px solid #d4af37;
+            max-width: 380px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            text-align: center;
+        }
+
+        .hex-modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 10px;
+        }
+
+        .hex-modal-body {
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .hex-modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .hex-modal-actions .hex-btn { min-width: 120px; }
+
+        .hex-btn.hex-btn-primary {
+            background-color: #02484d;
+            border-color: #02484d;
+            color: #ffffff;
+        }
+
+        .hex-btn.hex-btn-primary:hover {
+            background-color: #036b72;
+            border-color: #036b72;
+            color: #ffffff;
         }
 
         @media (max-width: 768px) {
@@ -260,9 +331,21 @@
                     <div class="legend-item"><div class="legend-circle legend-grey"></div><span>Grey</span></div>
                     <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
                 </div>
-                <p style="margin:0; color:#6b7280; font-size:13px;"><strong style="display:inline;font-size:inherit;color:#374151">Hard mode</strong>
-                hides the colors: every tile is teal, and the spreading gold seams are your only clue. Right-click
-                (desktop) spins the other way. Every puzzle is guaranteed solvable.</p>
+                <div class="instructions-section">
+                    <strong>Mode</strong>
+                    <p><b>Colors</b> paints each wedge white, grey, or red - line up all six around a junction to mend
+                    that hexagon. <b>Teal (Hard)</b> hides the colors: every tile is the same teal, so the spreading
+                    gold seams are your only guide. Right-click (desktop) spins a tile the other way.</p>
+                </div>
+                <div class="instructions-section">
+                    <strong>Size</strong>
+                    <p><b>Small</b> is a 19-tile board to learn on, <b>Large</b> grows it to 37 tiles, and <b>Agony</b>
+                    is a 61-tile marathon. Every puzzle is guaranteed solvable.</p>
+                </div>
+                <div class="instructions-section">
+                    <strong>Break</strong>
+                    <p>Press <b>Break</b> for a fresh piece to mend. Changing Mode or Size also breaks a new piece.</p>
+                </div>
             </div>
         </div>
 
@@ -272,7 +355,7 @@
             <div class="game-controls">
                 <button id="modeBtn" class="hex-btn">Mode: Colors</button>
                 <button id="sizeBtn" class="hex-btn">Size: Small</button>
-                <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
+                <button id="restartButton" class="hex-btn">🔨 Break</button>
             </div>
             <div class="game-stats">
                 <div id="moveCount" class="stat-item">Spins: 0</div>
@@ -281,6 +364,17 @@
             </div>
 
             <div id="status"></div>
+        </div>
+    </div>
+</div>
+
+<div class="hex-modal-overlay" id="hexModalOverlay" hidden>
+    <div class="hex-modal" role="dialog" aria-modal="true">
+        <div class="hex-modal-title" id="hexModalTitle"></div>
+        <div class="hex-modal-body" id="hexModalBody"></div>
+        <div class="hex-modal-actions">
+            <button class="hex-btn" id="hexModalCancel">Keep playing</button>
+            <button class="hex-btn hex-btn-primary" id="hexModalConfirm">Break</button>
         </div>
     </div>
 </div>
@@ -974,7 +1068,6 @@
     function syncControls() {
         const mb = document.getElementById("modeBtn");
         mb.textContent = hard ? "Mode: Teal (Hard)" : "Mode: Colors";
-        mb.classList.toggle("active", hard);
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : N === 3 ? "Large" : "Agony"}`;
     }
     function updateStats() {
@@ -985,7 +1078,7 @@
         const status = document.getElementById("status");
         status.textContent = won
             ? (introBoard
-                ? "✨ First piece mended! Press New Puzzle to play for a Best."
+                ? "✨ First piece mended! Press Break to play for a Best."
                 : `🎉 Solved in ${moves} spins!`)
             : "";
     }
@@ -1012,17 +1105,21 @@
     }
 
     function toggleSize() {
-        N = N === 2 ? 3 : N === 3 ? 4 : 2;
-        savePrefs();
-        syncControls();
-        newPuzzle();
+        confirmEndGame(() => {
+            N = N === 2 ? 3 : N === 3 ? 4 : 2;
+            savePrefs();
+            syncControls();
+            newPuzzle();
+        });
     }
 
     function toggleMode() {
-        hard = !hard;
-        savePrefs();
-        syncControls();
-        newPuzzle();
+        confirmEndGame(() => {
+            hard = !hard;
+            savePrefs();
+            syncControls();
+            newPuzzle();
+        });
     }
 
     function resizeCanvas() {
@@ -1037,6 +1134,70 @@
             canvas.style.width = CW + 'px';
             canvas.style.height = CH + 'px';
         }
+    }
+
+    // ---- modal (confirmations + first-time intro) ----
+    const modalOverlay = document.getElementById('hexModalOverlay');
+    const modalTitle = document.getElementById('hexModalTitle');
+    const modalBody = document.getElementById('hexModalBody');
+    const modalConfirm = document.getElementById('hexModalConfirm');
+    const modalCancel = document.getElementById('hexModalCancel');
+    let modalOnConfirm = null;
+
+    function closeModal() {
+        modalOverlay.hidden = true;
+        modalOnConfirm = null;
+    }
+
+    function showModal({ title, body, confirmLabel = 'OK', cancelLabel = null, onConfirm = null }) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = body;
+        modalConfirm.textContent = confirmLabel;
+        modalOnConfirm = onConfirm;
+        if (cancelLabel) {
+            modalCancel.textContent = cancelLabel;
+            modalCancel.style.display = '';
+        } else {
+            modalCancel.style.display = 'none';
+        }
+        modalOverlay.hidden = false;
+    }
+
+    modalConfirm.addEventListener('click', () => {
+        const fn = modalOnConfirm;
+        closeModal();
+        if (fn) fn();
+    });
+    modalCancel.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modalOverlay.hidden) closeModal(); });
+
+    // Mode, Size and Break each break a fresh board, ending any puzzle underway.
+    // Only interrupt a player who would actually lose progress (mid-puzzle, not solved).
+    function confirmEndGame(action) {
+        if (moves > 0 && !won) {
+            showModal({
+                title: 'Break this piece?',
+                body: 'Your puzzle in progress will be lost and a new piece broken to mend.',
+                confirmLabel: 'Break',
+                cancelLabel: 'Keep playing',
+                onConfirm: action
+            });
+        } else {
+            action();
+        }
+    }
+
+    // First-ever visit: the board is eased to a near-solved state, so welcome the
+    // player and explain that head start before they touch a tile.
+    function showIntro() {
+        showModal({
+            title: '✨ Welcome to Kintsugi',
+            body: 'This first board starts <b>almost solved</b> so you can learn by finishing it. '
+                + 'Spin a tile or two to line up a hexagon and watch its cracks mend with gold. '
+                + 'When you\'re ready, press <b>Break</b> for a full puzzle.',
+            confirmLabel: 'Start mending'
+        });
     }
 
     // ---- init ----
@@ -1071,7 +1232,7 @@
 
         document.getElementById("modeBtn").addEventListener("click", toggleMode);
         document.getElementById("sizeBtn").addEventListener("click", toggleSize);
-        document.getElementById("restartButton").addEventListener("click", newPuzzle);
+        document.getElementById("restartButton").addEventListener("click", () => confirmEndGame(newPuzzle));
 
         // collapsible instructions
         const insEl = document.getElementById('instructions');
@@ -1080,6 +1241,9 @@
             const collapsed = insEl.classList.toggle('collapsed');
             localStorage.setItem('kintsugiInstructionsCollapsed', collapsed ? '1' : '0');
         });
+
+        // first-ever visit lands on the eased, near-solved board -> explain the head start
+        if (easyIntro) showIntro();
     }
 
     init();
