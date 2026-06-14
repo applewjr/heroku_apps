@@ -358,8 +358,8 @@
                 <button id="restartButton" class="hex-btn">Break</button>
             </div>
             <div class="game-stats">
-                <div id="moveCount" class="stat-item">Spins: 0</div>
-                <div id="progress" class="stat-item">Hexagons: 0/0</div>
+                <div id="moveCount" class="stat-item">Turns: 0</div>
+                <div id="progress" class="stat-item">Mended: 0/0</div>
                 <div id="highScore" class="stat-item stat-best">Best: -</div>
             </div>
 
@@ -1308,15 +1308,15 @@
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : N === 3 ? "Large" : "Agony"}`;
     }
     function updateStats() {
-        document.getElementById("moveCount").textContent = `Spins: ${moves}`;
-        document.getElementById("progress").textContent = `Hexagons: ${completedCount()}/${emergent.length}`;
+        document.getElementById("moveCount").textContent = `Turns: ${moves}`;
+        document.getElementById("progress").textContent = `Mended: ${completedCount()}/${emergent.length}`;
         const b = best[bestKey()];
         document.getElementById("highScore").textContent = b === undefined ? "Best: -" : `Best: ${b}`;
         const status = document.getElementById("status");
         status.textContent = won
             ? (introBoard
-                ? "✨ First piece mended! Press Break to play for a Best."
-                : `🎉 Solved in ${moves} spins!`)
+                ? "✨ First piece mended! Press Break for a full piece and a Best."
+                : `✨ Restored in ${moves} turn${moves === 1 ? '' : 's'}!`)
             : "";
     }
 
