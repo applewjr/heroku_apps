@@ -368,6 +368,7 @@
                 <button id="modeBtn" class="hex-btn">Mode: Colors</button>
                 <button id="sizeBtn" class="hex-btn">Size: Small</button>
                 <button id="restartButton" class="hex-btn">Break</button>
+                <button id="soundBtn" class="hex-btn" aria-pressed="false">🔇 Muted</button>
             </div>
             <div class="game-stats">
                 <div id="moveCount" class="stat-item">Turns: 0</div>
@@ -624,11 +625,13 @@
 
     // flag hexagons that just became complete this turn so draw() can flash them
     function refreshCompletion(now) {
+        let mended = 0;
         emergent.forEach(v => {
             const c = isHexComplete(v);
-            if (c && !v.complete) v.pulse = now;
+            if (c && !v.complete) { v.pulse = now; mended++; }
             v.complete = c;
         });
+        return mended;   // how many hexagons were newly mended this turn (drives the mend sound)
     }
 
     function rotateColors(t, dir) {
@@ -1069,7 +1072,7 @@
     // intact to break - then at the impact moment it fractures (flash + cracks + shake +
     // flying shards) and every tile spins, almost together, into the scramble.
     // This is deliberately dramatic and ignores prefers-reduced-motion: the break IS the theme.
-    function startBreak() {
+    function startBreak(withSound) {
         breakAnim = null;
         const now = performance.now();
         const lead = 320;     // hold the intact gold board - the calm before it shatters
@@ -1092,6 +1095,8 @@
             cracks: makeFractures(cx, cy),
             shards: makeShards(cx, cy)
         };
+        // the crack sound lands at the impact moment, not at the start of the calm hold
+        if (withSound) { ensureAudio(); setTimeout(soundBreak, lead); }
         ensureLoop();
     }
 
@@ -1218,6 +1223,101 @@
         }
     }
 
+    // ---- sound (synthesized with Web Audio, opt-in) ----
+    let soundOn = false;
+    let audioCtx = null;
+    let masterGain = null;
+
+    function ensureAudio() {
+        if (!soundOn) return null;
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.5;
+                masterGain.connect(audioCtx.destination);
+            } catch (e) { audioCtx = null; }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    }
+
+    // a soft ceramic "ting": a bell-like fundamental plus inharmonic partials, quick decay
+    function ting(ac, freq, peak, when) {
+        const out = ac.createGain();
+        out.gain.setValueAtTime(0.0001, when);
+        out.gain.exponentialRampToValueAtTime(peak, when + 0.006);
+        out.gain.exponentialRampToValueAtTime(0.0001, when + 0.5);
+        out.connect(masterGain);
+        [[1, 0.5], [2.76, 0.26], [5.4, 0.1]].forEach(([mult, amp]) => {
+            const o = ac.createOscillator();
+            o.type = 'sine';
+            o.frequency.value = freq * mult;
+            const g = ac.createGain();
+            g.gain.value = amp;
+            o.connect(g); g.connect(out);
+            o.start(when); o.stop(when + 0.6);
+        });
+    }
+
+    function soundMend() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        ting(ac, 740 * (0.94 + Math.random() * 0.16), 0.22, ac.currentTime);
+    }
+
+    function soundWin() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const t0 = ac.currentTime;
+        // a gentle rising shimmer, like gold catching the light
+        [0, 3, 5, 7, 10, 12].forEach((n, i) => ting(ac, 587.33 * Math.pow(2, n / 12), 0.16, t0 + i * 0.085));
+    }
+
+    function soundBreak() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const t = ac.currentTime;
+        // low body "thud" of the piece giving way
+        const o = ac.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(150, t);
+        o.frequency.exponentialRampToValueAtTime(58, t + 0.22);
+        const og = ac.createGain();
+        og.gain.setValueAtTime(0.0001, t);
+        og.gain.exponentialRampToValueAtTime(0.45, t + 0.008);
+        og.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(og); og.connect(masterGain);
+        o.start(t); o.stop(t + 0.32);
+        // sharp crackles: high-passed noise in a few quick bursts -> a shatter
+        const dur = 0.36;
+        const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        const hp = ac.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 1900;
+        const ng = ac.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        [0, 0.045, 0.10, 0.17].forEach((d, i) => {
+            const peak = 0.5 * Math.pow(0.62, i);
+            ng.gain.setValueAtTime(0.0001, t + d);
+            ng.gain.exponentialRampToValueAtTime(peak, t + d + 0.004);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.07);
+        });
+        src.connect(hp); hp.connect(ng); ng.connect(masterGain);
+        src.start(t); src.stop(t + dur);
+    }
+
+    function toggleSound() {
+        soundOn = !soundOn;
+        try { localStorage.setItem('kintsugiSound', soundOn ? '1' : '0'); } catch (e) { /* ignore */ }
+        syncControls();
+        if (soundOn) { ensureAudio(); soundMend(); }   // unlock audio in this gesture + confirm with a ting
+    }
+
     // ---- interaction ----
     function spinTile(ti, dir) {
         if (won || isBreaking()) return;
@@ -1225,13 +1325,16 @@
         rotateColors(t, dir);
         moves++;
         const now = performance.now();
-        refreshCompletion(now);
+        const mended = refreshCompletion(now);
         t.anim = { start: now, dur: 190, deltaDeg: dir * STEP * 60 };
         if (isSolved()) {
             won = true;
             markPlayed();
             if (!introBoard) saveBest();   // tutorial solve doesn't pollute Best
             spawnWin();
+            soundWin();
+        } else if (mended > 0) {
+            soundMend();
         }
         ensureLoop();
     }
@@ -1318,6 +1421,9 @@
         const mb = document.getElementById("modeBtn");
         mb.textContent = hard ? "Mode: Slate (Hard)" : "Mode: Colors";
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : N === 3 ? "Large" : "Agony"}`;
+        const sb = document.getElementById("soundBtn");
+        sb.textContent = soundOn ? "🔊 Sound" : "🔇 Muted";
+        sb.setAttribute("aria-pressed", soundOn ? "true" : "false");
     }
     function updateStats() {
         document.getElementById("moveCount").textContent = `Turns: ${moves}`;
@@ -1350,7 +1456,7 @@
         markPlayed();
         buildBoard();
         resizeCanvas();
-        startBreak();
+        startBreak(true);   // user-initiated break -> play the crack
     }
 
     function toggleSize() {
@@ -1453,6 +1559,7 @@
     function init() {
         loadPrefs();
         loadBest();
+        soundOn = localStorage.getItem('kintsugiSound') === '1';
         easyIntro = localStorage.getItem('kintsugiPlayed') !== '1';
         syncControls();
         buildBoard();
@@ -1482,6 +1589,7 @@
         document.getElementById("modeBtn").addEventListener("click", toggleMode);
         document.getElementById("sizeBtn").addEventListener("click", toggleSize);
         document.getElementById("restartButton").addEventListener("click", () => confirmEndGame(newPuzzle));
+        document.getElementById("soundBtn").addEventListener("click", toggleSound);
 
         // collapsible instructions
         const insEl = document.getElementById('instructions');
