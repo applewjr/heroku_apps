@@ -3,7 +3,7 @@
 {% block title %}Kintsugi - Hexagon Puzzle Mended in Gold{% endblock %}
 
 {% block meta %}
-    <meta name="description" content="Kintsugi is a hexagon spinning puzzle. Spin the tiles so the colors join into hexagons - each match mends the cracks with gold, like the Japanese art of golden repair. Includes a colorless teal hard mode.">
+    <meta name="description" content="Kintsugi is a hexagon spinning puzzle. Spin the tiles so the colors join into hexagons - each match mends the cracks with gold, like the Japanese art of golden repair. Includes a colorless slate hard mode.">
     <link rel="canonical" href="https://www.jamesapplewhite.com/kintsugi">
     <meta property="og:title" content="Kintsugi - Hexagon Puzzle Mended in Gold">
     <meta property="og:description" content="Spin hexagon tiles until the colors join. Each completed hexagon is mended with gold, like kintsugi.">
@@ -32,9 +32,20 @@
             text-align: center;
             font-size: clamp(1.5rem, 4vw, 2.5rem);
             line-height: 1.2;
-            margin-bottom: 20px;
+            margin-bottom: 6px;
             font-weight: 600;
             color: #212529;
+        }
+
+        .kintsugi-tagline {
+            text-align: center;
+            margin: 0 auto 26px;
+            max-width: 540px;
+            font-style: italic;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0.2px;
+            color: #9a8862;   /* muted antique gold */
         }
 
         .instructions {
@@ -113,9 +124,9 @@
             border-radius: 50%;
         }
 
-        .legend-white { background-color: #ffffff; }
-        .legend-grey { background-color: #6b7280; }
-        .legend-red { background-color: #e23b3b; }
+        .legend-porcelain { background-color: #ece3d0; }
+        .legend-slate { background-color: #4a5a72; }
+        .legend-clay { background-color: #b06a4a; }
 
         #game-container {
             display: flex;
@@ -169,12 +180,6 @@
             transform: translateY(1px);
         }
 
-        .hex-btn.active {
-            background-color: #02484d;
-            border-color: #02484d;
-            color: #ffffff;
-        }
-
         .game-stats {
             display: flex;
             justify-content: center;
@@ -208,6 +213,83 @@
             margin: 20px 0;
             min-height: 24px;
             color: #02484d;
+        }
+
+        .instructions-section {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid #eef0f2;
+        }
+
+        .instructions-section strong {
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .instructions-section p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .hex-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 23, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .hex-modal-overlay[hidden] { display: none; }
+
+        .hex-modal {
+            background: #ffffff;
+            border-radius: 12px;
+            border-top: 4px solid #d4af37;
+            max-width: 380px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            text-align: center;
+        }
+
+        .hex-modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 10px;
+        }
+
+        .hex-modal-body {
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .hex-modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .hex-modal-actions .hex-btn { min-width: 120px; }
+
+        .hex-btn.hex-btn-primary {
+            background-color: #02484d;
+            border-color: #02484d;
+            color: #ffffff;
+        }
+
+        .hex-btn.hex-btn-primary:hover {
+            background-color: #036b72;
+            border-color: #036b72;
+            color: #ffffff;
         }
 
         @media (max-width: 768px) {
@@ -244,6 +326,7 @@
 <div class="hex-page-wrapper">
     <div class="container">
         <h1>Kintsugi</h1>
+        <p class="kintsugi-tagline">Broken, then mended in gold - more beautiful for the break.</p>
 
         <div class="instructions" id="instructions">
             <div class="instructions-header" id="instructions-toggle">
@@ -256,13 +339,25 @@
                 <p style="margin:0;">When a hexagon's colors all match, its cracks are mended with gold - the art
                 of <em>kintsugi</em>. Mend every hexagon to restore the piece.</p>
                 <div class="mode-legend" id="mode-legend">
-                    <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
-                    <div class="legend-item"><div class="legend-circle legend-grey"></div><span>Grey</span></div>
-                    <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-porcelain"></div><span>Porcelain</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-slate"></div><span>Slate</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-clay"></div><span>Clay</span></div>
                 </div>
-                <p style="margin:0; color:#6b7280; font-size:13px;"><strong style="display:inline;font-size:inherit;color:#374151">Hard mode</strong>
-                hides the colors: every tile is teal, and the spreading gold seams are your only clue. Right-click
-                (desktop) spins the other way. Every puzzle is guaranteed solvable.</p>
+                <div class="instructions-section">
+                    <strong>Mode</strong>
+                    <p><b>Colors</b> glazes each wedge porcelain, slate, or clay - line up all six around a junction to mend
+                    that hexagon. <b>Slate (Hard)</b> hides the colors: every tile is the same slate, so the spreading
+                    gold seams are your only guide. Right-click (desktop) spins a tile the other way.</p>
+                </div>
+                <div class="instructions-section">
+                    <strong>Size</strong>
+                    <p><b>Small</b> is a 19-tile board to learn on, <b>Large</b> grows it to 37 tiles, and <b>Agony</b>
+                    is a 61-tile marathon. Every puzzle is guaranteed solvable.</p>
+                </div>
+                <div class="instructions-section">
+                    <strong>Break</strong>
+                    <p>Press <b>Break</b> for a fresh piece to mend. Changing Mode or Size also breaks a new piece.</p>
+                </div>
             </div>
         </div>
 
@@ -272,11 +367,12 @@
             <div class="game-controls">
                 <button id="modeBtn" class="hex-btn">Mode: Colors</button>
                 <button id="sizeBtn" class="hex-btn">Size: Small</button>
-                <button id="restartButton" class="hex-btn">🔄 New Puzzle</button>
+                <button id="restartButton" class="hex-btn">Break</button>
+                <button id="soundBtn" class="hex-btn" aria-pressed="false">🔇 Muted</button>
             </div>
             <div class="game-stats">
-                <div id="moveCount" class="stat-item">Spins: 0</div>
-                <div id="progress" class="stat-item">Hexagons: 0/0</div>
+                <div id="moveCount" class="stat-item">Turns: 0</div>
+                <div id="progress" class="stat-item">Mended: 0/0</div>
                 <div id="highScore" class="stat-item stat-best">Best: -</div>
             </div>
 
@@ -285,29 +381,44 @@
     </div>
 </div>
 
+<div class="hex-modal-overlay" id="hexModalOverlay" hidden>
+    <div class="hex-modal" role="dialog" aria-modal="true">
+        <div class="hex-modal-title" id="hexModalTitle"></div>
+        <div class="hex-modal-body" id="hexModalBody"></div>
+        <div class="hex-modal-actions">
+            <button class="hex-btn" id="hexModalCancel">Keep playing</button>
+            <button class="hex-btn hex-btn-primary" id="hexModalConfirm">Break</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ---- palette ----
-    const WHITE = "#ffffff";
-    const GREY  = "#6b7280";
-    const RED   = "#e23b3b";
-    const PALETTE = [WHITE, GREY, RED];
+    // ceramic glaze tones - porcelain cream, slate-indigo, terracotta clay - so the board
+    // reads as pottery; gold stays the only bright color, reserved for the mended seams.
+    const PORCELAIN = "#ece3d0";
+    const SLATE     = "#4a5a72";
+    const CLAY      = "#b06a4a";
+    const PALETTE = [PORCELAIN, SLATE, CLAY];
     const OUTLINE = "#2c2d33";
     const SPOKE   = "rgba(50,50,55,0.22)";
     const GOLD      = "#d4af37";   // kintsugi gold for mended cracks
     const GOLD_GLOW = "rgba(212,175,55,0.30)";
-    const HARD_BASE = "#46807f";   // hard mode: teal tile (colors hidden)
+    const CRACK     = "#2b2520";   // dark fracture beneath the glaze - the broken seam the gold mends
+    const HARD_BASE = SLATE;       // hard mode: every tile the same slate, so gold seams stand out (colors hidden)
 
     const SCRAMBLE = 100;     // random spins from a solved board
     const EASY_SCRAMBLE = 3;  // gentle first-ever puzzle: a few spins from solved
     const STEP     = 2;       // wedges rotated per spin (3 rhombi -> 120 degrees)
     const GAP      = 1.3;     // mortar gap (px) that separates each turnable tile
     const PULSE    = 620;     // ms a "hexagon completed" flash lasts
+    const MEND     = 260;     // ms the gold takes to flow out along a newly mended hexagon's cracks
 
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
     // ---- game state ----
-    let hard = false;         // hard mode: hide colors, show teal + gold healing only
+    let hard = false;         // hard mode: hide colors, show slate + gold healing only
     let N = 2;                // hex board radius (Small = 2, Large = 3)
     let HEX_RADIUS = 48;
     let CW = 460, CH = 460;   // logical canvas size
@@ -326,6 +437,7 @@
     let best = {};
     let easyIntro = false;    // first-ever puzzle gets a gentle, near-solved scramble
     let introBoard = false;   // current board is the eased intro -> excluded from Best
+    let breakAnim = null;     // the opening "shatter": the mended board fractures into the scramble
 
     // ---- geometry ----
     function axialToPixel(q, r, size) {
@@ -412,13 +524,13 @@
                 const key = Math.round(p.x) + "_" + Math.round(p.y);
                 let v = vmap.get(key);
                 if (!v) {
-                    v = { id: vertsById.length, x: p.x, y: p.y, color: -1, tiles: [], solvedColor: WHITE };
+                    v = { id: vertsById.length, x: p.x, y: p.y, color: -1, tiles: [], solvedColor: PORCELAIN };
                     vmap.set(key, v);
                     vertsById.push(v);
                 }
                 return v.id;
             });
-            return { q, r, center, cx: center.x, cy: center.y, corners: cor, inner, vIds, colors: new Array(6).fill(WHITE), anim: null };
+            return { q, r, center, cx: center.x, cy: center.y, corners: cor, inner, vIds, colors: new Array(6).fill(PORCELAIN), anim: null };
         });
 
         // record which tiles touch each vertex (and at which local corner)
@@ -485,19 +597,41 @@
         // 8. scramble with reversible spins -> always solvable.
         // the eased first puzzle is a tutorial, so it does not count toward Best.
         introBoard = easyIntro;
+        const solvedColors = tiles.map(t => t.colors.slice());   // fully mended starting point
         if (introBoard) scrambleEasy(); else scramble();
+
+        // 9. every scramble is just per-tile 120-degree turns, so each tile is its solved
+        //    self rotated by 0/120/240 degrees. Record that angle so the opening animation
+        //    can spin the mended board apart into exactly this scramble (the "break").
+        tiles.forEach((t, i) => { t.breakDeg = solvedTurn(solvedColors[i], t.colors); });
 
         // track which hexagons are already complete so we only flash NEW ones
         emergent.forEach(v => { v.complete = isHexComplete(v); v.pulse = 0; });
     }
 
+    // how far (deg, one of 0/120/240) the solved tile was rotated to reach its scrambled
+    // colors. Repeated palette colors can match more than one turn, but those are visually
+    // identical, so any match renders correctly.
+    function solvedTurn(solved, scrambled) {
+        for (let k = 0; k <= 4; k += 2) {
+            let ok = true;
+            for (let i = 0; i < 6; i++) {
+                if (scrambled[i] !== solved[((i - k) % 6 + 6) % 6]) { ok = false; break; }
+            }
+            if (ok) return k * 60;
+        }
+        return 0;
+    }
+
     // flag hexagons that just became complete this turn so draw() can flash them
     function refreshCompletion(now) {
+        let mended = 0;
         emergent.forEach(v => {
             const c = isHexComplete(v);
-            if (c && !v.complete) v.pulse = now;
+            if (c && !v.complete) { v.pulse = now; mended++; }
             v.complete = c;
         });
+        return mended;   // how many hexagons were newly mended this turn (drives the mend sound)
     }
 
     function rotateColors(t, dir) {
@@ -588,19 +722,26 @@
         ctx.closePath();
     }
 
-    // Mend the cracks of a completed hexagon with gold. The three cracks are the
-    // shared tile edges radiating from the vertex out to its colour-1 corners.
-    function drawHeal(v) {
+    // Mend the cracks of a completed hexagon with gold. The three cracks are the shared tile
+    // edges radiating from the vertex out to its colour-1 corners. `grow` (0..1) lets the gold
+    // flow outward from the junction when a hexagon is freshly mended; 1 = fully gilded.
+    function drawHeal(v, grow = 1) {
+        const f = easeOutCubic(Math.max(0, Math.min(1, grow)));
         ctx.save();
         ctx.lineCap = "round";
         v.cracks.forEach(w => {
             const p = vertsById[w];
+            const ex = v.x + (p.x - v.x) * f, ey = v.y + (p.y - v.y) * f;
             ctx.strokeStyle = GOLD_GLOW;
             ctx.lineWidth = 2 * GAP + 3;
-            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(ex, ey); ctx.stroke();
             ctx.strokeStyle = GOLD;
             ctx.lineWidth = GAP + 1.3;
-            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(ex, ey); ctx.stroke();
+            if (f < 1) {   // a molten droplet at the leading edge as the gold flows into the crack
+                ctx.fillStyle = "rgba(255,241,201,0.9)";
+                ctx.beginPath(); ctx.arc(ex, ey, GAP + 1.4, 0, Math.PI * 2); ctx.fill();
+            }
         });
         ctx.fillStyle = GOLD;
         ctx.beginPath(); ctx.arc(v.x, v.y, GAP + 0.5, 0, Math.PI * 2); ctx.fill();
@@ -627,7 +768,8 @@
     function drawTile(t, now) {
         ctx.save();
         if (t.anim) {
-            const p = Math.min(1, (now - t.anim.start) / t.anim.dur);
+            // clamp low so a tile waiting for its turn in the break ripple sits, un-rotated
+            const p = Math.max(0, Math.min(1, (now - t.anim.start) / t.anim.dur));
             const e = easeOutCubic(p);
             const ang = (-t.anim.deltaDeg * (1 - e)) * Math.PI / 180;
             ctx.translate(t.cx, t.cy);
@@ -664,12 +806,47 @@
     function draw(now) {
         ctx.clearRect(0, 0, CW, CH);
 
+        // the "break": once the board fractures, jolt the whole thing - a hard shake that decays fast
+        let shook = false;
+        if (breakAnim) {
+            const since = now - breakAnim.impact;
+            const amp = since >= 0 ? 14 * Math.exp(-since / 110) : 0;
+            if (amp > 0.4) {
+                ctx.save();
+                ctx.translate((Math.random() - 0.5) * 2 * amp, (Math.random() - 0.5) * 2 * amp);
+                shook = true;
+            }
+        }
+
+        // dark "crack bed" beneath the tiles: the gaps between pieces now read as fractures in
+        // the ceramic - the broken seams that the gold later mends.
+        ctx.fillStyle = CRACK;
+        tiles.forEach(t => {
+            const c = t.corners;
+            ctx.beginPath();
+            ctx.moveTo(c[0].x, c[0].y);
+            for (let i = 1; i < 6; i++) ctx.lineTo(c[i].x, c[i].y);
+            ctx.closePath();
+            ctx.fill();
+        });
+
         tiles.forEach(t => drawTile(t, now));
 
-        // healed hexagons mend with gold; unmended ones show a faint target ring
+        // healed hexagons mend with gold; unmended ones show a faint target ring.
+        // during the opening break the board starts fully mended and each hexagon's gold
+        // snaps the instant the spin wave reaches one of its tiles.
         emergent.forEach(v => {
-            if (isHexComplete(v)) drawHeal(v);
-            else drawTarget(v);
+            const healed = breakAnim
+                ? v.tiles.every(({ ti }) => tileSpinProgress(ti, now) <= 0)
+                : isHexComplete(v);
+            if (healed) {
+                // gold flows out from the junction over MEND ms when freshly mended;
+                // pre-completed or break-held hexagons render fully gilded.
+                const grow = (!breakAnim && v.pulse) ? (now - v.pulse) / MEND : 1;
+                drawHeal(v, grow);
+            } else {
+                drawTarget(v);
+            }
         });
 
         // momentary flash when wedges just joined into a complete hexagon
@@ -813,6 +990,9 @@
             ctx.globalAlpha = 1;
         }
 
+        if (shook) ctx.restore();
+        if (breakAnim) drawBreakFx(now);
+
         updateStats();
     }
 
@@ -820,7 +1000,7 @@
         winAnim = { start: performance.now(), dur: 3000 };
         confetti = [];
         // gold-weighted palette so the rain reads as kintsugi, not a generic party
-        const cols = ['#FFD700', '#FFD700', '#f4cf5a', '#FFEAA7', '#d4af37', '#e23b3b', '#ffffff', '#4ecdc4'];
+        const cols = ['#FFD700', '#FFD700', '#f4cf5a', '#FFEAA7', '#d4af37', '#b06a4a', '#ece3d0', '#4a5a72'];
         for (let i = 0; i < 140; i++) {
             confetti.push({
                 x: Math.random() * CW, y: -10 - Math.random() * 120,
@@ -865,6 +1045,10 @@
             if (now - winAnim.start >= winAnim.dur) winAnim = null;
             else active = true;
         }
+        if (breakAnim) {
+            if (now >= breakAnim.end) breakAnim = null;
+            else active = true;
+        }
         if (!active) {
             for (const v of emergent) {
                 if (v.pulse && now - v.pulse < PULSE) { active = true; break; }
@@ -875,20 +1059,282 @@
         else { looping = false; draw(performance.now()); }
     }
 
+    // 0 before a tile's break spin begins, 1 once it has fully landed.
+    function tileSpinProgress(ti, now) {
+        const a = tiles[ti].anim;
+        if (!a) return 1;
+        return Math.max(0, Math.min(1, (now - a.start) / a.dur));
+    }
+
+    function isBreaking() { return breakAnim; }
+
+    // The opening "break": hold the whole, freshly mended board a beat so there is something
+    // intact to break - then at the impact moment it fractures (flash + cracks + shake +
+    // flying shards) and every tile spins, almost together, into the scramble.
+    // This is deliberately dramatic and ignores prefers-reduced-motion: the break IS the theme.
+    function startBreak(withSound) {
+        breakAnim = null;
+        const now = performance.now();
+        const lead = 320;     // hold the intact gold board - the calm before it shatters
+        const spinDur = 340;
+        const ripple = 22;    // tight wave: tiles let go nearly together, like a real shatter
+        const cx = CW / 2, cy = CH / 2;
+        const impact = now + lead;
+        let last = 0;
+        tiles.forEach(t => {
+            const d = Math.hypot(t.cx - cx, t.cy - cy) / HEX_RADIUS;
+            const start = impact + d * ripple;
+            // breakDeg lands the tile on its scramble; the extra full turn(s) make every tile
+            // (even ones that net to 0) whip around as the piece breaks apart.
+            t.anim = { start, dur: spinDur, deltaDeg: t.breakDeg + 360 * (Math.random() < 0.35 ? 2 : 1) };
+            last = Math.max(last, start + spinDur);
+        });
+        breakAnim = {
+            impact,
+            end: Math.max(last, impact + 600),   // keep the shatter fx alive a touch past the spins
+            cracks: makeFractures(cx, cy),
+            shards: makeShards(cx, cy)
+        };
+        // the crack sound lands at the impact moment, not at the start of the calm hold
+        if (withSound) { ensureAudio(); setTimeout(soundBreak, lead); }
+        ensureLoop();
+    }
+
+    // jagged fracture lines radiating from the impact point out past the board edges
+    function makeFractures(cx, cy) {
+        const lines = [];
+        const n = 7 + Math.floor(Math.random() * 3);
+        const reach = Math.hypot(CW, CH) * 0.62;
+        for (let i = 0; i < n; i++) {
+            const segs = 3 + Math.floor(Math.random() * 3);
+            const pts = [{ x: cx, y: cy }];
+            let a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5, r = 0;
+            for (let s = 0; s < segs; s++) {
+                r += (reach / segs) * (0.7 + Math.random() * 0.6);
+                a += (Math.random() - 0.5) * 0.55;
+                pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+            }
+            lines.push(pts);
+        }
+        return lines;
+    }
+
+    // shards of "pottery" flung outward from the impact (px/sec velocities, gravity in drawBreakFx)
+    function makeShards(cx, cy) {
+        const out = [];
+        const cols = [GOLD, "#f4cf5a", "#ffffff", "#2c2d33", HARD_BASE];
+        for (let i = 0; i < 28; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const sp = 230 + Math.random() * 340;
+            out.push({
+                x0: cx + (Math.random() - 0.5) * HEX_RADIUS,
+                y0: cy + (Math.random() - 0.5) * HEX_RADIUS,
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp - 130,            // slight upward kick so they arc
+                rot0: Math.random() * Math.PI * 2,
+                vrot: (Math.random() - 0.5) * 16,
+                size: 4 + Math.random() * 8,
+                color: cols[Math.floor(Math.random() * cols.length)]
+            });
+        }
+        return out;
+    }
+
+    // draw a fracture polyline from its origin out to fraction `grow` of its length
+    function strokeCrack(pts, grow) {
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+        const target = total * grow;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        let acc = 0;
+        for (let i = 1; i < pts.length; i++) {
+            const segLen = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            if (acc + segLen <= target) { ctx.lineTo(pts[i].x, pts[i].y); acc += segLen; }
+            else {
+                const r = (target - acc) / segLen;
+                ctx.lineTo(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r);
+                break;
+            }
+        }
+        ctx.stroke();
+    }
+
+    // the moment of breaking: a white flash, fractures snapping across the board, and shards
+    function drawBreakFx(now) {
+        const since = now - breakAnim.impact;
+        if (since < 0) return;   // still holding the intact board
+        const cx = CW / 2, cy = CH / 2;
+
+        // 1. white-hot flash at impact, gone fast
+        const flash = Math.max(0, 1 - since / 200);
+        if (flash > 0) {
+            ctx.save();
+            ctx.globalAlpha = flash * 0.7;
+            const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(CW, CH) * 0.7);
+            g.addColorStop(0, "rgba(255,251,238,1)");
+            g.addColorStop(0.5, "rgba(255,231,170,0.7)");
+            g.addColorStop(1, "rgba(255,231,170,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, CW, CH);
+            ctx.restore();
+        }
+
+        // 2. fracture lines whip across the board, then fade
+        const cf = Math.max(0, 1 - since / 470);
+        if (cf > 0) {
+            const grow = Math.min(1, since / 90);
+            ctx.save();
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            breakAnim.cracks.forEach(pts => {
+                ctx.strokeStyle = `rgba(212,175,55,${0.55 * cf})`;   // gold glow
+                ctx.lineWidth = 5 * cf + 1;
+                strokeCrack(pts, grow);
+                ctx.strokeStyle = `rgba(255,252,240,${0.95 * cf})`;  // white-hot core
+                ctx.lineWidth = 2.2 * cf + 0.6;
+                strokeCrack(pts, grow);
+            });
+            ctx.restore();
+        }
+
+        // 3. shards burst out, arc under gravity, spin and fade
+        const sf = Math.max(0, 1 - since / 600);
+        if (sf > 0) {
+            const dt = since / 1000;
+            ctx.save();
+            ctx.globalAlpha = sf;
+            breakAnim.shards.forEach(s => {
+                const x = s.x0 + s.vx * dt;
+                const y = s.y0 + s.vy * dt + 0.5 * 1500 * dt * dt;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(s.rot0 + s.vrot * dt);
+                ctx.fillStyle = s.color;
+                ctx.beginPath();
+                ctx.moveTo(0, -s.size);
+                ctx.lineTo(s.size * 0.9, s.size * 0.7);
+                ctx.lineTo(-s.size * 0.8, s.size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            });
+            ctx.restore();
+        }
+    }
+
+    // ---- sound (synthesized with Web Audio, opt-in) ----
+    let soundOn = false;
+    let audioCtx = null;
+    let masterGain = null;
+
+    function ensureAudio() {
+        if (!soundOn) return null;
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.5;
+                masterGain.connect(audioCtx.destination);
+            } catch (e) { audioCtx = null; }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    }
+
+    // a soft ceramic "ting": a bell-like fundamental plus inharmonic partials, quick decay
+    function ting(ac, freq, peak, when) {
+        const out = ac.createGain();
+        out.gain.setValueAtTime(0.0001, when);
+        out.gain.exponentialRampToValueAtTime(peak, when + 0.006);
+        out.gain.exponentialRampToValueAtTime(0.0001, when + 0.5);
+        out.connect(masterGain);
+        [[1, 0.5], [2.76, 0.26], [5.4, 0.1]].forEach(([mult, amp]) => {
+            const o = ac.createOscillator();
+            o.type = 'sine';
+            o.frequency.value = freq * mult;
+            const g = ac.createGain();
+            g.gain.value = amp;
+            o.connect(g); g.connect(out);
+            o.start(when); o.stop(when + 0.6);
+        });
+    }
+
+    function soundMend() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        ting(ac, 740 * (0.94 + Math.random() * 0.16), 0.22, ac.currentTime);
+    }
+
+    function soundWin() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const t0 = ac.currentTime;
+        // a gentle rising shimmer, like gold catching the light
+        [0, 3, 5, 7, 10, 12].forEach((n, i) => ting(ac, 587.33 * Math.pow(2, n / 12), 0.16, t0 + i * 0.085));
+    }
+
+    function soundBreak() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const t = ac.currentTime;
+        // low body "thud" of the piece giving way
+        const o = ac.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(150, t);
+        o.frequency.exponentialRampToValueAtTime(58, t + 0.22);
+        const og = ac.createGain();
+        og.gain.setValueAtTime(0.0001, t);
+        og.gain.exponentialRampToValueAtTime(0.45, t + 0.008);
+        og.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(og); og.connect(masterGain);
+        o.start(t); o.stop(t + 0.32);
+        // sharp crackles: high-passed noise in a few quick bursts -> a shatter
+        const dur = 0.36;
+        const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        const hp = ac.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 1900;
+        const ng = ac.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        [0, 0.045, 0.10, 0.17].forEach((d, i) => {
+            const peak = 0.5 * Math.pow(0.62, i);
+            ng.gain.setValueAtTime(0.0001, t + d);
+            ng.gain.exponentialRampToValueAtTime(peak, t + d + 0.004);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.07);
+        });
+        src.connect(hp); hp.connect(ng); ng.connect(masterGain);
+        src.start(t); src.stop(t + dur);
+    }
+
+    function toggleSound() {
+        soundOn = !soundOn;
+        try { localStorage.setItem('kintsugiSound', soundOn ? '1' : '0'); } catch (e) { /* ignore */ }
+        syncControls();
+        if (soundOn) { ensureAudio(); soundMend(); }   // unlock audio in this gesture + confirm with a ting
+    }
+
     // ---- interaction ----
     function spinTile(ti, dir) {
-        if (won) return;
+        if (won || isBreaking()) return;
         const t = tiles[ti];
         rotateColors(t, dir);
         moves++;
         const now = performance.now();
-        refreshCompletion(now);
+        const mended = refreshCompletion(now);
         t.anim = { start: now, dur: 190, deltaDeg: dir * STEP * 60 };
         if (isSolved()) {
             won = true;
             markPlayed();
             if (!introBoard) saveBest();   // tutorial solve doesn't pollute Best
             spawnWin();
+            soundWin();
+        } else if (mended > 0) {
+            soundMend();
         }
         ensureLoop();
     }
@@ -923,7 +1369,7 @@
     // release. Slide before lifting to pick another tile; lift off the board to cancel.
     function onTouchStart(evt) {
         evt.preventDefault();
-        if (won) return;
+        if (won || isBreaking()) return;
         const { x, y } = toLocal(evt);
         hovered = tileAt(x, y);
         if (!looping) draw(performance.now());
@@ -931,7 +1377,7 @@
 
     function onTouchMove(evt) {
         evt.preventDefault();
-        if (won) return;
+        if (won || isBreaking()) return;
         const { x, y } = toLocal(evt);
         const i = tileAt(x, y);
         if (i !== hovered) { hovered = i; if (!looping) draw(performance.now()); }
@@ -973,20 +1419,22 @@
     }
     function syncControls() {
         const mb = document.getElementById("modeBtn");
-        mb.textContent = hard ? "Mode: Teal (Hard)" : "Mode: Colors";
-        mb.classList.toggle("active", hard);
+        mb.textContent = hard ? "Mode: Slate (Hard)" : "Mode: Colors";
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : N === 3 ? "Large" : "Agony"}`;
+        const sb = document.getElementById("soundBtn");
+        sb.textContent = soundOn ? "🔊 Sound" : "🔇 Muted";
+        sb.setAttribute("aria-pressed", soundOn ? "true" : "false");
     }
     function updateStats() {
-        document.getElementById("moveCount").textContent = `Spins: ${moves}`;
-        document.getElementById("progress").textContent = `Hexagons: ${completedCount()}/${emergent.length}`;
+        document.getElementById("moveCount").textContent = `Turns: ${moves}`;
+        document.getElementById("progress").textContent = `Mended: ${completedCount()}/${emergent.length}`;
         const b = best[bestKey()];
         document.getElementById("highScore").textContent = b === undefined ? "Best: -" : `Best: ${b}`;
         const status = document.getElementById("status");
         status.textContent = won
             ? (introBoard
-                ? "✨ First piece mended! Press New Puzzle to play for a Best."
-                : `🎉 Solved in ${moves} spins!`)
+                ? "✨ First piece mended! Press Break for a full piece and a Best."
+                : `✨ Restored in ${moves} turn${moves === 1 ? '' : 's'}!`)
             : "";
     }
 
@@ -1008,21 +1456,25 @@
         markPlayed();
         buildBoard();
         resizeCanvas();
-        draw(performance.now());
+        startBreak(true);   // user-initiated break -> play the crack
     }
 
     function toggleSize() {
-        N = N === 2 ? 3 : N === 3 ? 4 : 2;
-        savePrefs();
-        syncControls();
-        newPuzzle();
+        confirmEndGame(() => {
+            N = N === 2 ? 3 : N === 3 ? 4 : 2;
+            savePrefs();
+            syncControls();
+            newPuzzle();
+        });
     }
 
     function toggleMode() {
-        hard = !hard;
-        savePrefs();
-        syncControls();
-        newPuzzle();
+        confirmEndGame(() => {
+            hard = !hard;
+            savePrefs();
+            syncControls();
+            newPuzzle();
+        });
     }
 
     function resizeCanvas() {
@@ -1039,15 +1491,80 @@
         }
     }
 
+    // ---- modal (confirmations + first-time intro) ----
+    const modalOverlay = document.getElementById('hexModalOverlay');
+    const modalTitle = document.getElementById('hexModalTitle');
+    const modalBody = document.getElementById('hexModalBody');
+    const modalConfirm = document.getElementById('hexModalConfirm');
+    const modalCancel = document.getElementById('hexModalCancel');
+    let modalOnConfirm = null;
+
+    function closeModal() {
+        modalOverlay.hidden = true;
+        modalOnConfirm = null;
+    }
+
+    function showModal({ title, body, confirmLabel = 'OK', cancelLabel = null, onConfirm = null }) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = body;
+        modalConfirm.textContent = confirmLabel;
+        modalOnConfirm = onConfirm;
+        if (cancelLabel) {
+            modalCancel.textContent = cancelLabel;
+            modalCancel.style.display = '';
+        } else {
+            modalCancel.style.display = 'none';
+        }
+        modalOverlay.hidden = false;
+    }
+
+    modalConfirm.addEventListener('click', () => {
+        const fn = modalOnConfirm;
+        closeModal();
+        if (fn) fn();
+    });
+    modalCancel.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modalOverlay.hidden) closeModal(); });
+
+    // Mode, Size and Break each break a fresh board, ending any puzzle underway.
+    // Only interrupt a player who would actually lose progress (mid-puzzle, not solved).
+    function confirmEndGame(action) {
+        if (moves > 0 && !won) {
+            showModal({
+                title: 'Break this piece?',
+                body: 'Your puzzle in progress will be lost and a new piece broken to mend.',
+                confirmLabel: 'Break',
+                cancelLabel: 'Keep playing',
+                onConfirm: action
+            });
+        } else {
+            action();
+        }
+    }
+
+    // First-ever visit: the board is eased to a near-solved state, so welcome the
+    // player and explain that head start before they touch a tile.
+    function showIntro() {
+        showModal({
+            title: 'Welcome to Kintsugi',
+            body: 'This first board starts <b>almost solved</b> so you can learn by finishing it. '
+                + 'Spin a tile or two to line up a hexagon and watch its cracks mend with gold. '
+                + 'When you\'re ready, press <b>Break</b> for a full puzzle.',
+            confirmLabel: 'Start mending'
+        });
+    }
+
     // ---- init ----
     function init() {
         loadPrefs();
         loadBest();
+        soundOn = localStorage.getItem('kintsugiSound') === '1';
         easyIntro = localStorage.getItem('kintsugiPlayed') !== '1';
         syncControls();
         buildBoard();
         resizeCanvas();
-        draw(performance.now());
+        startBreak();
 
         canvas.addEventListener("mousedown", onMouseDown);
         canvas.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -1061,7 +1578,7 @@
             if (i >= 0) spinTile(i, -1);
         });
         canvas.addEventListener("mousemove", (e) => {
-            if (won) { if (hovered !== -1) { hovered = -1; draw(performance.now()); } return; }
+            if (won || isBreaking()) { if (hovered !== -1) { hovered = -1; if (!looping) draw(performance.now()); } return; }
             const { x, y } = toLocal(e);
             const i = tileAt(x, y);
             if (i !== hovered) { hovered = i; if (!looping) draw(performance.now()); }
@@ -1071,7 +1588,8 @@
 
         document.getElementById("modeBtn").addEventListener("click", toggleMode);
         document.getElementById("sizeBtn").addEventListener("click", toggleSize);
-        document.getElementById("restartButton").addEventListener("click", newPuzzle);
+        document.getElementById("restartButton").addEventListener("click", () => confirmEndGame(newPuzzle));
+        document.getElementById("soundBtn").addEventListener("click", toggleSound);
 
         // collapsible instructions
         const insEl = document.getElementById('instructions');
@@ -1080,6 +1598,9 @@
             const collapsed = insEl.classList.toggle('collapsed');
             localStorage.setItem('kintsugiInstructionsCollapsed', collapsed ? '1' : '0');
         });
+
+        // first-ever visit lands on the eased, near-solved board -> explain the head start
+        if (easyIntro) showIntro();
     }
 
     init();
