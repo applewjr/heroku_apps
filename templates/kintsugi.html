@@ -3,7 +3,7 @@
 {% block title %}Kintsugi - Hexagon Puzzle Mended in Gold{% endblock %}
 
 {% block meta %}
-    <meta name="description" content="Kintsugi is a hexagon spinning puzzle. Spin the tiles so the colors join into hexagons - each match mends the cracks with gold, like the Japanese art of golden repair. Includes a colorless teal hard mode.">
+    <meta name="description" content="Kintsugi is a hexagon spinning puzzle. Spin the tiles so the colors join into hexagons - each match mends the cracks with gold, like the Japanese art of golden repair. Includes a colorless slate hard mode.">
     <link rel="canonical" href="https://www.jamesapplewhite.com/kintsugi">
     <meta property="og:title" content="Kintsugi - Hexagon Puzzle Mended in Gold">
     <meta property="og:description" content="Spin hexagon tiles until the colors join. Each completed hexagon is mended with gold, like kintsugi.">
@@ -113,9 +113,9 @@
             border-radius: 50%;
         }
 
-        .legend-white { background-color: #ffffff; }
-        .legend-grey { background-color: #6b7280; }
-        .legend-red { background-color: #e23b3b; }
+        .legend-porcelain { background-color: #ece3d0; }
+        .legend-slate { background-color: #4a5a72; }
+        .legend-clay { background-color: #b06a4a; }
 
         #game-container {
             display: flex;
@@ -327,14 +327,14 @@
                 <p style="margin:0;">When a hexagon's colors all match, its cracks are mended with gold - the art
                 of <em>kintsugi</em>. Mend every hexagon to restore the piece.</p>
                 <div class="mode-legend" id="mode-legend">
-                    <div class="legend-item"><div class="legend-circle legend-white"></div><span>White</span></div>
-                    <div class="legend-item"><div class="legend-circle legend-grey"></div><span>Grey</span></div>
-                    <div class="legend-item"><div class="legend-circle legend-red"></div><span>Red</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-porcelain"></div><span>Porcelain</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-slate"></div><span>Slate</span></div>
+                    <div class="legend-item"><div class="legend-circle legend-clay"></div><span>Clay</span></div>
                 </div>
                 <div class="instructions-section">
                     <strong>Mode</strong>
-                    <p><b>Colors</b> paints each wedge white, grey, or red - line up all six around a junction to mend
-                    that hexagon. <b>Teal (Hard)</b> hides the colors: every tile is the same teal, so the spreading
+                    <p><b>Colors</b> glazes each wedge porcelain, slate, or clay - line up all six around a junction to mend
+                    that hexagon. <b>Slate (Hard)</b> hides the colors: every tile is the same slate, so the spreading
                     gold seams are your only guide. Right-click (desktop) spins a tile the other way.</p>
                 </div>
                 <div class="instructions-section">
@@ -381,15 +381,17 @@
 
 <script>
     // ---- palette ----
-    const WHITE = "#ffffff";
-    const GREY  = "#6b7280";
-    const RED   = "#e23b3b";
-    const PALETTE = [WHITE, GREY, RED];
+    // ceramic glaze tones - porcelain cream, slate-indigo, terracotta clay - so the board
+    // reads as pottery; gold stays the only bright color, reserved for the mended seams.
+    const PORCELAIN = "#ece3d0";
+    const SLATE     = "#4a5a72";
+    const CLAY      = "#b06a4a";
+    const PALETTE = [PORCELAIN, SLATE, CLAY];
     const OUTLINE = "#2c2d33";
     const SPOKE   = "rgba(50,50,55,0.22)";
     const GOLD      = "#d4af37";   // kintsugi gold for mended cracks
     const GOLD_GLOW = "rgba(212,175,55,0.30)";
-    const HARD_BASE = "#46807f";   // hard mode: teal tile (colors hidden)
+    const HARD_BASE = SLATE;       // hard mode: every tile the same slate, so gold seams stand out (colors hidden)
 
     const SCRAMBLE = 100;     // random spins from a solved board
     const EASY_SCRAMBLE = 3;  // gentle first-ever puzzle: a few spins from solved
@@ -401,7 +403,7 @@
     const ctx = canvas.getContext("2d");
 
     // ---- game state ----
-    let hard = false;         // hard mode: hide colors, show teal + gold healing only
+    let hard = false;         // hard mode: hide colors, show slate + gold healing only
     let N = 2;                // hex board radius (Small = 2, Large = 3)
     let HEX_RADIUS = 48;
     let CW = 460, CH = 460;   // logical canvas size
@@ -507,13 +509,13 @@
                 const key = Math.round(p.x) + "_" + Math.round(p.y);
                 let v = vmap.get(key);
                 if (!v) {
-                    v = { id: vertsById.length, x: p.x, y: p.y, color: -1, tiles: [], solvedColor: WHITE };
+                    v = { id: vertsById.length, x: p.x, y: p.y, color: -1, tiles: [], solvedColor: PORCELAIN };
                     vmap.set(key, v);
                     vertsById.push(v);
                 }
                 return v.id;
             });
-            return { q, r, center, cx: center.x, cy: center.y, corners: cor, inner, vIds, colors: new Array(6).fill(WHITE), anim: null };
+            return { q, r, center, cx: center.x, cy: center.y, corners: cor, inner, vIds, colors: new Array(6).fill(PORCELAIN), anim: null };
         });
 
         // record which tiles touch each vertex (and at which local corner)
@@ -956,7 +958,7 @@
         winAnim = { start: performance.now(), dur: 3000 };
         confetti = [];
         // gold-weighted palette so the rain reads as kintsugi, not a generic party
-        const cols = ['#FFD700', '#FFD700', '#f4cf5a', '#FFEAA7', '#d4af37', '#e23b3b', '#ffffff', '#4ecdc4'];
+        const cols = ['#FFD700', '#FFD700', '#f4cf5a', '#FFEAA7', '#d4af37', '#b06a4a', '#ece3d0', '#4a5a72'];
         for (let i = 0; i < 140; i++) {
             confetti.push({
                 x: Math.random() * CW, y: -10 - Math.random() * 120,
@@ -1275,7 +1277,7 @@
     }
     function syncControls() {
         const mb = document.getElementById("modeBtn");
-        mb.textContent = hard ? "Mode: Teal (Hard)" : "Mode: Colors";
+        mb.textContent = hard ? "Mode: Slate (Hard)" : "Mode: Colors";
         document.getElementById("sizeBtn").textContent = `Size: ${N === 2 ? "Small" : N === 3 ? "Large" : "Agony"}`;
     }
     function updateStats() {
