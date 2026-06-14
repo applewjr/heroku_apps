@@ -8,25 +8,18 @@ import matplotlib
 matplotlib.use('Agg') # allows Matplotlib to render plots directly to image files without requiring a GUI
 import os
 
-if 'IS_HEROKU' in os.environ:
-    # Running on Heroku, load values from Heroku Config Vars
-    config = {
-        'user': os.environ.get('jawsdb_user'),
-        'password': os.environ.get('jawsdb_pass'),
-        'host': os.environ.get('jawsdb_host'),
-        'database': os.environ.get('jawsdb_db'),
-        'raise_on_warnings': True
-        }
-else:
-    # Running locally, load values from secret_pass.py
-    import secret_pass
-    config = {
-        'user': secret_pass.mysql_user,
-        'password': secret_pass.mysql_pass,
-        'host': secret_pass.mysql_host,
-        'database': secret_pass.mysql_db,
-        'raise_on_warnings': True
-        }
+import config as app_config
+
+# Reuse the central secret loading (Heroku env vars, or secret_pass.py / env
+# fallback locally and in CI) instead of importing secret_pass directly.
+_mysql = app_config.MYSQL_POOL_CONFIG if app_config.IS_HEROKU else app_config.MYSQL_CONFIG
+config = {
+    'user': _mysql['user'],
+    'password': _mysql['password'],
+    'host': _mysql['host'],
+    'database': _mysql['database'],
+    'raise_on_warnings': True,
+}
 
 def format_tick_value(value):
     if abs(value) >= 1e9:
