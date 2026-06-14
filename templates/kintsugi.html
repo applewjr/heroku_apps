@@ -391,6 +391,7 @@
     const SPOKE   = "rgba(50,50,55,0.22)";
     const GOLD      = "#d4af37";   // kintsugi gold for mended cracks
     const GOLD_GLOW = "rgba(212,175,55,0.30)";
+    const CRACK     = "#2b2520";   // dark fracture beneath the glaze - the broken seam the gold mends
     const HARD_BASE = SLATE;       // hard mode: every tile the same slate, so gold seams stand out (colors hidden)
 
     const SCRAMBLE = 100;     // random spins from a solved board
@@ -398,6 +399,7 @@
     const STEP     = 2;       // wedges rotated per spin (3 rhombi -> 120 degrees)
     const GAP      = 1.3;     // mortar gap (px) that separates each turnable tile
     const PULSE    = 620;     // ms a "hexagon completed" flash lasts
+    const MEND     = 260;     // ms the gold takes to flow out along a newly mended hexagon's cracks
 
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
@@ -705,19 +707,26 @@
         ctx.closePath();
     }
 
-    // Mend the cracks of a completed hexagon with gold. The three cracks are the
-    // shared tile edges radiating from the vertex out to its colour-1 corners.
-    function drawHeal(v) {
+    // Mend the cracks of a completed hexagon with gold. The three cracks are the shared tile
+    // edges radiating from the vertex out to its colour-1 corners. `grow` (0..1) lets the gold
+    // flow outward from the junction when a hexagon is freshly mended; 1 = fully gilded.
+    function drawHeal(v, grow = 1) {
+        const f = easeOutCubic(Math.max(0, Math.min(1, grow)));
         ctx.save();
         ctx.lineCap = "round";
         v.cracks.forEach(w => {
             const p = vertsById[w];
+            const ex = v.x + (p.x - v.x) * f, ey = v.y + (p.y - v.y) * f;
             ctx.strokeStyle = GOLD_GLOW;
             ctx.lineWidth = 2 * GAP + 3;
-            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(ex, ey); ctx.stroke();
             ctx.strokeStyle = GOLD;
             ctx.lineWidth = GAP + 1.3;
-            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(v.x, v.y); ctx.lineTo(ex, ey); ctx.stroke();
+            if (f < 1) {   // a molten droplet at the leading edge as the gold flows into the crack
+                ctx.fillStyle = "rgba(255,241,201,0.9)";
+                ctx.beginPath(); ctx.arc(ex, ey, GAP + 1.4, 0, Math.PI * 2); ctx.fill();
+            }
         });
         ctx.fillStyle = GOLD;
         ctx.beginPath(); ctx.arc(v.x, v.y, GAP + 0.5, 0, Math.PI * 2); ctx.fill();
@@ -794,6 +803,18 @@
             }
         }
 
+        // dark "crack bed" beneath the tiles: the gaps between pieces now read as fractures in
+        // the ceramic - the broken seams that the gold later mends.
+        ctx.fillStyle = CRACK;
+        tiles.forEach(t => {
+            const c = t.corners;
+            ctx.beginPath();
+            ctx.moveTo(c[0].x, c[0].y);
+            for (let i = 1; i < 6; i++) ctx.lineTo(c[i].x, c[i].y);
+            ctx.closePath();
+            ctx.fill();
+        });
+
         tiles.forEach(t => drawTile(t, now));
 
         // healed hexagons mend with gold; unmended ones show a faint target ring.
@@ -803,8 +824,14 @@
             const healed = breakAnim
                 ? v.tiles.every(({ ti }) => tileSpinProgress(ti, now) <= 0)
                 : isHexComplete(v);
-            if (healed) drawHeal(v);
-            else drawTarget(v);
+            if (healed) {
+                // gold flows out from the junction over MEND ms when freshly mended;
+                // pre-completed or break-held hexagons render fully gilded.
+                const grow = (!breakAnim && v.pulse) ? (now - v.pulse) / MEND : 1;
+                drawHeal(v, grow);
+            } else {
+                drawTarget(v);
+            }
         });
 
         // momentary flash when wedges just joined into a complete hexagon
