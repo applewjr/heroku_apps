@@ -355,7 +355,7 @@
             <div class="game-controls">
                 <button id="modeBtn" class="hex-btn">Mode: Colors</button>
                 <button id="sizeBtn" class="hex-btn">Size: Small</button>
-                <button id="restartButton" class="hex-btn">🔨 Break</button>
+                <button id="restartButton" class="hex-btn">Break</button>
             </div>
             <div class="game-stats">
                 <div id="moveCount" class="stat-item">Spins: 0</div>
@@ -420,6 +420,7 @@
     let best = {};
     let easyIntro = false;    // first-ever puzzle gets a gentle, near-solved scramble
     let introBoard = false;   // current board is the eased intro -> excluded from Best
+    let breakAnim = null;     // the opening "shatter": the mended board fractures into the scramble
 
     // ---- geometry ----
     function axialToPixel(q, r, size) {
@@ -579,10 +580,30 @@
         // 8. scramble with reversible spins -> always solvable.
         // the eased first puzzle is a tutorial, so it does not count toward Best.
         introBoard = easyIntro;
+        const solvedColors = tiles.map(t => t.colors.slice());   // fully mended starting point
         if (introBoard) scrambleEasy(); else scramble();
+
+        // 9. every scramble is just per-tile 120-degree turns, so each tile is its solved
+        //    self rotated by 0/120/240 degrees. Record that angle so the opening animation
+        //    can spin the mended board apart into exactly this scramble (the "break").
+        tiles.forEach((t, i) => { t.breakDeg = solvedTurn(solvedColors[i], t.colors); });
 
         // track which hexagons are already complete so we only flash NEW ones
         emergent.forEach(v => { v.complete = isHexComplete(v); v.pulse = 0; });
+    }
+
+    // how far (deg, one of 0/120/240) the solved tile was rotated to reach its scrambled
+    // colors. Repeated palette colors can match more than one turn, but those are visually
+    // identical, so any match renders correctly.
+    function solvedTurn(solved, scrambled) {
+        for (let k = 0; k <= 4; k += 2) {
+            let ok = true;
+            for (let i = 0; i < 6; i++) {
+                if (scrambled[i] !== solved[((i - k) % 6 + 6) % 6]) { ok = false; break; }
+            }
+            if (ok) return k * 60;
+        }
+        return 0;
     }
 
     // flag hexagons that just became complete this turn so draw() can flash them
@@ -721,7 +742,8 @@
     function drawTile(t, now) {
         ctx.save();
         if (t.anim) {
-            const p = Math.min(1, (now - t.anim.start) / t.anim.dur);
+            // clamp low so a tile waiting for its turn in the break ripple sits, un-rotated
+            const p = Math.max(0, Math.min(1, (now - t.anim.start) / t.anim.dur));
             const e = easeOutCubic(p);
             const ang = (-t.anim.deltaDeg * (1 - e)) * Math.PI / 180;
             ctx.translate(t.cx, t.cy);
@@ -758,11 +780,28 @@
     function draw(now) {
         ctx.clearRect(0, 0, CW, CH);
 
+        // the "break": once the board fractures, jolt the whole thing - a hard shake that decays fast
+        let shook = false;
+        if (breakAnim) {
+            const since = now - breakAnim.impact;
+            const amp = since >= 0 ? 14 * Math.exp(-since / 110) : 0;
+            if (amp > 0.4) {
+                ctx.save();
+                ctx.translate((Math.random() - 0.5) * 2 * amp, (Math.random() - 0.5) * 2 * amp);
+                shook = true;
+            }
+        }
+
         tiles.forEach(t => drawTile(t, now));
 
-        // healed hexagons mend with gold; unmended ones show a faint target ring
+        // healed hexagons mend with gold; unmended ones show a faint target ring.
+        // during the opening break the board starts fully mended and each hexagon's gold
+        // snaps the instant the spin wave reaches one of its tiles.
         emergent.forEach(v => {
-            if (isHexComplete(v)) drawHeal(v);
+            const healed = breakAnim
+                ? v.tiles.every(({ ti }) => tileSpinProgress(ti, now) <= 0)
+                : isHexComplete(v);
+            if (healed) drawHeal(v);
             else drawTarget(v);
         });
 
@@ -907,6 +946,9 @@
             ctx.globalAlpha = 1;
         }
 
+        if (shook) ctx.restore();
+        if (breakAnim) drawBreakFx(now);
+
         updateStats();
     }
 
@@ -959,6 +1001,10 @@
             if (now - winAnim.start >= winAnim.dur) winAnim = null;
             else active = true;
         }
+        if (breakAnim) {
+            if (now >= breakAnim.end) breakAnim = null;
+            else active = true;
+        }
         if (!active) {
             for (const v of emergent) {
                 if (v.pulse && now - v.pulse < PULSE) { active = true; break; }
@@ -969,9 +1015,171 @@
         else { looping = false; draw(performance.now()); }
     }
 
+    // 0 before a tile's break spin begins, 1 once it has fully landed.
+    function tileSpinProgress(ti, now) {
+        const a = tiles[ti].anim;
+        if (!a) return 1;
+        return Math.max(0, Math.min(1, (now - a.start) / a.dur));
+    }
+
+    function isBreaking() { return breakAnim; }
+
+    // The opening "break": hold the whole, freshly mended board a beat so there is something
+    // intact to break - then at the impact moment it fractures (flash + cracks + shake +
+    // flying shards) and every tile spins, almost together, into the scramble.
+    // This is deliberately dramatic and ignores prefers-reduced-motion: the break IS the theme.
+    function startBreak() {
+        breakAnim = null;
+        const now = performance.now();
+        const lead = 320;     // hold the intact gold board - the calm before it shatters
+        const spinDur = 340;
+        const ripple = 22;    // tight wave: tiles let go nearly together, like a real shatter
+        const cx = CW / 2, cy = CH / 2;
+        const impact = now + lead;
+        let last = 0;
+        tiles.forEach(t => {
+            const d = Math.hypot(t.cx - cx, t.cy - cy) / HEX_RADIUS;
+            const start = impact + d * ripple;
+            // breakDeg lands the tile on its scramble; the extra full turn(s) make every tile
+            // (even ones that net to 0) whip around as the piece breaks apart.
+            t.anim = { start, dur: spinDur, deltaDeg: t.breakDeg + 360 * (Math.random() < 0.35 ? 2 : 1) };
+            last = Math.max(last, start + spinDur);
+        });
+        breakAnim = {
+            impact,
+            end: Math.max(last, impact + 600),   // keep the shatter fx alive a touch past the spins
+            cracks: makeFractures(cx, cy),
+            shards: makeShards(cx, cy)
+        };
+        ensureLoop();
+    }
+
+    // jagged fracture lines radiating from the impact point out past the board edges
+    function makeFractures(cx, cy) {
+        const lines = [];
+        const n = 7 + Math.floor(Math.random() * 3);
+        const reach = Math.hypot(CW, CH) * 0.62;
+        for (let i = 0; i < n; i++) {
+            const segs = 3 + Math.floor(Math.random() * 3);
+            const pts = [{ x: cx, y: cy }];
+            let a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5, r = 0;
+            for (let s = 0; s < segs; s++) {
+                r += (reach / segs) * (0.7 + Math.random() * 0.6);
+                a += (Math.random() - 0.5) * 0.55;
+                pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+            }
+            lines.push(pts);
+        }
+        return lines;
+    }
+
+    // shards of "pottery" flung outward from the impact (px/sec velocities, gravity in drawBreakFx)
+    function makeShards(cx, cy) {
+        const out = [];
+        const cols = [GOLD, "#f4cf5a", "#ffffff", "#2c2d33", HARD_BASE];
+        for (let i = 0; i < 28; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const sp = 230 + Math.random() * 340;
+            out.push({
+                x0: cx + (Math.random() - 0.5) * HEX_RADIUS,
+                y0: cy + (Math.random() - 0.5) * HEX_RADIUS,
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp - 130,            // slight upward kick so they arc
+                rot0: Math.random() * Math.PI * 2,
+                vrot: (Math.random() - 0.5) * 16,
+                size: 4 + Math.random() * 8,
+                color: cols[Math.floor(Math.random() * cols.length)]
+            });
+        }
+        return out;
+    }
+
+    // draw a fracture polyline from its origin out to fraction `grow` of its length
+    function strokeCrack(pts, grow) {
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+        const target = total * grow;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        let acc = 0;
+        for (let i = 1; i < pts.length; i++) {
+            const segLen = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            if (acc + segLen <= target) { ctx.lineTo(pts[i].x, pts[i].y); acc += segLen; }
+            else {
+                const r = (target - acc) / segLen;
+                ctx.lineTo(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r);
+                break;
+            }
+        }
+        ctx.stroke();
+    }
+
+    // the moment of breaking: a white flash, fractures snapping across the board, and shards
+    function drawBreakFx(now) {
+        const since = now - breakAnim.impact;
+        if (since < 0) return;   // still holding the intact board
+        const cx = CW / 2, cy = CH / 2;
+
+        // 1. white-hot flash at impact, gone fast
+        const flash = Math.max(0, 1 - since / 200);
+        if (flash > 0) {
+            ctx.save();
+            ctx.globalAlpha = flash * 0.7;
+            const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(CW, CH) * 0.7);
+            g.addColorStop(0, "rgba(255,251,238,1)");
+            g.addColorStop(0.5, "rgba(255,231,170,0.7)");
+            g.addColorStop(1, "rgba(255,231,170,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, CW, CH);
+            ctx.restore();
+        }
+
+        // 2. fracture lines whip across the board, then fade
+        const cf = Math.max(0, 1 - since / 470);
+        if (cf > 0) {
+            const grow = Math.min(1, since / 90);
+            ctx.save();
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            breakAnim.cracks.forEach(pts => {
+                ctx.strokeStyle = `rgba(212,175,55,${0.55 * cf})`;   // gold glow
+                ctx.lineWidth = 5 * cf + 1;
+                strokeCrack(pts, grow);
+                ctx.strokeStyle = `rgba(255,252,240,${0.95 * cf})`;  // white-hot core
+                ctx.lineWidth = 2.2 * cf + 0.6;
+                strokeCrack(pts, grow);
+            });
+            ctx.restore();
+        }
+
+        // 3. shards burst out, arc under gravity, spin and fade
+        const sf = Math.max(0, 1 - since / 600);
+        if (sf > 0) {
+            const dt = since / 1000;
+            ctx.save();
+            ctx.globalAlpha = sf;
+            breakAnim.shards.forEach(s => {
+                const x = s.x0 + s.vx * dt;
+                const y = s.y0 + s.vy * dt + 0.5 * 1500 * dt * dt;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(s.rot0 + s.vrot * dt);
+                ctx.fillStyle = s.color;
+                ctx.beginPath();
+                ctx.moveTo(0, -s.size);
+                ctx.lineTo(s.size * 0.9, s.size * 0.7);
+                ctx.lineTo(-s.size * 0.8, s.size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            });
+            ctx.restore();
+        }
+    }
+
     // ---- interaction ----
     function spinTile(ti, dir) {
-        if (won) return;
+        if (won || isBreaking()) return;
         const t = tiles[ti];
         rotateColors(t, dir);
         moves++;
@@ -1017,7 +1225,7 @@
     // release. Slide before lifting to pick another tile; lift off the board to cancel.
     function onTouchStart(evt) {
         evt.preventDefault();
-        if (won) return;
+        if (won || isBreaking()) return;
         const { x, y } = toLocal(evt);
         hovered = tileAt(x, y);
         if (!looping) draw(performance.now());
@@ -1025,7 +1233,7 @@
 
     function onTouchMove(evt) {
         evt.preventDefault();
-        if (won) return;
+        if (won || isBreaking()) return;
         const { x, y } = toLocal(evt);
         const i = tileAt(x, y);
         if (i !== hovered) { hovered = i; if (!looping) draw(performance.now()); }
@@ -1101,7 +1309,7 @@
         markPlayed();
         buildBoard();
         resizeCanvas();
-        draw(performance.now());
+        startBreak();
     }
 
     function toggleSize() {
@@ -1192,7 +1400,7 @@
     // player and explain that head start before they touch a tile.
     function showIntro() {
         showModal({
-            title: '✨ Welcome to Kintsugi',
+            title: 'Welcome to Kintsugi',
             body: 'This first board starts <b>almost solved</b> so you can learn by finishing it. '
                 + 'Spin a tile or two to line up a hexagon and watch its cracks mend with gold. '
                 + 'When you\'re ready, press <b>Break</b> for a full puzzle.',
@@ -1208,7 +1416,7 @@
         syncControls();
         buildBoard();
         resizeCanvas();
-        draw(performance.now());
+        startBreak();
 
         canvas.addEventListener("mousedown", onMouseDown);
         canvas.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -1222,7 +1430,7 @@
             if (i >= 0) spinTile(i, -1);
         });
         canvas.addEventListener("mousemove", (e) => {
-            if (won) { if (hovered !== -1) { hovered = -1; draw(performance.now()); } return; }
+            if (won || isBreaking()) { if (hovered !== -1) { hovered = -1; if (!looping) draw(performance.now()); } return; }
             const { x, y } = toLocal(e);
             const i = tileAt(x, y);
             if (i !== hovered) { hovered = i; if (!looping) draw(performance.now()); }
