@@ -7,6 +7,7 @@ import config
 from data import etl_dash_queries
 from extensions import auth, cache, db_cursor
 from functions import plot_viz, youtube_stats
+from helpers import make_trending_jsonld
 
 bp = Blueprint('dashboards', __name__)
 
@@ -49,6 +50,11 @@ def youtube_trending():
         engagement = youtube_stats.get_engagement_leaders(cursor, data_version)
         age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
+    # schema.org ItemList of today's ranked videos for richer search results.
+    trending_jsonld = make_trending_jsonld(
+        (row['Rank'], row['vid_id'], row['Video']) for _, row in top_10_today.iterrows()
+    )
+
     # Inline the plots as base64 data URIs so the cached HTML is self-contained
     # and never points at PNGs on the ephemeral per-dyno filesystem.
     yt_video_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_video_scatter())
@@ -59,7 +65,7 @@ def youtube_trending():
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
         data_version=data_version, kpis=kpis, climbers=climbers, velocity=velocity, \
-        engagement=engagement, age_buckets=age_buckets
+        engagement=engagement, age_buckets=age_buckets, trending_jsonld=trending_jsonld
         )
 
     # 48h timeout ages out stale date-keys; fresh data lands a new key daily.

@@ -10,6 +10,9 @@
 <meta property="og:url" content="https://jamesapplewhite.com/youtube_trending">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
+{% if trending_jsonld %}
+<script type="application/ld+json">{{ trending_jsonld | tojson }}</script>
+{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -97,12 +100,18 @@
         font-size: 0.76rem; color: #6b7280; margin-top: 0.15rem;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .age-track {
+        display: inline-block; width: 160px; vertical-align: middle; margin-right: 6px;
+        background: #eef2f2; border-radius: 3px; overflow: hidden;
+    }
     .age-bar {
-        display: inline-block; height: 10px; background: #02484d;
-        border-radius: 3px; min-width: 2px; vertical-align: middle; margin-right: 6px;
+        display: block; height: 10px; background: #02484d; border-radius: 3px;
     }
     td a { color: #02484d; text-decoration: none; }
     td a:hover { text-decoration: underline; }
+    .dashboard-section th { cursor: pointer; user-select: none; }
+    .dashboard-section th[data-sort]::after { content: ' \25B2'; font-size: 9px; }
+    .dashboard-section th[data-sort="desc"]::after { content: ' \25BC'; }
 </style>
 {% endblock %}
 
@@ -286,7 +295,7 @@
             <tr>
                 <td>{{ row.label }}</td>
                 <td class="num">{{ row.count }}</td>
-                <td><span class="age-bar" style="width: {{ row.pct }}%;"></span><span class="muted">{{ row.pct }}%</span></td>
+                <td><span class="age-track"><span class="age-bar" data-pct="{{ row.pct }}"></span></span> <span class="muted">{{ row.pct }}%</span></td>
             </tr>
             {% else %}
             <tr><td colspan="3" class="muted">No upload-date data.</td></tr>
@@ -388,5 +397,56 @@
 
 <p>Updates daily at 12 am PST</p>
 <br><br>
+
+<script>
+(function () {
+    // Parse human-formatted numbers ("1.2M", "+3.4K", "▲ 5", "4.2%") to a number,
+    // or null for non-numeric cells ("New", channel names) which sort as text.
+    function parseNum(text) {
+        var t = text.replace(/[\s,▲▼+%]/g, '');
+        var m = t.match(/^(-?\d+(?:\.\d+)?)([KMB])?$/i);
+        if (!m) return null;
+        var n = parseFloat(m[1]);
+        var suffix = (m[2] || '').toUpperCase();
+        if (suffix === 'K') n *= 1e3;
+        else if (suffix === 'M') n *= 1e6;
+        else if (suffix === 'B') n *= 1e9;
+        return n;
+    }
+    function sortTable(table, col, asc) {
+        var body = table.tBodies[0];
+        var rows = Array.prototype.slice.call(body.rows);
+        rows.sort(function (a, b) {
+            if (a.cells.length <= col || b.cells.length <= col) return 0;
+            var ta = a.cells[col].textContent.trim(), tb = b.cells[col].textContent.trim();
+            var na = parseNum(ta), nb = parseNum(tb);
+            var cmp;
+            if (na !== null && nb !== null) cmp = na - nb;
+            else cmp = ta.toLowerCase() < tb.toLowerCase() ? -1 : (ta.toLowerCase() > tb.toLowerCase() ? 1 : 0);
+            return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { body.appendChild(r); });
+    }
+    document.querySelectorAll('.dashboard-section table').forEach(function (table) {
+        if (!table.tHead || !table.tBodies.length) return;
+        var headers = table.tHead.rows[0].cells;
+        var state = { col: -1, asc: true };
+        Array.prototype.forEach.call(headers, function (th, i) {
+            th.addEventListener('click', function () {
+                state.asc = (state.col === i) ? !state.asc : true;
+                state.col = i;
+                sortTable(table, i, state.asc);
+                Array.prototype.forEach.call(headers, function (h) { h.removeAttribute('data-sort'); });
+                th.setAttribute('data-sort', state.asc ? 'asc' : 'desc');
+            });
+        });
+    });
+    // Size the content-age bars from their data-pct (kept out of inline styles
+    // so there's no Jinja-in-CSS and it stays CSP-safe).
+    document.querySelectorAll('.age-bar[data-pct]').forEach(function (bar) {
+        bar.style.width = bar.getAttribute('data-pct') + '%';
+    });
+})();
+</script>
 
 {% endblock %}
