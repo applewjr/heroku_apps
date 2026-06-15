@@ -6,7 +6,7 @@ from flask import Blueprint, redirect, render_template, url_for
 import config
 from data import etl_dash_queries
 from extensions import auth, cache, db_cursor
-from functions import plot_viz
+from functions import plot_viz, youtube_stats
 
 bp = Blueprint('dashboards', __name__)
 
@@ -30,16 +30,24 @@ def youtube_trending():
         cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
         cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_today;""")
-        top_10_today = pd.DataFrame(cursor.fetchall(), columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday'])
+        top_10_today = pd.DataFrame(cursor.fetchall(), columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday', 'vid_id', 'chnl_id'])
 
         cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_title;""")
-        top_10_title = pd.DataFrame(cursor.fetchall(), columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank'])
+        top_10_title = pd.DataFrame(cursor.fetchall(), columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank', 'vid_id', 'chnl_id'])
 
         cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_channel;""")
-        top_10_channel = pd.DataFrame(cursor.fetchall(), columns=['Channel', 'Count of Video Days', 'Best Channel Rank'])
+        top_10_channel = pd.DataFrame(cursor.fetchall(), columns=['Channel', 'Count of Video Days', 'Best Channel Rank', 'chnl_id'])
 
         cursor.execute("""SELECT * FROM vw_prod_youtube_top_categories;""")
         top_categories = pd.DataFrame(cursor.fetchall(), columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
+
+        # Analytics panels keyed off the latest available day (robust to ETL gaps).
+        prev_date = youtube_stats.get_prev_date(cursor, data_version)
+        kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
+        climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date)
+        velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date)
+        engagement = youtube_stats.get_engagement_leaders(cursor, data_version)
+        age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
     # Inline the plots as base64 data URIs so the cached HTML is self-contained
     # and never points at PNGs on the ephemeral per-dyno filesystem.
@@ -49,7 +57,9 @@ def youtube_trending():
 
     rendered = render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
-        yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter
+        yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
+        data_version=data_version, kpis=kpis, climbers=climbers, velocity=velocity, \
+        engagement=engagement, age_buckets=age_buckets
         )
 
     # 48h timeout ages out stale date-keys; fresh data lands a new key daily.

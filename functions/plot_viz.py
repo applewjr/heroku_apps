@@ -23,6 +23,31 @@ config = {
     'raise_on_warnings': True,
 }
 
+# Shared chart styling so all dashboard plots match the site (teal brand,
+# muted gridlines, no top/right spines). Set once at import.
+YT_BRAND = '#02484d'
+YT_PALETTE = ['#02484d', '#1a7f86', '#3fb0a0', '#8ec9a8', '#c9b458', '#9ca3af']
+YT_ANNOTATION = '#6b7280'
+
+plt.rcParams.update({
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'axes.edgecolor': '#9ca3af',
+    'axes.labelcolor': '#374151',
+    'text.color': '#374151',
+    'xtick.color': '#6b7280',
+    'ytick.color': '#6b7280',
+    'axes.spines.top': False,
+    'axes.spines.right': False,
+    'axes.grid': True,
+    'axes.axisbelow': True,
+    'grid.color': '#e5e7eb',
+    'grid.linewidth': 0.8,
+    'font.size': 11,
+})
+plt.rcParams['axes.prop_cycle'] = matplotlib.cycler(color=YT_PALETTE)
+
+
 def format_tick_value(value):
     if abs(value) >= 1e9:
         return f'{value/1e9:.0f}B'
@@ -42,7 +67,7 @@ def fig_to_data_uri(fig):
     ephemeral per-dyno filesystem.
     """
     buf = io.BytesIO()
-    fig.savefig(buf, format='png')
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     plt.close(fig)
     encoded = base64.b64encode(buf.getvalue()).decode('ascii')
     return f'data:image/png;base64,{encoded}'
@@ -136,6 +161,7 @@ def yt_stacked_bar_plot():
     new_top_categories = top_categories + ['Other']
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    ax.xaxis.grid(False)  # keep horizontal gridlines only on the bar chart
 
     bottom = np.zeros(len(dates))
 
@@ -149,9 +175,9 @@ def yt_stacked_bar_plot():
 
     ax.set_xlabel('Date (Last 30 Days)')
     ax.set_ylabel('Video Count')
-    fig.suptitle('Daily 50 Trending Videos By Category', fontsize=16)
+    fig.suptitle('Daily 50 Trending Videos By Category', fontsize=16, color=YT_BRAND)
 
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), frameon=False)
 
     fig.tight_layout()
 
@@ -181,7 +207,7 @@ def yt_video_scatter():
 
     fig, ax = plt.subplots()
 
-    ax.scatter(x, y)
+    ax.scatter(x, y, alpha=0.75, edgecolors='white', linewidths=0.5, s=45)
 
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
 
@@ -189,11 +215,11 @@ def yt_video_scatter():
     for i in extreme_indices:
         texts.append(ax.text(x[i], y[i], names[i], ha='left', va='bottom'))
 
-    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color=YT_ANNOTATION))
 
     ax.set_xlabel('Video Likes')
     ax.set_ylabel('Video Views')
-    fig.suptitle('Trending Videos: Views ~ Likes', fontsize=16)
+    fig.suptitle('Trending Videos: Views ~ Likes', fontsize=16, color=YT_BRAND)
     ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
@@ -228,7 +254,7 @@ def yt_chnl_scatter():
 
     fig, ax = plt.subplots()
 
-    ax.scatter(x, y)
+    ax.scatter(x, y, alpha=0.75, edgecolors='white', linewidths=0.5, s=45)
 
     extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
 
@@ -236,11 +262,11 @@ def yt_chnl_scatter():
     for i in extreme_indices:
         texts.append(ax.text(x[i], y[i], names[i], ha='left', va='bottom'))
 
-    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='red'))
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color=YT_ANNOTATION))
 
     ax.set_xlabel('Channel Subs')
     ax.set_ylabel('Channel Views')
-    fig.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16)
+    fig.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16, color=YT_BRAND)
     ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
