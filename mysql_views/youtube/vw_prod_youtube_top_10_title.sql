@@ -5,6 +5,8 @@ SELECT
 ,chnl
 ,COUNT(*) AS occurrences
 ,MIN(vid_rank) AS best_vid_rank
+,vid_id
+,chnl_id
 FROM youtube_trending
 WHERE collected_date >= CURDATE() - INTERVAL 30 DAY
 GROUP BY vid_id

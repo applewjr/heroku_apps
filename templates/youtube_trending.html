@@ -10,6 +10,9 @@
 <meta property="og:url" content="https://jamesapplewhite.com/youtube_trending">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
+{% if trending_jsonld %}
+<script type="application/ld+json">{{ trending_jsonld | tojson }}</script>
+{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -45,12 +48,102 @@
     tr:nth-child(even) { background-color: #f9fafb; }
     p { color: #6b7280; font-size: 14px; margin: 0.3rem 0; }
     img { max-width: 90%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+
+    .dashboard-intro {
+        color: #6b7280;
+        font-size: 15px;
+        max-width: 680px;
+        margin: 0.25rem auto 0.75rem;
+    }
+    .data-freshness {
+        display: inline-block;
+        font-size: 13px;
+        color: #02484d;
+        background: #ecf5f4;
+        border-radius: 999px;
+        padding: 4px 14px;
+    }
+    /* right-align numeric columns with tabular figures */
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .rank-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 24px; height: 24px; padding: 0 6px;
+        border-radius: 6px; font-weight: 600; font-size: 13px;
+        background: #ecf5f4; color: #02484d;
+    }
+    .rank-badge.r1 { background: #f3e3a2; color: #7a5c00; }
+    .rank-badge.r2 { background: #e5e7eb; color: #4b5563; }
+    .rank-badge.r3 { background: #ecd9c2; color: #835b35; }
+    .move-up { color: #1a7f4f; font-weight: 600; }
+    .move-down { color: #b45454; font-weight: 600; }
+    .move-same { color: #9ca3af; }
+    .move-new {
+        font-size: 12px; font-weight: 600; color: #02484d;
+        background: #ecf5f4; border-radius: 6px; padding: 2px 7px;
+    }
+    .kpi-strip {
+        display: flex; flex-wrap: wrap; justify-content: center;
+        gap: 0.6rem; margin: 0.5rem auto 1.25rem; max-width: 1040px;
+    }
+    .kpi {
+        flex: 1 1 150px; min-width: 140px; max-width: 220px;
+        border: 1px solid #e5e7eb; border-radius: 8px;
+        padding: 0.55rem 0.85rem; text-align: left;
+    }
+    .kpi-value { font-size: 1.35rem; font-weight: 600; color: #02484d; line-height: 1.15; }
+    .kpi-value.text { font-size: 1.0rem; }
+    .kpi-label {
+        font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
+        color: #6b7280; margin-top: 0.2rem;
+    }
+    .kpi-sub {
+        font-size: 0.76rem; color: #6b7280; margin-top: 0.15rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .age-track {
+        display: inline-block; width: 160px; vertical-align: middle; margin-right: 6px;
+        background: #eef2f2; border-radius: 3px; overflow: hidden;
+    }
+    .age-bar {
+        display: block; height: 10px; background: #02484d; border-radius: 3px;
+    }
+    td a { color: #02484d; text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+    .dashboard-section th { cursor: pointer; user-select: none; }
+    .dashboard-section th[data-sort]::after { content: ' \25B2'; font-size: 9px; }
+    .dashboard-section th[data-sort="desc"]::after { content: ' \25BC'; }
 </style>
 {% endblock %}
 
 {% block content %}
 <br>
 <h1>YouTube Trending</h1>
+<p class="dashboard-intro">A daily snapshot of the most-watched videos and channels on YouTube, with 30-day trends by category.</p>
+<div class="data-freshness">Data as of {{ data_version }}</div>
+
+<div class="kpi-strip">
+    <div class="kpi">
+        <div class="kpi-value">{{ kpis.videos_tracked }}</div>
+        <div class="kpi-label">Videos Tracked</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-value">{{ kpis.new_entrants }}</div>
+        <div class="kpi-label">New Today</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-value">{{ kpis.channels_tracked }}</div>
+        <div class="kpi-label">Channels</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-value">{{ kpis.max_views }}</div>
+        <div class="kpi-label">Top Video Views</div>
+        <div class="kpi-sub">{{ kpis.top_video }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-value text">{{ kpis.top_category }}</div>
+        <div class="kpi-label">Top Category</div>
+    </div>
+</div>
 <br>
 
 <div class="dashboard-section">
@@ -61,18 +154,151 @@
             <tr>
                 <th>Video</th>
                 <th>Channel</th>
-                <th>Rank</th>
-                <th>Best Video Rank</th>
+                <th class="num">Rank</th>
+                <th class="num">Movement</th>
+                <th class="num">Best Video Rank</th>
             </tr>
         </thead>
         <tbody>
             {% for index, row in top_10_today.iterrows() %}
+            {% set rank = row['Rank']|int %}
             <tr>
-                <td>{{ row['Video'] }}</td>
-                <td>{{ row['Channel'] }}</td>
-                <td>{{ row['Rank'] }}</td>
-                <td>{{ row['Best Video Rank'] }}</td>
+                <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
+                <td class="num">
+                    {% set yesterday = row['Video Rank Yesterday'] %}
+                    {% if yesterday == 'New' %}
+                        <span class="move-new">New</span>
+                    {% else %}
+                        {% set delta = (yesterday|int) - rank %}
+                        {% if delta > 0 %}<span class="move-up">&#9650; {{ delta }}</span>
+                        {% elif delta < 0 %}<span class="move-down">&#9660; {{ -delta }}</span>
+                        {% else %}<span class="move-same">&mdash;</span>{% endif %}
+                    {% endif %}
+                </td>
+                <td class="num">{{ row['Best Video Rank'] }}</td>
             </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Biggest Climbers Today</h3>
+    <p>Largest rank gains vs. the previous day</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Today</th>
+                <th class="num">Climb</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in climbers %}
+            <tr>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.prev_rank }}</td>
+                <td class="num">{{ row.today_rank }}</td>
+                <td class="num"><span class="move-up">&#9650; {{ row.climb }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">No prior-day data to compare.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Fastest-Growing Videos</h3>
+    <p>Largest view gains vs. the previous day</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Views Gained</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in velocity %}
+            <tr>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num"><span class="move-up">+{{ row.gain }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">No prior-day data to compare.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Most Engaging Videos</h3>
+    <p>Highest like-to-view ratio (min 50K views)</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Like Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in engagement %}
+            <tr>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.like_pct }}%</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Not enough data.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>How Fresh Is Trending Content?</h3>
+    <p>Time from upload to trending, today</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Video Age</th>
+                <th class="num">Videos</th>
+                <th>Share</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in age_buckets %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td class="num">{{ row.count }}</td>
+                <td><span class="age-track"><span class="age-bar" data-pct="{{ row.pct }}"></span></span> <span class="muted">{{ row.pct }}%</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="muted">No upload-date data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -89,17 +315,17 @@
             <tr>
                 <th>Video</th>
                 <th>Channel</th>
-                <th>Count of Days</th>
-                <th>Best Video Rank</th>
+                <th class="num">Count of Days</th>
+                <th class="num">Best Video Rank</th>
             </tr>
         </thead>
         <tbody>
             {% for index, row in top_10_title.iterrows() %}
             <tr>
-                <td>{{ row['Video'] }}</td>
-                <td>{{ row['Channel'] }}</td>
-                <td>{{ row['Count of Days'] }}</td>
-                <td>{{ row['Best Video Rank'] }}</td>
+                <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
+                <td class="num">{{ row['Count of Days'] }}</td>
+                <td class="num">{{ row['Best Video Rank'] }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -116,16 +342,16 @@
         <thead>
             <tr>
                 <th>Channel</th>
-                <th>Count of Video Days</th>
-                <th>Best Channel Rank</th>
+                <th class="num">Count of Video Days</th>
+                <th class="num">Best Channel Rank</th>
             </tr>
         </thead>
         <tbody>
             {% for index, row in top_10_channel.iterrows() %}
             <tr>
-                <td>{{ row['Channel'] }}</td>
-                <td>{{ row['Count of Video Days'] }}</td>
-                <td>{{ row['Best Channel Rank'] }}</td>
+                <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
+                <td class="num">{{ row['Count of Video Days'] }}</td>
+                <td class="num">{{ row['Best Channel Rank'] }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -142,18 +368,18 @@
         <thead>
             <tr>
                 <th>Category</th>
-                <th>Top 50 Count</th>
-                <th>Top 10 Count</th>
-                <th>Top 1 Count</th>
+                <th class="num">Top 50 Count</th>
+                <th class="num">Top 10 Count</th>
+                <th class="num">Top 1 Count</th>
             </tr>
         </thead>
         <tbody>
             {% for index, row in top_categories.iterrows() %}
             <tr>
                 <td>{{ row['Category'] }}</td>
-                <td>{{ row['Top 50 Count'] }}</td>
-                <td>{{ row['Top 10 Count'] }}</td>
-                <td>{{ row['Top 1 Count'] }}</td>
+                <td class="num">{{ row['Top 50 Count'] }}</td>
+                <td class="num">{{ row['Top 10 Count'] }}</td>
+                <td class="num">{{ row['Top 1 Count'] }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -162,14 +388,65 @@
 </div>
 <br>
 
-<img src="{{ yt_stacked_bar_plot }}" alt="Plot">
+<img src="{{ yt_stacked_bar_plot }}" alt="Stacked bar chart of daily trending video counts by category over the last 30 days">
 <br><br>
-<img src="{{ yt_video_scatter }}" alt="Plot">
+<img src="{{ yt_video_scatter }}" alt="Scatter plot of trending video views versus likes over the last 7 days">
 <br><br>
-<img src="{{ yt_chnl_scatter }}" alt="Plot">
+<img src="{{ yt_chnl_scatter }}" alt="Scatter plot of channel views versus subscribers for trending channels over the last 7 days">
 <br><br>
 
 <p>Updates daily at 12 am PST</p>
 <br><br>
+
+<script>
+(function () {
+    // Parse human-formatted numbers ("1.2M", "+3.4K", "▲ 5", "4.2%") to a number,
+    // or null for non-numeric cells ("New", channel names) which sort as text.
+    function parseNum(text) {
+        var t = text.replace(/[\s,▲▼+%]/g, '');
+        var m = t.match(/^(-?\d+(?:\.\d+)?)([KMB])?$/i);
+        if (!m) return null;
+        var n = parseFloat(m[1]);
+        var suffix = (m[2] || '').toUpperCase();
+        if (suffix === 'K') n *= 1e3;
+        else if (suffix === 'M') n *= 1e6;
+        else if (suffix === 'B') n *= 1e9;
+        return n;
+    }
+    function sortTable(table, col, asc) {
+        var body = table.tBodies[0];
+        var rows = Array.prototype.slice.call(body.rows);
+        rows.sort(function (a, b) {
+            if (a.cells.length <= col || b.cells.length <= col) return 0;
+            var ta = a.cells[col].textContent.trim(), tb = b.cells[col].textContent.trim();
+            var na = parseNum(ta), nb = parseNum(tb);
+            var cmp;
+            if (na !== null && nb !== null) cmp = na - nb;
+            else cmp = ta.toLowerCase() < tb.toLowerCase() ? -1 : (ta.toLowerCase() > tb.toLowerCase() ? 1 : 0);
+            return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { body.appendChild(r); });
+    }
+    document.querySelectorAll('.dashboard-section table').forEach(function (table) {
+        if (!table.tHead || !table.tBodies.length) return;
+        var headers = table.tHead.rows[0].cells;
+        var state = { col: -1, asc: true };
+        Array.prototype.forEach.call(headers, function (th, i) {
+            th.addEventListener('click', function () {
+                state.asc = (state.col === i) ? !state.asc : true;
+                state.col = i;
+                sortTable(table, i, state.asc);
+                Array.prototype.forEach.call(headers, function (h) { h.removeAttribute('data-sort'); });
+                th.setAttribute('data-sort', state.asc ? 'asc' : 'desc');
+            });
+        });
+    });
+    // Size the content-age bars from their data-pct (kept out of inline styles
+    // so there's no Jinja-in-CSS and it stays CSP-safe).
+    document.querySelectorAll('.age-bar[data-pct]').forEach(function (bar) {
+        bar.style.width = bar.getAttribute('data-pct') + '%';
+    });
+})();
+</script>
 
 {% endblock %}

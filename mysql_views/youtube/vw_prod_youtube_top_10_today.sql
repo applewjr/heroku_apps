@@ -20,6 +20,8 @@ SELECT
 ,CASE WHEN rank_yesterday.rank_yesterday IS NULL THEN "New"
     ELSE rank_yesterday.rank_yesterday
     END AS vid_rank_yesterday
+,yt.vid_id
+,yt.chnl_id
 FROM youtube_trending AS yt
 LEFT JOIN vid_rank ON yt.video = vid_rank.video
 LEFT JOIN rank_yesterday ON yt.video = rank_yesterday.video AND yt.chnl = rank_yesterday.chnl
