@@ -1,6 +1,5 @@
 """Data dashboards: YouTube trending, ETL status, MTG prices."""
 
-import matplotlib.pyplot as plt
 import pandas as pd
 from flask import Blueprint, redirect, render_template, url_for
 
@@ -14,6 +13,18 @@ bp = Blueprint('dashboards', __name__)
 
 @bp.route("/youtube_trending", methods=["POST", "GET"])
 def youtube_trending():
+
+    # Freshness signal: key the cache on the latest day the ETL has landed so
+    # the cache invalidates the moment new rows arrive. collected_date is a
+    # DATE, so this one cheap query needs no session time zone.
+    with db_cursor() as (conn, cursor):
+        cursor.execute("""SELECT MAX(collected_date) FROM youtube_trending;""")
+        data_version = cursor.fetchone()[0]
+
+    cache_key = f"youtube_trending::{data_version}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     with db_cursor() as (conn, cursor):
         cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
@@ -30,25 +41,20 @@ def youtube_trending():
         cursor.execute("""SELECT * FROM vw_prod_youtube_top_categories;""")
         top_categories = pd.DataFrame(cursor.fetchall(), columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
 
-    yt_video_scatter = plot_viz.yt_video_scatter()
-    temp_yt_video_scatter = 'static/yt_video_scatter.png'
-    yt_video_scatter.savefig(temp_yt_video_scatter)
-    plt.close(yt_video_scatter)
+    # Inline the plots as base64 data URIs so the cached HTML is self-contained
+    # and never points at PNGs on the ephemeral per-dyno filesystem.
+    yt_video_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_video_scatter())
+    yt_chnl_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_chnl_scatter())
+    yt_stacked_bar_plot = plot_viz.fig_to_data_uri(plot_viz.yt_stacked_bar_plot())
 
-    yt_chnl_scatter = plot_viz.yt_chnl_scatter()
-    temp_yt_chnl_scatter = 'static/yt_chnl_scatter.png'
-    yt_chnl_scatter.savefig(temp_yt_chnl_scatter)
-    plt.close(yt_chnl_scatter)
-
-    yt_stacked_bar_plot = plot_viz.yt_stacked_bar_plot()
-    temp_yt_stacked_bar_plot = 'static/yt_stacked_bar_plot.png'
-    yt_stacked_bar_plot.savefig(temp_yt_stacked_bar_plot)
-    plt.close(yt_stacked_bar_plot)
-
-    return render_template("youtube_trending.html", top_10_today=top_10_today, \
+    rendered = render_template("youtube_trending.html", top_10_today=top_10_today, \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
-        yt_stacked_bar_plot=temp_yt_stacked_bar_plot, yt_video_scatter=temp_yt_video_scatter, yt_chnl_scatter=temp_yt_chnl_scatter
+        yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter
         )
+
+    # 48h timeout ages out stale date-keys; fresh data lands a new key daily.
+    cache.set(cache_key, rendered, timeout=60*60*48)
+    return rendered
 
 
 def get_valid_rounds():

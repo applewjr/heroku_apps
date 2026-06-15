@@ -7,6 +7,8 @@ from adjustText import adjust_text
 import matplotlib
 matplotlib.use('Agg') # allows Matplotlib to render plots directly to image files without requiring a GUI
 import os
+import io
+import base64
 
 import config as app_config
 
@@ -30,7 +32,21 @@ def format_tick_value(value):
         return f'{value/1e3:.0f}K'
     else:
         return str(value)
-        
+
+
+def fig_to_data_uri(fig):
+    """Render a matplotlib figure to a base64 PNG data URI and close it.
+
+    Returns a self-contained 'data:image/png;base64,...' string so cached
+    pages embed the plot inline instead of pointing at a file on the
+    ephemeral per-dyno filesystem.
+    """
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png')
+    plt.close(fig)
+    encoded = base64.b64encode(buf.getvalue()).decode('ascii')
+    return f'data:image/png;base64,{encoded}'
+
 
 def yt_stacked_bar_plot():
     cat_dict = {
