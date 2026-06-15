@@ -59,6 +59,11 @@ def espresso_home_redirect():
 @bp.route('/espresso/recommendation/', methods=['GET', 'POST'])
 def espresso_recommendation():
 
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The heavy sklearn pipeline only runs on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='KNN Predictive Recommendations')
+
     espresso_data = get_espresso_data()
 
     user_pred = request.form.get('user_pred', 'James')
@@ -81,6 +86,11 @@ def espresso_recommendation():
 
 @bp.route('/espresso/plot/', methods=['GET', 'POST'])
 def espresso_plot():
+
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The matplotlib render only happens on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='Dynamic Scatter Plots')
 
     espresso_data = get_espresso_data()
 
@@ -128,6 +138,11 @@ EXPLORE_DEFAULTS = {
 
 @bp.route('/espresso/explore/', methods=['GET', 'POST'])
 def espresso_explore():
+
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The distance calc + 3D render only happen on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='Exploration Recommendations')
 
     espresso_data = get_espresso_data()
 
