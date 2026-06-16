@@ -1,6 +1,11 @@
 """Data dashboards: YouTube trending, ETL status, MTG prices."""
 
+import io
+from datetime import datetime
+
 import pandas as pd
+import pytz
+import requests
 from flask import Blueprint, redirect, render_template, url_for
 
 import config
@@ -10,6 +15,15 @@ from functions import plot_viz, youtube_stats
 from helpers import make_trending_jsonld
 
 bp = Blueprint('dashboards', __name__)
+
+# MTG price data is published once a day to a fixed CloudFront URL (the object is
+# overwritten in place). We key freshness off the CSV's own date stamp rather than
+# a timer, so the route never assumes *when* the daily refresh lands.
+PST = pytz.timezone('America/Los_Angeles')
+MTG_CACHE_KEY = "mtg_prices"
+# Backstop only: the last good render survives an extended upstream outage this
+# long. Normal freshness comes from the data-date check + conditional GET below.
+MTG_CACHE_TIMEOUT = 60 * 60 * 48
 
 
 @bp.route("/youtube_trending", methods=["POST", "GET"])
@@ -113,12 +127,16 @@ def etl_status_dash(round):
         return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
 
 
-@bp.route("/mtg", methods=["POST", "GET"])
-@cache.cached()  # Cache the entire view for the default timeout
-def mtg_prices():
-    df = pd.read_csv(config.MTG_PATH)
+def _render_mtg(source):
+    """Render the MTG prices page from a CSV ``source`` (path or file-like).
 
-    today_price_date_str = df['today_price_date'].head(1).values[0]
+    Returns ``(rendered_html, data_date)``, where ``data_date`` is the CSV's own
+    ``today_price_date`` stamp — the value used to decide whether a cached copy is
+    still current.
+    """
+    df = pd.read_csv(source)
+
+    today_price_date_str = str(df['today_price_date'].head(1).values[0])
 
     df = df[df['tcgplayer_id'].notnull()]
     df = df[df['1wk_diff'].notnull()]
@@ -138,4 +156,49 @@ def mtg_prices():
     # astype(object) first, otherwise None is coerced back to NaN in float columns.
     mtg_data = df.astype(object).where(pd.notnull(df), None).to_dict(orient='records')
 
-    return render_template('mtg_prices.html', mtg_data=mtg_data, today_price_date_str=today_price_date_str)
+    rendered = render_template('mtg_prices.html', mtg_data=mtg_data,
+                               today_price_date_str=today_price_date_str)
+    return rendered, today_price_date_str
+
+
+@bp.route("/mtg", methods=["POST", "GET"])
+def mtg_prices():
+    # Freshness is defined by the data's own date stamp, not by when the upstream
+    # pipeline runs: the CSV is current iff it is stamped with today's date (PST,
+    # the zone the pipeline stamps in). This keeps the route independent of *when*
+    # the daily refresh lands — there is no hardcoded update time to forget about.
+    today = datetime.now(PST).strftime('%Y-%m-%d')
+    cached = cache.get(MTG_CACHE_KEY)  # {'data_date', 'etag', 'html'} or None
+
+    # Fast path: we already hold today's data, so don't even contact the CDN.
+    if cached and cached["data_date"] == today:
+        return cached["html"]
+
+    # We're holding yesterday's data (the pre-refresh window) or nothing yet. Ask
+    # the CDN whether the file changed since we last pulled it: a conditional GET
+    # returns a bodyless 304 when nothing's new, so polling stays cheap no matter
+    # how long upstream takes to publish. Any upstream error falls back to the
+    # last good render, so the page keeps serving through transient blips.
+    headers = {}
+    if cached and cached.get("etag"):
+        headers["If-None-Match"] = cached["etag"]
+
+    try:
+        resp = requests.get(config.MTG_PATH, headers=headers, timeout=10)
+        if resp.status_code == 304 and cached:
+            cache.set(MTG_CACHE_KEY, cached, timeout=MTG_CACHE_TIMEOUT)  # re-arm TTL
+            return cached["html"]
+        resp.raise_for_status()
+        # Decode from bytes so a missing charset header can't corrupt accented
+        # card names (requests would otherwise fall back to ISO-8859-1 for .text).
+        rendered, data_date = _render_mtg(io.BytesIO(resp.content))
+        cache.set(MTG_CACHE_KEY, {
+            "data_date": data_date,
+            "etag": resp.headers.get("ETag"),
+            "html": rendered,
+        }, timeout=MTG_CACHE_TIMEOUT)
+        return rendered
+    except Exception:
+        if cached:
+            return cached["html"]  # ride out the blip on the last good copy
+        raise                      # cold cache + upstream down: nothing to serve

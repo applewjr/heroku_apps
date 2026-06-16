@@ -1,6 +1,9 @@
 """Espresso optimizer routes. GET and POST share one code path: POSTed form
 values override the defaults via request.form.get (form is empty on GET)."""
 
+import base64
+import io
+
 import matplotlib.pyplot as plt
 from flask import Blueprint, redirect, render_template, request, url_for
 
@@ -10,6 +13,21 @@ from extensions import cache
 from functions import espresso
 
 bp = Blueprint('espresso', __name__)
+
+
+def fig_to_data_uri(fig):
+    """Render a matplotlib figure to an inline PNG data URI and close it.
+
+    Embedding the bytes in the HTML response avoids writing a shared file to
+    Heroku's ephemeral, per-dyno filesystem (where the follow-up image request
+    can hit a different dyno) and sidesteps browser caching of a constant URL.
+    """
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    encoded = base64.b64encode(buf.read()).decode('ascii')
+    return f'data:image/png;base64,{encoded}'
 
 
 def get_espresso_data():
@@ -59,6 +77,11 @@ def espresso_home_redirect():
 @bp.route('/espresso/recommendation/', methods=['GET', 'POST'])
 def espresso_recommendation():
 
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The heavy sklearn pipeline only runs on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='KNN Predictive Recommendations')
+
     espresso_data = get_espresso_data()
 
     user_pred = request.form.get('user_pred', 'James')
@@ -82,6 +105,11 @@ def espresso_recommendation():
 @bp.route('/espresso/plot/', methods=['GET', 'POST'])
 def espresso_plot():
 
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The matplotlib render only happens on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='Dynamic Scatter Plots')
+
     espresso_data = get_espresso_data()
 
     espresso_x_col = request.form.get('espresso_x_col', 'flow_time_seconds')
@@ -96,16 +124,14 @@ def espresso_plot():
         espresso_data['df_espresso_initial'], espresso_data['df_profile'], config.ESPRESSO_WATER_TEMP_NA_VAL
     )
     espresso_scatter_plot = espresso.espresso_dynamic_scatter(df_scatter, espresso_x_col, espresso_y_col, espresso_z_col)
-    temp_espresso_scatter_plot = 'static/espresso_scatter.png'
-    espresso_scatter_plot.savefig(temp_espresso_scatter_plot)
-    plt.close(espresso_scatter_plot)
+    scatter_img = fig_to_data_uri(espresso_scatter_plot)
 
     return render_template('espresso_plot.html',
         valid_user_name_list=espresso_data['valid_user_name_list'],
         valid_roast_list=espresso_data['valid_roast_list'],
         valid_shots_list=espresso_data['valid_shots_list'],
         espresso_x_col_val=espresso_x_col, espresso_y_col_val=espresso_y_col, espresso_z_col_val=espresso_z_col,
-        scatter_espresso_col_labels=espresso_data['scatter_espresso_col_labels'],
+        scatter_espresso_col_labels=espresso_data['scatter_espresso_col_labels'], scatter_img=scatter_img,
         user_pred_scatter_val=user_pred_scatter, roast_pred_scatter_val=roast_pred_scatter, shots_pred_scatter_val=shots_pred_scatter)
 
 
@@ -129,6 +155,11 @@ EXPLORE_DEFAULTS = {
 @bp.route('/espresso/explore/', methods=['GET', 'POST'])
 def espresso_explore():
 
+    # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
+    # The distance calc + 3D render only happen on the POST from the Continue/Calculate button.
+    if request.method == 'GET':
+        return render_template('espresso_gate.html', gate_title='Exploration Recommendations')
+
     espresso_data = get_espresso_data()
 
     p = {key: request.form.get(key, default) for key, default in EXPLORE_DEFAULTS.items()}
@@ -143,15 +174,13 @@ def espresso_explore():
         p['distance_coffee_g_min'], p['distance_coffee_g_max'], p['distance_coffee_g_granularity'],
         p['distance_espresso_g_min'], p['distance_espresso_g_max'], p['distance_espresso_g_granularity'])
     scatter_3d = espresso.plot_3d_scatter(df_scatter)
-    temp_scatter_3d_plot = 'static/scatter_3d.png'
-    scatter_3d.savefig(temp_scatter_3d_plot)
-    plt.close(scatter_3d)
+    scatter_3d_img = fig_to_data_uri(scatter_3d)
 
     return render_template('espresso_explore.html',
         valid_user_name_list=espresso_data['valid_user_name_list'],
         valid_roast_list=espresso_data['valid_roast_list'],
         valid_shots_list=espresso_data['valid_shots_list'],
-        furthest_point=furthest_point, scatter_3d=temp_scatter_3d_plot,
+        furthest_point=furthest_point, scatter_3d=scatter_3d_img,
         **{f'{key}_val': value for key, value in p.items()})
 
 

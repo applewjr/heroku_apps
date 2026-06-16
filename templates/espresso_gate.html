@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Espresso Optimizer{% endblock %}
+
+{% block head %}
+    <style>
+        .gate-card {
+            max-width: 520px;
+            margin: 60px auto;
+            padding: 0 20px;
+        }
+        .gate-card h1 {
+            font-size: 1.6rem;
+            margin-bottom: 0.75rem;
+        }
+        .gate-lead {
+            font-size: 1.05rem;
+            color: #374151;
+            margin: 1rem 0 0.35rem;
+        }
+        .gate-sub {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin: 0 0 1.75rem;
+        }
+        .gate-continue {
+            background-color: #02484d;
+            color: white;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .gate-continue:hover {
+            background-color: #03282b;
+            color: gray;
+        }
+        .custom-button {
+            background-color: #02484d;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .custom-button:hover {
+            background-color: #03282b;
+            color: gray;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="gate-card">
+        {% if gate_title %}<h1>{{ gate_title }}</h1>{% endif %}
+        <p class="gate-lead">This page runs live data processing. Click to continue.</p>
+        <p class="gate-sub">Bots: the rest of the site is fair game, but please skip this one.</p>
+
+        <!-- POST is what triggers the computation in the route. A plain GET (crawlers
+             following the link) renders only this page and never runs the model. -->
+        <form method="post">
+            <button type="submit" class="gate-continue">Continue</button>
+        </form>
+
+        <br>
+        <hr style="width:60%;border: 1px dashed #d3d6da;">
+        <br>
+
+        <a href="/espresso/home">
+            <button class="custom-button">Home</button>
+        </a>
+    </div>
+{% endblock %}
