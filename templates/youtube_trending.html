@@ -147,38 +147,103 @@
 <br>
 
 <div class="dashboard-section">
-    <h3>Top Trending Videos Today</h3>
+    <h3>Top Now Today</h3>
+    <p>YouTube's main "Now" trending feed</p>
     <div class="table-scroll">
     <table>
         <thead>
             <tr>
+                <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Rank</th>
-                <th class="num">Movement</th>
-                <th class="num">Best Video Rank</th>
+                <th class="num">Views</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_10_today.iterrows() %}
-            {% set rank = row['Rank']|int %}
+            {% for row in top_now %}
+            {% set rank = row.rank|int %}
             <tr>
-                <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
                 <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
-                <td class="num">
-                    {% set yesterday = row['Video Rank Yesterday'] %}
-                    {% if yesterday == 'New' %}
-                        <span class="move-new">New</span>
-                    {% else %}
-                        {% set delta = (yesterday|int) - rank %}
-                        {% if delta > 0 %}<span class="move-up">&#9650; {{ delta }}</span>
-                        {% elif delta < 0 %}<span class="move-down">&#9660; {{ -delta }}</span>
-                        {% else %}<span class="move-same">&mdash;</span>{% endif %}
-                    {% endif %}
-                </td>
-                <td class="num">{{ row['Best Video Rank'] }}</td>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
             </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">No data.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Top Gaming Today</h3>
+    <p>YouTube's dedicated Gaming trending feed</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th class="num">Rank</th>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in top_gaming %}
+            {% set rank = row.rank|int %}
+            <tr>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">No data.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Top Music Today</h3>
+    <p>YouTube's dedicated Music trending feed</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th class="num">Rank</th>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in top_music %}
+            {% set rank = row.rank|int %}
+            <tr>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -198,6 +263,8 @@
                 <th class="num">Yesterday</th>
                 <th class="num">Today</th>
                 <th class="num">Climb</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
             </tr>
         </thead>
         <tbody>
@@ -208,9 +275,11 @@
                 <td class="num">{{ row.prev_rank }}</td>
                 <td class="num">{{ row.today_rank }}</td>
                 <td class="num"><span class="move-up">&#9650; {{ row.climb }}</span></td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="muted">No prior-day data to compare.</td></tr>
+            <tr><td colspan="7" class="muted">No prior-day data to compare.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -229,6 +298,8 @@
                 <th>Channel</th>
                 <th class="num">Views</th>
                 <th class="num">Views Gained</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
             </tr>
         </thead>
         <tbody>
@@ -238,9 +309,11 @@
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
                 <td class="num"><span class="move-up">+{{ row.gain }}</span></td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="muted">No prior-day data to compare.</td></tr>
+            <tr><td colspan="6" class="muted">No prior-day data to compare.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -258,6 +331,8 @@
                 <th>Video</th>
                 <th>Channel</th>
                 <th class="num">Views</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
                 <th class="num">Like Rate</th>
             </tr>
         </thead>
@@ -267,10 +342,46 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
                 <td class="num">{{ row.like_pct }}%</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="muted">Not enough data.</td></tr>
+            <tr><td colspan="6" class="muted">Not enough data.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Most Discussed Videos</h3>
+    <p>Highest comment-to-view ratio (min 50K views)</p>
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Likes</th>
+                <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in most_discussed %}
+            <tr>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{{ row.comments }}</td>
+                <td class="num">{{ row.comment_pct }}%</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">Not enough data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -320,7 +431,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_10_title.iterrows() %}
+            {% for row in top_10_title %}
             <tr>
                 <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
@@ -347,7 +458,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_10_channel.iterrows() %}
+            {% for row in top_10_channel %}
             <tr>
                 <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
                 <td class="num">{{ row['Count of Video Days'] }}</td>
@@ -374,7 +485,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_categories.iterrows() %}
+            {% for row in top_categories %}
             <tr>
                 <td>{{ row['Category'] }}</td>
                 <td class="num">{{ row['Top 50 Count'] }}</td>

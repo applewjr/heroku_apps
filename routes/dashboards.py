@@ -11,7 +11,7 @@ from flask import Blueprint, redirect, render_template, url_for
 import config
 from data import etl_dash_queries
 from extensions import auth, cache, db_cursor
-from functions import plot_viz, youtube_stats
+from functions import plot_viz, youtube_stats, youtube_revamp_stats
 from helpers import make_trending_jsonld
 
 bp = Blueprint('dashboards', __name__)
@@ -33,10 +33,14 @@ def youtube_trending():
     # the cache invalidates the moment new rows arrive. collected_date is a
     # DATE, so this one cheap query needs no session time zone.
     with db_cursor() as (conn, cursor):
-        cursor.execute("""SELECT MAX(collected_date) FROM youtube_trending;""")
+        cursor.execute("""SELECT MAX(collected_date) FROM youtube_trending_revamp;""")
         data_version = cursor.fetchone()[0]
 
-    cache_key = f"youtube_trending::{data_version}"
+    # Namespace bumped to v2 when the dashboard moved off the legacy
+    # youtube_trending table onto the revamp Now feed: both tables share the same
+    # latest collected_date, so without the bump a stale pre-migration render
+    # could keep being served under an identical key.
+    cache_key = f"youtube_trending::v2::{data_version}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -44,29 +48,27 @@ def youtube_trending():
     with db_cursor() as (conn, cursor):
         cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_today;""")
-        top_10_today = pd.DataFrame(cursor.fetchall(), columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday', 'vid_id', 'chnl_id'])
-
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_title;""")
-        top_10_title = pd.DataFrame(cursor.fetchall(), columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank', 'vid_id', 'chnl_id'])
-
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_channel;""")
-        top_10_channel = pd.DataFrame(cursor.fetchall(), columns=['Channel', 'Count of Video Days', 'Best Channel Rank', 'chnl_id'])
-
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_categories;""")
-        top_categories = pd.DataFrame(cursor.fetchall(), columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
-
         # Analytics panels keyed off the latest available day (robust to ETL gaps).
         prev_date = youtube_stats.get_prev_date(cursor, data_version)
+        top_10_title = youtube_stats.get_top_videos_30d(cursor, data_version)
+        top_10_channel = youtube_stats.get_top_channels_30d(cursor, data_version)
+        top_categories = youtube_stats.get_top_categories_30d(cursor, data_version)
         kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
         climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date)
         velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date)
         engagement = youtube_stats.get_engagement_leaders(cursor, data_version)
+        most_discussed = youtube_stats.get_most_discussed(cursor, data_version)
         age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
-    # schema.org ItemList of today's ranked videos for richer search results.
+        # Per-surface "Top Today" tables from the revamp table's three feeds.
+        top_now = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Now', limit=10)
+        top_music = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Music', limit=10)
+        top_gaming = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Gaming', limit=10)
+
+    # schema.org ItemList of today's ranked videos for richer search results,
+    # built from the Now feed that now drives the on-page "Top Now Today" panel.
     trending_jsonld = make_trending_jsonld(
-        (row['Rank'], row['vid_id'], row['Video']) for _, row in top_10_today.iterrows()
+        (row['rank'], row['vid_id'], row['video']) for row in top_now
     )
 
     # Inline the plots as base64 data URIs so the cached HTML is self-contained
@@ -75,11 +77,13 @@ def youtube_trending():
     yt_chnl_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_chnl_scatter())
     yt_stacked_bar_plot = plot_viz.fig_to_data_uri(plot_viz.yt_stacked_bar_plot())
 
-    rendered = render_template("youtube_trending.html", top_10_today=top_10_today, \
+    rendered = render_template("youtube_trending.html", \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
         data_version=data_version, kpis=kpis, climbers=climbers, velocity=velocity, \
-        engagement=engagement, age_buckets=age_buckets, trending_jsonld=trending_jsonld
+        engagement=engagement, most_discussed=most_discussed, age_buckets=age_buckets, \
+        top_now=top_now, top_music=top_music, \
+        top_gaming=top_gaming, trending_jsonld=trending_jsonld
         )
 
     # 48h timeout ages out stale date-keys; fresh data lands a new key daily.

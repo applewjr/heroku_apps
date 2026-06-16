@@ -4,7 +4,7 @@ trending JSON-LD builder. These import ``functions`` / ``helpers`` directly and
 touch no external services, so they run in CI without MySQL.
 """
 
-from functions import youtube_stats
+from functions import youtube_stats, youtube_revamp_stats
 from helpers import make_trending_jsonld
 
 
@@ -21,6 +21,13 @@ def test_fmt_count_thresholds():
 
 def test_fmt_count_handles_none():
     assert youtube_stats._fmt_count(None) == "0"
+
+
+def test_fmt_count_or_dash_hides_sentinel_and_null():
+    assert youtube_stats._fmt_count_or_dash(1500) == "1.5K"
+    assert youtube_stats._fmt_count_or_dash(0) == "0"
+    assert youtube_stats._fmt_count_or_dash(-1) == "—"   # hidden-stat sentinel
+    assert youtube_stats._fmt_count_or_dash(None) == "—"
 
 
 # --- fake cursor -----------------------------------------------------------
@@ -46,13 +53,14 @@ class FakeCursor:
 
 def test_get_biggest_climbers_shapes_rows():
     cur = FakeCursor([
-        [("Vid A", "Chan A", 9, 4, 5, "aaa", "UCaaa"),
-         ("Vid B", "Chan B", 6, 5, 1, "bbb", "UCbbb")],
+        [("Vid A", "Chan A", 9, 4, 5, 12_000, 800, "aaa", "UCaaa"),
+         ("Vid B", "Chan B", 6, 5, 1, 5_000, 200, "bbb", "UCbbb")],
     ])
     out = youtube_stats.get_biggest_climbers(cur, "2026-06-14", "2026-06-13")
     assert out[0] == {
         "video": "Vid A", "chnl": "Chan A", "prev_rank": 9, "today_rank": 4,
-        "climb": 5, "vid_id": "aaa", "chnl_id": "UCaaa",
+        "climb": 5, "likes": "12.0K", "comments": "800",
+        "vid_id": "aaa", "chnl_id": "UCaaa",
     }
     assert len(out) == 2
 
@@ -68,11 +76,12 @@ def test_get_biggest_climbers_no_prev_day_returns_empty():
 
 def test_get_view_velocity_formats_numbers():
     cur = FakeCursor([
-        [("Vid A", "Chan A", 2_500_000, 1_200_000, "aaa", "UCaaa")],
+        [("Vid A", "Chan A", 2_500_000, 1_200_000, 50_000, 3_000, "aaa", "UCaaa")],
     ])
     out = youtube_stats.get_view_velocity(cur, "2026-06-14", "2026-06-13")
     assert out == [{
         "video": "Vid A", "chnl": "Chan A", "views": "2.5M", "gain": "1.2M",
+        "likes": "50.0K", "comments": "3.0K",
         "vid_id": "aaa", "chnl_id": "UCaaa",
     }]
 
@@ -85,11 +94,12 @@ def test_get_view_velocity_no_prev_day_returns_empty():
 
 def test_get_engagement_leaders_shapes_rows():
     cur = FakeCursor([
-        [("Vid A", "Chan A", 1_000_000, 4.2, "aaa", "UCaaa")],
+        [("Vid A", "Chan A", 1_000_000, 42_000, 1_500, 4.2, "aaa", "UCaaa")],
     ])
     out = youtube_stats.get_engagement_leaders(cur, "2026-06-14")
     assert out == [{
-        "video": "Vid A", "chnl": "Chan A", "views": "1.0M", "like_pct": 4.2,
+        "video": "Vid A", "chnl": "Chan A", "views": "1.0M",
+        "likes": "42.0K", "comments": "1.5K", "like_pct": 4.2,
         "vid_id": "aaa", "chnl_id": "UCaaa",
     }]
 
@@ -134,6 +144,84 @@ def test_get_trending_age_buckets_labels_and_pct():
         {"label": "4–7 days", "count": 5, "pct": 25},
         {"label": "30+ days", "count": 10, "pct": 50},
     ]
+
+
+# --- get_most_discussed ----------------------------------------------------
+
+def test_get_most_discussed_shapes_and_formats():
+    cur = FakeCursor([
+        [("Vid A", "Chan A", 1_000_000, 80_000, 25_000, 2.5, "aaa", "UCaaa")],
+    ])
+    out = youtube_stats.get_most_discussed(cur, "2026-06-14")
+    assert out == [{
+        "video": "Vid A", "chnl": "Chan A", "views": "1.0M",
+        "likes": "80.0K", "comments": "25.0K",
+        "comment_pct": 2.5, "vid_id": "aaa", "chnl_id": "UCaaa",
+    }]
+
+
+# --- revamp: get_top_by_surface --------------------------------------------
+
+def test_get_top_by_surface_formats_views():
+    cur = FakeCursor([
+        [(1, "Vid A", "Chan A", 3_400_000, 120_000, 9_000, "aaa", "UCaaa")],
+    ])
+    out = youtube_revamp_stats.get_top_by_surface(cur, "2026-06-14", "Gaming")
+    assert out == [{
+        "rank": 1, "video": "Vid A", "chnl": "Chan A", "views": "3.4M",
+        "likes": "120.0K", "comments": "9.0K",
+        "vid_id": "aaa", "chnl_id": "UCaaa",
+    }]
+
+
+def test_get_top_by_surface_hides_negative_stats():
+    # Hidden likes/comments come back as -1 from the feed; render them as dashes.
+    cur = FakeCursor([
+        [(1, "Vid A", "Chan A", 3_400_000, -1, -1, "aaa", "UCaaa")],
+    ])
+    out = youtube_revamp_stats.get_top_by_surface(cur, "2026-06-14", "Music")
+    assert out[0]["likes"] == "—"
+    assert out[0]["comments"] == "—"
+
+
+def test_get_top_by_surface_no_date_skips_query():
+    cur = FakeCursor([])
+    assert youtube_revamp_stats.get_top_by_surface(cur, None, "Music") == []
+    assert cur.executed == []
+
+
+# --- 30-day leaderboards (ported from the retired views) -------------------
+
+def test_get_top_videos_30d_shapes_rows():
+    cur = FakeCursor([
+        [("Vid A", "Chan A", 12, 3, "aaa", "UCaaa")],
+    ])
+    out = youtube_stats.get_top_videos_30d(cur, "2026-06-14")
+    assert out == [{
+        "Video": "Vid A", "Channel": "Chan A", "Count of Days": 12,
+        "Best Video Rank": 3, "vid_id": "aaa", "chnl_id": "UCaaa",
+    }]
+
+
+def test_get_top_channels_30d_shapes_rows():
+    cur = FakeCursor([
+        [("Chan A", 20, 1, "UCaaa")],
+    ])
+    out = youtube_stats.get_top_channels_30d(cur, "2026-06-14")
+    assert out == [{
+        "Channel": "Chan A", "Count of Video Days": 20, "Best Channel Rank": 1,
+        "chnl_id": "UCaaa",
+    }]
+
+
+def test_get_top_categories_30d_shapes_rows():
+    cur = FakeCursor([
+        [("Music", 120, 30, 5)],
+    ])
+    out = youtube_stats.get_top_categories_30d(cur, "2026-06-14")
+    assert out == [{
+        "Category": "Music", "Top 50 Count": 120, "Top 10 Count": 30, "Top 1 Count": 5,
+    }]
 
 
 # --- make_trending_jsonld --------------------------------------------------

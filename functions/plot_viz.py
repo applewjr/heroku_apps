@@ -11,6 +11,7 @@ import io
 import base64
 
 import config as app_config
+from functions.youtube_stats import NOW_FEED
 
 # Reuse the central secret loading (Heroku env vars, or secret_pass.py / env
 # fallback locally and in CI) instead of importing secret_pass directly.
@@ -115,8 +116,8 @@ def yt_stacked_bar_plot():
     dynamic_query.append("""SELECT collected_date""")
     for key, value in cat_dict.items():
         dynamic_query.append(f""",COUNT(CASE WHEN category = '{key}' THEN category END) AS '{value}'""")
-    dynamic_query.append("""
-        FROM youtube_trending AS yt
+    dynamic_query.append(f"""
+        FROM {NOW_FEED} AS yt
         LEFT JOIN youtube_cat AS cat ON yt.vid_cat_id = cat.id
         GROUP BY collected_date
         ORDER BY collected_date DESC
@@ -187,9 +188,9 @@ def yt_video_scatter():
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
 
-    sql_query = """
+    sql_query = f"""
         SELECT MAX(vid_likes), MAX(vid_views), chnl
-        FROM youtube_trending
+        FROM {NOW_FEED} AS yt
         WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
         GROUP BY chnl;
         """
@@ -234,9 +235,9 @@ def yt_chnl_scatter():
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
 
-    sql_query = """
+    sql_query = f"""
         SELECT  MAX(chnl_subs), MAX(chnl_views), chnl
-        FROM youtube_trending
+        FROM {NOW_FEED} AS yt
         WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
         GROUP BY chnl;
         """
