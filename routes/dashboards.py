@@ -56,15 +56,15 @@ def youtube_trending():
         kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
         age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
-        # 'Top Now Today' is the consolidated power table: today's full Now feed
-        # with day-over-day movement and engagement metrics on every row, so one
-        # sortable table replaces the old climbers / velocity / engagement /
-        # discussed panels. Music & Gaming stay as simple per-surface top lists.
+        # The three 'Top <surface> Today' tables are consolidated power tables:
+        # each is its full feed for the day with day-over-day movement and
+        # engagement metrics on every row, so one sortable table per surface does
+        # the work of the old climbers / velocity / engagement / discussed panels.
         # All fetch the full day (~50) so the page shows the top 10 while keeping
         # every row in the DOM for the sort buttons to surface.
-        top_now = youtube_stats.get_now_today(cursor, data_version, prev_date, limit=50)
-        top_music = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Music', limit=50)
-        top_gaming = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Gaming', limit=50)
+        top_now = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Now', limit=50)
+        top_music = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Music', limit=50)
+        top_gaming = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Gaming', limit=50)
 
     # schema.org ItemList of today's ranked videos for richer search results,
     # built from the Now feed that now drives the on-page "Top Now Today" panel.

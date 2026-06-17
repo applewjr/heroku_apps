@@ -226,7 +226,15 @@
 
 <div class="dashboard-section">
     <h3>Top Gaming Today</h3>
-    <p>YouTube's dedicated Gaming trending feed</p>
+    <p>YouTube's dedicated Gaming feed &mdash; today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <div class="sort-presets">
+        <span class="sort-presets-label">Sort by</span>
+        <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
+        <button type="button" data-sort-label="Climb" data-sort-asc="false">Biggest Climbers</button>
+        <button type="button" data-sort-label="Views Gained" data-sort-asc="false">Fastest-Growing</button>
+        <button type="button" data-sort-label="Like Rate" data-sort-asc="false">Most Engaging</button>
+        <button type="button" data-sort-label="Comment Rate" data-sort-asc="false">Most Discussed</button>
+    </div>
     <div class="table-scroll">
     <table data-collapse="10">
         <thead>
@@ -235,8 +243,13 @@
                 <th>Video</th>
                 <th>Channel</th>
                 <th class="num">Views</th>
+                <th class="num">Views Gained</th>
                 <th class="num">Likes</th>
+                <th class="num">Like Rate</th>
                 <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Climb</th>
             </tr>
         </thead>
         <tbody>
@@ -247,11 +260,21 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
+                <td class="num">{% if row.gain is not none %}<span class="move-up">+{{ row.gain }}</span>{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
                 <td class="num">{{ row.comments }}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
+                <td class="num">
+                    {%- if row.climb is none %}<span class="move-new">New</span>
+                    {%- elif row.climb > 0 %}<span class="move-up">+{{ row.climb }}</span>
+                    {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
+                    {%- else %}<span class="move-same">0</span>{% endif %}
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="muted">No data.</td></tr>
+            <tr><td colspan="11" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -261,7 +284,15 @@
 
 <div class="dashboard-section">
     <h3>Top Music Today</h3>
-    <p>YouTube's dedicated Music trending feed</p>
+    <p>YouTube's dedicated Music feed &mdash; today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <div class="sort-presets">
+        <span class="sort-presets-label">Sort by</span>
+        <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
+        <button type="button" data-sort-label="Climb" data-sort-asc="false">Biggest Climbers</button>
+        <button type="button" data-sort-label="Views Gained" data-sort-asc="false">Fastest-Growing</button>
+        <button type="button" data-sort-label="Like Rate" data-sort-asc="false">Most Engaging</button>
+        <button type="button" data-sort-label="Comment Rate" data-sort-asc="false">Most Discussed</button>
+    </div>
     <div class="table-scroll">
     <table data-collapse="10">
         <thead>
@@ -270,8 +301,13 @@
                 <th>Video</th>
                 <th>Channel</th>
                 <th class="num">Views</th>
+                <th class="num">Views Gained</th>
                 <th class="num">Likes</th>
+                <th class="num">Like Rate</th>
                 <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Climb</th>
             </tr>
         </thead>
         <tbody>
@@ -282,11 +318,21 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
+                <td class="num">{% if row.gain is not none %}<span class="move-up">+{{ row.gain }}</span>{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
                 <td class="num">{{ row.comments }}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
+                <td class="num">
+                    {%- if row.climb is none %}<span class="move-new">New</span>
+                    {%- elif row.climb > 0 %}<span class="move-up">+{{ row.climb }}</span>
+                    {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
+                    {%- else %}<span class="move-same">0</span>{% endif %}
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="muted">No data.</td></tr>
+            <tr><td colspan="11" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>

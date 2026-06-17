@@ -49,37 +49,6 @@ class FakeCursor:
         return self._queue.pop(0)
 
 
-# --- get_now_today ---------------------------------------------------------
-
-def test_get_now_today_computes_movement_and_rates():
-    cur = FakeCursor([
-        # vid_rank, video, chnl, views, gain, likes, comments, prev_rank, vid_id, chnl_id
-        [(3, "Vid A", "Chan A", 1_000_000, 200_000, 50_000, 4_000, 7, "aaa", "UCaaa")],
-    ])
-    out = youtube_stats.get_now_today(cur, "2026-06-14", "2026-06-13")
-    assert out == [{
-        "rank": 3, "video": "Vid A", "chnl": "Chan A",
-        "views": "1.0M", "gain": "200.0K",
-        "likes": "50.0K", "like_pct": 5.0,
-        "comments": "4.0K", "comment_pct": 0.4,
-        "prev_rank": 7, "climb": 4,
-        "vid_id": "aaa", "chnl_id": "UCaaa",
-    }]
-
-
-def test_get_now_today_new_entrant_and_hidden_stats():
-    # No prior-day match -> gain/prev_rank/climb are None; hidden -1 stats dash out.
-    cur = FakeCursor([
-        [(5, "Vid B", "Chan B", 800_000, None, -1, -1, None, "bbb", "UCbbb")],
-    ])
-    row = youtube_stats.get_now_today(cur, "2026-06-14", "2026-06-13")[0]
-    assert row["gain"] is None
-    assert row["prev_rank"] is None
-    assert row["climb"] is None
-    assert row["likes"] == "—" and row["like_pct"] is None
-    assert row["comments"] == "—" and row["comment_pct"] is None
-
-
 # --- get_kpis --------------------------------------------------------------
 
 def test_get_kpis_aggregates_and_formats():
@@ -122,33 +91,40 @@ def test_get_trending_age_buckets_labels_and_pct():
     ]
 
 
-# --- revamp: get_top_by_surface --------------------------------------------
+# --- revamp: get_surface_today ---------------------------------------------
 
-def test_get_top_by_surface_formats_views():
+def test_get_surface_today_computes_movement_and_rates():
     cur = FakeCursor([
-        [(1, "Vid A", "Chan A", 3_400_000, 120_000, 9_000, "aaa", "UCaaa")],
+        # vid_rank, video, chnl, views, gain, likes, comments, prev_rank, vid_id, chnl_id
+        [(3, "Vid A", "Chan A", 1_000_000, 200_000, 50_000, 4_000, 7, "aaa", "UCaaa")],
     ])
-    out = youtube_revamp_stats.get_top_by_surface(cur, "2026-06-14", "Gaming")
+    out = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Gaming")
     assert out == [{
-        "rank": 1, "video": "Vid A", "chnl": "Chan A", "views": "3.4M",
-        "likes": "120.0K", "comments": "9.0K",
+        "rank": 3, "video": "Vid A", "chnl": "Chan A",
+        "views": "1.0M", "gain": "200.0K",
+        "likes": "50.0K", "like_pct": 5.0,
+        "comments": "4.0K", "comment_pct": 0.4,
+        "prev_rank": 7, "climb": 4,
         "vid_id": "aaa", "chnl_id": "UCaaa",
     }]
 
 
-def test_get_top_by_surface_hides_negative_stats():
-    # Hidden likes/comments come back as -1 from the feed; render them as dashes.
+def test_get_surface_today_new_entrant_and_hidden_stats():
+    # No prior-day match -> gain/prev_rank/climb are None; hidden -1 stats dash out.
     cur = FakeCursor([
-        [(1, "Vid A", "Chan A", 3_400_000, -1, -1, "aaa", "UCaaa")],
+        [(5, "Vid B", "Chan B", 800_000, None, -1, -1, None, "bbb", "UCbbb")],
     ])
-    out = youtube_revamp_stats.get_top_by_surface(cur, "2026-06-14", "Music")
-    assert out[0]["likes"] == "—"
-    assert out[0]["comments"] == "—"
+    row = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Music")[0]
+    assert row["gain"] is None
+    assert row["prev_rank"] is None
+    assert row["climb"] is None
+    assert row["likes"] == "—" and row["like_pct"] is None
+    assert row["comments"] == "—" and row["comment_pct"] is None
 
 
-def test_get_top_by_surface_no_date_skips_query():
+def test_get_surface_today_no_date_skips_query():
     cur = FakeCursor([])
-    assert youtube_revamp_stats.get_top_by_surface(cur, None, "Music") == []
+    assert youtube_revamp_stats.get_surface_today(cur, None, None, "Music") == []
     assert cur.executed == []
 
 
