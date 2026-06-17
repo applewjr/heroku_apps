@@ -54,19 +54,15 @@ def youtube_trending():
         top_10_channel = youtube_stats.get_top_channels_30d(cursor, data_version)
         top_categories = youtube_stats.get_top_categories_30d(cursor, data_version)
         kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
-        # Fetch the full Now feed (~50) for these so the page can show the top 10
-        # while keeping every row in the DOM for the sort buttons to surface.
-        climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date, limit=50)
-        velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date, limit=50)
-        engagement = youtube_stats.get_engagement_leaders(cursor, data_version, limit=50)
-        most_discussed = youtube_stats.get_most_discussed(cursor, data_version, limit=50)
         age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
-        # Per-surface "Top Today" tables from the revamp table's three feeds.
-        # Fetch the full day (the collector caps each surface at 50): the page
-        # shows the top 10 but keeps every row in the DOM so the sort buttons can
-        # pull any of them into view.
-        top_now = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Now', limit=50)
+        # 'Top Now Today' is the consolidated power table: today's full Now feed
+        # with day-over-day movement and engagement metrics on every row, so one
+        # sortable table replaces the old climbers / velocity / engagement /
+        # discussed panels. Music & Gaming stay as simple per-surface top lists.
+        # All fetch the full day (~50) so the page shows the top 10 while keeping
+        # every row in the DOM for the sort buttons to surface.
+        top_now = youtube_stats.get_now_today(cursor, data_version, prev_date, limit=50)
         top_music = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Music', limit=50)
         top_gaming = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Gaming', limit=50)
 
@@ -85,8 +81,7 @@ def youtube_trending():
     rendered = render_template("youtube_trending.html", \
         top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
         yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
-        data_version=data_version, kpis=kpis, climbers=climbers, velocity=velocity, \
-        engagement=engagement, most_discussed=most_discussed, age_buckets=age_buckets, \
+        data_version=data_version, kpis=kpis, age_buckets=age_buckets, \
         top_now=top_now, top_music=top_music, \
         top_gaming=top_gaming, trending_jsonld=trending_jsonld
         )
