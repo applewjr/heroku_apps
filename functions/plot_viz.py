@@ -184,18 +184,20 @@ def yt_stacked_bar_plot():
 
     return fig
 
-def yt_video_scatter():
+def yt_video_scatter(latest_date):
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
 
+    # Window off the latest available day (not CURDATE()) so the chart matches the
+    # rest of the page on an ETL-gap day.
     sql_query = f"""
         SELECT MAX(vid_likes), MAX(vid_views), chnl
         FROM {NOW_FEED} AS yt
-        WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
+        WHERE collected_date >= %s - INTERVAL 7 DAY
         GROUP BY chnl;
         """
 
-    cursor.execute(sql_query)
+    cursor.execute(sql_query, (latest_date,))
     data = cursor.fetchall()
 
     cursor.close()
@@ -231,18 +233,20 @@ def yt_video_scatter():
 
 
 
-def yt_chnl_scatter():
+def yt_chnl_scatter(latest_date):
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
 
+    # Window off the latest available day (not CURDATE()) so the chart matches the
+    # rest of the page on an ETL-gap day.
     sql_query = f"""
         SELECT  MAX(chnl_subs), MAX(chnl_views), chnl
         FROM {NOW_FEED} AS yt
-        WHERE collected_date >= CURDATE() - INTERVAL 7 DAY
+        WHERE collected_date >= %s - INTERVAL 7 DAY
         GROUP BY chnl;
         """
 
-    cursor.execute(sql_query)
+    cursor.execute(sql_query, (latest_date,))
     data = cursor.fetchall()
 
     cursor.close()
