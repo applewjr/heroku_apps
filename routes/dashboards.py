@@ -54,21 +54,26 @@ def youtube_trending():
         top_10_channel = youtube_stats.get_top_channels_30d(cursor, data_version)
         top_categories = youtube_stats.get_top_categories_30d(cursor, data_version)
         kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
-        climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date)
-        velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date)
-        engagement = youtube_stats.get_engagement_leaders(cursor, data_version)
-        most_discussed = youtube_stats.get_most_discussed(cursor, data_version)
+        # Fetch the full Now feed (~50) for these so the page can show the top 10
+        # while keeping every row in the DOM for the sort buttons to surface.
+        climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date, limit=50)
+        velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date, limit=50)
+        engagement = youtube_stats.get_engagement_leaders(cursor, data_version, limit=50)
+        most_discussed = youtube_stats.get_most_discussed(cursor, data_version, limit=50)
         age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
         # Per-surface "Top Today" tables from the revamp table's three feeds.
-        top_now = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Now', limit=10)
-        top_music = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Music', limit=10)
-        top_gaming = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Gaming', limit=10)
+        # Fetch the full day (the collector caps each surface at 50): the page
+        # shows the top 10 but keeps every row in the DOM so the sort buttons can
+        # pull any of them into view.
+        top_now = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Now', limit=50)
+        top_music = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Music', limit=50)
+        top_gaming = youtube_revamp_stats.get_top_by_surface(cursor, data_version, 'Gaming', limit=50)
 
     # schema.org ItemList of today's ranked videos for richer search results,
     # built from the Now feed that now drives the on-page "Top Now Today" panel.
     trending_jsonld = make_trending_jsonld(
-        (row['rank'], row['vid_id'], row['video']) for row in top_now
+        (row['rank'], row['vid_id'], row['video']) for row in top_now[:10]
     )
 
     # Inline the plots as base64 data URIs so the cached HTML is self-contained

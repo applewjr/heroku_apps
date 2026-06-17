@@ -112,6 +112,13 @@
     .dashboard-section th { cursor: pointer; user-select: none; }
     .dashboard-section th[data-sort]::after { content: ' \25B2'; font-size: 9px; }
     .dashboard-section th[data-sort="desc"]::after { content: ' \25BC'; }
+    .row-toggle {
+        display: block; margin: 0.5rem auto 0;
+        cursor: pointer; font-size: 13px; font-weight: 600;
+        color: #02484d; background: #ecf5f4;
+        border: 1px solid #d4e6e4; border-radius: 999px; padding: 5px 16px;
+    }
+    .row-toggle:hover { background: #def0ee; }
 </style>
 {% endblock %}
 
@@ -150,7 +157,7 @@
     <h3>Top Now Today</h3>
     <p>YouTube's main "Now" trending feed</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th class="num">Rank</th>
@@ -185,7 +192,7 @@
     <h3>Top Gaming Today</h3>
     <p>YouTube's dedicated Gaming trending feed</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th class="num">Rank</th>
@@ -220,7 +227,7 @@
     <h3>Top Music Today</h3>
     <p>YouTube's dedicated Music trending feed</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th class="num">Rank</th>
@@ -255,7 +262,7 @@
     <h3>Biggest Climbers Today</h3>
     <p>Largest rank gains vs. the previous day</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th>Video</th>
@@ -291,7 +298,7 @@
     <h3>Fastest-Growing Videos</h3>
     <p>Largest view gains vs. the previous day</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th>Video</th>
@@ -325,7 +332,7 @@
     <h3>Most Engaging Videos</h3>
     <p>Highest like-to-view ratio (min 50K views)</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th>Video</th>
@@ -359,7 +366,7 @@
     <h3>Most Discussed Videos</h3>
     <p>Highest comment-to-view ratio (min 50K views)</p>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
                 <th>Video</th>
@@ -538,6 +545,30 @@
         });
         rows.forEach(function (r) { body.appendChild(r); });
     }
+    // Collapsible tables: render every row but show only the first N. Each row
+    // stays in the DOM (just display:none), so the sort buttons can pull any row
+    // into the visible top N. A toggle reveals the full set.
+    document.querySelectorAll('.dashboard-section table[data-collapse]').forEach(function (table) {
+        var body = table.tBodies[0];
+        if (!body) return;
+        var limit = parseInt(table.getAttribute('data-collapse'), 10) || 10;
+        var total = body.rows.length;
+        if (total <= limit) return;
+        var expanded = false;
+        function apply() {
+            for (var i = 0; i < body.rows.length; i++) {
+                body.rows[i].style.display = (expanded || i < limit) ? '' : 'none';
+            }
+            toggle.textContent = expanded ? ('Show top ' + limit) : ('Show all ' + total);
+        }
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'row-toggle';
+        toggle.addEventListener('click', function () { expanded = !expanded; apply(); });
+        (table.closest('.table-scroll') || table).insertAdjacentElement('afterend', toggle);
+        table._applyCollapse = apply;  // re-applied after each sort
+        apply();
+    });
     document.querySelectorAll('.dashboard-section table').forEach(function (table) {
         if (!table.tHead || !table.tBodies.length) return;
         var headers = table.tHead.rows[0].cells;
@@ -547,6 +578,7 @@
                 state.asc = (state.col === i) ? !state.asc : true;
                 state.col = i;
                 sortTable(table, i, state.asc);
+                if (table._applyCollapse) table._applyCollapse();
                 Array.prototype.forEach.call(headers, function (h) { h.removeAttribute('data-sort'); });
                 th.setAttribute('data-sort', state.asc ? 'asc' : 'desc');
             });
