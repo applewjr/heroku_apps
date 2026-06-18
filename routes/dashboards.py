@@ -167,7 +167,7 @@ def _render_mtg(source):
     """Render the MTG prices page from a CSV ``source`` (path or file-like).
 
     Returns ``(rendered_html, data_date)``, where ``data_date`` is the CSV's own
-    ``today_price_date`` stamp — the value used to decide whether a cached copy is
+    ``today_price_date`` stamp - the value used to decide whether a cached copy is
     still current.
     """
     df = pd.read_csv(source)
@@ -202,7 +202,7 @@ def mtg_prices():
     # Freshness is defined by the data's own date stamp, not by when the upstream
     # pipeline runs: the CSV is current iff it is stamped with today's date (PST,
     # the zone the pipeline stamps in). This keeps the route independent of *when*
-    # the daily refresh lands — there is no hardcoded update time to forget about.
+    # the daily refresh lands - there is no hardcoded update time to forget about.
     today = datetime.now(PST).strftime('%Y-%m-%d')
     cached = cache.get(MTG_CACHE_KEY)  # {'data_date', 'etag', 'html'} or None
 

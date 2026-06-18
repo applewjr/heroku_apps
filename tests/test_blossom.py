@@ -1,4 +1,4 @@
-"""Blossom tests — the highest-traffic page.
+"""Blossom tests - the highest-traffic page.
 
 Covers the real POST path, the session checkbox logic, and pins the solver's
 output against the committed word list. No database required: the solver and

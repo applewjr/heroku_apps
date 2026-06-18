@@ -219,10 +219,10 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
   function fmtMoney(v) {
-    return (v === null || v === undefined) ? '—' : '$' + Number(v).toFixed(2);
+    return (v === null || v === undefined) ? '-' : '$' + Number(v).toFixed(2);
   }
   function fmtMult(v) {
-    if (v === null || v === undefined) return '—';
+    if (v === null || v === undefined) return '-';
     return Number(v).toFixed(2) + '×';
   }
 

@@ -26,8 +26,8 @@ def test_fmt_count_handles_none():
 def test_fmt_count_or_dash_hides_sentinel_and_null():
     assert youtube_stats._fmt_count_or_dash(1500) == "1.5K"
     assert youtube_stats._fmt_count_or_dash(0) == "0"
-    assert youtube_stats._fmt_count_or_dash(-1) == "—"   # hidden-stat sentinel
-    assert youtube_stats._fmt_count_or_dash(None) == "—"
+    assert youtube_stats._fmt_count_or_dash(-1) == "-"   # hidden-stat sentinel
+    assert youtube_stats._fmt_count_or_dash(None) == "-"
 
 
 # --- fake cursor -----------------------------------------------------------
@@ -118,14 +118,31 @@ def test_get_surface_today_new_entrant_and_hidden_stats():
     assert row["gain"] is None
     assert row["prev_rank"] is None
     assert row["climb"] is None
-    assert row["likes"] == "—" and row["like_pct"] is None
-    assert row["comments"] == "—" and row["comment_pct"] is None
+    assert row["likes"] == "-" and row["like_pct"] is None
+    assert row["comments"] == "-" and row["comment_pct"] is None
 
 
 def test_get_surface_today_no_date_skips_query():
     cur = FakeCursor([])
     assert youtube_revamp_stats.get_surface_today(cur, None, None, "Music") == []
     assert cur.executed == []
+
+
+def test_get_surface_today_hidden_views_dash_out():
+    # A video that hides its view count stores the -1 sentinel in vid_views. The
+    # views cell must dash out (not show "-1"), and the rate/gain figures that
+    # divide by or subtract views must be None rather than negative nonsense.
+    cur = FakeCursor([
+        # vid_rank, video, chnl, views(-1), gain, likes, comments, prev_rank, ...
+        [(2, "Vid C", "Chan C", -1, -1_000_001, 5_000, 200, 4, "ccc", "UCccc")],
+    ])
+    row = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Now")[0]
+    assert row["views"] == "-"
+    assert row["gain"] is None
+    assert row["like_pct"] is None
+    assert row["comment_pct"] is None
+    # Movement (rank-based, view-independent) still resolves.
+    assert row["climb"] == 2
 
 
 # --- 30-day leaderboards (ported from the retired views) -------------------

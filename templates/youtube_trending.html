@@ -168,7 +168,7 @@
 
 <div class="dashboard-section">
     <h3>Top Now Today</h3>
-    <p>YouTube's main "Now" feed &mdash; today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's main "Now" feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -202,11 +202,11 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
-                <td class="num">{% if row.gain is not none %}<span class="move-up">+{{ row.gain }}</span>{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
-                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{{ row.comments }}</td>
-                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
                 <td class="num">
                     {%- if row.climb is none %}<span class="move-new">New</span>
@@ -226,7 +226,7 @@
 
 <div class="dashboard-section">
     <h3>Top Gaming Today</h3>
-    <p>YouTube's dedicated Gaming feed &mdash; today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's dedicated Gaming feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -260,11 +260,11 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
-                <td class="num">{% if row.gain is not none %}<span class="move-up">+{{ row.gain }}</span>{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
-                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{{ row.comments }}</td>
-                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
                 <td class="num">
                     {%- if row.climb is none %}<span class="move-new">New</span>
@@ -284,7 +284,7 @@
 
 <div class="dashboard-section">
     <h3>Top Music Today</h3>
-    <p>YouTube's dedicated Music feed &mdash; today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's dedicated Music feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -318,11 +318,11 @@
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
-                <td class="num">{% if row.gain is not none %}<span class="move-up">+{{ row.gain }}</span>{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
-                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{{ row.comments }}</td>
-                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">&mdash;</span>{% endif %}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
                 <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
                 <td class="num">
                     {%- if row.climb is none %}<span class="move-new">New</span>
@@ -482,7 +482,7 @@
             if (a.cells.length <= col || b.cells.length <= col) return 0;
             var ta = a.cells[col].textContent.trim(), tb = b.cells[col].textContent.trim();
             var na = parseNum(ta), nb = parseNum(tb);
-            // Non-numeric cells ("New", "—") are missing values in a numeric
+            // Non-numeric cells ("New", "-") are missing values in a numeric
             // column: always sink them to the bottom, whichever way we're sorting.
             if (na === null && nb === null) {
                 var cmp = ta.toLowerCase() < tb.toLowerCase() ? -1 : (ta.toLowerCase() > tb.toLowerCase() ? 1 : 0);

@@ -3,8 +3,8 @@
 All panels read the site's primary "Now" feed, which now comes from the
 youtube_trending_revamp table (filtered to trending_type='Now') rather than the
 legacy youtube_trending table. NOW_FEED below is the single seam for that
-choice, so re-pointing the dashboard to a different surface — or back to the
-legacy table — is a one-line change here (and the same constant is imported by
+choice, so re-pointing the dashboard to a different surface - or back to the
+legacy table - is a one-line change here (and the same constant is imported by
 functions/plot_viz.py for the charts).
 
 Every function takes an open cursor plus the latest and previous *available*
@@ -32,10 +32,10 @@ def _fmt_count(value):
 
 
 def _fmt_count_or_dash(value):
-    """Like _fmt_count, but renders hidden stats — the revamp feed's -1 sentinel
-    or a NULL — as an em dash instead of a misleading number."""
+    """Like _fmt_count, but renders hidden stats - the revamp feed's -1 sentinel
+    or a NULL - as a dash instead of a misleading number."""
     if value is None or value < 0:
-        return '—'
+        return '-'
     return _fmt_count(value)
 
 
@@ -96,8 +96,8 @@ def get_kpis(cursor, latest_date, prev_date):
         'videos_tracked': videos_tracked or 0,
         'channels_tracked': channels_tracked or 0,
         'new_entrants': new_entrants or 0,
-        'top_category': top_category or '—',
-        'top_video': top_video or '—',
+        'top_category': top_category or '-',
+        'top_video': top_video or '-',
         'max_views': _fmt_count(max_views),
     }
 
