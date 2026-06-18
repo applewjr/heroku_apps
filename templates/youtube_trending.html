@@ -112,6 +112,26 @@
     .dashboard-section th { cursor: pointer; user-select: none; }
     .dashboard-section th[data-sort]::after { content: ' \25B2'; font-size: 9px; }
     .dashboard-section th[data-sort="desc"]::after { content: ' \25BC'; }
+    .row-toggle {
+        display: block; margin: 0.5rem auto 0;
+        cursor: pointer; font-size: 13px; font-weight: 600;
+        color: #02484d; background: #ecf5f4;
+        border: 1px solid #d4e6e4; border-radius: 999px; padding: 5px 16px;
+    }
+    .row-toggle:hover { background: #def0ee; }
+    .sort-presets {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem;
+        margin: 0.25rem 0 0.75rem;
+    }
+    .sort-presets-label {
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;
+    }
+    .sort-presets button {
+        cursor: pointer; font-size: 12px; font-weight: 600;
+        color: #02484d; background: #ecf5f4;
+        border: 1px solid #d4e6e4; border-radius: 999px; padding: 4px 12px;
+    }
+    .sort-presets button:hover { background: #def0ee; }
 </style>
 {% endblock %}
 
@@ -147,100 +167,56 @@
 <br>
 
 <div class="dashboard-section">
-    <h3>Top Trending Videos Today</h3>
+    <h3>Top Now Today</h3>
+    <p>YouTube's main "Now" feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <div class="sort-presets">
+        <span class="sort-presets-label">Sort by</span>
+        <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
+        <button type="button" data-sort-label="Climb" data-sort-asc="false">Biggest Climbers</button>
+        <button type="button" data-sort-label="Views Gained" data-sort-asc="false">Fastest-Growing</button>
+        <button type="button" data-sort-label="Like Rate" data-sort-asc="false">Most Engaging</button>
+        <button type="button" data-sort-label="Comment Rate" data-sort-asc="false">Most Discussed</button>
+    </div>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
-                <th>Video</th>
-                <th>Channel</th>
                 <th class="num">Rank</th>
-                <th class="num">Movement</th>
-                <th class="num">Best Video Rank</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for index, row in top_10_today.iterrows() %}
-            {% set rank = row['Rank']|int %}
-            <tr>
-                <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
-                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
-                <td class="num">
-                    {% set yesterday = row['Video Rank Yesterday'] %}
-                    {% if yesterday == 'New' %}
-                        <span class="move-new">New</span>
-                    {% else %}
-                        {% set delta = (yesterday|int) - rank %}
-                        {% if delta > 0 %}<span class="move-up">&#9650; {{ delta }}</span>
-                        {% elif delta < 0 %}<span class="move-down">&#9660; {{ -delta }}</span>
-                        {% else %}<span class="move-same">&mdash;</span>{% endif %}
-                    {% endif %}
-                </td>
-                <td class="num">{{ row['Best Video Rank'] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </div>
-</div>
-<br>
-
-<div class="dashboard-section">
-    <h3>Biggest Climbers Today</h3>
-    <p>Largest rank gains vs. the previous day</p>
-    <div class="table-scroll">
-    <table>
-        <thead>
-            <tr>
-                <th>Video</th>
-                <th>Channel</th>
-                <th class="num">Yesterday</th>
-                <th class="num">Today</th>
-                <th class="num">Climb</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in climbers %}
-            <tr>
-                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
-                <td class="num">{{ row.prev_rank }}</td>
-                <td class="num">{{ row.today_rank }}</td>
-                <td class="num"><span class="move-up">&#9650; {{ row.climb }}</span></td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="muted">No prior-day data to compare.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </div>
-</div>
-<br>
-
-<div class="dashboard-section">
-    <h3>Fastest-Growing Videos</h3>
-    <p>Largest view gains vs. the previous day</p>
-    <div class="table-scroll">
-    <table>
-        <thead>
-            <tr>
                 <th>Video</th>
                 <th>Channel</th>
                 <th class="num">Views</th>
                 <th class="num">Views Gained</th>
+                <th class="num">Likes</th>
+                <th class="num">Like Rate</th>
+                <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Climb</th>
             </tr>
         </thead>
         <tbody>
-            {% for row in velocity %}
+            {% for row in top_now %}
+            {% set rank = row.rank|int %}
             <tr>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
-                <td class="num"><span class="move-up">+{{ row.gain }}</span></td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{{ row.comments }}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
+                <td class="num">
+                    {%- if row.climb is none %}<span class="move-new">New</span>
+                    {%- elif row.climb > 0 %}<span class="move-up">+{{ row.climb }}</span>
+                    {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
+                    {%- else %}<span class="move-same">0</span>{% endif %}
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="muted">No prior-day data to compare.</td></tr>
+            <tr><td colspan="11" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -249,28 +225,114 @@
 <br>
 
 <div class="dashboard-section">
-    <h3>Most Engaging Videos</h3>
-    <p>Highest like-to-view ratio (min 50K views)</p>
+    <h3>Top Gaming Today</h3>
+    <p>YouTube's dedicated Gaming feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <div class="sort-presets">
+        <span class="sort-presets-label">Sort by</span>
+        <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
+        <button type="button" data-sort-label="Climb" data-sort-asc="false">Biggest Climbers</button>
+        <button type="button" data-sort-label="Views Gained" data-sort-asc="false">Fastest-Growing</button>
+        <button type="button" data-sort-label="Like Rate" data-sort-asc="false">Most Engaging</button>
+        <button type="button" data-sort-label="Comment Rate" data-sort-asc="false">Most Discussed</button>
+    </div>
     <div class="table-scroll">
-    <table>
+    <table data-collapse="10">
         <thead>
             <tr>
+                <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
                 <th class="num">Views</th>
+                <th class="num">Views Gained</th>
+                <th class="num">Likes</th>
                 <th class="num">Like Rate</th>
+                <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Climb</th>
             </tr>
         </thead>
         <tbody>
-            {% for row in engagement %}
+            {% for row in top_gaming %}
+            {% set rank = row.rank|int %}
             <tr>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
                 <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
-                <td class="num">{{ row.like_pct }}%</td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{{ row.comments }}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
+                <td class="num">
+                    {%- if row.climb is none %}<span class="move-new">New</span>
+                    {%- elif row.climb > 0 %}<span class="move-up">+{{ row.climb }}</span>
+                    {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
+                    {%- else %}<span class="move-same">0</span>{% endif %}
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="muted">Not enough data.</td></tr>
+            <tr><td colspan="11" class="muted">No data.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+<br>
+
+<div class="dashboard-section">
+    <h3>Top Music Today</h3>
+    <p>YouTube's dedicated Music feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <div class="sort-presets">
+        <span class="sort-presets-label">Sort by</span>
+        <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
+        <button type="button" data-sort-label="Climb" data-sort-asc="false">Biggest Climbers</button>
+        <button type="button" data-sort-label="Views Gained" data-sort-asc="false">Fastest-Growing</button>
+        <button type="button" data-sort-label="Like Rate" data-sort-asc="false">Most Engaging</button>
+        <button type="button" data-sort-label="Comment Rate" data-sort-asc="false">Most Discussed</button>
+    </div>
+    <div class="table-scroll">
+    <table data-collapse="10">
+        <thead>
+            <tr>
+                <th class="num">Rank</th>
+                <th>Video</th>
+                <th>Channel</th>
+                <th class="num">Views</th>
+                <th class="num">Views Gained</th>
+                <th class="num">Likes</th>
+                <th class="num">Like Rate</th>
+                <th class="num">Comments</th>
+                <th class="num">Comment Rate</th>
+                <th class="num">Yesterday</th>
+                <th class="num">Climb</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in top_music %}
+            {% set rank = row.rank|int %}
+            <tr>
+                <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
+                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td class="num">{{ row.views }}</td>
+                <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
+                <td class="num">{{ row.likes }}</td>
+                <td class="num">{% if row.like_pct is not none %}{{ row.like_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{{ row.comments }}</td>
+                <td class="num">{% if row.comment_pct is not none %}{{ row.comment_pct }}%{% else %}<span class="move-same">-</span>{% endif %}</td>
+                <td class="num">{% if row.prev_rank is not none %}{{ row.prev_rank }}{% else %}<span class="move-new">New</span>{% endif %}</td>
+                <td class="num">
+                    {%- if row.climb is none %}<span class="move-new">New</span>
+                    {%- elif row.climb > 0 %}<span class="move-up">+{{ row.climb }}</span>
+                    {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
+                    {%- else %}<span class="move-same">0</span>{% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -320,7 +382,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_10_title.iterrows() %}
+            {% for row in top_10_title %}
             <tr>
                 <td><a href="https://www.youtube.com/watch?v={{ row['vid_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Video'] }}</a></td>
                 <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
@@ -347,7 +409,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_10_channel.iterrows() %}
+            {% for row in top_10_channel %}
             <tr>
                 <td><a href="https://www.youtube.com/channel/{{ row['chnl_id'] }}" target="_blank" rel="noopener noreferrer">{{ row['Channel'] }}</a></td>
                 <td class="num">{{ row['Count of Video Days'] }}</td>
@@ -374,7 +436,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for index, row in top_categories.iterrows() %}
+            {% for row in top_categories %}
             <tr>
                 <td>{{ row['Category'] }}</td>
                 <td class="num">{{ row['Top 50 Count'] }}</td>
@@ -420,25 +482,74 @@
             if (a.cells.length <= col || b.cells.length <= col) return 0;
             var ta = a.cells[col].textContent.trim(), tb = b.cells[col].textContent.trim();
             var na = parseNum(ta), nb = parseNum(tb);
-            var cmp;
-            if (na !== null && nb !== null) cmp = na - nb;
-            else cmp = ta.toLowerCase() < tb.toLowerCase() ? -1 : (ta.toLowerCase() > tb.toLowerCase() ? 1 : 0);
-            return asc ? cmp : -cmp;
+            // Non-numeric cells ("New", "-") are missing values in a numeric
+            // column: always sink them to the bottom, whichever way we're sorting.
+            if (na === null && nb === null) {
+                var cmp = ta.toLowerCase() < tb.toLowerCase() ? -1 : (ta.toLowerCase() > tb.toLowerCase() ? 1 : 0);
+                return asc ? cmp : -cmp;
+            }
+            if (na === null) return 1;
+            if (nb === null) return -1;
+            return asc ? (na - nb) : (nb - na);
         });
         rows.forEach(function (r) { body.appendChild(r); });
     }
+    // Collapsible tables: render every row but show only the first N. Each row
+    // stays in the DOM (just display:none), so the sort buttons can pull any row
+    // into the visible top N. A toggle reveals the full set.
+    document.querySelectorAll('.dashboard-section table[data-collapse]').forEach(function (table) {
+        var body = table.tBodies[0];
+        if (!body) return;
+        var limit = parseInt(table.getAttribute('data-collapse'), 10) || 10;
+        var total = body.rows.length;
+        if (total <= limit) return;
+        var expanded = false;
+        function apply() {
+            for (var i = 0; i < body.rows.length; i++) {
+                body.rows[i].style.display = (expanded || i < limit) ? '' : 'none';
+            }
+            toggle.textContent = expanded ? ('Show top ' + limit) : ('Show all ' + total);
+        }
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'row-toggle';
+        toggle.addEventListener('click', function () { expanded = !expanded; apply(); });
+        (table.closest('.table-scroll') || table).insertAdjacentElement('afterend', toggle);
+        table._applyCollapse = apply;  // re-applied after each sort
+        apply();
+    });
     document.querySelectorAll('.dashboard-section table').forEach(function (table) {
         if (!table.tHead || !table.tBodies.length) return;
         var headers = table.tHead.rows[0].cells;
         var state = { col: -1, asc: true };
+        function applySort(i, asc) {
+            state.col = i; state.asc = asc;
+            sortTable(table, i, asc);
+            if (table._applyCollapse) table._applyCollapse();
+            Array.prototype.forEach.call(headers, function (h) { h.removeAttribute('data-sort'); });
+            headers[i].setAttribute('data-sort', asc ? 'asc' : 'desc');
+        }
         Array.prototype.forEach.call(headers, function (th, i) {
             th.addEventListener('click', function () {
-                state.asc = (state.col === i) ? !state.asc : true;
-                state.col = i;
-                sortTable(table, i, state.asc);
-                Array.prototype.forEach.call(headers, function (h) { h.removeAttribute('data-sort'); });
-                th.setAttribute('data-sort', state.asc ? 'asc' : 'desc');
+                applySort(i, (state.col === i) ? !state.asc : true);
             });
+        });
+        // Expose a label-based sort so the preset buttons can drive this table.
+        table._sortByLabel = function (label, asc) {
+            for (var i = 0; i < headers.length; i++) {
+                if (headers[i].textContent.trim() === label) { applySort(i, asc); return; }
+            }
+        };
+    });
+    // Preset "Sort by <metric>" buttons sort their section's table by one column.
+    document.querySelectorAll('.sort-presets button[data-sort-label]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var section = btn.closest('.dashboard-section');
+            var table = section && section.querySelector('table');
+            if (table && table._sortByLabel) {
+                table._sortByLabel(btn.getAttribute('data-sort-label'),
+                                   btn.getAttribute('data-sort-asc') === 'true');
+            }
         });
     });
     // Size the content-age bars from their data-pct (kept out of inline styles

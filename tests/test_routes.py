@@ -1,8 +1,8 @@
 """Smoke tests: each key route should respond (not 500).
 
-These catch the failures that take a whole page down after a deploy — broken
+These catch the failures that take a whole page down after a deploy - broken
 imports, missing templates, blueprint registration mistakes, renamed Jinja
-variables — without needing the database.
+variables - without needing the database.
 """
 
 import pytest

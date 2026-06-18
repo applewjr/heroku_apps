@@ -6,12 +6,12 @@ from datetime import datetime
 import pandas as pd
 import pytz
 import requests
-from flask import Blueprint, redirect, render_template, url_for
+from flask import Blueprint, abort, redirect, render_template, url_for
 
 import config
 from data import etl_dash_queries
 from extensions import auth, cache, db_cursor
-from functions import plot_viz, youtube_stats
+from functions import plot_viz, youtube_stats, youtube_revamp_stats
 from helpers import make_trending_jsonld
 
 bp = Blueprint('dashboards', __name__)
@@ -26,64 +26,100 @@ MTG_CACHE_KEY = "mtg_prices"
 MTG_CACHE_TIMEOUT = 60 * 60 * 48
 
 
+# Stable cache key holding the most recent successfully-rendered dashboard. It's
+# the disaster fallback when MySQL is unreachable: the date-keyed entry can't be
+# looked up without the DB (the key is derived from a query), so we keep this
+# DB-independent pointer to the last good render.
+YOUTUBE_LATEST_KEY = "youtube_trending::v2::latest"
+
+
+def _serve_youtube_fallback():
+    """Serve the last good /youtube_trending render when the DB is unavailable,
+    or a clean 503 if nothing has ever been cached on this dyno."""
+    stale = cache.get(YOUTUBE_LATEST_KEY)
+    if stale is not None:
+        return stale
+    abort(503, description="The trending dashboard is temporarily unavailable. Please try again shortly.")
+
+
 @bp.route("/youtube_trending", methods=["POST", "GET"])
 def youtube_trending():
 
     # Freshness signal: key the cache on the latest day the ETL has landed so
     # the cache invalidates the moment new rows arrive. collected_date is a
     # DATE, so this one cheap query needs no session time zone.
-    with db_cursor() as (conn, cursor):
-        cursor.execute("""SELECT MAX(collected_date) FROM youtube_trending;""")
-        data_version = cursor.fetchone()[0]
+    #
+    # The cache key is *derived* from this query, so the DB gates even a cache
+    # read. If MySQL is unreachable, serve the last good render instead of 500ing.
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("""SELECT MAX(collected_date) FROM youtube_trending_revamp;""")
+            data_version = cursor.fetchone()[0]
+    except Exception as e:
+        print(f"youtube_trending: freshness query failed ({e}); serving cached fallback")
+        return _serve_youtube_fallback()
 
-    cache_key = f"youtube_trending::{data_version}"
+    # Namespace bumped to v2 when the dashboard moved off the legacy
+    # youtube_trending table onto the revamp Now feed: both tables share the same
+    # latest collected_date, so without the bump a stale pre-migration render
+    # could keep being served under an identical key.
+    cache_key = f"youtube_trending::v2::{data_version}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    with db_cursor() as (conn, cursor):
-        cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
+    # A DB failure mid-render shouldn't 500 either: build best-effort and fall
+    # back to the last good render on any error.
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("""SET time_zone = 'America/Los_Angeles';""")
 
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_today;""")
-        top_10_today = pd.DataFrame(cursor.fetchall(), columns=['Rank', 'Video', 'Channel', 'Best Video Rank', 'Video Rank Yesterday', 'vid_id', 'chnl_id'])
+            # Analytics panels keyed off the latest available day (robust to ETL gaps).
+            prev_date = youtube_stats.get_prev_date(cursor, data_version)
+            top_10_title = youtube_stats.get_top_videos_30d(cursor, data_version)
+            top_10_channel = youtube_stats.get_top_channels_30d(cursor, data_version)
+            top_categories = youtube_stats.get_top_categories_30d(cursor, data_version)
+            kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
+            age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
 
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_title;""")
-        top_10_title = pd.DataFrame(cursor.fetchall(), columns=['Video', 'Channel', 'Count of Days', 'Best Video Rank', 'vid_id', 'chnl_id'])
+            # The three 'Top <surface> Today' tables are consolidated power tables:
+            # each is its full feed for the day with day-over-day movement and
+            # engagement metrics on every row, so one sortable table per surface
+            # does the work of the old climbers / velocity / engagement /
+            # discussed panels. All fetch the full day (~50) so the page shows the
+            # top 10 while keeping every row in the DOM for the sort buttons.
+            top_now = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Now', limit=50)
+            top_music = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Music', limit=50)
+            top_gaming = youtube_revamp_stats.get_surface_today(cursor, data_version, prev_date, 'Gaming', limit=50)
 
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_10_channel;""")
-        top_10_channel = pd.DataFrame(cursor.fetchall(), columns=['Channel', 'Count of Video Days', 'Best Channel Rank', 'chnl_id'])
-
-        cursor.execute("""SELECT * FROM vw_prod_youtube_top_categories;""")
-        top_categories = pd.DataFrame(cursor.fetchall(), columns=['Category', 'Top 50 Count', 'Top 10 Count', 'Top 1 Count'])
-
-        # Analytics panels keyed off the latest available day (robust to ETL gaps).
-        prev_date = youtube_stats.get_prev_date(cursor, data_version)
-        kpis = youtube_stats.get_kpis(cursor, data_version, prev_date)
-        climbers = youtube_stats.get_biggest_climbers(cursor, data_version, prev_date)
-        velocity = youtube_stats.get_view_velocity(cursor, data_version, prev_date)
-        engagement = youtube_stats.get_engagement_leaders(cursor, data_version)
-        age_buckets = youtube_stats.get_trending_age_buckets(cursor, data_version)
-
-    # schema.org ItemList of today's ranked videos for richer search results.
-    trending_jsonld = make_trending_jsonld(
-        (row['Rank'], row['vid_id'], row['Video']) for _, row in top_10_today.iterrows()
-    )
-
-    # Inline the plots as base64 data URIs so the cached HTML is self-contained
-    # and never points at PNGs on the ephemeral per-dyno filesystem.
-    yt_video_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_video_scatter())
-    yt_chnl_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_chnl_scatter())
-    yt_stacked_bar_plot = plot_viz.fig_to_data_uri(plot_viz.yt_stacked_bar_plot())
-
-    rendered = render_template("youtube_trending.html", top_10_today=top_10_today, \
-        top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
-        yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
-        data_version=data_version, kpis=kpis, climbers=climbers, velocity=velocity, \
-        engagement=engagement, age_buckets=age_buckets, trending_jsonld=trending_jsonld
+        # schema.org ItemList of today's ranked videos for richer search results,
+        # built from the Now feed that drives the on-page "Top Now Today" panel.
+        trending_jsonld = make_trending_jsonld(
+            (row['rank'], row['vid_id'], row['video']) for row in top_now[:10]
         )
 
-    # 48h timeout ages out stale date-keys; fresh data lands a new key daily.
+        # Inline the plots as base64 data URIs so the cached HTML is self-contained
+        # and never points at PNGs on the ephemeral per-dyno filesystem.
+        yt_video_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_video_scatter(data_version))
+        yt_chnl_scatter = plot_viz.fig_to_data_uri(plot_viz.yt_chnl_scatter(data_version))
+        yt_stacked_bar_plot = plot_viz.fig_to_data_uri(plot_viz.yt_stacked_bar_plot())
+
+        rendered = render_template("youtube_trending.html", \
+            top_10_title=top_10_title, top_10_channel=top_10_channel, top_categories=top_categories, \
+            yt_stacked_bar_plot=yt_stacked_bar_plot, yt_video_scatter=yt_video_scatter, yt_chnl_scatter=yt_chnl_scatter, \
+            data_version=data_version, kpis=kpis, age_buckets=age_buckets, \
+            top_now=top_now, top_music=top_music, \
+            top_gaming=top_gaming, trending_jsonld=trending_jsonld
+            )
+    except Exception as e:
+        print(f"youtube_trending: render failed ({e}); serving cached fallback")
+        return _serve_youtube_fallback()
+
+    # Store under the date key (auto-invalidates daily) and the stable 'latest'
+    # key used as the DB-down fallback. 48h timeout ages out stale date-keys;
+    # fresh data lands a new key daily.
     cache.set(cache_key, rendered, timeout=60*60*48)
+    cache.set(YOUTUBE_LATEST_KEY, rendered, timeout=60*60*48)
     return rendered
 
 
@@ -131,7 +167,7 @@ def _render_mtg(source):
     """Render the MTG prices page from a CSV ``source`` (path or file-like).
 
     Returns ``(rendered_html, data_date)``, where ``data_date`` is the CSV's own
-    ``today_price_date`` stamp — the value used to decide whether a cached copy is
+    ``today_price_date`` stamp - the value used to decide whether a cached copy is
     still current.
     """
     df = pd.read_csv(source)
@@ -166,7 +202,7 @@ def mtg_prices():
     # Freshness is defined by the data's own date stamp, not by when the upstream
     # pipeline runs: the CSV is current iff it is stamped with today's date (PST,
     # the zone the pipeline stamps in). This keeps the route independent of *when*
-    # the daily refresh lands — there is no hardcoded update time to forget about.
+    # the daily refresh lands - there is no hardcoded update time to forget about.
     today = datetime.now(PST).strftime('%Y-%m-%d')
     cached = cache.get(MTG_CACHE_KEY)  # {'data_date', 'etag', 'html'} or None
 

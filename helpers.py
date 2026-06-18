@@ -29,7 +29,7 @@ def make_schema_data(name, description, url, operating_system='Web'):
     return schema
 
 
-def make_trending_jsonld(items, list_name="YouTube Trending — Top videos today"):
+def make_trending_jsonld(items, list_name="YouTube Trending - Top videos today"):
     """Build a schema.org ItemList of trending videos for SEO.
 
     ``items`` is an iterable of ``(position, video_id, title)`` tuples.

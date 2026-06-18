@@ -98,7 +98,7 @@ def get_trending_videos(YOUTUBE_API, category_id):
         try:
             channel_views = channel_response['items'][0]['statistics']['viewCount']
         except:
-            channel_videos = -1
+            channel_views = -1
         try:
             channel_videos = channel_response['items'][0]['statistics']['videoCount']
         except:
