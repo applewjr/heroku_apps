@@ -184,14 +184,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -214,9 +215,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -242,14 +244,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -272,9 +275,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -300,14 +304,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -330,9 +335,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -530,8 +536,13 @@
             headers[i].setAttribute('data-sort', asc ? 'asc' : 'desc');
         }
         Array.prototype.forEach.call(headers, function (th, i) {
+            // Value columns (views, gains, rates, climb, days-on-list) are most
+            // useful biggest-first, so a fresh click on one starts descending;
+            // rank/text columns start ascending. Re-clicking the active column
+            // still just flips the current direction.
+            var descFirst = th.hasAttribute('data-sort-desc-first');
             th.addEventListener('click', function () {
-                applySort(i, (state.col === i) ? !state.asc : true);
+                applySort(i, (state.col === i) ? !state.asc : !descFirst);
             });
         });
         // Expose a label-based sort so the preset buttons can drive this table.
