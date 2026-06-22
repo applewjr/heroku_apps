@@ -95,8 +95,9 @@ def test_get_trending_age_buckets_labels_and_pct():
 
 def test_get_surface_today_computes_movement_and_rates():
     cur = FakeCursor([
-        # vid_rank, video, chnl, views, gain, likes, comments, prev_rank, vid_id, chnl_id
-        [(3, "Vid A", "Chan A", 1_000_000, 200_000, 50_000, 4_000, 7, "aaa", "UCaaa")],
+        # vid_rank, video, chnl, views, gain, likes, comments, prev_rank,
+        # vid_id, chnl_id, days_on_list
+        [(3, "Vid A", "Chan A", 1_000_000, 200_000, 50_000, 4_000, 7, "aaa", "UCaaa", 3)],
     ])
     out = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Gaming")
     assert out == [{
@@ -104,7 +105,7 @@ def test_get_surface_today_computes_movement_and_rates():
         "views": "1.0M", "gain": "200.0K",
         "likes": "50.0K", "like_pct": 5.0,
         "comments": "4.0K", "comment_pct": 0.4,
-        "prev_rank": 7, "climb": 4,
+        "prev_rank": 7, "climb": 4, "days_on_list": 3,
         "vid_id": "aaa", "chnl_id": "UCaaa",
     }]
 
@@ -112,7 +113,7 @@ def test_get_surface_today_computes_movement_and_rates():
 def test_get_surface_today_new_entrant_and_hidden_stats():
     # No prior-day match -> gain/prev_rank/climb are None; hidden -1 stats dash out.
     cur = FakeCursor([
-        [(5, "Vid B", "Chan B", 800_000, None, -1, -1, None, "bbb", "UCbbb")],
+        [(5, "Vid B", "Chan B", 800_000, None, -1, -1, None, "bbb", "UCbbb", 1)],
     ])
     row = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Music")[0]
     assert row["gain"] is None
@@ -120,6 +121,8 @@ def test_get_surface_today_new_entrant_and_hidden_stats():
     assert row["climb"] is None
     assert row["likes"] == "-" and row["like_pct"] is None
     assert row["comments"] == "-" and row["comment_pct"] is None
+    # A brand-new entrant still counts today, so days-on-list is at least 1.
+    assert row["days_on_list"] == 1
 
 
 def test_get_surface_today_no_date_skips_query():
@@ -133,8 +136,9 @@ def test_get_surface_today_hidden_views_dash_out():
     # views cell must dash out (not show "-1"), and the rate/gain figures that
     # divide by or subtract views must be None rather than negative nonsense.
     cur = FakeCursor([
-        # vid_rank, video, chnl, views(-1), gain, likes, comments, prev_rank, ...
-        [(2, "Vid C", "Chan C", -1, -1_000_001, 5_000, 200, 4, "ccc", "UCccc")],
+        # vid_rank, video, chnl, views(-1), gain, likes, comments, prev_rank,
+        # vid_id, chnl_id, days_on_list
+        [(2, "Vid C", "Chan C", -1, -1_000_001, 5_000, 200, 4, "ccc", "UCccc", 2)],
     ])
     row = youtube_revamp_stats.get_surface_today(cur, "2026-06-14", "2026-06-13", "Now")[0]
     assert row["views"] == "-"
@@ -143,6 +147,8 @@ def test_get_surface_today_hidden_views_dash_out():
     assert row["comment_pct"] is None
     # Movement (rank-based, view-independent) still resolves.
     assert row["climb"] == 2
+    # Longevity is independent of hidden view counts.
+    assert row["days_on_list"] == 2
 
 
 # --- 30-day leaderboards (ported from the retired views) -------------------

@@ -112,6 +112,49 @@
     .dashboard-section th { cursor: pointer; user-select: none; }
     .dashboard-section th[data-sort]::after { content: ' \25B2'; font-size: 9px; }
     .dashboard-section th[data-sort="desc"]::after { content: ' \25BC'; }
+    /* Stop column "whiplash" on the sortable Top tables. These three show 10 of
+       ~50 rows and re-sort in place, so sorting swaps which rows are visible.
+       Under table-layout:auto the column widths track whatever rows are on
+       screen, so they jump on every sort. Fixed layout sizes columns from the
+       (constant) header row instead, so sorting changes order, never widths.
+       Numeric columns get set widths; the two text columns share the leftover
+       and ellipsize (cells are already nowrap+ellipsis above; each carries a
+       title so the full text shows on hover). .table-scroll handles overflow on
+       narrow screens. */
+    .dashboard-section table[data-collapse] {
+        table-layout: fixed; max-width: none; min-width: 1420px;
+    }
+    /* Numeric columns are sized to hold their header on one line (with room for
+       the sort-arrow that appears on the active column); headers stay nowrap (no
+       override needed - the base th,td rule above is nowrap). The two text
+       columns split the leftover: Channel gets a fixed width and Video is the
+       only `auto` column, so all surplus on wide screens flows to Video. */
+    .dashboard-section table[data-collapse] th:nth-child(2)  { width: auto; }   /* Video - takes all leftover */
+    .dashboard-section table[data-collapse] th:nth-child(3)  { width: 175px; }  /* Channel */
+    .dashboard-section table[data-collapse] th:nth-child(1)  { width: 64px; }   /* Rank */
+    .dashboard-section table[data-collapse] th:nth-child(4)  { width: 76px; }   /* Views */
+    .dashboard-section table[data-collapse] th:nth-child(5)  { width: 124px; }  /* Views Gained */
+    .dashboard-section table[data-collapse] th:nth-child(6)  { width: 80px; }   /* Likes */
+    .dashboard-section table[data-collapse] th:nth-child(7)  { width: 100px; }  /* Like Rate */
+    .dashboard-section table[data-collapse] th:nth-child(8)  { width: 102px; }  /* Comments */
+    .dashboard-section table[data-collapse] th:nth-child(9)  { width: 128px; }  /* Comment Rate */
+    .dashboard-section table[data-collapse] th:nth-child(10) { width: 108px; }  /* Yesterday */
+    .dashboard-section table[data-collapse] th:nth-child(11) { width: 74px; }   /* Climb */
+    .dashboard-section table[data-collapse] th:nth-child(12) { width: 126px; }  /* Days on List */
+    /* Draggable column resizing: an invisible grip on each header's right edge
+       (shows a faint bar + col-resize cursor on hover). The resize logic lives
+       in the page script. */
+    .dashboard-section table[data-collapse] th { position: relative; }
+    .dashboard-section table[data-collapse] th .col-resizer {
+        position: absolute; top: 0; right: 0; width: 8px; height: 100%;
+        cursor: col-resize; user-select: none;
+    }
+    .dashboard-section table[data-collapse] th .col-resizer:hover,
+    .dashboard-section table[data-collapse] th .col-resizer.active {
+        background: rgba(255, 255, 255, 0.4);
+    }
+    .dashboard-section table[data-collapse].col-resizing { user-select: none; }
+    .dashboard-section table[data-collapse].col-resizing th { cursor: col-resize; }
     .row-toggle {
         display: block; margin: 0.5rem auto 0;
         cursor: pointer; font-size: 13px; font-weight: 600;
@@ -168,7 +211,7 @@
 
 <div class="dashboard-section">
     <h3>Top Now Today</h3>
-    <p>YouTube's main "Now" feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's main "Now" feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos; drag a column's right edge to resize it.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -184,14 +227,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -199,8 +243,8 @@
             {% set rank = row.rank|int %}
             <tr>
                 <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
-                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td title="{{ row.video }}"><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td title="{{ row.chnl }}"><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
                 <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
@@ -214,9 +258,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -226,7 +271,7 @@
 
 <div class="dashboard-section">
     <h3>Top Gaming Today</h3>
-    <p>YouTube's dedicated Gaming feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's dedicated Gaming feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos; drag a column's right edge to resize it.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -242,14 +287,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -257,8 +303,8 @@
             {% set rank = row.rank|int %}
             <tr>
                 <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
-                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td title="{{ row.video }}"><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td title="{{ row.chnl }}"><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
                 <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
@@ -272,9 +318,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -284,7 +331,7 @@
 
 <div class="dashboard-section">
     <h3>Top Music Today</h3>
-    <p>YouTube's dedicated Music feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos.</p>
+    <p>YouTube's dedicated Music feed - today's top 10 with movement and engagement. Use the buttons or any column header to re-rank all of today's videos; drag a column's right edge to resize it.</p>
     <div class="sort-presets">
         <span class="sort-presets-label">Sort by</span>
         <button type="button" data-sort-label="Rank" data-sort-asc="true">Rank</button>
@@ -300,14 +347,15 @@
                 <th class="num">Rank</th>
                 <th>Video</th>
                 <th>Channel</th>
-                <th class="num">Views</th>
-                <th class="num">Views Gained</th>
-                <th class="num">Likes</th>
-                <th class="num">Like Rate</th>
-                <th class="num">Comments</th>
-                <th class="num">Comment Rate</th>
+                <th class="num" data-sort-desc-first>Views</th>
+                <th class="num" data-sort-desc-first>Views Gained</th>
+                <th class="num" data-sort-desc-first>Likes</th>
+                <th class="num" data-sort-desc-first>Like Rate</th>
+                <th class="num" data-sort-desc-first>Comments</th>
+                <th class="num" data-sort-desc-first>Comment Rate</th>
                 <th class="num">Yesterday</th>
-                <th class="num">Climb</th>
+                <th class="num" data-sort-desc-first>Climb</th>
+                <th class="num" data-sort-desc-first>Days on List</th>
             </tr>
         </thead>
         <tbody>
@@ -315,8 +363,8 @@
             {% set rank = row.rank|int %}
             <tr>
                 <td class="num"><span class="rank-badge{% if rank <= 3 %} r{{ rank }}{% endif %}">{{ rank }}</span></td>
-                <td><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
-                <td><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
+                <td title="{{ row.video }}"><a href="https://www.youtube.com/watch?v={{ row.vid_id }}" target="_blank" rel="noopener noreferrer">{{ row.video }}</a></td>
+                <td title="{{ row.chnl }}"><a href="https://www.youtube.com/channel/{{ row.chnl_id }}" target="_blank" rel="noopener noreferrer">{{ row.chnl }}</a></td>
                 <td class="num">{{ row.views }}</td>
                 <td class="num">{% if row.gain is none %}<span class="move-same">-</span>{% elif row.gain.startswith('-') %}<span class="move-down">{{ row.gain }}</span>{% elif row.gain == '0' %}<span class="move-same">0</span>{% else %}<span class="move-up">+{{ row.gain }}</span>{% endif %}</td>
                 <td class="num">{{ row.likes }}</td>
@@ -330,9 +378,10 @@
                     {%- elif row.climb < 0 %}<span class="move-down">{{ row.climb }}</span>
                     {%- else %}<span class="move-same">0</span>{% endif %}
                 </td>
+                <td class="num">{{ row.days_on_list }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="11" class="muted">No data.</td></tr>
+            <tr><td colspan="12" class="muted">No data.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -462,6 +511,9 @@
 
 <script>
 (function () {
+    // Shared guard so a column-resize drag (set up further down) doesn't also
+    // fire a sort on the header it started from.
+    var colResizing = false;
     // Parse human-formatted numbers ("1.2M", "+3.4K", "▲ 5", "4.2%") to a number,
     // or null for non-numeric cells ("New", channel names) which sort as text.
     function parseNum(text) {
@@ -530,8 +582,15 @@
             headers[i].setAttribute('data-sort', asc ? 'asc' : 'desc');
         }
         Array.prototype.forEach.call(headers, function (th, i) {
-            th.addEventListener('click', function () {
-                applySort(i, (state.col === i) ? !state.asc : true);
+            // Value columns (views, gains, rates, climb, days-on-list) are most
+            // useful biggest-first, so a fresh click on one starts descending;
+            // rank/text columns start ascending. Re-clicking the active column
+            // still just flips the current direction.
+            var descFirst = th.hasAttribute('data-sort-desc-first');
+            th.addEventListener('click', function (e) {
+                // Ignore clicks that are really a resize-grip interaction.
+                if (colResizing || e.target.classList.contains('col-resizer')) return;
+                applySort(i, (state.col === i) ? !state.asc : !descFirst);
             });
         });
         // Expose a label-based sort so the preset buttons can drive this table.
@@ -540,6 +599,49 @@
                 if (headers[i].textContent.trim() === label) { applySort(i, asc); return; }
             }
         };
+    });
+    // Draggable column resizing on the fixed-layout Top tables. Each header gets
+    // a grip on its right edge; dragging it sets that column's width. Because the
+    // tables are table-layout:fixed, the th width *is* the column width, so this
+    // is exact: getComputedStyle width is the content-box width, and a drag delta
+    // is a 1:1 change in rendered width, so start + dx is the new width. (The
+    // empty grip span adds no text, so the label-based sort above is unaffected.)
+    document.querySelectorAll('.dashboard-section table[data-collapse]').forEach(function (table) {
+        if (!table.tHead) return;
+        Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th) {
+            var grip = document.createElement('span');
+            grip.className = 'col-resizer';
+            grip.title = 'Drag to resize – double-click to reset';
+            grip.addEventListener('click', function (e) { e.stopPropagation(); });
+            grip.addEventListener('dblclick', function (e) {
+                e.stopPropagation();
+                th.style.width = '';   // revert to the CSS default width
+            });
+            grip.addEventListener('mousedown', function (e) {
+                e.preventDefault();    // suppress text selection while dragging
+                e.stopPropagation();   // don't reach the header's sort click
+                var startX = e.clientX;
+                var startW = parseFloat(getComputedStyle(th).width);
+                colResizing = true;
+                grip.classList.add('active');
+                table.classList.add('col-resizing');
+                function onMove(ev) {
+                    th.style.width = Math.max(40, startW + (ev.clientX - startX)) + 'px';
+                }
+                function onUp() {
+                    grip.classList.remove('active');
+                    table.classList.remove('col-resizing');
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    // Defer clearing the guard so the trailing click (if the
+                    // browser fires one) is still swallowed and doesn't sort.
+                    setTimeout(function () { colResizing = false; }, 0);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+            th.appendChild(grip);
+        });
     });
     // Preset "Sort by <metric>" buttons sort their section's table by one column.
     document.querySelectorAll('.sort-presets button[data-sort-label]').forEach(function (btn) {
