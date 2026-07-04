@@ -116,17 +116,20 @@
 .quordle-grid .quordle-row {
     display: flex;
     justify-content: center;
-    margin-bottom: 5px;
+    margin: 0 auto 5px;
+    position: relative;
+    width: fit-content;
 }
 
 .quordle-grid .quordle-box {
     width: 51px;
     height: 51px;
     font-size: 17px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin: 3px;
     border: 2px solid #777;
-    outline: none;
     transition: background-color 0.3s;
     cursor: pointer;
     font-weight: bold;
@@ -136,6 +139,9 @@
     padding: 0 !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Define color states */
@@ -162,6 +168,70 @@
 
 .quordle-row.active-row .quordle-box.color-0 {
     border-color: #02484d !important;
+}
+
+.row-clear {
+    position: absolute;
+    right: -34px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    background-color: #f8f9fa;
+    color: #888;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    visibility: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+.row-clear:hover {
+    background-color: #e9ecef;
+    color: #d9534f;
+}
+.quordle-row.has-content .row-clear {
+    visibility: visible;
+}
+
+#solver-keyboard {
+    max-width: 500px;
+    margin: 18px auto 0;
+    padding: 0 8px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.kb-row {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 6px;
+}
+.kb-key {
+    flex: 1;
+    max-width: 44px;
+    height: 50px;
+    border: none;
+    border-radius: 4px;
+    background-color: #d3d6da;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+.kb-key:active {
+    background-color: #b8bcc0;
+}
+.kb-key.kb-wide {
+    max-width: 66px;
+    flex: 1.5;
+    font-size: 18px;
 }
 
 .instructions {
@@ -400,13 +470,16 @@
         overflow-x: auto;
     }
 
-    .quordle-row { justify-content: center; width: 100%; }
-
     .quordle-grid .quordle-box {
         width: 40px;
         height: 40px;
         font-size: 14px;
         margin: 2px;
+    }
+
+    .kb-key {
+        height: 46px;
+        font-size: 14px;
     }
 
     .puzzle-title { font-size: 16px; }
@@ -463,7 +536,7 @@
             <span class="instructions-toggle-icon">&#9660;</span>
         </div>
         <div class="instructions-body">
-            Click a suggestion to fill the row across all 4 puzzles, then click each box to set its color. You can also type letters manually - they appear in all 4 puzzles automatically.
+            Tap a suggestion to fill the row across all 4 puzzles, or type your own word with the keyboard - letters appear in all 4 puzzles automatically. Tap each box to set its color per puzzle, and use the &times; next to a row to clear that word.
             <div class="color-legend">
                 <div class="legend-item">
                     <div class="legend-box color-1"></div>
@@ -497,6 +570,8 @@
         <div id="recommendations-status">Updating…</div>
     </div>
 
+    <div id="solver-keyboard" aria-label="Letter keyboard"></div>
+
     <!-- Puzzles Grid -->
     <div class="puzzles-container">
         <!-- Puzzle 1 -->
@@ -506,8 +581,9 @@
                 {% for row in range(10) %}
                 <div class="quordle-row" data-row="{{ row + 1 }}" {% if row > 0 %}style="display: none;"{% endif %}>
                     {% for col in range(5) %}
-                    <input type="text" maxlength="1" inputmode="none" class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="1">
+                    <div class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="1"></div>
                     {% endfor %}
+                    <button type="button" class="row-clear" aria-label="Clear this word" title="Clear this word">&times;</button>
                 </div>
                 {% endfor %}
             </div>
@@ -523,8 +599,9 @@
                 {% for row in range(10) %}
                 <div class="quordle-row" data-row="{{ row + 1 }}" {% if row > 0 %}style="display: none;"{% endif %}>
                     {% for col in range(5) %}
-                    <input type="text" maxlength="1" inputmode="none" class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="2">
+                    <div class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="2"></div>
                     {% endfor %}
+                    <button type="button" class="row-clear" aria-label="Clear this word" title="Clear this word">&times;</button>
                 </div>
                 {% endfor %}
             </div>
@@ -540,8 +617,9 @@
                 {% for row in range(10) %}
                 <div class="quordle-row" data-row="{{ row + 1 }}" {% if row > 0 %}style="display: none;"{% endif %}>
                     {% for col in range(5) %}
-                    <input type="text" maxlength="1" inputmode="none" class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="3">
+                    <div class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="3"></div>
                     {% endfor %}
+                    <button type="button" class="row-clear" aria-label="Clear this word" title="Clear this word">&times;</button>
                 </div>
                 {% endfor %}
             </div>
@@ -557,8 +635,9 @@
                 {% for row in range(10) %}
                 <div class="quordle-row" data-row="{{ row + 1 }}" {% if row > 0 %}style="display: none;"{% endif %}>
                     {% for col in range(5) %}
-                    <input type="text" maxlength="1" inputmode="none" class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="4">
+                    <div class="quordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}" data-puzzle="4"></div>
                     {% endfor %}
+                    <button type="button" class="row-clear" aria-label="Clear this word" title="Clear this word">&times;</button>
                 </div>
                 {% endfor %}
             </div>
@@ -762,137 +841,7 @@ window.initialRecommendations = {
     final_out_end4: "{{ initial_out_end4|default('') }}"
 };
 
-// Module-level state shared between DOMContentLoaded and global functions
-let smartAssign = false;
-let isProcessingInput = false;
-let focusTimeout = null;
-let processingResetTimeout = null;
 let updateTimeout;
-
-function setProcessingInput(val) {
-    isProcessingInput = val;
-    if (processingResetTimeout) clearTimeout(processingResetTimeout);
-    if (val) {
-        // Safety net: always release the lock within 300ms
-        processingResetTimeout = setTimeout(() => { isProcessingInput = false; }, 300);
-    }
-}
-
-function isPuzzleSolved(puzzleNum) {
-    const rowMap = {};
-    document.querySelectorAll(`.quordle-box[data-puzzle="${puzzleNum}"]`).forEach(box => {
-        const r = box.dataset.row;
-        if (!rowMap[r]) rowMap[r] = [];
-        rowMap[r].push(box);
-    });
-    return Object.values(rowMap).some(boxes =>
-        boxes.length === 5 && boxes.every(box => box.dataset.state === '3')
-    );
-}
-
-function getTrackingPuzzle() {
-    for (let p = 1; p <= 4; p++) {
-        if (!isPuzzleSolved(p)) return p;
-    }
-    return 1;
-}
-
-function applySmartAssignToBox(box) {
-    const thisRow = parseInt(box.dataset.row);
-    const thisPos = box.dataset.position;
-    const thisPuzzle = box.dataset.puzzle;
-
-    let inheritState = null;
-    for (let r = 1; r < thisRow; r++) {
-        const priorBox = document.querySelector(
-            `.quordle-box[data-puzzle="${thisPuzzle}"][data-row="${r}"][data-position="${thisPos}"]`
-        );
-        if (priorBox && priorBox.value === box.value && (priorBox.dataset.state === '3' || priorBox.dataset.state === '2')) {
-            inheritState = priorBox.dataset.state;
-            break;
-        }
-    }
-
-    if (inheritState) {
-        box.dataset.state = inheritState;
-        box.className = `quordle-box color-${inheritState}`;
-    } else {
-        box.dataset.state = '1';
-        box.className = 'quordle-box color-1';
-    }
-}
-
-function showNextRowIfNeeded() {
-    const trackingPuzzle = getTrackingPuzzle();
-    const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
-    let lastFilledRowIndex = -1;
-
-    for (let i = 0; i < trackingRows.length; i++) {
-        const row = trackingRows[i];
-        if (row.style.display !== 'none') {
-            const rowBoxes = row.querySelectorAll('.quordle-box');
-            const allFilled = Array.from(rowBoxes).every(box => box.value.trim() !== '');
-            if (allFilled) lastFilledRowIndex = i;
-        }
-    }
-
-    if (lastFilledRowIndex >= 0 && lastFilledRowIndex + 1 < trackingRows.length) {
-        const nextRowIndex = lastFilledRowIndex + 1;
-        for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
-            const nextRow = document.querySelector(
-                `.puzzle:nth-child(${puzzleNum}) .quordle-row[data-row="${nextRowIndex + 1}"]`
-            );
-            if (nextRow) nextRow.style.display = 'flex';
-        }
-        const nextRowFirstBox = trackingRows[nextRowIndex].querySelector('.quordle-box[data-position="1"]');
-        if (nextRowFirstBox) {
-            if (focusTimeout) clearTimeout(focusTimeout);
-            focusTimeout = setTimeout(() => {
-                if (!isProcessingInput) nextRowFirstBox.focus();
-            }, 100);
-        }
-    }
-}
-
-function fillNextRow(word) {
-    const trackingPuzzle = getTrackingPuzzle();
-    const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
-    let targetRowNum = null;
-
-    for (const row of trackingRows) {
-        if (row.style.display !== 'none') {
-            const rowBoxes = Array.from(row.querySelectorAll('.quordle-box'));
-            if (rowBoxes.every(box => box.value.trim() === '')) {
-                targetRowNum = row.dataset.row;
-                break;
-            }
-        }
-    }
-    if (!targetRowNum) return;
-
-    for (let pos = 1; pos <= word.length; pos++) {
-        const letter = word[pos - 1];
-        for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
-            if (isPuzzleSolved(puzzleNum)) continue;
-            const box = document.querySelector(
-                `.quordle-box[data-puzzle="${puzzleNum}"][data-row="${targetRowNum}"][data-position="${pos}"]`
-            );
-            if (!box) continue;
-            box.value = letter;
-            box.dataset.lastValue = letter;
-            if (smartAssign) {
-                applySmartAssignToBox(box);
-            } else {
-                box.dataset.state = '0';
-                box.className = 'quordle-box color-0';
-            }
-        }
-    }
-
-    showNextRowIfNeeded();
-    triggerUpdate();
-    setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 150);
-}
 
 function setRecommendationsLoading(isLoading) {
     const form = document.getElementById('quordle-form');
@@ -922,7 +871,7 @@ function collectData() {
     const data = [];
     document.querySelectorAll('.quordle-box').forEach((box) => {
         data.push({
-            letter: box.value.toUpperCase(),
+            letter: box.textContent.trim().toUpperCase(),
             position: box.getAttribute('data-position'),
             color: box.dataset.state,
             row: box.getAttribute('data-row'),
@@ -986,7 +935,7 @@ function updateUI(data) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const boxes = document.querySelectorAll('.quordle-box');
+    const boxes = Array.from(document.querySelectorAll('.quordle-box'));
 
     // Instructions collapse
     const instructionsPanel = document.getElementById('instructions-panel');
@@ -1000,7 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Smart Assign
-    smartAssign = localStorage.getItem('quordleSmartAssign') !== 'false';
+    let smartAssign = localStorage.getItem('quordleSmartAssign') !== 'false';
     const smartAssignBtn = document.getElementById('smart-assign-toggle');
 
     function applySmartAssignState() {
@@ -1014,21 +963,301 @@ document.addEventListener('DOMContentLoaded', () => {
         applySmartAssignState();
     });
 
-    // Active row highlight - highlights same row number across all 4 puzzles
-    function updateActiveRow(focusedBox) {
-        document.querySelectorAll('.quordle-row').forEach(row => row.classList.remove('active-row'));
-        if (focusedBox) {
-            const rowNum = focusedBox.dataset.row;
-            document.querySelectorAll(`.quordle-row[data-row="${rowNum}"]`).forEach(row => {
-                row.classList.add('active-row');
+    const MAX_ROWS = 10;
+
+    function boxLetter(box) {
+        return box.textContent.trim();
+    }
+
+    function setState(box, state) {
+        box.dataset.state = state;
+        box.className = `quordle-box color-${state}`;
+    }
+
+    function clearBox(box) {
+        box.textContent = '';
+        setState(box, 0);
+    }
+
+    function puzzleBox(puzzleNum, rowNum, pos) {
+        return document.querySelector(
+            `.quordle-box[data-puzzle="${puzzleNum}"][data-row="${rowNum}"][data-position="${pos}"]`
+        );
+    }
+
+    function isPuzzleSolved(puzzleNum) {
+        const rowMap = {};
+        document.querySelectorAll(`.quordle-box[data-puzzle="${puzzleNum}"]`).forEach(box => {
+            const r = box.dataset.row;
+            if (!rowMap[r]) rowMap[r] = [];
+            rowMap[r].push(box);
+        });
+        return Object.values(rowMap).some(rowBoxes =>
+            rowBoxes.length === 5 && rowBoxes.every(box => box.dataset.state === '3')
+        );
+    }
+
+    function getTrackingPuzzle() {
+        for (let p = 1; p <= 4; p++) {
+            if (!isPuzzleSolved(p)) return p;
+        }
+        return 1;
+    }
+
+    function applySmartAssignToBox(box) {
+        const thisRow = parseInt(box.dataset.row);
+        const thisPos = box.dataset.position;
+        const thisPuzzle = box.dataset.puzzle;
+
+        let inheritState = null;
+        for (let r = 1; r < thisRow; r++) {
+            const priorBox = puzzleBox(thisPuzzle, r, thisPos);
+            if (priorBox && boxLetter(priorBox) === boxLetter(box) && (priorBox.dataset.state === '3' || priorBox.dataset.state === '2')) {
+                inheritState = priorBox.dataset.state;
+                break;
+            }
+        }
+        setState(box, inheritState || 1);
+    }
+
+    function rowVisible(rowNum) {
+        const row = document.querySelector(`.quordle-row[data-row="${rowNum}"]`);
+        return row && row.style.display !== 'none';
+    }
+
+    function setRowDisplay(rowNum, show) {
+        document.querySelectorAll(`.quordle-row[data-row="${rowNum}"]`).forEach(row => {
+            row.style.display = show ? 'flex' : 'none';
+        });
+    }
+
+    function rowHasContent(rowNum) {
+        return Array.from(document.querySelectorAll(`.quordle-box[data-row="${rowNum}"]`))
+            .some(box => boxLetter(box) !== '');
+    }
+
+    // Next cell to type into, tracked on the first unsolved puzzle
+    function findEntryTarget() {
+        const trackingPuzzle = getTrackingPuzzle();
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            if (!rowVisible(r)) continue;
+            for (let pos = 1; pos <= 5; pos++) {
+                const box = puzzleBox(trackingPuzzle, r, pos);
+                if (box && boxLetter(box) === '') return { rowNum: r, pos };
+            }
+        }
+        return null;
+    }
+
+    // Write a letter into the same cell of every unsolved puzzle
+    function writeLetter(rowNum, pos, letter) {
+        for (let p = 1; p <= 4; p++) {
+            if (isPuzzleSolved(p)) continue;
+            const box = puzzleBox(p, rowNum, pos);
+            if (!box) continue;
+            box.textContent = letter;
+            if (smartAssign && box.dataset.state === '0') {
+                applySmartAssignToBox(box);
+            }
+        }
+    }
+
+    function showNextRowIfNeeded() {
+        const trackingPuzzle = getTrackingPuzzle();
+        let lastFilledRow = 0;
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            if (!rowVisible(r)) continue;
+            const allFilled = [1, 2, 3, 4, 5].every(pos => {
+                const box = puzzleBox(trackingPuzzle, r, pos);
+                return box && boxLetter(box) !== '';
+            });
+            if (allFilled) lastFilledRow = r;
+        }
+        if (lastFilledRow >= 1 && lastFilledRow < MAX_ROWS) {
+            setRowDisplay(lastFilledRow + 1, true);
+        }
+    }
+
+    function hideEmptyRowsFromEnd() {
+        // Hide trailing empty rows, keeping one empty entry row and at least row 1
+        for (let r = MAX_ROWS; r >= 2; r--) {
+            if (!rowVisible(r)) continue;
+            if (rowHasContent(r)) break;
+            if (rowHasContent(r - 1)) break;
+            setRowDisplay(r, false);
+        }
+    }
+
+    function updateRowUI() {
+        const target = findEntryTarget();
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            const hasContent = rowHasContent(r);
+            const isActive = !!target && target.rowNum === r;
+            document.querySelectorAll(`.quordle-row[data-row="${r}"]`).forEach(row => {
+                row.classList.toggle('has-content', hasContent);
+                row.classList.toggle('active-row', isActive);
             });
         }
     }
 
-    // Set focus to the first box as soon as the page loads
-    if (boxes.length > 0) {
-        boxes[0].focus();
+    function placeLetter(letter) {
+        const target = findEntryTarget();
+        if (!target) return;
+        writeLetter(target.rowNum, target.pos, letter);
+        showNextRowIfNeeded();
+        updateRowUI();
+        triggerUpdate();
     }
+
+    function deleteLetter() {
+        const trackingPuzzle = getTrackingPuzzle();
+        for (let r = MAX_ROWS; r >= 1; r--) {
+            if (!rowVisible(r)) continue;
+            for (let pos = 5; pos >= 1; pos--) {
+                const box = puzzleBox(trackingPuzzle, r, pos);
+                if (box && boxLetter(box) !== '') {
+                    for (let p = 1; p <= 4; p++) {
+                        const other = puzzleBox(p, r, pos);
+                        if (other) clearBox(other);
+                    }
+                    hideEmptyRowsFromEnd();
+                    updateRowUI();
+                    triggerUpdate();
+                    return;
+                }
+            }
+        }
+    }
+
+    function clearRowAndCompact(clearRowNum) {
+        // Snapshot the remaining guesses (letters + per-puzzle colors), then re-stack from row 1
+        const keptRows = [];
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            if (r !== clearRowNum && rowHasContent(r)) keptRows.push(r);
+        }
+        const snapshot = keptRows.map(r => {
+            const cells = [];
+            for (let p = 1; p <= 4; p++) {
+                for (let pos = 1; pos <= 5; pos++) {
+                    const box = puzzleBox(p, r, pos);
+                    cells.push({ puzzle: p, pos, letter: boxLetter(box), state: box.dataset.state });
+                }
+            }
+            return cells;
+        });
+
+        boxes.forEach(clearBox);
+        snapshot.forEach((cells, i) => {
+            cells.forEach(cell => {
+                if (cell.letter === '') return;
+                const box = puzzleBox(cell.puzzle, i + 1, cell.pos);
+                box.textContent = cell.letter;
+                setState(box, cell.state);
+            });
+        });
+
+        const visibleCount = Math.min(MAX_ROWS, Math.max(1, snapshot.length + 1));
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            setRowDisplay(r, r <= visibleCount);
+        }
+
+        updateRowUI();
+        triggerUpdate();
+    }
+
+    function fillNextRow(word) {
+        const trackingPuzzle = getTrackingPuzzle();
+        let targetRowNum = null;
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            if (!rowVisible(r)) continue;
+            const isEmpty = [1, 2, 3, 4, 5].every(pos => {
+                const box = puzzleBox(trackingPuzzle, r, pos);
+                return box && boxLetter(box) === '';
+            });
+            if (isEmpty) { targetRowNum = r; break; }
+        }
+        if (!targetRowNum) return;
+
+        for (let pos = 1; pos <= word.length && pos <= 5; pos++) {
+            writeLetter(targetRowNum, pos, word[pos - 1]);
+        }
+        showNextRowIfNeeded();
+        updateRowUI();
+        triggerUpdate();
+    }
+    window.fillNextRow = fillNextRow;
+
+    // Tap a filled box to cycle its color (per puzzle)
+    boxes.forEach(box => {
+        box.addEventListener('click', () => {
+            if (boxLetter(box) === '') return;
+            let newState = (parseInt(box.dataset.state) + 1) % 4;
+            // Skip state 0 (white) when cycling through colors for filled boxes
+            if (newState === 0) {
+                newState = 1;
+            }
+            setState(box, newState);
+            updateRowUI();
+            triggerUpdate();
+        });
+    });
+
+    // The X clears that guess across all four puzzles
+    document.querySelectorAll('.quordle-row .row-clear').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.blur();
+            clearRowAndCompact(parseInt(btn.closest('.quordle-row').dataset.row));
+        });
+    });
+
+    // Build the on-screen keyboard
+    const keyboard = document.getElementById('solver-keyboard');
+    ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].forEach((line, lineIndex, layout) => {
+        const kbRow = document.createElement('div');
+        kbRow.className = 'kb-row';
+        line.split('').forEach(letter => {
+            const key = document.createElement('button');
+            key.type = 'button';
+            key.className = 'kb-key';
+            key.dataset.key = letter;
+            key.textContent = letter;
+            key.addEventListener('click', () => {
+                key.blur();
+                placeLetter(letter);
+            });
+            kbRow.appendChild(key);
+        });
+        if (lineIndex === layout.length - 1) {
+            const backKey = document.createElement('button');
+            backKey.type = 'button';
+            backKey.className = 'kb-key kb-wide';
+            backKey.setAttribute('aria-label', 'Delete letter');
+            backKey.innerHTML = '&#9003;';
+            backKey.addEventListener('click', () => {
+                backKey.blur();
+                deleteLetter();
+            });
+            kbRow.appendChild(backKey);
+        }
+        keyboard.appendChild(kbRow);
+    });
+
+    // Physical keyboard support
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+
+        if (/^[a-zA-Z]$/.test(event.key)) {
+            event.preventDefault();
+            placeLetter(event.key.toUpperCase());
+        } else if (event.key === 'Backspace') {
+            event.preventDefault();
+            deleteLetter();
+        }
+    });
+
+    updateRowUI();
 
     // Show initial recommendations if they exist
     if (window.initialRecommendations && window.initialRecommendations.final_out_all_1) {
@@ -1039,170 +1268,6 @@ document.addEventListener('DOMContentLoaded', () => {
             globalContainer.innerHTML = '<p>Start typing to get word suggestions!</p>';
         }
     }
-
-    function hideEmptyRowsFromEnd() {
-        const trackingPuzzle = getTrackingPuzzle();
-        const trackingRows = document.querySelectorAll(`.puzzle:nth-child(${trackingPuzzle}) .quordle-row`);
-        for (let i = trackingRows.length - 1; i >= 2; i--) {
-            const row = trackingRows[i];
-            if (row.style.display !== 'none') {
-                const rowBoxes = row.querySelectorAll('.quordle-box');
-                const isEmpty = Array.from(rowBoxes).every(box => box.value.trim() === '');
-                if (isEmpty) {
-                    if (i > 0) {
-                        const prevRow = trackingRows[i - 1];
-                        const prevRowHasContent = Array.from(prevRow.querySelectorAll('.quordle-box')).some(box => box.value.trim() !== '');
-                        if (prevRowHasContent) {
-                            for (let puzzleNum = 1; puzzleNum <= 4; puzzleNum++) {
-                                const rowToHide = document.querySelector(
-                                    `.puzzle:nth-child(${puzzleNum}) .quordle-row[data-row="${i + 1}"]`
-                                );
-                                if (rowToHide) rowToHide.style.display = 'none';
-                            }
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    function mirrorLetterToAllPuzzles(sourceBox) {
-        const row = sourceBox.dataset.row;
-        const position = sourceBox.dataset.position;
-        const letter = sourceBox.value;
-
-        document.querySelectorAll(`.quordle-box[data-row="${row}"][data-position="${position}"]`).forEach(box => {
-            if (box !== sourceBox) {
-                if (isPuzzleSolved(box.dataset.puzzle)) return;
-                box.value = letter;
-                if (letter === '') {
-                    box.dataset.state = '0';
-                    box.className = 'quordle-box color-0';
-                } else if (smartAssign && box.dataset.state === '0') {
-                    applySmartAssignToBox(box);
-                }
-            }
-        });
-    }
-
-    function moveToNextBox(currentBox) {
-        if (isProcessingInput) return;
-        const currentPuzzle = currentBox.dataset.puzzle;
-        const currentRow = currentBox.dataset.row;
-        const currentPosition = parseInt(currentBox.dataset.position);
-
-        if (currentPosition < 5) {
-            const nextBox = document.querySelector(
-                `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition + 1}"]`
-            );
-            if (nextBox) {
-                if (focusTimeout) clearTimeout(focusTimeout);
-                setProcessingInput(true);
-                focusTimeout = setTimeout(() => {
-                    nextBox.focus();
-                    nextBox.select();
-                    setProcessingInput(false);
-                }, 50);
-            }
-        } else {
-            setTimeout(() => { showNextRowIfNeeded(); }, 100);
-        }
-    }
-
-    boxes.forEach((box) => {
-        box.addEventListener('touchstart', () => {
-            box.inputMode = box.value.trim() === '' ? 'text' : 'none';
-        }, { passive: true });
-
-        box.addEventListener('input', (event) => {
-            if (isProcessingInput) {
-                event.preventDefault();
-                return;
-            }
-
-            const oldValue = box.dataset.lastValue || '';
-            const newValue = box.value.toUpperCase().replace(/[^A-Z]/g, '');
-            box.value = newValue.length > 1 ? newValue[0] : newValue;
-            box.dataset.lastValue = box.value;
-            box.inputMode = 'none';
-
-            if (box.value === '') {
-                box.dataset.state = '0';
-                box.className = 'quordle-box color-0';
-            } else if (smartAssign && box.dataset.state === '0') {
-                applySmartAssignToBox(box);
-            }
-
-            mirrorLetterToAllPuzzles(box);
-
-            if (box.value && box.value !== oldValue && box.value.length === 1) {
-                moveToNextBox(box);
-            }
-
-            triggerUpdate();
-        });
-
-        box.addEventListener('beforeinput', (event) => {
-            if (isProcessingInput) event.preventDefault();
-        });
-
-        box.addEventListener('click', (event) => {
-            event.preventDefault();
-            setProcessingInput(false); // user click resets any stuck lock
-            if (box.value && box.value.trim() !== '') {
-                let currentState = parseInt(box.dataset.state);
-                let newState = (currentState + 1) % 4;
-                if (newState === 0) newState = 1;
-                box.dataset.state = newState;
-                box.className = `quordle-box color-${newState}`;
-                triggerUpdate();
-            }
-        });
-
-        box.addEventListener('keydown', (event) => {
-            if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 0)) {
-                event.preventDefault();
-                const currentPuzzle = box.dataset.puzzle;
-                const currentRow = box.dataset.row;
-                const currentPosition = parseInt(box.dataset.position);
-
-                if (box.value === '' && currentPosition > 1) {
-                    const prevBox = document.querySelector(
-                        `.quordle-box[data-puzzle="${currentPuzzle}"][data-row="${currentRow}"][data-position="${currentPosition - 1}"]`
-                    );
-                    if (prevBox) {
-                        if (focusTimeout) clearTimeout(focusTimeout);
-                        setProcessingInput(true);
-                        focusTimeout = setTimeout(() => {
-                            prevBox.focus();
-                            prevBox.select();
-                            setProcessingInput(false);
-                        }, 50);
-                        prevBox.value = '';
-                        prevBox.dataset.lastValue = '';
-                        prevBox.dataset.state = '0';
-                        prevBox.className = 'quordle-box color-0';
-                        mirrorLetterToAllPuzzles(prevBox);
-                        triggerUpdate();
-                        hideEmptyRowsFromEnd();
-                    }
-                } else if (box.value !== '') {
-                    box.value = '';
-                    box.dataset.lastValue = '';
-                    box.dataset.state = '0';
-                    box.className = 'quordle-box color-0';
-                    mirrorLetterToAllPuzzles(box);
-                    triggerUpdate();
-                }
-            }
-        });
-
-        box.addEventListener('focus', (event) => {
-            updateActiveRow(box);
-        });
-    });
 });
 
 </script>

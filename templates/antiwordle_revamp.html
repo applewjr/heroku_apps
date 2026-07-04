@@ -77,18 +77,26 @@
     #wordle-grid .wordle-row {
         display: flex;
         justify-content: center;
+        position: relative;
+        width: fit-content;
+        margin: 0 auto;
     }
 
     #wordle-grid .wordle-box {
         width: 60px;
         height: 60px;
-        font-size: 18px;
-        text-align: center;
+        font-size: 22px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         margin: 5px;
         border: 2px solid #777;
-        outline: none;
         transition: background-color 0.3s;
         cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
     }
 
     /* Define color states */
@@ -96,6 +104,80 @@
     .color-1 { background-color: gray; }
     .color-2 { background-color: rgb(180, 162, 0); }
     .color-3 { background-color: red; }
+
+    #wordle-grid .wordle-box.color-1,
+    #wordle-grid .wordle-box.color-2,
+    #wordle-grid .wordle-box.color-3 {
+        color: #fff;
+        border-color: transparent;
+    }
+
+    .row-clear {
+        position: absolute;
+        right: -36px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border: 1px solid #ddd;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        color: #888;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0;
+        cursor: pointer;
+        visibility: hidden;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .row-clear:hover {
+        background-color: #e9ecef;
+        color: #d9534f;
+    }
+    .wordle-row.has-content .row-clear {
+        visibility: visible;
+    }
+
+    #solver-keyboard {
+        max-width: 500px;
+        margin: 18px auto 0;
+        padding: 0 8px;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .kb-row {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+        margin-bottom: 6px;
+    }
+    .kb-key {
+        flex: 1;
+        max-width: 44px;
+        height: 50px;
+        border: none;
+        border-radius: 4px;
+        background-color: #d3d6da;
+        color: #1a1a1a;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 0.15s ease;
+    }
+    .kb-key:active {
+        background-color: #b8bcc0;
+    }
+    .kb-key.kb-wide {
+        max-width: 66px;
+        flex: 1.5;
+        font-size: 18px;
+    }
+    .kb-key.key-color-1 { background-color: gray; color: #fff; }
+    .kb-key.key-color-2 { background-color: rgb(180, 162, 0); color: #fff; }
+    .kb-key.key-color-3 { background-color: red; color: #fff; }
 
     .legend-box.color-1 { background-color: gray !important; }
     .legend-box.color-2 { background-color: rgb(180, 162, 0) !important; }
@@ -299,6 +381,31 @@
             gap: 10px;
         }
     }
+
+    @media (max-width: 480px) {
+        #wordle-grid .wordle-box {
+            width: 48px;
+            height: 48px;
+            margin: 3px;
+            font-size: 20px;
+        }
+
+        .kb-key {
+            height: 46px;
+            font-size: 14px;
+        }
+    }
+
+    @media (max-width: 360px) {
+        #wordle-grid .wordle-box {
+            width: 44px;
+            height: 44px;
+        }
+
+        .row-clear {
+            right: -32px;
+        }
+    }
     </style>
 {% endblock %}
 
@@ -314,7 +421,7 @@
             <span class="instructions-toggle-icon">&#9660;</span>
         </div>
         <div class="instructions-body">
-            Click a suggestion to fill the row, then click each box to set its color based on your Antiwordle results. You can also type letters manually.
+            Tap a suggestion to fill the row, or type your own word with the keyboard. Tap each letter box to cycle its color based on your Antiwordle results. Use the &times; next to a row to clear that word.
             <div class="color-legend">
                 <div class="legend-item">
                     <div class="legend-box color-1"></div>
@@ -345,8 +452,9 @@
         {% for row in range(30) %}
         <div class="wordle-row" data-row="{{ row + 1 }}" {% if row > 1 %}style="display: none;"{% endif %}>
             {% for col in range(5) %}
-            <input type="text" maxlength="1" inputmode="none" name="box-{{ row }}-{{ col }}" class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}">
+            <div class="wordle-box color-0" data-state="0" data-position="{{ col + 1 }}" data-row="{{ row + 1 }}"></div>
             {% endfor %}
+            <button type="button" class="row-clear" aria-label="Clear this word" title="Clear this word">&times;</button>
         </div>
         {% endfor %}
     </div>
@@ -356,6 +464,7 @@
 
     <input type="hidden" name="wordle_data" id="wordle-data">
     </form>
+    <div id="solver-keyboard" aria-label="Letter keyboard"></div>
     <br>
     <div style="margin: 20px 0; text-align: center;">
         <a href="https://www.antiwordle.com/" target="_blank" style="
@@ -514,8 +623,8 @@ window.initialRecommendations = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    const boxes = document.querySelectorAll('#wordle-grid .wordle-box');
-    const rows = document.querySelectorAll('#wordle-grid .wordle-row');
+    const boxes = Array.from(document.querySelectorAll('#wordle-grid .wordle-box'));
+    const rows = Array.from(document.querySelectorAll('#wordle-grid .wordle-row'));
 
     // Instructions collapse
     const instructionsPanel = document.getElementById('instructions-panel');
@@ -545,143 +654,235 @@ document.addEventListener('DOMContentLoaded', () => {
         applySmartAssignState();
     });
 
-    function updateActiveRow(focusedBox) {
-        rows.forEach(row => row.classList.remove('active-row'));
-        if (focusedBox) {
-            focusedBox.closest('.wordle-row').classList.add('active-row');
+    function rowBoxes(row) {
+        return Array.from(row.querySelectorAll('.wordle-box'));
+    }
+
+    function isVisible(row) {
+        return row.style.display !== 'none';
+    }
+
+    function boxLetter(box) {
+        return box.textContent.trim();
+    }
+
+    function setState(box, state) {
+        box.dataset.state = state;
+        box.className = `wordle-box color-${state}`;
+    }
+
+    function clearBox(box) {
+        box.textContent = '';
+        setState(box, 0);
+    }
+
+    function setLetter(box, letter) {
+        box.textContent = letter;
+        if (smartAssign && box.dataset.state === '0') {
+            const thisRow = parseInt(box.dataset.row);
+            const prevRowBox = document.querySelector(
+                `#wordle-grid .wordle-box[data-row="${thisRow - 1}"][data-position="${box.dataset.position}"]`
+            );
+            if (prevRowBox && boxLetter(prevRowBox) === letter && (prevRowBox.dataset.state === '3' || prevRowBox.dataset.state === '2')) {
+                setState(box, prevRowBox.dataset.state);
+            } else {
+                setState(box, 1);
+            }
         }
     }
 
+    function showNextRowIfNeeded() {
+        const visibleRows = rows.filter(isVisible);
+        const lastVisible = visibleRows[visibleRows.length - 1];
+        if (!lastVisible) return;
+
+        const allFilled = rowBoxes(lastVisible).every(box => boxLetter(box) !== '');
+        const lastIndex = rows.indexOf(lastVisible);
+        if (allFilled && lastIndex + 1 < rows.length) {
+            rows[lastIndex + 1].style.display = 'flex';
+        }
+    }
+
+    function hideEmptyRowsFromEnd() {
+        // Hide trailing empty rows, keeping one empty entry row and at least the first 2 rows
+        for (let i = rows.length - 1; i >= 2; i--) {
+            if (!isVisible(rows[i])) continue;
+            if (rowBoxes(rows[i]).some(box => boxLetter(box) !== '')) break;
+            const prevEmpty = rowBoxes(rows[i - 1]).every(box => boxLetter(box) === '');
+            if (!prevEmpty) break;
+            rows[i].style.display = 'none';
+        }
+    }
+
+    function updateRowUI() {
+        let activeFound = false;
+        rows.forEach(row => {
+            const hasContent = rowBoxes(row).some(box => boxLetter(box) !== '');
+            row.classList.toggle('has-content', hasContent);
+
+            const isFull = rowBoxes(row).every(box => boxLetter(box) !== '');
+            const isActive = isVisible(row) && !isFull && !activeFound;
+            if (isActive) activeFound = true;
+            row.classList.toggle('active-row', isActive);
+        });
+        updateKeyboardColors();
+    }
+
+    function placeLetter(letter) {
+        for (const box of boxes) {
+            if (!isVisible(box.closest('.wordle-row'))) continue;
+            if (boxLetter(box) === '') {
+                setLetter(box, letter);
+                showNextRowIfNeeded();
+                updateRowUI();
+                triggerUpdate();
+                return;
+            }
+        }
+    }
+
+    function deleteLetter() {
+        for (let i = boxes.length - 1; i >= 0; i--) {
+            if (!isVisible(boxes[i].closest('.wordle-row'))) continue;
+            if (boxLetter(boxes[i]) !== '') {
+                clearBox(boxes[i]);
+                hideEmptyRowsFromEnd();
+                updateRowUI();
+                triggerUpdate();
+                return;
+            }
+        }
+    }
+
+    function clearRowAndCompact(rowEl) {
+        // Collect the remaining words (letters + colors), then re-stack them from the top
+        const words = [];
+        rows.forEach(row => {
+            if (row === rowEl) return;
+            const cells = rowBoxes(row).map(box => ({ letter: boxLetter(box), state: box.dataset.state }));
+            if (cells.some(cell => cell.letter !== '')) words.push(cells);
+        });
+
+        boxes.forEach(clearBox);
+        words.forEach((cells, i) => {
+            rowBoxes(rows[i]).forEach((box, j) => {
+                if (cells[j].letter !== '') {
+                    box.textContent = cells[j].letter;
+                    setState(box, cells[j].state);
+                }
+            });
+        });
+
+        rows.forEach((row, i) => {
+            row.style.display = i < Math.max(2, words.length + 1) ? 'flex' : 'none';
+        });
+
+        updateRowUI();
+        triggerUpdate();
+    }
+
+    function fillNextRow(word) {
+        const targetRow = rows.filter(isVisible).find(row => rowBoxes(row).every(box => boxLetter(box) === ''));
+        if (!targetRow) return;
+
+        const targets = rowBoxes(targetRow);
+        for (let i = 0; i < word.length && i < targets.length; i++) {
+            setLetter(targets[i], word[i]);
+        }
+        showNextRowIfNeeded();
+        updateRowUI();
+        triggerUpdate();
+    }
+    window.fillNextRow = fillNextRow;
+
+    // Tap a filled box to cycle its color
     boxes.forEach(box => {
-        box.addEventListener('focus', () => updateActiveRow(box));
+        box.addEventListener('click', () => {
+            if (boxLetter(box) === '') return;
+            let newState = (parseInt(box.dataset.state) + 1) % 4;
+            // Skip state 0 (white) when cycling through colors for filled boxes
+            if (newState === 0) {
+                newState = 1;
+            }
+            setState(box, newState);
+            updateRowUI();
+            triggerUpdate();
+        });
     });
 
-    // Set focus to the first box as soon as the page loads
-    if (boxes.length > 0) {
-        boxes[0].focus();
+    rows.forEach(row => {
+        row.querySelector('.row-clear').addEventListener('click', (event) => {
+            event.currentTarget.blur();
+            clearRowAndCompact(row);
+        });
+    });
+
+    // Build the on-screen keyboard
+    const keyboard = document.getElementById('solver-keyboard');
+    ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].forEach((line, lineIndex, layout) => {
+        const kbRow = document.createElement('div');
+        kbRow.className = 'kb-row';
+        line.split('').forEach(letter => {
+            const key = document.createElement('button');
+            key.type = 'button';
+            key.className = 'kb-key';
+            key.dataset.key = letter;
+            key.textContent = letter;
+            key.addEventListener('click', () => {
+                key.blur();
+                placeLetter(letter);
+            });
+            kbRow.appendChild(key);
+        });
+        if (lineIndex === layout.length - 1) {
+            const backKey = document.createElement('button');
+            backKey.type = 'button';
+            backKey.className = 'kb-key kb-wide';
+            backKey.setAttribute('aria-label', 'Delete letter');
+            backKey.innerHTML = '&#9003;';
+            backKey.addEventListener('click', () => {
+                backKey.blur();
+                deleteLetter();
+            });
+            kbRow.appendChild(backKey);
+        }
+        keyboard.appendChild(kbRow);
+    });
+
+    function updateKeyboardColors() {
+        const best = {};
+        boxes.forEach(box => {
+            const letter = boxLetter(box);
+            const state = parseInt(box.dataset.state);
+            if (letter && state > 0) best[letter] = Math.max(best[letter] || 0, state);
+        });
+        keyboard.querySelectorAll('.kb-key[data-key]').forEach(key => {
+            key.classList.remove('key-color-1', 'key-color-2', 'key-color-3');
+            if (best[key.dataset.key]) key.classList.add(`key-color-${best[key.dataset.key]}`);
+        });
     }
+
+    // Physical keyboard support
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+
+        if (/^[a-zA-Z]$/.test(event.key)) {
+            event.preventDefault();
+            placeLetter(event.key.toUpperCase());
+        } else if (event.key === 'Backspace') {
+            event.preventDefault();
+            deleteLetter();
+        }
+    });
+
+    updateRowUI();
 
     // Show initial recommendations if they exist
     if (window.initialRecommendations && window.initialRecommendations.final_out1) {
         updateUI(window.initialRecommendations);
     }
-
-    function showNextRowIfNeeded() {
-        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-        const currentRowIndex = visibleRows.length - 1;
-        const currentRow = visibleRows[currentRowIndex];
-
-        if (currentRow) {
-            const currentRowBoxes = currentRow.querySelectorAll('.wordle-box');
-            const allFilled = Array.from(currentRowBoxes).every(box => box.value.trim() !== '');
-
-            if (allFilled && currentRowIndex + 1 < rows.length) {
-                rows[currentRowIndex + 1].style.display = 'flex';
-                const nextRowFirstBox = rows[currentRowIndex + 1].querySelector('.wordle-box');
-                if (nextRowFirstBox) {
-                    nextRowFirstBox.focus();
-                }
-            }
-        }
-    }
-
-    function hideEmptyRowsFromEnd() {
-        for (let i = rows.length - 1; i >= 2; i--) {
-            const rowBoxes = rows[i].querySelectorAll('.wordle-box');
-            const isEmpty = Array.from(rowBoxes).every(box => box.value.trim() === '');
-
-            if (isEmpty && rows[i].style.display !== 'none') {
-                const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-                if (visibleRows[visibleRows.length - 1] === rows[i] && visibleRows.length > 2) {
-                    const prevRow = rows[i - 1];
-                    const prevRowBoxes = prevRow.querySelectorAll('.wordle-box');
-                    const prevRowHasContent = Array.from(prevRowBoxes).some(box => box.value.trim() !== '');
-
-                    if (prevRowHasContent) {
-                        rows[i].style.display = 'none';
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-    }
-
-    boxes.forEach((box, index) => {
-        box.addEventListener('touchstart', () => {
-            box.inputMode = box.value.trim() === '' ? 'text' : 'none';
-        }, { passive: true });
-
-        box.addEventListener('input', (event) => {
-            box.value = box.value.toUpperCase().replace(/[^A-Z]/g, '');
-            box.inputMode = 'none';
-
-            if (box.value === '') {
-                box.dataset.state = '0';
-                box.className = 'wordle-box color-0';
-            } else if (smartAssign && box.dataset.state === '0') {
-                const thisRow = parseInt(box.dataset.row);
-                const thisPos = box.dataset.position;
-                const prevRowBox = document.querySelector(
-                    `#wordle-grid .wordle-box[data-row="${thisRow - 1}"][data-position="${thisPos}"]`
-                );
-                if (prevRowBox && prevRowBox.value === box.value && (prevRowBox.dataset.state === '3' || prevRowBox.dataset.state === '2')) {
-                    box.dataset.state = prevRowBox.dataset.state;
-                    box.className = `wordle-box color-${prevRowBox.dataset.state}`;
-                } else {
-                    box.dataset.state = '1';
-                    box.className = 'wordle-box color-1';
-                }
-            }
-
-            triggerUpdate();
-            showNextRowIfNeeded();
-
-            if (box.value && index < boxes.length - 1) {
-                for (let i = index + 1; i < boxes.length; i++) {
-                    if (boxes[i].closest('.wordle-row').style.display !== 'none') {
-                        boxes[i].focus();
-                        break;
-                    }
-                }
-            }
-        });
-
-        box.addEventListener('click', (event) => {
-            event.preventDefault();
-
-            if (box.value && box.value.trim() !== '') {
-                let currentState = parseInt(box.dataset.state);
-                let newState = (currentState + 1) % 4;
-                if (newState === 0) {
-                    newState = 1;
-                }
-                box.dataset.state = newState;
-                box.className = `wordle-box color-${newState}`;
-
-                triggerUpdate();
-            }
-        });
-
-        box.addEventListener('keydown', (event) => {
-            if (event.key === 'Backspace' && (box.value === '' || box.selectionStart === 1)) {
-                event.preventDefault();
-                if (index > 0) {
-                    for (let i = index - 1; i >= 0; i--) {
-                        if (boxes[i].closest('.wordle-row').style.display !== 'none') {
-                            boxes[i].focus();
-                            boxes[i].value = '';
-                            boxes[i].dataset.state = '0';
-                            boxes[i].className = 'wordle-box color-0';
-                            triggerUpdate();
-                            hideEmptyRowsFromEnd();
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-    });
 });
 
 let updateTimeout;
@@ -721,19 +922,15 @@ function triggerUpdate() {
 
 function collectData() {
     const data = [];
-    document.querySelectorAll('#wordle-grid .wordle-box').forEach((box, index) => {
+    document.querySelectorAll('#wordle-grid .wordle-box').forEach((box) => {
         const row = box.getAttribute('data-row');
         const position = box.getAttribute('data-position');
-        const letter = box.value.toUpperCase();
+        const letter = box.textContent.trim().toUpperCase();
         const color = box.dataset.state;
 
         data.push({ letter, position, color, row });
     });
     return data;
-}
-
-function updateUI(recommendations) {
-    console.log(recommendations);
 }
 
 function updateUI(data) {
@@ -762,28 +959,6 @@ function updateUI(data) {
         chip.textContent = data['final_out_end'];
         recommendationsContainer.appendChild(chip);
     }
-}
-
-function fillNextRow(word) {
-    const rows = document.querySelectorAll('#wordle-grid .wordle-row');
-    const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-
-    let targetRow = null;
-    for (const row of visibleRows) {
-        const rowBoxes = Array.from(row.querySelectorAll('.wordle-box'));
-        if (rowBoxes.every(box => box.value.trim() === '')) {
-            targetRow = row;
-            break;
-        }
-    }
-    if (!targetRow) return;
-
-    const targetBoxes = Array.from(targetRow.querySelectorAll('.wordle-box'));
-    for (let i = 0; i < word.length && i < targetBoxes.length; i++) {
-        targetBoxes[i].value = word[i];
-        targetBoxes[i].dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    setTimeout(() => { if (document.activeElement) document.activeElement.blur(); }, 100);
 }
 
 </script>
