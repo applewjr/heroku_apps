@@ -196,6 +196,43 @@
     visibility: visible;
 }
 
+.confirm-clear {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 6px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 20;
+    white-space: nowrap;
+}
+.confirm-clear span {
+    font-size: 13px;
+    color: #333;
+}
+.confirm-clear button {
+    border: none;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.confirm-clear .confirm-yes {
+    background-color: #d9534f;
+    color: #fff;
+}
+.confirm-clear .confirm-no {
+    background-color: #e9ecef;
+    color: #333;
+}
+
 #solver-keyboard {
     max-width: 500px;
     margin: 18px auto 0;
@@ -1202,11 +1239,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // The X clears that guess across all four puzzles
+    // Confirm popover so a stray tap can't wipe a word
+    let confirmEl = null;
+    function closeConfirm() {
+        if (confirmEl) {
+            confirmEl.remove();
+            confirmEl = null;
+        }
+    }
+    function openConfirm(row, onConfirm) {
+        closeConfirm();
+        confirmEl = document.createElement('div');
+        confirmEl.className = 'confirm-clear';
+        const label = document.createElement('span');
+        label.textContent = 'Delete word?';
+        const yes = document.createElement('button');
+        yes.type = 'button';
+        yes.className = 'confirm-yes';
+        yes.textContent = 'Delete';
+        yes.addEventListener('click', () => {
+            closeConfirm();
+            onConfirm();
+        });
+        const no = document.createElement('button');
+        no.type = 'button';
+        no.className = 'confirm-no';
+        no.textContent = 'Cancel';
+        no.addEventListener('click', closeConfirm);
+        confirmEl.append(label, yes, no);
+        row.appendChild(confirmEl);
+    }
+    document.addEventListener('click', (event) => {
+        if (confirmEl && !confirmEl.contains(event.target) && !event.target.closest('.row-clear')) {
+            closeConfirm();
+        }
+    });
+
+    // The X clears that guess across all four puzzles, after confirmation
     document.querySelectorAll('.quordle-row .row-clear').forEach(btn => {
         btn.addEventListener('click', () => {
             btn.blur();
-            clearRowAndCompact(parseInt(btn.closest('.quordle-row').dataset.row));
+            const row = btn.closest('.quordle-row');
+            openConfirm(row, () => clearRowAndCompact(parseInt(row.dataset.row)));
         });
     });
 
