@@ -144,6 +144,36 @@ def test_espresso_explore_non_finite_returns_400(client, bad):
     assert resp.status_code == 400
 
 
+# ---------------------------------------------------------------------------
+# Client-fault HTTP errors must keep their status code: the catch-all
+# Exception handler used to convert 400/405/415 into logged-traceback 500s.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("path", ["/fixer", "/any_word", "/feedback"])
+def test_missing_form_fields_return_400_not_500(client, path):
+    assert client.post(path, data={}).status_code == 400
+
+
+def test_wrong_method_returns_405_not_500(client):
+    assert client.delete("/wordle").status_code == 405
+
+
+def test_wordiply_non_json_body_returns_415(client):
+    resp = client.post("/wordiply", data="x=1",
+                       content_type="application/x-www-form-urlencoded")
+    assert resp.status_code == 415
+
+
+def test_wordiply_json_null_body_returns_200(client):
+    # A literal `null` JSON body falls back to the default (empty) search.
+    resp = client.post("/wordiply", data="null", content_type="application/json")
+    assert resp.status_code == 200
+
+
+def test_wordiply_non_string_search_returns_400(client):
+    assert client.post("/wordiply", json={"search_string": 123}).status_code == 400
+
+
 def test_wordle_post_returns_picks(client):
     resp = client.post("/wordle", json={"wordle_data": []})
     assert resp.status_code == 200

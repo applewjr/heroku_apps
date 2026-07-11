@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, render_template, request
 from data import df, words
 from extensions import add_data_to_stream
 from functions import all_words, wordle
-from helpers import make_schema_data, parse_float, parse_int
+from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
 bp = Blueprint('wordgames', __name__)
 
@@ -241,8 +241,13 @@ def run_wordiply():
     )
 
     if request.method == "POST":
+        # get_json() raises a clean 415 for non-JSON bodies (via the app-level
+        # HTTPException handling); a JSON `null` body or a non-dict payload
+        # would 500 on .get, so guard the shape here too.
         data = request.get_json()
-        search_string = data.get('search_string', '')
+        search_string = data.get('search_string', '') if isinstance(data, dict) else ''
+        if not isinstance(search_string, str) or len(search_string) > 100:
+            raise ValidationError('search_string must be a string of at most 100 characters')
 
         results = all_words.wordiply_solver(search_string, words, 90)
 
