@@ -155,6 +155,41 @@ def test_blossom_post_missing_fields_returns_400(client):
     assert client.post("/blossom", data={}).status_code == 400
 
 
+def test_blossom_post_sqli_current_count_returns_400(blossom_client):
+    # Scanner payloads in the numeric field must 400 cleanly, not 500 with a
+    # logged traceback (this is the exact probe seen in production logs).
+    resp = blossom_client.post(
+        "/blossom",
+        data={
+            "must_have": "t", "may_have": "raine", "petal_letter": "s",
+            "current_count": "25AND EXTRACTVALUE(1337,CONCAT(0x5c,0x716b767071))",
+        },
+    )
+    assert resp.status_code == 400
+    assert "error" in resp.get_json()
+
+
+def test_blossom_post_non_alpha_letters_returns_400(blossom_client):
+    resp = blossom_client.post(
+        "/blossom",
+        data={"must_have": "t'--", "may_have": "raine", "petal_letter": "s"},
+    )
+    assert resp.status_code == 400
+
+
+def test_blossom_post_blank_current_count_still_works(blossom_client):
+    # Blank current_count + load_more used to hit int('') -> 500; now it
+    # falls back to the default and renders normally.
+    resp = blossom_client.post(
+        "/blossom",
+        data={
+            "must_have": "t", "may_have": "raine", "petal_letter": "s",
+            "current_count": "", "load_more": "1",
+        },
+    )
+    assert resp.status_code == 200
+
+
 def test_blossom_toggle_word_round_trips_in_session(client):
     r1 = client.post("/blossom", json={"action": "toggle_word", "word": "tree"})
     assert r1.status_code == 200

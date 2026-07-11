@@ -12,7 +12,7 @@ import config
 from data import words_blossom
 from extensions import auth, cache, db_cursor, limiter, log_page_visit
 from functions import all_words
-from helpers import make_schema_data
+from helpers import ValidationError, make_schema_data, parse_int, parse_letters
 
 bp = Blueprint('blossom', __name__)
 
@@ -61,12 +61,17 @@ def blossom_solver():
                 )
                 return render_template('error.html', return_type='Blossom Error'), 400
 
+            # Scanner junk (sqlmap payloads etc.) in these fields -> 400 via
+            # ValidationError, instead of a ValueError 500 further down.
+            must_have = parse_letters(must_have, "must_have", max_len=10)
+            may_have = parse_letters(may_have, "may_have", max_len=10)
+            petal_letter = parse_letters(petal_letter, "petal_letter", max_len=10)
+
             # Handle load more functionality
-            current_count = 25  # Default starting count
+            current_count = parse_int(request.form.get("current_count"), "current_count",
+                                      default=25, min_value=1, max_value=10000)
             if request.form.get("load_more"):
-                current_count = int(request.form.get("current_count", 25)) + 25
-            elif request.form.get("current_count"):
-                current_count = int(request.form.get("current_count", 25))
+                current_count = min(current_count + 25, 10000)
 
             # Get used words from session
             used_words = session.get('used_words', [])
@@ -125,6 +130,10 @@ def blossom_solver():
                                 show_load_more=False,
                                 schema_data=schema_data)
 
+    except ValidationError:
+        # Bad input, not a bug: let the app-level handler answer 400 so the
+        # blanket except below can't turn it into a 500 + logged traceback.
+        raise
     except Exception as e:
         current_app.logger.error(
             f"Error R99 (Blossom failed): {str(e)} - IP: {request.remote_addr} "

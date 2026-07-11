@@ -16,7 +16,7 @@ import logging
 import sys
 from datetime import timedelta
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request
 from flask_sslify import SSLify
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -30,6 +30,7 @@ if config.IS_HEROKU:
     )
 
 from extensions import cache, limiter
+from helpers import ValidationError
 from routes import blossom, dashboards, espresso, misc, wordgames
 
 app = Flask(__name__)
@@ -71,6 +72,13 @@ app.register_blueprint(dashboards.bp)
 @limiter.limit("10 per minute; 30 per hour")
 def page_not_found(e):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
+
+# Bad user input (scanner junk in numeric/letter fields) -> clean 400, no
+# traceback. Must be registered above the catch-all Exception handler's scope:
+# Flask picks the most specific handler, so ValidationError never hits the 500.
+@app.errorhandler(ValidationError)
+def handle_validation_error(e):
+    return jsonify(error=str(e)), 400
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
