@@ -11,6 +11,7 @@ import config
 from data import espresso_points
 from extensions import cache
 from functions import espresso
+from helpers import ValidationError, parse_float, parse_int
 
 bp = Blueprint('espresso', __name__)
 
@@ -82,11 +83,15 @@ def espresso_recommendation():
     if request.method == 'GET':
         return render_template('espresso_gate.html', gate_title='KNN Predictive Recommendations')
 
-    espresso_data = get_espresso_data()
-
     user_pred = request.form.get('user_pred', 'James')
     roast_pred = request.form.get('roast_pred', 'Medium')
     shots_pred = request.form.get('shots_pred', '2')
+    # Validate-only (the template echo and clean_espresso_df both expect the
+    # string): junk shots 400s here instead of 500ing on int() downstream.
+    # Runs before get_espresso_data so bad input never triggers the Sheets pull.
+    parse_int(shots_pred, 'shots_pred', default=2)
+
+    espresso_data = get_espresso_data()
 
     df_analyze, _df_scatter = espresso.clean_espresso_df(
         user_pred, roast_pred, shots_pred,
@@ -109,6 +114,9 @@ def espresso_plot():
     # The matplotlib render only happens on the POST from the Continue/Calculate button.
     if request.method == 'GET':
         return render_template('espresso_gate.html', gate_title='Dynamic Scatter Plots')
+
+    # Validate-only, before the Sheets pull (see espresso_recommendation).
+    parse_int(request.form.get('shots_pred_scatter', '2'), 'shots_pred_scatter', default=2)
 
     espresso_data = get_espresso_data()
 
@@ -160,9 +168,31 @@ def espresso_explore():
     if request.method == 'GET':
         return render_template('espresso_gate.html', gate_title='Exploration Recommendations')
 
-    espresso_data = get_espresso_data()
-
     p = {key: request.form.get(key, default) for key, default in EXPLORE_DEFAULTS.items()}
+
+    # Validate the numeric inputs before doing anything expensive. Beyond the
+    # junk-input 400s, the grid-size caps matter: the grid search meshgrids
+    # min..max at the given granularity in all three dimensions at once, so the
+    # budget must be on the *total* cell count - three axes of 1000 steps each
+    # pass a per-axis check but multiply to ~10^9 mesh points (tens of GB).
+    # Legit usage today is ~10k cells, so 100k leaves generous headroom.
+    parse_int(p['distance_shots'], 'distance_shots', default=2)
+    total_cells = 1
+    for dim in ('grind', 'coffee_g', 'espresso_g'):
+        mn = parse_float(p[f'distance_{dim}_min'], f'distance_{dim}_min', default=0.0)
+        mx = parse_float(p[f'distance_{dim}_max'], f'distance_{dim}_max', default=0.0)
+        gran = parse_float(p[f'distance_{dim}_granularity'], f'distance_{dim}_granularity', default=0.1)
+        if gran <= 0 or mx < mn:
+            raise ValidationError(f'distance_{dim} min/max/granularity is invalid')
+        # Float math on purpose: an extreme range/granularity pair can overflow
+        # the division to inf, which math.ceil would turn into an OverflowError
+        # (-> 500). As a float, inf just propagates and fails the budget check.
+        total_cells *= (mx - mn) / gran + 1
+        if total_cells > 100_000:
+            raise ValidationError('distance exploration grid is too large: '
+                                  'use a smaller range or coarser granularity')
+
+    espresso_data = get_espresso_data()
 
     _df_analyze, df_scatter = espresso.clean_espresso_df(
         p['distance_user'], p['distance_roast'], p['distance_shots'],
@@ -192,6 +222,9 @@ def espresso_baseline():
 
     roast = request.form.get('roast', 'Medium')
     dose = request.form.get('dose', '2')
+    # Validate-only (template compares dose_val against the string options):
+    # junk dose 400s here instead of 500ing on int() in get_naive_espresso_points.
+    parse_int(dose, 'dose', default=2)
 
     naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 

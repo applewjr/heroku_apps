@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, render_template, request
 from data import df, words
 from extensions import add_data_to_stream
 from functions import all_words, wordle
-from helpers import make_schema_data
+from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
 bp = Blueprint('wordgames', __name__)
 
@@ -188,8 +188,12 @@ def run_wordle_fixer():
 @bp.route("/common_denominator", methods=["POST", "GET"])
 def run_common_denominator():
     if request.method == "POST":
-        min_match_len = request.form["min_match_len"]
-        min_match_rate = request.form["min_match_rate"]
+        # Parsed here (not just downstream) so junk input 400s instead of
+        # 500ing on the int()/float() casts inside common_denominator.
+        min_match_len = parse_int(request.form["min_match_len"], "min_match_len",
+                                  default=3, min_value=1, max_value=100)
+        min_match_rate = parse_float(request.form["min_match_rate"], "min_match_rate",
+                                     default=0.5, min_value=0.0, max_value=1.0)
         beg_end_str_char = request.form["beg_end_str_char"]
         value_split_char = request.form["value_split_char"]
         user_match_entry = request.form["user_match_entry"]
@@ -211,9 +215,14 @@ def any_word():
         must_not_have = request.form["must_not_have"]
         first_letter = request.form["first_letter"]
         sort_order = request.form["sort_order"]
-        list_len = request.form["list_len"]
-        min_length = request.form["min_length"]
-        max_length = request.form["max_length"]
+        # Parsed here so junk input 400s instead of 500ing on the int() casts
+        # inside filter_words_all.
+        list_len = parse_int(request.form["list_len"], "list_len",
+                             default=10, min_value=1, max_value=1000)
+        min_length = parse_int(request.form["min_length"], "min_length",
+                               default=1, min_value=1, max_value=100)
+        max_length = parse_int(request.form["max_length"], "max_length",
+                               default=100, min_value=1, max_value=100)
         list_out = all_words.filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words, min_length, max_length)
         return render_template("any_word.html", list_out=list_out, \
             must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len, \
@@ -232,8 +241,13 @@ def run_wordiply():
     )
 
     if request.method == "POST":
+        # get_json() raises a clean 415 for non-JSON bodies (via the app-level
+        # HTTPException handling); a JSON `null` body or a non-dict payload
+        # would 500 on .get, so guard the shape here too.
         data = request.get_json()
-        search_string = data.get('search_string', '')
+        search_string = data.get('search_string', '') if isinstance(data, dict) else ''
+        if not isinstance(search_string, str) or len(search_string) > 100:
+            raise ValidationError('search_string must be a string of at most 100 characters')
 
         results = all_words.wordiply_solver(search_string, words, 90)
 

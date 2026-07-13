@@ -16,8 +16,9 @@ import logging
 import sys
 from datetime import timedelta
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request
 from flask_sslify import SSLify
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
@@ -30,6 +31,7 @@ if config.IS_HEROKU:
     )
 
 from extensions import cache, limiter
+from helpers import ValidationError
 from routes import blossom, dashboards, espresso, misc, wordgames
 
 app = Flask(__name__)
@@ -72,12 +74,25 @@ app.register_blueprint(dashboards.bp)
 def page_not_found(e):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
 
+# Bad user input (scanner junk in numeric/letter fields) -> clean 400, no
+# traceback. Must be registered above the catch-all Exception handler's scope:
+# Flask picks the most specific handler, so ValidationError never hits the 500.
+@app.errorhandler(ValidationError)
+def handle_validation_error(e):
+    return jsonify(error=str(e)), 400
+
 @app.errorhandler(429)
 def ratelimit_handler(e):
     return render_template('error.html', return_type='Rate Limit Exceeded - Too Many Requests'), 429
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    # A generic Exception handler also receives werkzeug's HTTPExceptions
+    # (missing form key -> 400, wrong method -> 405, non-JSON body -> 415).
+    # Those are the client's fault: keep their status code instead of logging
+    # a traceback and converting them into a 500.
+    if isinstance(e, HTTPException):
+        return render_template('error.html', return_type=f'{e.code} - {e.name}'), e.code
     app.logger.exception("Unhandled exception: %s", e)
     return render_template('error.html', return_type='500 - Error'), 500
 
