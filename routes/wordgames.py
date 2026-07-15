@@ -260,6 +260,13 @@ def get_smush_words():
             added_words = {row[0].lower() for row in cursor.fetchall()}
     except Exception as e:
         print(f"Error fetching smush word corrections: {e}")
+        # A DB blip at refresh time must not evict the corrections for 12
+        # hours: keep serving the last good list (or the raw list if there
+        # has never been one) and retry soon.
+        fallback = _smush_words['value'] if _smush_words['value'] is not None else words
+        _smush_words['value'] = fallback
+        _smush_words['expires'] = time.time() + 300
+        return fallback
 
     # data.py's word set is already lowercase; only build a corrected copy
     # when there is actually something to correct.
@@ -300,23 +307,31 @@ def run_smush():
             raise ValidationError('expected a JSON object')
 
         center = data.get('center', '')
-        if not (isinstance(center, str) and len(center) == 1 and center.isalpha()):
-            raise ValidationError('center must be a single letter')
+        if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
+            raise ValidationError('center must be a single letter a-z')
 
+        # A Smush board is always the center plus 8 distinct outer letters;
+        # enforce that so the solver never scores a collapsed/partial board.
         outer_uses = data.get('outer_uses')
-        if not (isinstance(outer_uses, dict) and 1 <= len(outer_uses) <= 8):
-            raise ValidationError('outer_uses must be a dict of 1-8 letters')
+        if not (isinstance(outer_uses, dict) and len(outer_uses) == 8):
+            raise ValidationError('outer_uses must contain exactly 8 letters')
+        seen_letters = set()
         for letter, uses in outer_uses.items():
-            if not (isinstance(letter, str) and len(letter) == 1 and letter.isalpha()):
-                raise ValidationError('outer_uses keys must be single letters')
+            if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
+                raise ValidationError('outer_uses keys must be single letters a-z')
             if not (isinstance(uses, int) and not isinstance(uses, bool) and 0 <= uses <= 5):
                 raise ValidationError('outer_uses values must be whole numbers 0-5')
+            seen_letters.add(letter.lower())
+        if len(seen_letters) != 8 or center.lower() in seen_letters:
+            raise ValidationError('outer_uses must be 8 distinct letters, none matching the center')
 
         spicy = data.get('spicy', '')
         if not (isinstance(spicy, str) and (spicy == '' or (len(spicy) == 1 and spicy.isalpha()))):
             raise ValidationError('spicy must be a single letter or empty')
 
-        first_word = bool(data.get('first_word', False))
+        first_word = data.get('first_word', False)
+        if not isinstance(first_word, bool):
+            raise ValidationError('first_word must be a boolean')
 
         # rejected: words the game refused (cost nothing, hidden for good).
         # played: words already in the pile (a word can't be played twice).

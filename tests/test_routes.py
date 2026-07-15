@@ -204,15 +204,26 @@ def test_smush_post_returns_ranked_words(smush_client):
     assert all("l" in r["word"] for r in body["results"])
 
 
+_SMUSH_OUTER = SMUSH_BODY["outer_uses"]
+_SMUSH_OUTER_MINUS_M = {k: v for k, v in _SMUSH_OUTER.items() if k != "m"}
+
+
 @pytest.mark.parametrize("patch", [
     {"center": ""},                    # missing center
     {"center": "ab"},                  # too long
     {"center": "1"},                   # not a letter
+    {"center": "é"},                   # non-ASCII letter
     {"outer_uses": {}},                # no outer letters
-    {"outer_uses": {"m": "x"}},        # junk uses value
-    {"outer_uses": {"m": 9}},          # uses out of range
-    {"outer_uses": {"mm": 3}},         # multi-char letter key
+    {"outer_uses": _SMUSH_OUTER_MINUS_M},                  # only 7 letters
+    {"outer_uses": {**_SMUSH_OUTER, "m": "x"}},            # junk uses value
+    {"outer_uses": {**_SMUSH_OUTER, "m": 9}},              # uses out of range
+    {"outer_uses": {**_SMUSH_OUTER, "m": True}},           # bool uses value
+    {"outer_uses": {**_SMUSH_OUTER_MINUS_M, "mm": 3}},     # multi-char letter key
+    {"outer_uses": {**_SMUSH_OUTER_MINUS_M, "G": 1}},      # dup letter after case-fold
+    {"outer_uses": {**_SMUSH_OUTER_MINUS_M, "l": 1}},      # center repeated as outer
     {"spicy": "xy"},                   # junk spicy
+    {"first_word": "false"},           # first_word must be a real boolean
+    {"first_word": 1},                 # truthy non-boolean
     {"rejected": "flagellum"},         # rejected must be a list
     {"rejected": [123]},               # rejected entries must be words
     {"rejected": ["not a word!"]},     # non-alpha rejected entry

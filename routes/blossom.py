@@ -336,6 +336,7 @@ def get_filtered_blossom_words():
     # Get invalid and added words from database
     invalid_words = set()
     added_words = set()
+    db_ok = True
     try:
         with db_cursor() as (conn, cursor):
             cursor.execute("SELECT word FROM blossom_invalid_words")
@@ -346,6 +347,7 @@ def get_filtered_blossom_words():
     except Exception as e:
         print(f"Error fetching word lists: {e}")
         # If database error, use original word list
+        db_ok = False
         invalid_words = set()
         added_words = set()
 
@@ -355,7 +357,9 @@ def get_filtered_blossom_words():
     # Remove invalid words and add missing words
     filtered_words_lower = (words_blossom_lower - invalid_words) | added_words
 
-    # Cache the filtered word list for 12 hours
-    cache.set('blossom_filtered_words', filtered_words_lower, timeout=43200)
+    # Cache the filtered list for 12 hours - but only for 5 minutes when the
+    # DB read failed, so a blip doesn't serve the uncorrected list all day.
+    cache.set('blossom_filtered_words', filtered_words_lower,
+              timeout=43200 if db_ok else 300)
 
     return filtered_words_lower
