@@ -14,6 +14,7 @@ GET_OK = [
     "/antiwordle",
     "/quordle",
     "/wordiply",
+    "/smush",
     "/any_word",
     "/fixer",
     "/common_denominator",
@@ -172,6 +173,80 @@ def test_wordiply_json_null_body_returns_200(client):
 
 def test_wordiply_non_string_search_returns_400(client):
     assert client.post("/wordiply", json={"search_string": 123}).status_code == 400
+
+
+SMUSH_BODY = {
+    "center": "l",
+    "outer_uses": {"m": 3, "g": 2, "u": 1, "o": 1, "a": 1, "e": 1, "c": 3, "f": 4},
+    "spicy": "g",
+    "first_word": False,
+}
+
+
+@pytest.fixture
+def smush_client(client, monkeypatch):
+    # Hermetic like blossom_client: skip the DB-backed word curation and run
+    # the solver on the committed in-memory list.
+    import routes.wordgames as wordgames
+    from data import words
+    monkeypatch.setattr(wordgames, "get_smush_words", lambda: words)
+    return client
+
+
+def test_smush_post_returns_ranked_words(smush_client):
+    resp = smush_client.post("/smush", json=SMUSH_BODY)
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["total_playable"] > 0
+    assert body["pangram_status"] in ("found", "affordable", "out_of_reach", "none")
+    pts = [r["pts"] for r in body["results"]]
+    assert pts == sorted(pts, reverse=True)
+    assert all("l" in r["word"] for r in body["results"])
+
+
+@pytest.mark.parametrize("patch", [
+    {"center": ""},                    # missing center
+    {"center": "ab"},                  # too long
+    {"center": "1"},                   # not a letter
+    {"outer_uses": {}},                # no outer letters
+    {"outer_uses": {"m": "x"}},        # junk uses value
+    {"outer_uses": {"m": 9}},          # uses out of range
+    {"outer_uses": {"mm": 3}},         # multi-char letter key
+    {"spicy": "xy"},                   # junk spicy
+    {"rejected": "flagellum"},         # rejected must be a list
+    {"rejected": [123]},               # rejected entries must be words
+    {"rejected": ["not a word!"]},     # non-alpha rejected entry
+    {"played": "floccule"},            # played must be a list
+    {"played": [123]},                 # played entries must be words
+])
+def test_smush_junk_input_returns_400(smush_client, patch):
+    body = dict(SMUSH_BODY, **patch)
+    assert smush_client.post("/smush", json=body).status_code == 400
+
+
+def test_smush_rejected_words_are_hidden(smush_client):
+    resp = smush_client.post("/smush", json=dict(SMUSH_BODY, rejected=["flagellum"]))
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert all(r["word"] != "flagellum" for r in body["results"])
+
+
+def test_smush_played_words_cannot_be_played_twice(smush_client):
+    resp = smush_client.post("/smush", json=dict(SMUSH_BODY, played=["flagellum"]))
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert all(r["word"] != "flagellum" for r in body["results"])
+
+
+def test_smush_non_json_body_returns_415(client):
+    resp = client.post("/smush", data="x=1",
+                       content_type="application/x-www-form-urlencoded")
+    assert resp.status_code == 415
+
+
+def test_smush_json_null_body_returns_400(client):
+    resp = client.post("/smush", data="null", content_type="application/json")
+    assert resp.status_code == 400
 
 
 def test_wordle_post_returns_picks(client):

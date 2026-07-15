@@ -5,7 +5,7 @@ import re
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, words
-from extensions import add_data_to_stream
+from extensions import add_data_to_stream, cache, db_cursor
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
@@ -229,6 +229,94 @@ def any_word():
             min_length_val=min_length, max_length_val=max_length)
     else:
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
+
+
+def get_smush_words():
+    """The full word list with blossom's user-curated corrections applied
+    (invalid words reported via feedback removed, missing ones added).
+
+    Blossom itself works from a reduced copy (<=7 unique letters, len >= 4)
+    that would drop Smush pangrams, so the corrections are applied to the
+    unreduced list here instead. Falls back to the raw list if the DB is
+    unreachable. Cached for 12 hours like blossom's copy.
+    """
+    cached_words = cache.get('smush_words')
+    if cached_words is not None:
+        return cached_words
+
+    invalid_words, added_words = set(), set()
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("SELECT word FROM blossom_invalid_words")
+            invalid_words = {row[0].lower() for row in cursor.fetchall()}
+            cursor.execute("SELECT word FROM blossom_added_words")
+            added_words = {row[0].lower() for row in cursor.fetchall()}
+    except Exception as e:
+        print(f"Error fetching smush word corrections: {e}")
+
+    smush_words = ({str(w).lower() for w in words} - invalid_words) | added_words
+    cache.set('smush_words', smush_words, timeout=43200)
+    return smush_words
+
+
+def parse_smush_word_list(data, key):
+    """Validate an optional list of words (played / rejected) in the smush
+    POST body."""
+    values = data.get(key, [])
+    if not (isinstance(values, list) and len(values) <= 500):
+        raise ValidationError(f'{key} must be a list of at most 500 words')
+    for w in values:
+        if not (isinstance(w, str) and w.isalpha() and len(w) <= 15):
+            raise ValidationError(f'{key} entries must be words of at most 15 letters')
+    return values
+
+
+@bp.route("/smush", methods=["POST", "GET"])
+def run_smush():
+
+    schema_data = make_schema_data(
+        "Smush Solver - Find the Best Words & Pangram Instantly",
+        "Free Smush solver for Hank Green's daily word game. Enter your 9 letters, track letter uses and the spicy letter, and get every word ranked by points - pangram included.",
+        "https://jamesapplewhite.com/smush"
+    )
+
+    if request.method == "POST":
+        data = request.get_json()
+        if not isinstance(data, dict):
+            raise ValidationError('expected a JSON object')
+
+        center = data.get('center', '')
+        if not (isinstance(center, str) and len(center) == 1 and center.isalpha()):
+            raise ValidationError('center must be a single letter')
+
+        outer_uses = data.get('outer_uses')
+        if not (isinstance(outer_uses, dict) and 1 <= len(outer_uses) <= 8):
+            raise ValidationError('outer_uses must be a dict of 1-8 letters')
+        for letter, uses in outer_uses.items():
+            if not (isinstance(letter, str) and len(letter) == 1 and letter.isalpha()):
+                raise ValidationError('outer_uses keys must be single letters')
+            if not (isinstance(uses, int) and not isinstance(uses, bool) and 0 <= uses <= 5):
+                raise ValidationError('outer_uses values must be whole numbers 0-5')
+
+        spicy = data.get('spicy', '')
+        if not (isinstance(spicy, str) and (spicy == '' or (len(spicy) == 1 and spicy.isalpha()))):
+            raise ValidationError('spicy must be a single letter or empty')
+
+        first_word = bool(data.get('first_word', False))
+
+        # rejected: words the game refused (cost nothing, hidden for good).
+        # played: words already in the pile (a word can't be played twice).
+        rejected = parse_smush_word_list(data, 'rejected')
+        played = parse_smush_word_list(data, 'played')
+
+        results, total_playable, pangram_status = all_words.smush_solver(
+            center, outer_uses, spicy.lower(), first_word, get_smush_words(),
+            exclude=rejected, played=played)
+
+        return jsonify(results=results, total_playable=total_playable,
+                       pangram_status=pangram_status)
+    else:
+        return render_template("smush.html", schema_data=schema_data)
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])

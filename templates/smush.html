@@ -1,0 +1,1338 @@
+{% extends 'base.html' %}
+
+{% block title %}Smush Solver - Find the Best Words & Pangram Instantly{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Smush solver for Hank Green's daily word game. Enter your 9 letters, track letter wear and the spicy letter, and see every playable word ranked by points - pangram included.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/smush">
+<meta name="keywords" content="smush solver, smush word game, hank green smush, smush pangram, smush answers today, smush help, smush word finder, word game solver">
+<meta property="og:title" content="Smush Solver - Find the Best Words & Pangram Instantly">
+<meta property="og:description" content="Free Smush solver - enter your 9 letters and instantly see every playable word ranked by points, with spicy and smush multipliers tracked as you play.">
+<meta property="og:url" content="https://jamesapplewhite.com/smush">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Smush?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Smush is Hank Green's free daily word game. You get a 3x3 grid of nine letters and make words for points. Every word must use the gold center letter, which never runs out. Every other letter can only be used five times total. Using the spicy letter or spending a letter's last use (smushing it) multiplies that word's points, and every board hides a pangram that uses all nine letters."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this Smush solver work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to adjust its remaining uses or mark it as the spicy letter, and mark words as played to automatically track letter wear as your game progresses."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is a word scored in Smush?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Each letter has a point value similar to Scrabble, and a word's base score is the sum of its letter values. Bonuses then add to a single multiplier: +1 for each use of the spicy letter, +1 for each letter the word smushes flat (spends its last use), and +2 for a pangram, or +4 if the pangram is your very first word. The word's points are its base score times that multiplier."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is a pangram in Smush?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A pangram is a word that uses every one of the nine letters on the board at least once. Every Smush board has at least one. A pangram gets +2 added to its multiplier, or +4 if it is the first word you play, so playing the pangram first is usually the single highest-scoring move of the game."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why don't my points match the game exactly?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret editor's choice word worth a flat +15 that cannot be predicted. If you find a word the solver missed or one Smush would not accept, use the feedback button to let us know."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by Hank Green or Complexly. You can play the real game at hankgreen.com/smush."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- board ---------- */
+.smush-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: min(92vw, 360px);
+    margin: 18px auto 6px;
+}
+
+.smush-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border: 2px solid #d5dcef;
+    border-radius: 16px;
+    background-color: #e8edfb;
+    box-shadow: 0 3px 0 rgba(2, 72, 77, 0.12);
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.smush-tile:hover { transform: translateY(-1px); }
+.smush-tile:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(2, 72, 77, 0.12); }
+
+/* value tiers, tinted like the real game */
+.smush-tile.tier-1 { background-color: #e2f2e4; border-color: #c4e3c9; }
+.smush-tile.tier-2 { background-color: #fdeed3; border-color: #f3ddb0; }
+.smush-tile.tier-3 { background-color: #f9e0ee; border-color: #efc4dd; }
+
+.smush-tile.center-tile {
+    background-color: #f7d954;
+    border-color: #dcbd2e;
+    box-shadow: 0 3px 0 rgba(160, 130, 20, 0.35);
+}
+
+.smush-tile.spicy-tile {
+    border-color: #e55555;
+    background-image: repeating-linear-gradient(45deg,
+        rgba(229, 85, 85, 0.16) 0 8px, transparent 8px 16px);
+}
+
+.smush-tile.dead-tile {
+    opacity: 0.4;
+    filter: grayscale(0.8);
+    box-shadow: none;
+}
+
+.smush-tile.selected-tile {
+    outline: 3px solid #02484d;
+    outline-offset: 2px;
+}
+
+.smush-tile input {
+    width: 100%;
+    height: 58%;
+    background: transparent !important;
+    border: none !important;
+    text-align: center;
+    font-size: clamp(26px, 8vw, 36px);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
+    outline: none;
+    padding: 0 !important;
+    margin: 12% 0 0 !important;
+    border-radius: 0 !important;
+    caret-color: #02484d;
+}
+
+.smush-tile input::placeholder { color: rgba(31, 41, 55, 0.18); opacity: 1; }
+
+.smush-board.solve-mode .smush-tile input { pointer-events: none; }
+.smush-board.solve-mode .smush-tile input.editing { pointer-events: auto; }
+
+.tile-value {
+    position: absolute;
+    top: 6px;
+    right: 9px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(31, 41, 55, 0.55);
+}
+
+.tile-spice-tag {
+    position: absolute;
+    top: 4px;
+    left: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #c0392b;
+}
+
+.tile-pips {
+    position: absolute;
+    bottom: 9px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+
+.tile-pips .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #37474f;
+}
+
+.tile-pips .pip.spent { background-color: transparent; border: 1px solid rgba(55, 71, 79, 0.35); }
+
+.center-infinity {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(90, 70, 10, 0.6);
+}
+
+/* entry-phase glow on the tile about to receive a letter */
+@keyframes smushNextPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(2, 72, 77, 0.55), 0 3px 0 rgba(2, 72, 77, 0.12); }
+    50%      { box-shadow: 0 0 0 7px rgba(2, 72, 77, 0.15), 0 3px 0 rgba(2, 72, 77, 0.12); }
+}
+.smush-tile.next-entry { animation: smushNextPulse 1.1s ease-in-out infinite; }
+
+/* ---------- tile control strip ---------- */
+.tile-controls {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 10px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.tile-controls.visible { display: flex; }
+
+.tile-controls .tc-label { font-weight: 600; color: #374151; flex-basis: 100%; }
+
+.tc-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tc-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.tc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tc-btn:disabled:hover { background-color: #fff; color: #02484d; border-color: #cdd8d7; }
+.tc-btn.tc-spicy-on { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.board-hint { font-size: 13px; color: #6b7280; margin: 8px auto 0; max-width: 420px; }
+
+/* ---------- status chips ---------- */
+.smush-status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px auto 4px;
+    max-width: 560px;
+}
+
+.status-chip {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.status-chip b { color: #02484d; }
+.status-chip.spicy-chip b { color: #c0392b; }
+
+.pangram-banner {
+    max-width: 480px;
+    margin: 12px auto 0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+}
+
+.pangram-banner.gone { display: block; background-color: #f3f4f6; border: 1px solid #e5e7eb; color: #6b7280; }
+
+/* ---------- results ---------- */
+.results-container {
+    max-width: 620px;
+    margin: 10px auto;
+    padding: 10px 20px 20px;
+    min-height: 200px;
+}
+
+.results-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.results-count { font-size: 14px; color: #6b7280; }
+
+.sort-chips { display: flex; gap: 6px; }
+
+.sort-chip {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.word-result {
+    background-color: #f8f9fa;
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.word-result:hover { background-color: #e9ecef; transform: translateX(4px); }
+
+.word-result.pangram-word {
+    background-color: #fefdf5;
+    border-color: #f0ebb8;
+    border-left: 4px solid #e8d44d;
+}
+
+.word-result.pangram-word:hover { background-color: #fdfae8; }
+
+.word-result.copied { background-color: #6aaa64; border-color: #6aaa64; }
+.word-result.copied .word-text, .word-result.copied .word-bonuses { color: white; }
+
+.word-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #1f2937;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.word-bonuses { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
+
+.word-pts {
+    background-color: #02484d;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: center;
+}
+
+.word-result.pangram-word .word-pts { background-color: #b7960b; }
+
+.played-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.played-btn:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+
+.reject-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #e0d5d5;
+    border-radius: 6px;
+    color: #a55;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 9px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.define-link {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 8px 8px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.define-link:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.copy-feedback {
+    position: absolute;
+    right: 50%;
+    transform: translateX(50%);
+    top: -28px;
+    background-color: #333;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+}
+
+.copy-feedback.show { opacity: 1; }
+
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.show-more-btn:hover { background-color: #03595f; }
+
+.no-results { text-align: center; color: #888; font-style: italic; margin: 30px 0; }
+.loading { text-align: center; color: #888; margin: 20px 0; }
+
+/* ---------- played pile ---------- */
+.played-section {
+    display: none;
+    max-width: 620px;
+    margin: 6px auto 0;
+    padding: 12px 20px;
+    text-align: center;
+}
+
+.played-section.visible { display: block; }
+
+.played-title { font-size: 13px; color: #888; margin-bottom: 8px; }
+
+.played-pile {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.played-chip {
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #02484d;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.played-chip small { color: #6b7280; font-weight: 400; text-transform: none; }
+
+.rejected-chip {
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #a55;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-decoration: line-through;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.rejected-chip:hover { background-color: #e55555; border-color: #e55555; color: #fff; text-decoration: none; }
+
+.undo-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 12px;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: pointer;
+    margin-top: 8px;
+    padding: 6px;
+}
+
+.undo-btn:hover { color: #02484d; }
+
+/* ---------- shared bits ---------- */
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #888; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+
+.reset-letters-btn {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 12px 24px;
+    border-radius: 12px 18px 12px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.reset-letters-btn:hover {
+    background-color: #e9ecef;
+    text-decoration: none !important;
+    color: #666 !important;
+    transform: scale(1.03) !important;
+}
+
+.smush-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+
+.smush-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@keyframes toastSlideIn {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.smush-toast { animation: toastSlideIn 0.3s ease-out; }
+
+@media (max-width: 480px) {
+    .word-result { padding: 8px 10px; gap: 7px; }
+    .word-text { font-size: 14px; letter-spacing: 0.5px; }
+    .word-bonuses { font-size: 11px; }
+    .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
+    .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
+    .results-container { padding: 10px 8px 20px; }
+    .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<center>
+<br>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush Solver & Word Finder</h1>
+
+<div class="instructions collapsed" id="instructions-panel">
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        Type your nine Smush letters into the grid - the gold center letter goes in the middle.
+        Every playable word appears instantly, ranked by points using the game's exact scoring.
+        <br><br>
+        <strong>As you play:</strong> tap a tile to set the 🌶 spicy letter or fix its remaining uses,
+        and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
+        after every play, so tap the new spicy tile after each word. If Smush refuses a word, hit
+        <strong>✗</strong> to hide it - rejected words don't spend any letters.
+        <br><br>
+        <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
+        +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
+        (+4 if it's your first word). Points = base × multiplier.
+    </div>
+</div>
+
+<div class="smush-board" id="smush-board" role="group" aria-label="Smush board letters"></div>
+
+<div class="board-hint" id="board-hint">Enter the gold center letter first, then the eight around it.</div>
+
+<div class="tile-controls" id="tile-controls" aria-live="polite"></div>
+
+<div class="smush-status" id="smush-status" style="display: none;">
+    <span class="status-chip">Score: <b id="chip-score">0</b></span>
+    <span class="status-chip">Words played: <b id="chip-played">0</b></span>
+    <span class="status-chip spicy-chip" id="chip-spicy">🌶 Spicy: <b>tap a tile</b></span>
+    <span class="status-chip" id="chip-pangram" style="display: none;"></span>
+</div>
+
+<div class="pangram-banner" id="pangram-banner"></div>
+
+<div style="margin-top: 14px;">
+    <a href="#" class="reset-letters-btn" id="reset-btn">Reset Board</a>
+</div>
+
+<div class="played-section" id="played-section">
+    <div class="played-title">Your played words</div>
+    <div class="played-pile" id="played-pile"></div>
+    <button type="button" class="undo-btn" id="undo-btn">↩ Undo last played word</button>
+</div>
+
+<div class="played-section" id="rejected-section">
+    <div class="played-title">Hidden - Smush didn't accept these (tap one to restore it)</div>
+    <div class="played-pile" id="rejected-pile"></div>
+</div>
+
+<div id="results-container" class="results-container" aria-live="polite">
+    <!-- Results render here -->
+</div>
+
+<br>
+<div style="margin: 20px 0; text-align: center;">
+    <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🥞 Play Smush</a>
+    <a href="/feedback" style="
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+</div>
+
+<div style="margin-top: 20px;">
+    <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
+    <div style="
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px;
+        max-width: 400px;
+        margin: 0 auto;
+    ">
+        <a href="/blossom" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
+
+        <a href="/wordle" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
+
+        <a href="/wordiply" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
+
+        <a href="/quordle" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
+    </div>
+</div>
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Smush?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Smush is Hank Green's free daily word game. You get a 3×3 grid of nine letters and make words for points. Every word must use the gold center letter, which never runs out. Every other letter can only be used five times total. Using the spicy letter or spending a letter's last use (smushing it) multiplies that word's points, and every board hides a pangram that uses all nine letters.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Smush solver work?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to adjust its remaining uses or mark it as the spicy letter, and mark words as played to automatically track letter wear as your game progresses.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How is a word scored in Smush?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Each letter has a point value similar to Scrabble, and a word's base score is the sum of its letter values. Bonuses then add to a single multiplier: +1 for each use of the 🌶 spicy letter, +1 for each letter the word 🥞 smushes flat (spends its last use), and +2 for a ★ pangram, or +4 if the pangram is your very first word. The word's points are its base score times that multiplier - so a word that uses the spicy letter once and smushes two letters scores ×4.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the best Smush strategy?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play the pangram first - the +4 first-word bonus makes it worth roughly five times its base score, usually the biggest single play of the game. After that, chase words that combine the spicy letter with smushing letters flat, since every bonus adds another +1 to the multiplier. Lean on the center letter as much as possible: it is free and its points still count.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret "editor's choice" word worth a flat +15 that can't be predicted. If you find a word the solver missed or one Smush wouldn't accept, use the feedback button to let us know.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green or Complexly. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d;">hankgreen.com/smush</a>.</p>
+    </div>
+  </div>
+</section>
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    /* Letter values mirrored from the game (Scrabble-style). */
+    const LVAL = {a:1,b:3,c:3,d:2,e:1,f:4,g:2,h:4,i:1,j:8,k:5,l:1,m:3,n:1,o:1,p:3,
+                  q:10,r:1,s:1,t:1,u:1,v:4,w:4,x:8,y:4,z:10};
+    const tierOf = ch => { const v = LVAL[ch] || 1; return v >= 8 ? 3 : v >= 4 ? 2 : v >= 2 ? 1 : 0; };
+
+    const CENTER = 4;                        // grid index of the gold tile
+    const ENTRY_ORDER = [4, 0, 1, 2, 3, 5, 6, 7, 8];
+    const MAX_USES = 5;
+    const WORDS_STEP = 25;
+    const STORAGE_KEY = 'smushSolverState_v1';
+
+    /* ---------- state ---------- */
+    let letters = Array(9).fill('');         // board letters, index 4 = center
+    let uses = {};                           // outer letter -> remaining uses
+    let spicy = '';                          // current spicy letter ('' = unset)
+    let played = [];                         // [{word, pts}]
+    let rejected = [];                       // words Smush refused - hidden, cost nothing
+    let score = 0;
+    let history = [];                        // snapshots for undo
+    let solveMode = false;
+    let selected = -1;
+    let lastResults = [];
+    let totalPlayable = 0;
+    let pangramStatus = 'none';
+    let sortMode = 'pts';
+    let visibleCount = WORDS_STEP;
+    let fetchTimer = null;
+    let fetchSeq = 0;
+
+    const board = document.getElementById('smush-board');
+    const resultsContainer = document.getElementById('results-container');
+    const boardHint = document.getElementById('board-hint');
+    const tileControls = document.getElementById('tile-controls');
+
+    /* ---------- build the 9 tiles ---------- */
+    const tiles = [];
+    for (let i = 0; i < 9; i++) {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'smush-tile' + (i === CENTER ? ' center-tile' : '');
+        tile.innerHTML = `
+            <span class="tile-spice-tag" hidden>🌶×2</span>
+            <span class="tile-value"></span>
+            <input type="text" maxlength="2" autocomplete="off" autocapitalize="characters"
+                   placeholder="${i === CENTER ? '★' : ''}" aria-label="${i === CENTER ? 'Center letter' : 'Letter ' + (i + 1)}">
+            <span class="tile-pips"></span>
+            <span class="center-infinity" hidden>∞</span>`;
+        board.appendChild(tile);
+        const input = tile.querySelector('input');
+        tile.addEventListener('click', () => onTileClick(i));
+        input.addEventListener('input', () => onLetterInput(i));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value === '') onBackspace(i);
+        });
+        input.addEventListener('blur', () => { if (solveMode) input.classList.remove('editing'); });
+        tiles.push(tile);
+    }
+
+    function inputOf(i) { return tiles[i].querySelector('input'); }
+
+    /* ---------- entry handling ---------- */
+    function onLetterInput(i) {
+        const input = inputOf(i);
+        const ch = (input.value.replace(/[^A-Za-z]/g, '').slice(-1) || '').toLowerCase();
+        if (!ch) { input.value = ''; if (letters[i]) removeLetter(i); return; }
+        if (letters.some((l, j) => l === ch && j !== i)) {
+            toast(`${ch.toUpperCase()} is already on the board`, true);
+            input.value = letters[i].toUpperCase();
+            return;
+        }
+        const old = letters[i];
+        letters[i] = ch;
+        input.value = ch.toUpperCase();
+        if (i !== CENTER) {
+            uses[ch] = (old && uses[old] !== undefined) ? uses[old] : MAX_USES;
+        }
+        if (old && old !== ch) {
+            delete uses[old];
+            if (spicy === old) spicy = ch;
+        }
+        if (solveMode) {
+            input.classList.remove('editing');
+            afterStateChange();
+        } else if (letters.every(l => l)) {
+            enterSolveMode();
+        } else {
+            focusNextEmpty();
+            renderBoard();
+        }
+    }
+
+    function removeLetter(i) {
+        const old = letters[i];
+        letters[i] = '';
+        if (old) { delete uses[old]; if (spicy === old) spicy = ''; }
+        renderBoard();
+    }
+
+    function onBackspace(i) {
+        const pos = ENTRY_ORDER.indexOf(i);
+        if (pos > 0) {
+            const prev = ENTRY_ORDER[pos - 1];
+            inputOf(prev).focus();
+        }
+    }
+
+    function focusNextEmpty() {
+        for (const i of ENTRY_ORDER) {
+            if (!letters[i]) { inputOf(i).focus(); return; }
+        }
+    }
+
+    function enterSolveMode() {
+        solveMode = true;
+        selected = -1;
+        board.classList.add('solve-mode');
+        document.getElementById('smush-status').style.display = 'flex';
+        boardHint.textContent = 'Tap a tile to set the 🌶 spicy letter or fix its remaining uses. Mark words ✓ Played below to auto-track letter wear.';
+        document.activeElement && document.activeElement.blur();
+        afterStateChange();
+    }
+
+    /* ---------- tile selection & controls ---------- */
+    function onTileClick(i) {
+        if (!solveMode) { inputOf(i).focus(); return; }
+        selected = (selected === i) ? -1 : i;
+        renderBoard();
+        renderControls();
+    }
+
+    function renderControls() {
+        if (selected < 0) {
+            tileControls.classList.remove('visible');
+            tileControls.innerHTML = '';
+            return;
+        }
+        const ch = letters[selected];
+        tileControls.classList.add('visible');
+        if (selected === CENTER) {
+            tileControls.innerHTML = `
+                <span class="tc-label">${ch.toUpperCase()} - gold center letter: unlimited uses, required in every word</span>
+                <button type="button" class="tc-btn" id="tc-edit">✏️ Change letter</button>`;
+        } else {
+            const left = uses[ch] ?? MAX_USES;
+            const isSpicy = spicy === ch;
+            tileControls.innerHTML = `
+                <span class="tc-label">${ch.toUpperCase()} - ${LVAL[ch] || 1} pt${(LVAL[ch] || 1) > 1 ? 's' : ''} · ${left} of ${MAX_USES} uses left${left === 0 ? ' (smushed flat!)' : ''}</span>
+                <button type="button" class="tc-btn" id="tc-minus" ${left === 0 ? 'disabled' : ''}>− use</button>
+                <button type="button" class="tc-btn" id="tc-plus" ${left === MAX_USES ? 'disabled' : ''}>+ use</button>
+                <button type="button" class="tc-btn ${isSpicy ? 'tc-spicy-on' : ''}" id="tc-spicy">${isSpicy ? '🌶 Spicy here ✓' : '🌶 Spicy here'}</button>
+                <button type="button" class="tc-btn" id="tc-edit">✏️ Change letter</button>`;
+            document.getElementById('tc-minus').addEventListener('click', () => adjustUse(ch, -1));
+            document.getElementById('tc-plus').addEventListener('click', () => adjustUse(ch, +1));
+            document.getElementById('tc-spicy').addEventListener('click', () => toggleSpicy(ch));
+        }
+        document.getElementById('tc-edit').addEventListener('click', () => {
+            const input = inputOf(selected);
+            input.classList.add('editing');
+            input.focus();
+            input.select && input.select();
+        });
+    }
+
+    function adjustUse(ch, delta) {
+        uses[ch] = Math.min(MAX_USES, Math.max(0, (uses[ch] ?? MAX_USES) + delta));
+        if (uses[ch] === 0 && spicy === ch) spicy = '';
+        afterStateChange();
+    }
+
+    function toggleSpicy(ch) {
+        spicy = (spicy === ch) ? '' : ch;
+        afterStateChange();
+    }
+
+    /* ---------- board rendering ---------- */
+    function renderBoard() {
+        let next = -1;
+        if (!solveMode) { for (const i of ENTRY_ORDER) { if (!letters[i]) { next = i; break; } } }
+        for (let i = 0; i < 9; i++) {
+            const tile = tiles[i];
+            const ch = letters[i];
+            const isCenter = i === CENTER;
+            tile.className = 'smush-tile' + (isCenter ? ' center-tile' : '');
+            if (!isCenter && ch) tile.classList.add('tier-' + tierOf(ch));
+            if (!isCenter && ch && spicy === ch) tile.classList.add('spicy-tile');
+            if (!isCenter && ch && solveMode && (uses[ch] ?? MAX_USES) === 0) tile.classList.add('dead-tile');
+            if (solveMode && selected === i) tile.classList.add('selected-tile');
+            if (i === next) tile.classList.add('next-entry');
+
+            tile.querySelector('.tile-value').textContent = ch ? (LVAL[ch] || 1) : '';
+            tile.querySelector('.tile-spice-tag').hidden = !(ch && spicy === ch && !isCenter);
+            tile.querySelector('.center-infinity').hidden = !(isCenter && ch && solveMode);
+
+            const pips = tile.querySelector('.tile-pips');
+            if (ch && !isCenter) {
+                const left = solveMode ? (uses[ch] ?? MAX_USES) : MAX_USES;
+                pips.innerHTML = Array.from({length: MAX_USES}, (_, p) =>
+                    `<span class="pip${p < left ? '' : ' spent'}"></span>`).join('');
+            } else {
+                pips.innerHTML = '';
+            }
+
+            if (ch) {
+                const left = isCenter ? null : (solveMode ? (uses[ch] ?? MAX_USES) : MAX_USES);
+                tile.setAttribute('aria-label', isCenter
+                    ? `Center letter ${ch.toUpperCase()}, unlimited uses`
+                    : `${ch.toUpperCase()}, ${LVAL[ch] || 1} points, ${left} of ${MAX_USES} uses left`
+                      + (spicy === ch ? ', spicy, double points' : '') + (left === 0 ? ', smushed flat' : ''));
+            }
+        }
+    }
+
+    function renderStatus() {
+        document.getElementById('chip-score').textContent = score;
+        document.getElementById('chip-played').textContent = played.length;
+        document.getElementById('chip-spicy').innerHTML =
+            spicy ? `🌶 Spicy: <b>${spicy.toUpperCase()}</b>` : '🌶 Spicy: <b>tap a tile</b>';
+        const pchip = document.getElementById('chip-pangram');
+        if (!solveMode) { pchip.style.display = 'none'; return; }
+        pchip.style.display = 'inline-block';
+        pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
+                          : pangramStatus === 'affordable' ? '★ Pangram available'
+                          : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
+                          : 'No pangram in our word list';
+        const banner = document.getElementById('pangram-banner');
+        if (pangramStatus === 'out_of_reach') {
+            banner.className = 'pangram-banner gone';
+            banner.textContent = '🫥 The pangram is out of reach with your remaining letter uses.';
+        } else {
+            banner.className = 'pangram-banner';
+            banner.textContent = '';
+        }
+    }
+
+    function renderPlayed() {
+        const section = document.getElementById('played-section');
+        section.classList.toggle('visible', played.length > 0);
+        document.getElementById('played-pile').innerHTML = played.map(p =>
+            `<span class="played-chip">${p.word.toUpperCase()} <small>+${p.pts}</small></span>`).join('');
+
+        const rejSection = document.getElementById('rejected-section');
+        rejSection.classList.toggle('visible', rejected.length > 0);
+        const pile = document.getElementById('rejected-pile');
+        pile.innerHTML = rejected.map(w =>
+            `<button type="button" class="rejected-chip" data-restore="${w}"
+                     aria-label="Restore ${w.toUpperCase()} to the results">${w.toUpperCase()}</button>`).join('');
+        pile.querySelectorAll('.rejected-chip').forEach(chip =>
+            chip.addEventListener('click', () => restoreRejected(chip.dataset.restore)));
+    }
+
+    /* ---------- solving ---------- */
+    function afterStateChange() {
+        renderBoard();
+        renderControls();
+        renderStatus();
+        renderPlayed();
+        persist();
+        scheduleFetch();
+    }
+
+    function scheduleFetch() {
+        if (!solveMode) return;
+        clearTimeout(fetchTimer);
+        resultsContainer.innerHTML = '<div class="loading">Crunching the letters…</div>';
+        fetchTimer = setTimeout(fetchResults, 250);
+    }
+
+    function fetchResults() {
+        const outerUses = {};
+        letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
+        const seq = ++fetchSeq;
+        fetch('/smush', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                center: letters[CENTER],
+                outer_uses: outerUses,
+                spicy: spicy,
+                first_word: played.length === 0,
+                rejected: rejected,
+                played: played.map(p => p.word)
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (seq !== fetchSeq) return;   // a newer request superseded this one
+            lastResults = data.results || [];
+            totalPlayable = data.total_playable || 0;
+            pangramStatus = data.pangram_status || 'none';
+            visibleCount = WORDS_STEP;
+            renderStatus();
+            renderResults();
+        })
+        .catch(() => {
+            if (seq !== fetchSeq) return;
+            resultsContainer.innerHTML = '<div class="no-results">Error loading results - try again</div>';
+        });
+    }
+
+    function sortedResults() {
+        const r = lastResults.slice();
+        if (sortMode === 'eff') {
+            const costOf = w => Object.values(w.cost).reduce((s, n) => s + n, 0) || 1;
+            r.sort((a, b) => (b.pts / costOf(b)) - (a.pts / costOf(a)) || b.pts - a.pts);
+        } else if (sortMode === 'len') {
+            r.sort((a, b) => b.word.length - a.word.length || b.pts - a.pts);
+        }
+        return r;
+    }
+
+    function bonusBadges(r) {
+        const bits = [];
+        if (r.spicy_uses > 0) bits.push('🌶' + (r.spicy_uses > 1 ? '×' + r.spicy_uses : ''));
+        if (r.smushes > 0) bits.push('🥞' + (r.smushes > 1 ? '×' + r.smushes : ''));
+        if (r.pangram) bits.push(played.length === 0 ? '★★' : '★');
+        if (r.mult > 1) bits.push('×' + r.mult);
+        return bits.join(' ');
+    }
+
+    function renderResults() {
+        if (!solveMode) { resultsContainer.innerHTML = ''; return; }
+        if (lastResults.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No playable words left with these letters</div>';
+            return;
+        }
+
+        const r = sortedResults();
+        const capped = totalPlayable > lastResults.length;
+        let html = `
+            <div class="results-header">
+                <span class="results-count">${totalPlayable} playable word${totalPlayable === 1 ? '' : 's'}${capped ? ` (top ${lastResults.length} shown)` : ''}</span>
+                <span class="sort-chips" role="group" aria-label="Sort results">
+                    <button type="button" class="sort-chip ${sortMode === 'pts' ? 'active' : ''}" data-sort="pts">Points</button>
+                    <button type="button" class="sort-chip ${sortMode === 'eff' ? 'active' : ''}" data-sort="eff">Pts per use</button>
+                    <button type="button" class="sort-chip ${sortMode === 'len' ? 'active' : ''}" data-sort="len">Length</button>
+                </span>
+            </div>`;
+
+        r.slice(0, visibleCount).forEach(w => {
+            const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
+            html += `
+                <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
+                    <span class="word-text">${w.word.toUpperCase()}</span>
+                    <span class="word-bonuses">${bonusBadges(w)}</span>
+                    <span class="word-pts">${w.pts}</span>
+                    <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
+                    <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
+                    <a class="define-link"
+                       href="https://en.wiktionary.org/wiki/${w.word}"
+                       target="_blank" rel="noopener noreferrer"
+                       title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
+                       onclick="event.stopPropagation()">↗</a>
+                    <div class="copy-feedback">Copied!</div>
+                </div>`;
+        });
+
+        resultsContainer.innerHTML = html;
+
+        const remaining = r.length - visibleCount;
+        if (remaining > 0) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'show-more-btn';
+            btn.textContent = `Show ${Math.min(WORDS_STEP, remaining)} more (${remaining} remaining)`;
+            btn.addEventListener('click', () => { visibleCount += WORDS_STEP; renderResults(); });
+            resultsContainer.appendChild(btn);
+        }
+
+        resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
+            chip.addEventListener('click', () => { sortMode = chip.dataset.sort; visibleCount = WORDS_STEP; renderResults(); }));
+        resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
+        resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        resultsContainer.querySelectorAll('.word-result').forEach(el =>
+            el.addEventListener('click', () => copyWord(el)));
+    }
+
+    /* ---------- playing words ---------- */
+    function snapshot() {
+        return JSON.stringify({uses, spicy, played, score});
+    }
+
+    function markPlayed(word) {
+        const r = lastResults.find(x => x.word === word);
+        if (!r) return;
+        history.push(snapshot());
+        score += r.pts;
+        played.push({word: r.word, pts: r.pts});
+        for (const [l, n] of Object.entries(r.cost)) {
+            uses[l] = Math.max(0, (uses[l] ?? MAX_USES) - n);
+        }
+        if (spicy && uses[spicy] === 0) { /* spicy tile smushed flat */ }
+        spicy = '';
+        selected = -1;
+        const anyAlive = letters.some((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
+        toast(`${word.toUpperCase()} +${r.pts} · ${anyAlive ? 'the 🌶 moved - tap the new spicy tile' : 'board smushed flat!'}`);
+        afterStateChange();
+    }
+
+    /* The game refused this word: hide it from results without spending
+       letters, scoring, or moving the spicy letter. */
+    function markRejected(word) {
+        if (rejected.includes(word)) return;
+        rejected.push(word);
+        toast(`${word.toUpperCase()} hidden - no letters spent. Tap it below to restore.`);
+        afterStateChange();
+    }
+
+    function restoreRejected(word) {
+        rejected = rejected.filter(w => w !== word);
+        afterStateChange();
+    }
+
+    function undoLast() {
+        if (!history.length) return;
+        const s = JSON.parse(history.pop());
+        uses = s.uses; spicy = s.spicy; played = s.played; score = s.score;
+        selected = -1;
+        afterStateChange();
+    }
+
+    /* ---------- reset & persistence ---------- */
+    function resetBoard(e) {
+        e && e.preventDefault();
+        if (solveMode && !confirm('Reset the board and clear your tracked game?')) return;
+        letters = Array(9).fill('');
+        uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
+        solveMode = false; selected = -1;
+        lastResults = []; totalPlayable = 0; pangramStatus = 'none';
+        board.classList.remove('solve-mode');
+        document.getElementById('smush-status').style.display = 'none';
+        document.getElementById('pangram-banner').className = 'pangram-banner';
+        boardHint.textContent = 'Enter the gold center letter first, then the eight around it.';
+        tiles.forEach(t => { const inp = t.querySelector('input'); inp.value = ''; inp.classList.remove('editing'); });
+        resultsContainer.innerHTML = '';
+        renderControls(); renderStatus(); renderPlayed(); renderBoard();
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        inputOf(CENTER).focus();
+    }
+
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(
+                {letters, uses, spicy, played, rejected, score, history, solveMode}));
+        } catch (_) {}
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.letters) || s.letters.length !== 9) return false;
+        letters = s.letters.map(l => (typeof l === 'string' ? l : ''));
+        uses = s.uses || {}; spicy = s.spicy || '';
+        played = s.played || []; rejected = s.rejected || [];
+        score = s.score || 0; history = s.history || [];
+        letters.forEach((ch, i) => { inputOf(i).value = ch.toUpperCase(); });
+        if (s.solveMode && letters.every(l => l)) {
+            enterSolveMode();
+        } else {
+            renderBoard();
+        }
+        return true;
+    }
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'smush-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        toastTimer = setTimeout(() => {
+            if (!toastEl) return;
+            toastEl.style.transition = 'opacity 0.5s ease';
+            toastEl.style.opacity = '0';
+            setTimeout(() => { toastEl && toastEl.remove(); toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- wiring ---------- */
+    document.getElementById('reset-btn').addEventListener('click', resetBoard);
+    document.getElementById('undo-btn').addEventListener('click', undoLast);
+
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('smushInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('smushInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    function copyWord(element) {
+        const word = element.dataset.word.toUpperCase();
+        const textarea = document.createElement('textarea');
+        textarea.value = word;
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        try {
+            document.execCommand('copy');
+            element.classList.add('copied');
+            const feedback = element.querySelector('.copy-feedback');
+            feedback.classList.add('show');
+            setTimeout(() => {
+                element.classList.remove('copied');
+                feedback.classList.remove('show');
+            }, 1500);
+        } catch (_) {}
+        document.body.removeChild(textarea);
+    }
+
+    if (!restore()) {
+        renderBoard();
+        inputOf(CENTER).focus();
+    }
+});
+</script>
+
+{% endblock %}

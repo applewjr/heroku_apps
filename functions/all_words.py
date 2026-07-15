@@ -429,3 +429,106 @@ def wordiply_solver(search_string, words, list_len=15):
     
     # Return top results
     return valid_words[:list_len]
+
+# Letter values used by Smush (hankgreen.com/smush) - Scrabble-style points.
+SMUSH_LETTER_VALUES = {
+    'a': 1, 'b': 3, 'c': 3, 'd': 2, 'e': 1, 'f': 4, 'g': 2, 'h': 4,
+    'i': 1, 'j': 8, 'k': 5, 'l': 1, 'm': 3, 'n': 1, 'o': 1, 'p': 3,
+    'q': 10, 'r': 1, 's': 1, 't': 1, 'u': 1, 'v': 4, 'w': 4, 'x': 8,
+    'y': 4, 'z': 10,
+}
+
+
+def smush_word_score(word):
+    """Base Smush score: sum of letter values over every letter (center
+    letter uses count toward the score even though they cost nothing)."""
+    return sum(SMUSH_LETTER_VALUES.get(ch, 1) for ch in word)
+
+
+def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
+                 exclude=None, played=None):
+    """Rank every playable Smush word for the current board state.
+
+    Smush rules (verified against the game's source): a word must contain the
+    gold center letter, may only use the 9 board letters, and each non-center
+    letter has limited uses (5 at game start, spent per occurrence; the center
+    is free). Bonuses ADD to a single multiplier (they don't compound):
+    +1 per use of the spicy letter, +1 per letter smushed flat (its last
+    remaining uses spent), +2 for a pangram (a word using all 9 letters),
+    +4 instead if the pangram is the first word played.
+
+    center      -- the gold center letter (lowercase str)
+    outer_uses  -- {letter: remaining uses 0..5} for the 8 outer tiles
+    spicy       -- the currently spicy outer letter, or '' if unknown
+    first_word  -- True if nothing has been played yet (pangram x5 vs x3)
+    exclude     -- words the game refused; dropped entirely, so they don't
+                   count toward totals or pangram reachability
+    played      -- words already played; a word can't be played twice, so
+                   these are dropped from the results too
+
+    Returns (results, total_playable, pangram_status) where results is a list
+    of dicts sorted by points desc and pangram_status is one of 'found' (a
+    played word was the pangram), 'affordable', 'out_of_reach' (a pangram
+    exists but uses are too depleted), or 'none' (the word list has no
+    pangram for these letters).
+    """
+    center = str(center).lower()
+    outer_uses = {str(l).lower(): u for l, u in outer_uses.items()
+                  if str(l).lower() != center}
+    board_letters = set(outer_uses) | {center}
+    exclude = {str(w).lower() for w in exclude} if exclude else set()
+    played = {str(w).lower() for w in played} if played else set()
+    exclude |= played
+
+    results = []
+    pangram_exists = False
+    pangram_affordable = False
+
+    for word in words:
+        w = str(word).lower()
+        if not (3 <= len(w) <= 15) or center not in w or w in exclude:
+            continue
+        letters = set(w)
+        if not letters <= board_letters:
+            continue
+
+        cost = {l: w.count(l) for l in letters if l != center}
+        is_pangram = letters == board_letters
+        if is_pangram:
+            pangram_exists = True
+        if any(n > outer_uses[l] for l, n in cost.items()):
+            continue
+        if is_pangram:
+            pangram_affordable = True
+
+        smushes = sum(1 for l, n in cost.items()
+                      if outer_uses[l] > 0 and n == outer_uses[l])
+        spicy_uses = cost.get(spicy, 0) if spicy else 0
+        pangram_bonus = (4 if first_word else 2) if is_pangram else 0
+        mult = 1 + spicy_uses + smushes + pangram_bonus
+        base = smush_word_score(w)
+
+        results.append({
+            'word': w,
+            'base': base,
+            'mult': mult,
+            'pts': base * mult,
+            'spicy_uses': spicy_uses,
+            'smushes': smushes,
+            'pangram': is_pangram,
+            'cost': cost,
+        })
+
+    results.sort(key=lambda r: (-r['pts'], -len(r['word']), r['word']))
+    total_playable = len(results)
+
+    if any(board_letters <= set(w) for w in played):
+        pangram_status = 'found'
+    elif pangram_affordable:
+        pangram_status = 'affordable'
+    elif pangram_exists:
+        pangram_status = 'out_of_reach'
+    else:
+        pangram_status = 'none'
+
+    return results[:list_len], total_playable, pangram_status
