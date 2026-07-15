@@ -55,6 +55,14 @@
     },
     {
       "@type": "Question",
+      "name": "Will Smush accept every word this solver suggests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the X button on the word: it is hidden from the results without spending any letters, just like a refused guess in the real game."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Why don't my points match the game exactly?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -555,27 +563,6 @@
 .instructions.collapsed .instructions-body { display: none; }
 .instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
 
-.reset-letters-btn {
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    color: #666;
-    padding: 12px 24px;
-    border-radius: 12px 18px 12px 18px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    text-decoration: none;
-    display: inline-block;
-    transition: all 0.2s ease;
-}
-
-.reset-letters-btn:hover {
-    background-color: #e9ecef;
-    text-decoration: none !important;
-    color: #666 !important;
-    transform: scale(1.03) !important;
-}
-
 .smush-toast {
     position: fixed;
     top: 70px;
@@ -628,6 +615,8 @@
     <div class="instructions-body">
         Type your nine Smush letters into the grid - the gold center letter goes in the middle.
         Every playable word appears instantly, ranked by points using the game's exact scoring.
+        One caveat: Smush's official word list isn't public, so the solver uses its own dictionary
+        and the game may refuse some suggestions.
         <br><br>
         <strong>As you play:</strong> tap a tile to set the 🌶 spicy letter or fix its remaining uses,
         and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
@@ -654,10 +643,6 @@
 </div>
 
 <div class="pangram-banner" id="pangram-banner"></div>
-
-<div style="margin-top: 14px;">
-    <a href="#" class="reset-letters-btn" id="reset-btn">Reset Board</a>
-</div>
 
 <div class="played-section" id="played-section">
     <div class="played-title">Your played words</div>
@@ -700,6 +685,18 @@
         font-size: 14px;
         transition: all 0.2s ease;
     " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    <a href="#" id="reset-btn" style="
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Board</a>
 </div>
 
 <div style="margin-top: 20px;">
@@ -792,6 +789,10 @@
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the best Smush strategy?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play the pangram first - the +4 first-word bonus makes it worth roughly five times its base score, usually the biggest single play of the game. After that, chase words that combine the spicy letter with smushing letters flat, since every bonus adds another +1 to the multiplier. Lean on the center letter as much as possible: it is free and its points still count.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the ✗ button on the word: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
@@ -1254,14 +1255,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function persist() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(
-                {letters, uses, spicy, played, rejected, score, history, solveMode}));
+                {letters, uses, spicy, played, rejected, score, history, solveMode,
+                 savedAt: Date.now()}));
         } catch (_) {}
+    }
+
+    /* A save from a previous calendar day is a finished puzzle: daily players
+       should land on a fresh entry board. The age floor keeps a game that
+       straddles midnight alive. */
+    const STALE_FLOOR_HOURS = 6;
+    function isStale(s) {
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        const savedDay = new Date(s.savedAt).toDateString();
+        return savedDay !== new Date().toDateString() && ageHours > STALE_FLOOR_HOURS;
     }
 
     function restore() {
         let s = null;
         try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
         if (!s || !Array.isArray(s.letters) || s.letters.length !== 9) return false;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.solveMode) toast("Cleared yesterday's board — enter today's letters 🥞");
+            return false;
+        }
         letters = s.letters.map(l => (typeof l === 'string' ? l : ''));
         uses = s.uses || {}; spicy = s.spicy || '';
         played = s.played || []; rejected = s.rejected || [];

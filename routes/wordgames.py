@@ -1,11 +1,12 @@
 """Wordle / Antiwordle / Quordle / misc word-solver routes."""
 
 import re
+import time
 
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, words
-from extensions import add_data_to_stream, cache, db_cursor
+from extensions import add_data_to_stream, db_cursor
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
@@ -231,6 +232,13 @@ def any_word():
         return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
 
 
+# Memoized in the module (not SimpleCache: that pickles, so every cache.get
+# would rebuild the ~17MB set per request). Holds at most one extra copy of
+# the word list per process, and none at all while the DB corrections are
+# empty.
+_smush_words = {'value': None, 'expires': 0.0}
+
+
 def get_smush_words():
     """The full word list with blossom's user-curated corrections applied
     (invalid words reported via feedback removed, missing ones added).
@@ -238,11 +246,10 @@ def get_smush_words():
     Blossom itself works from a reduced copy (<=7 unique letters, len >= 4)
     that would drop Smush pangrams, so the corrections are applied to the
     unreduced list here instead. Falls back to the raw list if the DB is
-    unreachable. Cached for 12 hours like blossom's copy.
+    unreachable. Refreshed every 12 hours like blossom's copy.
     """
-    cached_words = cache.get('smush_words')
-    if cached_words is not None:
-        return cached_words
+    if _smush_words['value'] is not None and time.time() < _smush_words['expires']:
+        return _smush_words['value']
 
     invalid_words, added_words = set(), set()
     try:
@@ -254,8 +261,15 @@ def get_smush_words():
     except Exception as e:
         print(f"Error fetching smush word corrections: {e}")
 
-    smush_words = ({str(w).lower() for w in words} - invalid_words) | added_words
-    cache.set('smush_words', smush_words, timeout=43200)
+    # data.py's word set is already lowercase; only build a corrected copy
+    # when there is actually something to correct.
+    if invalid_words or added_words:
+        smush_words = (words - invalid_words) | added_words
+    else:
+        smush_words = words
+
+    _smush_words['value'] = smush_words
+    _smush_words['expires'] = time.time() + 43200
     return smush_words
 
 
