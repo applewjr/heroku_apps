@@ -90,6 +90,9 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     width: min(92vw, 360px);
+    /* 3 square tiles + 2 gaps make the board exactly as tall as it is wide;
+       reserving that space stops the page jumping when JS builds the tiles */
+    aspect-ratio: 1;
     margin: 18px auto 6px;
 }
 
@@ -483,8 +486,8 @@
 
 .show-more-btn:hover { background-color: #03595f; }
 
-.no-results { text-align: center; color: #888; font-style: italic; margin: 30px 0; }
-.loading { text-align: center; color: #888; margin: 20px 0; }
+.no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; }
+.loading { text-align: center; color: #6b7280; margin: 20px 0; }
 
 /* ---------- played pile ---------- */
 .played-section {
@@ -497,7 +500,7 @@
 
 .played-section.visible { display: block; }
 
-.played-title { font-size: 13px; color: #888; margin-bottom: 8px; }
+.played-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
 
 .played-pile {
     display: flex;
@@ -571,7 +574,7 @@
     user-select: none;
 }
 .instructions-header:hover { background-color: #e9ecef; }
-.instructions-toggle-icon { font-size: 11px; color: #888; transition: transform 0.2s ease; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
 .instructions-body { padding: 0 15px 15px 15px; text-align: left; }
 .instructions.collapsed .instructions-body { display: none; }
 .instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
@@ -673,7 +676,7 @@
 </div>
 
 <br>
-<div style="margin: 20px 0; text-align: center;">
+<div style="margin: 20px 0; text-align: center; min-height: 51px;">
     <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="
         background-color: #f8f9fa;
         color: #495057;
@@ -712,8 +715,8 @@
     " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Board</a>
 </div>
 
-<div style="margin-top: 20px;">
-    <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
+<div style="margin-top: 20px; min-height: 100px;">
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
     <div style="
         display: flex;
         flex-wrap: wrap;
@@ -813,7 +816,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d;">hankgreen.com/smush</a>.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">hankgreen.com/smush</a>.</p>
     </div>
   </div>
 </section>
