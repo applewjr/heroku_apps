@@ -132,6 +132,12 @@ def test_smush_played_words_are_dropped_and_pangram_reports_found():
         "l", SMUSH_FRESH, "", False, words, played=["mole"])
     assert status == "affordable"
 
+    # A played word must match the board letters exactly to be the pangram;
+    # a superset (only possible via a hand-crafted request) doesn't count.
+    _, _, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", False, words, played=["employings"])
+    assert status == "affordable"
+
 
 def test_smush_center_letter_is_free_and_required():
     results, _, _ = all_words.smush_solver("l", {"e": 1}, "", False, words)

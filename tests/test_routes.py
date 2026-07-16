@@ -249,6 +249,17 @@ def test_smush_played_words_cannot_be_played_twice(smush_client):
     assert all(r["word"] != "flagellum" for r in body["results"])
 
 
+def test_smush_first_word_yields_to_a_non_empty_pile(smush_client):
+    # first_word=True alongside played words is contradictory; the pile wins,
+    # so the x5 first-word pangram multiplier can't be requested mid-game.
+    body = dict(SMUSH_BODY, outer_uses=dict.fromkeys("mguoaecf", 5),
+                spicy="", first_word=True, played=["mole"])
+    resp = smush_client.post("/smush", json=body)
+    assert resp.status_code == 200
+    pangram = next(r for r in resp.get_json()["results"] if r["pangram"])
+    assert pangram["mult"] == 3  # 1 + pangram +2, not the first-word +4
+
+
 def test_smush_non_json_body_returns_415(client):
     resp = client.post("/smush", data="x=1",
                        content_type="application/x-www-form-urlencoded")

@@ -338,6 +338,10 @@ def run_smush():
         rejected = parse_smush_word_list(data, 'rejected')
         played = parse_smush_word_list(data, 'played')
 
+        # A non-empty pile contradicts first_word; trust the pile so the
+        # first-word pangram bonus can't be inflated.
+        first_word = first_word and not played
+
         results, total_playable, pangram_status = all_words.smush_solver(
             center, outer_uses, spicy.lower(), first_word, get_smush_words(),
             exclude=rejected, played=played)

@@ -522,7 +522,7 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     results.sort(key=lambda r: (-r['pts'], -len(r['word']), r['word']))
     total_playable = len(results)
 
-    if any(board_letters <= set(w) for w in played):
+    if any(set(w) == board_letters for w in played):
         pangram_status = 'found'
     elif pangram_affordable:
         pangram_status = 'affordable'

@@ -921,7 +921,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const old = letters[i];
         letters[i] = '';
         if (old) { delete uses[old]; if (spicy === old) spicy = ''; }
+        if (solveMode) exitSolveMode();
         renderBoard();
+    }
+
+    /* Clearing a letter mid-solve invalidates the results: /smush rejects
+       partial boards, and a stale word marked ✓ Played would spend the wrong
+       letters. Drop back to entry mode (keeping the tracked game) until all
+       nine tiles are filled again. */
+    function exitSolveMode() {
+        solveMode = false;
+        selected = -1;
+        clearTimeout(fetchTimer);
+        fetchSeq++;
+        lastResults = []; totalPlayable = 0; pangramStatus = 'none';
+        board.classList.remove('solve-mode');
+        document.getElementById('smush-status').style.display = 'none';
+        document.getElementById('pangram-banner').className = 'pangram-banner';
+        boardHint.textContent = 'Fill every tile to get your ranked words back.';
+        tiles.forEach(t => t.querySelector('input').classList.remove('editing'));
+        resultsContainer.innerHTML = '';
+        renderControls();
+        persist();
     }
 
     function onBackspace(i) {
@@ -1088,14 +1109,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function scheduleFetch() {
         if (!solveMode) return;
         clearTimeout(fetchTimer);
+        // Bump the sequence now so a response already in flight for the old
+        // state can't render during the debounce window.
+        const seq = ++fetchSeq;
         resultsContainer.innerHTML = '<div class="loading">Crunching the letters…</div>';
-        fetchTimer = setTimeout(fetchResults, 250);
+        fetchTimer = setTimeout(() => fetchResults(seq), 250);
     }
 
-    function fetchResults() {
+    function fetchResults(seq) {
         const outerUses = {};
         letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
-        const seq = ++fetchSeq;
         fetch('/smush', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
