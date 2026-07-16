@@ -87,7 +87,7 @@ def robots_txt():
 def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
-        '/blossom', '/any_word', '/feedback', '/privacy-policy',
+        '/blossom', '/smush', '/any_word', '/feedback', '/privacy-policy',
         '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4', '/kintsugi',
     ]
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',

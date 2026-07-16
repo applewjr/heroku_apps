@@ -58,6 +58,88 @@ def test_filter_words_all_respects_constraints():
     assert out == sorted(out)  # A-Z ordering
 
 
+# --- smush -------------------------------------------------------------------
+
+# The 2026-07-08 board from hankgreen.com/smush: center L, pangram "employing".
+SMUSH_FRESH = {"e": 5, "g": 5, "i": 5, "m": 5, "n": 5, "o": 5, "p": 5, "y": 5}
+
+
+def test_smush_word_score_sums_letter_values():
+    assert all_words.smush_word_score("camouflage") == 18
+    assert all_words.smush_word_score("eel") == 3
+
+
+def test_smush_pangram_first_word_multiplier():
+    results, total, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", True, words)
+    assert status == "affordable"
+    assert total > 0
+    top = results[0]
+    assert top["word"] == "employing"
+    assert top["pangram"] is True
+    assert top["mult"] == 5  # 1 + 4 for a first-word pangram
+    assert top["pts"] == top["base"] * 5
+    # server order is points-desc
+    pts = [r["pts"] for r in results]
+    assert pts == sorted(pts, reverse=True)
+
+
+def test_smush_spicy_and_smush_bonuses_add():
+    # EEL spends both remaining Es: +2 spicy (two spicy uses) +1 smush on top
+    # of the base x1. The unused Z keeps EEL from counting as a pangram.
+    results, _, _ = all_words.smush_solver("l", {"e": 2, "z": 5}, "e", False, words)
+    eel = next(r for r in results if r["word"] == "eel")
+    assert eel["spicy_uses"] == 2
+    assert eel["smushes"] == 1
+    assert eel["mult"] == 4
+    assert eel["pts"] == 3 * 4
+
+
+def test_smush_respects_remaining_uses():
+    # With a single E left, EEL (two Es) must be filtered out but ELL stays.
+    results, _, _ = all_words.smush_solver("l", {"e": 1}, "", False, words)
+    found = {r["word"] for r in results}
+    assert "eel" not in found
+    assert "ell" in found
+
+
+def test_smush_pangram_out_of_reach_when_letters_spent():
+    depleted = dict(SMUSH_FRESH, o=0)
+    _, _, status = all_words.smush_solver("l", depleted, "", False, words)
+    assert status == "out_of_reach"
+
+
+def test_smush_exclude_drops_rejected_words_entirely():
+    # "employing" is this board's only pangram: rejecting it must remove it
+    # from the results/totals AND flip the pangram status.
+    results, total, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", True, words, exclude=["employing"])
+    baseline_total = all_words.smush_solver("l", SMUSH_FRESH, "", True, words)[1]
+    assert all(r["word"] != "employing" for r in results)
+    assert total == baseline_total - 1
+    assert status == "none"
+
+
+def test_smush_played_words_are_dropped_and_pangram_reports_found():
+    results, _, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", False, words, played=["employing", "mole"])
+    found = {r["word"] for r in results}
+    assert "employing" not in found and "mole" not in found
+    assert status == "found"  # the played pangram beats affordable/out_of_reach
+
+    # A played non-pangram leaves the pangram still available.
+    _, _, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", False, words, played=["mole"])
+    assert status == "affordable"
+
+
+def test_smush_center_letter_is_free_and_required():
+    results, _, _ = all_words.smush_solver("l", {"e": 1}, "", False, words)
+    for r in results:
+        assert "l" in r["word"]
+        assert "l" not in r["cost"]  # the gold center never costs uses
+
+
 # --- wordle ----------------------------------------------------------------
 
 def test_wordle_opener_is_stable():
