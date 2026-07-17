@@ -153,10 +153,20 @@ def _smush_plan(center, outer, word_list):
 
 
 def test_smush_all_plan_complete_exactly_exhausts_the_board():
-    # BAB (b×2) + ACA (c×1) is the only exact fit; CAB would strand a b use.
+    # BAB (b×2) + ACA (c×1) is the only exact fit. CAB is the pangram here,
+    # but seeding it would strand a b use, so the planner must give it up
+    # rather than lose the clean plate.
     plan, leftover = _smush_plan("a", {"b": 2, "c": 1}, {"bab", "aca", "cab"})
     assert leftover == {}
     assert sorted(r["word"] for r in plan) == ["aca", "bab"]
+
+
+def test_smush_all_plan_puts_the_pangram_first_when_it_fits():
+    # CABBA (b×2 c×1) is the pangram; ACA finishes the plate, PERFECT setup.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 2}, {"cabba", "aca"})
+    assert leftover == {}
+    assert [r["word"] for r in plan] == ["cabba", "aca"]
+    assert plan[0]["pangram"] is True
 
 
 def test_smush_all_plan_reports_stranded_letters():
@@ -184,8 +194,10 @@ def test_smush_all_plan_full_board_accounting_is_exact():
     # spent + stranded always reconciles to the starting uses per letter
     for l, u in SMUSH_FRESH.items():
         assert spent.get(l, 0) + leftover.get(l, 0) == u
-    # a fresh board over the full dictionary should be fully smushable
+    # a fresh board over the full dictionary should be fully smushable,
+    # with the pangram seeded up front for the PERFECT bonus
     assert leftover == {}
+    assert plan[0]["pangram"] is True
 
 
 # --- wordle ----------------------------------------------------------------

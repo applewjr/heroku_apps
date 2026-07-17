@@ -558,9 +558,15 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
     the exact requirement is relaxed one letter at a time - scarcest first -
     and a final greedy pass spends what it still can of the relaxed letters.
 
-    Returns (plan, leftover): plan is a list of result dicts (points desc)
-    and leftover maps each letter the plan fails to flatten to its stranded
-    uses ({} means a complete smush).
+    Smush's PERFECT bonus (final score x2) requires playing the pangram first
+    AND a clean plate, so the search first tries to build a complete plan
+    around an affordable pangram. Only a fully flat result keeps the pangram
+    seed - a pangram isn't worth giving up the clean plate for - and any
+    pangram that makes the plan is sorted to the front.
+
+    Returns (plan, leftover): plan is a list of result dicts (pangram first,
+    then points desc) and leftover maps each letter the plan fails to flatten
+    to its stranded uses ({} means a complete smush).
     """
     norm = {str(l).lower(): int(n) for l, n in outer_uses.items()}
     letters = sorted(norm)
@@ -572,6 +578,7 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
     # grouping them collapses the branching factor. results arrive sorted by
     # points desc, so each group's best-scoring words are used first.
     groups = {}
+    pangram_sigs = []
     for r in results:
         sig = [0] * len(letters)
         for l, n in r['cost'].items():
@@ -579,6 +586,8 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
         sig = tuple(sig)
         if any(sig):
             groups.setdefault(sig, []).append(r)
+            if r['pangram'] and sig not in pangram_sigs:
+                pangram_sigs.append(sig)
     sigs = list(groups)
     by_letter = [[s for s in sigs if s[i]] for i in range(len(letters))]
 
@@ -619,14 +628,36 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
             failed.add(state)
         return False
 
-    req = set(required)
-    while True:
+    # Pangram-first attempts: consume a pangram up front and solve the rest
+    # exactly. Kept only when fully flat, so completeness never regresses.
+    solved = False
+    for psig in pangram_sigs[:3]:
+        if any(c > n for c, n in zip(psig, start)):
+            continue
+        state0 = tuple(n - c for n, c in zip(start, psig))
+        req0 = {i for i in range(len(letters)) if state0[i]}
+        # the seeded word is gone from the supply; bail early if a letter
+        # can no longer be covered
+        if any(supply[i] - psig[i] < state0[i] for i in req0):
+            continue
         for s in used:
             used[s] = 0
         del path[:]
-        if dfs(start, req, set(), [run_budget]) or not req:
+        used[psig] = 1
+        path.append(psig)
+        if dfs(state0, req0, set(), [run_budget]):
+            solved = True
             break
-        req.remove(min(req, key=lambda i: (supply[i] - start[i], len(by_letter[i]))))
+
+    if not solved:
+        req = set(required)
+        while True:
+            for s in used:
+                used[s] = 0
+            del path[:]
+            if dfs(start, req, set(), [run_budget]) or not req:
+                break
+            req.remove(min(req, key=lambda i: (supply[i] - start[i], len(by_letter[i]))))
 
     state = list(start)
     for s in path:
@@ -652,6 +683,7 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
     for s in path:
         plan.append(groups[s][take.get(s, 0)])
         take[s] = take.get(s, 0) + 1
-    plan.sort(key=lambda r: -r['pts'])
+    # Pangram up front (play it first for PERFECT), then points desc.
+    plan.sort(key=lambda r: (not r['pangram'], -r['pts']))
     leftover = {letters[i]: state[i] for i in range(len(letters)) if state[i] > 0}
     return plan, leftover

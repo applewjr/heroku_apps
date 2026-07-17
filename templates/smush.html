@@ -58,7 +58,7 @@
       "name": "Can this solver smush all 8 letters flat?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board. The words can be played in any order, and if Smush refuses one of them, rejecting it recalculates a fresh plan from the words that remain."
+        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, rejecting it recalculates a fresh plan from the words that remain."
       }
     },
     {
@@ -662,8 +662,11 @@
         <strong>✗</strong> to hide it - rejected words don't spend any letters.
         <br><br>
         <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
-        words that spends every remaining letter use exactly, flattening the whole board. The words
-        work in any order, and the plan recalculates whenever you play or reject a word.
+        words that spends every remaining letter use exactly, flattening the whole board for the
+        Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
+        first <em>and</em> cleaning the plate earns Smush's PERFECT bonus, doubling your final
+        score. The words work in any order (pangram first!), and the plan recalculates whenever
+        you play or reject a word.
         <br><br>
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
@@ -834,7 +837,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board. The words can be played in any order, and if Smush refuses one of them, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
@@ -1259,8 +1262,15 @@ document.addEventListener('DOMContentLoaded', () => {
             banner = '🥞 Every letter is already smushed flat - board complete!';
         } else if (planData.complete) {
             count = `${words.length}-word plan`;
-            banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat. ` +
-                     `If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+            if (words[0].pangram && played.length === 0) {
+                banner = `★ Play the pangram FIRST, then the rest in any order, and every letter ends smushed flat. ` +
+                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled. ` +
+                         `If Smush refuses a word, hit ✗ and a new plan is calculated.`;
+            } else {
+                banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat` +
+                         `${words[0].pangram ? ' (pangram included)' : ''}. ` +
+                         `If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+            }
         } else {
             partial = true;
             count = `${words.length}-word plan (best effort)`;
