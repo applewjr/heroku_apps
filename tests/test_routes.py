@@ -229,6 +229,8 @@ _SMUSH_OUTER_MINUS_M = {k: v for k, v in _SMUSH_OUTER.items() if k != "m"}
     {"rejected": ["not a word!"]},     # non-alpha rejected entry
     {"played": "floccule"},            # played must be a list
     {"played": [123]},                 # played entries must be words
+    {"plan": "true"},                  # plan must be a real boolean
+    {"plan": 1},                       # truthy non-boolean plan
 ])
 def test_smush_junk_input_returns_400(smush_client, patch):
     body = dict(SMUSH_BODY, **patch)
@@ -258,6 +260,30 @@ def test_smush_first_word_yields_to_a_non_empty_pile(smush_client):
     assert resp.status_code == 200
     pangram = next(r for r in resp.get_json()["results"] if r["pangram"])
     assert pangram["mult"] == 3  # 1 + pangram +2, not the first-word +4
+
+
+def test_smush_plan_defaults_to_null(smush_client):
+    resp = smush_client.post("/smush", json=SMUSH_BODY)
+    assert resp.status_code == 200
+    assert resp.get_json()["plan"] is None
+
+
+def test_smush_plan_flag_returns_a_reconciled_plan(smush_client):
+    resp = smush_client.post("/smush", json=dict(SMUSH_BODY, plan=True))
+    assert resp.status_code == 200
+    plan = resp.get_json()["plan"]
+    assert isinstance(plan["complete"], bool)
+    plan_words = [r["word"] for r in plan["words"]]
+    assert len(set(plan_words)) == len(plan_words)
+    assert all("l" in w for w in plan_words)
+    spent = {}
+    for r in plan["words"]:
+        for l, n in r["cost"].items():
+            spent[l] = spent.get(l, 0) + n
+    # every starting use is either spent by the plan or reported stranded
+    for l, u in SMUSH_BODY["outer_uses"].items():
+        assert spent.get(l, 0) + plan["leftover"].get(l, 0) == u
+    assert plan["complete"] == (plan["leftover"] == {})
 
 
 def test_smush_non_json_body_returns_415(client):

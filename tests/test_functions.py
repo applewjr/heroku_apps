@@ -146,6 +146,48 @@ def test_smush_center_letter_is_free_and_required():
         assert "l" not in r["cost"]  # the gold center never costs uses
 
 
+def _smush_plan(center, outer, word_list):
+    results, _, _ = all_words.smush_solver(
+        center, outer, "", False, word_list, list_len=None)
+    return all_words.smush_all_plan(results, outer)
+
+
+def test_smush_all_plan_complete_exactly_exhausts_the_board():
+    # BAB (b×2) + ACA (c×1) is the only exact fit; CAB would strand a b use.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 1}, {"bab", "aca", "cab"})
+    assert leftover == {}
+    assert sorted(r["word"] for r in plan) == ["aca", "bab"]
+
+
+def test_smush_all_plan_reports_stranded_letters():
+    # No word touches z, so it can never be flattened; b and c still plan out.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 1, "z": 5}, {"bab", "aca", "cab"})
+    assert leftover == {"z": 5}
+    assert sorted(r["word"] for r in plan) == ["aca", "bab"]
+
+
+def test_smush_all_plan_flat_board_is_an_empty_complete_plan():
+    plan, leftover = _smush_plan("a", {"b": 0, "c": 0}, {"bab", "aca"})
+    assert plan == [] and leftover == {}
+
+
+def test_smush_all_plan_full_board_accounting_is_exact():
+    results, _, _ = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", True, words, list_len=None)
+    plan, leftover = all_words.smush_all_plan(results, SMUSH_FRESH)
+    plan_words = [r["word"] for r in plan]
+    assert len(set(plan_words)) == len(plan_words)  # no word played twice
+    spent = {}
+    for r in plan:
+        for l, n in r["cost"].items():
+            spent[l] = spent.get(l, 0) + n
+    # spent + stranded always reconciles to the starting uses per letter
+    for l, u in SMUSH_FRESH.items():
+        assert spent.get(l, 0) + leftover.get(l, 0) == u
+    # a fresh board over the full dictionary should be fully smushable
+    assert leftover == {}
+
+
 # --- wordle ----------------------------------------------------------------
 
 def test_wordle_opener_is_stable():

@@ -338,16 +338,29 @@ def run_smush():
         rejected = parse_smush_word_list(data, 'rejected')
         played = parse_smush_word_list(data, 'played')
 
+        # plan: also compute a set of words that smushes the whole board flat.
+        want_plan = data.get('plan', False)
+        if not isinstance(want_plan, bool):
+            raise ValidationError('plan must be a boolean')
+
         # A non-empty pile contradicts first_word; trust the pile so the
         # first-word pangram bonus can't be inflated.
         first_word = first_word and not played
 
+        # Solve untruncated: the all-8 planner needs the cheap low-point words
+        # that the ranked response cuts off.
         results, total_playable, pangram_status = all_words.smush_solver(
             center, outer_uses, spicy.lower(), first_word, get_smush_words(),
-            exclude=rejected, played=played)
+            list_len=None, exclude=rejected, played=played)
 
-        return jsonify(results=results, total_playable=total_playable,
-                       pangram_status=pangram_status)
+        plan = None
+        if want_plan:
+            plan_words, leftover = all_words.smush_all_plan(results, outer_uses)
+            plan = {'complete': not leftover, 'words': plan_words,
+                    'leftover': leftover}
+
+        return jsonify(results=results[:400], total_playable=total_playable,
+                       pangram_status=pangram_status, plan=plan)
     else:
         return render_template("smush.html", schema_data=schema_data)
 
