@@ -2,6 +2,7 @@ import random
 import pandas as pd
 from datetime import date
 import math
+import time
 
 # common denominator
 def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_char: str, value_split_char: str, user_match_entry: str, user_nope_match_entry: str):
@@ -461,6 +462,7 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     outer_uses  -- {letter: remaining uses 0..5} for the 8 outer tiles
     spicy       -- the currently spicy outer letter, or '' if unknown
     first_word  -- True if nothing has been played yet (pangram x5 vs x3)
+    list_len    -- max results to return; None returns every playable word
     exclude     -- words the game refused; dropped entirely, so they don't
                    count toward totals or pangram reachability
     played      -- words already played; a word can't be played twice, so
@@ -522,7 +524,7 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     results.sort(key=lambda r: (-r['pts'], -len(r['word']), r['word']))
     total_playable = len(results)
 
-    if any(board_letters <= set(w) for w in played):
+    if any(set(w) == board_letters for w in played):
         pangram_status = 'found'
     elif pangram_affordable:
         pangram_status = 'affordable'
@@ -532,3 +534,156 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
         pangram_status = 'none'
 
     return results[:list_len], total_playable, pangram_status
+
+
+def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5):
+    """Plan a set of currently playable words that spends EVERY remaining use
+    of every outer letter, smushing the whole board flat.
+
+    results     -- untruncated smush_solver output for the current state; the
+                   plan draws its words (and their cost/points) from here, so
+                   rejected and played words are already excluded
+    outer_uses  -- {letter: remaining uses 0..5} for the 8 outer tiles
+
+    A plan only ever constrains letter TOTALS: a complete plan's per-letter
+    costs sum exactly to the remaining uses, and a partial plan's never
+    exceed them. Totals bound every prefix, so the words can be played in
+    any order without a letter running out early.
+
+    Exact exhaustion is a multi-dimensional subset-sum, solved by depth-first
+    search over remaining-uses vectors: words are grouped by cost signature,
+    the search branches on the scarcest unfinished letter, dead states are
+    memoized, and each attempt stops after run_budget nodes or time_limit
+    seconds. If the full board can't be flattened (or the budget runs out)
+    the exact requirement is relaxed one letter at a time - scarcest first -
+    and a final greedy pass spends what it still can of the relaxed letters.
+
+    Smush's PERFECT bonus (final score x2) requires playing the pangram first
+    AND a clean plate, so the search first tries to build a complete plan
+    around an affordable pangram. Only a fully flat result keeps the pangram
+    seed - a pangram isn't worth giving up the clean plate for - and any
+    pangram that makes the plan is sorted to the front.
+
+    Returns (plan, leftover): plan is a list of result dicts (pangram first,
+    then points desc) and leftover maps each letter the plan fails to flatten
+    to its stranded uses ({} means a complete smush).
+    """
+    norm = {str(l).lower(): int(n) for l, n in outer_uses.items()}
+    letters = sorted(norm)
+    idx = {l: i for i, l in enumerate(letters)}
+    start = tuple(norm[l] for l in letters)
+    deadline = time.monotonic() + time_limit
+
+    # Words with the same cost signature are interchangeable for the search;
+    # grouping them collapses the branching factor. results arrive sorted by
+    # points desc, so each group's best-scoring words are used first.
+    groups = {}
+    pangram_sigs = []
+    for r in results:
+        sig = [0] * len(letters)
+        for l, n in r['cost'].items():
+            sig[idx[l]] = n
+        sig = tuple(sig)
+        if any(sig):
+            groups.setdefault(sig, []).append(r)
+            if r['pangram'] and sig not in pangram_sigs:
+                pangram_sigs.append(sig)
+    sigs = list(groups)
+    by_letter = [[s for s in sigs if s[i]] for i in range(len(letters))]
+
+    # A letter whose entire word supply can't cover its remaining uses can
+    # never be flattened; leave it out of the exact requirement from the start.
+    supply = [sum(s[i] * len(groups[s]) for s in by_letter[i])
+              for i in range(len(letters))]
+    required = {i for i in range(len(letters)) if start[i] and supply[i] >= start[i]}
+
+    used = {s: 0 for s in sigs}
+    path = []
+
+    def dfs(state, req, failed, budget):
+        if all(state[i] == 0 for i in req):
+            return True
+        if state in failed:
+            return False
+        budget[0] -= 1
+        if budget[0] < 0 or time.monotonic() > deadline:
+            budget[0] = -1
+            return False
+        pivot = min((i for i in req if state[i]), key=lambda i: len(by_letter[i]))
+        options = [s for s in by_letter[pivot]
+                   if used[s] < len(groups[s])
+                   and all(c <= n for c, n in zip(s, state))]
+        options.sort(key=lambda s: (-s[pivot], -sum(s)))
+        for s in options:
+            used[s] += 1
+            path.append(s)
+            if dfs(tuple(n - c for n, c in zip(state, s)), req, failed, budget):
+                return True
+            path.pop()
+            used[s] -= 1
+        if budget[0] >= 0:
+            # Keyed on the remaining-uses vector alone: two paths reaching the
+            # same vector may have consumed different word supplies, so this
+            # can rarely prune a solvable state - acceptable under a budget.
+            failed.add(state)
+        return False
+
+    # Pangram-first attempts: consume a pangram up front and solve the rest
+    # exactly. Kept only when fully flat, so completeness never regresses.
+    solved = False
+    for psig in pangram_sigs[:3]:
+        if any(c > n for c, n in zip(psig, start)):
+            continue
+        state0 = tuple(n - c for n, c in zip(start, psig))
+        req0 = {i for i in range(len(letters)) if state0[i]}
+        # the seeded word is gone from the supply; bail early if a letter
+        # can no longer be covered
+        if any(supply[i] - psig[i] < state0[i] for i in req0):
+            continue
+        for s in used:
+            used[s] = 0
+        del path[:]
+        used[psig] = 1
+        path.append(psig)
+        if dfs(state0, req0, set(), [run_budget]):
+            solved = True
+            break
+
+    if not solved:
+        req = set(required)
+        while True:
+            for s in used:
+                used[s] = 0
+            del path[:]
+            if dfs(start, req, set(), [run_budget]) or not req:
+                break
+            req.remove(min(req, key=lambda i: (supply[i] - start[i], len(by_letter[i]))))
+
+    state = list(start)
+    for s in path:
+        for i, c in enumerate(s):
+            state[i] -= c
+
+    # The exact search stops once the required letters are flat; greedily keep
+    # spending whatever the relaxed letters have left, flattening when we can.
+    while True:
+        fits = [s for s in sigs
+                if used[s] < len(groups[s]) and all(c <= n for c, n in zip(s, state))]
+        if not fits:
+            break
+        best = max(fits, key=lambda s: (
+            sum(1 for c, n in zip(s, state) if c and c == n), sum(s)))
+        used[best] += 1
+        path.append(best)
+        for i, c in enumerate(best):
+            state[i] -= c
+
+    take = {}
+    plan = []
+    for s in path:
+        plan.append(groups[s][take.get(s, 0)])
+        take[s] = take.get(s, 0) + 1
+    # Pangram up front (play it first for PERFECT), then points desc.
+    plan.sort(key=lambda r: (not r['pangram'], -r['pts']))
+    leftover = {letters[i]: state[i] for i in range(len(letters)) if state[i] > 0}
+    return plan, leftover

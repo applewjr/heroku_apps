@@ -55,6 +55,14 @@
     },
     {
       "@type": "Question",
+      "name": "Can this solver smush all 8 letters flat?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, rejecting it recalculates a fresh plan from the words that remain."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Will Smush accept every word this solver suggests?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -90,6 +98,9 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     width: min(92vw, 360px);
+    /* 3 square tiles + 2 gaps make the board exactly as tall as it is wide;
+       reserving that space stops the page jumping when JS builds the tiles */
+    aspect-ratio: 1;
     margin: 18px auto 6px;
 }
 
@@ -338,6 +349,20 @@
 
 .sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
 
+.plan-banner {
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    color: #02484d;
+}
+
+.plan-banner.partial { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
 .word-result {
     background-color: #f8f9fa;
     padding: 10px 14px;
@@ -483,8 +508,8 @@
 
 .show-more-btn:hover { background-color: #03595f; }
 
-.no-results { text-align: center; color: #888; font-style: italic; margin: 30px 0; }
-.loading { text-align: center; color: #888; margin: 20px 0; }
+.no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; }
+.loading { text-align: center; color: #6b7280; margin: 20px 0; }
 
 /* ---------- played pile ---------- */
 .played-section {
@@ -497,7 +522,7 @@
 
 .played-section.visible { display: block; }
 
-.played-title { font-size: 13px; color: #888; margin-bottom: 8px; }
+.played-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
 
 .played-pile {
     display: flex;
@@ -571,7 +596,7 @@
     user-select: none;
 }
 .instructions-header:hover { background-color: #e9ecef; }
-.instructions-toggle-icon { font-size: 11px; color: #888; transition: transform 0.2s ease; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
 .instructions-body { padding: 0 15px 15px 15px; text-align: left; }
 .instructions.collapsed .instructions-body { display: none; }
 .instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
@@ -636,6 +661,13 @@
         after every play, so tap the new spicy tile after each word. If Smush refuses a word, hit
         <strong>✗</strong> to hide it - rejected words don't spend any letters.
         <br><br>
+        <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
+        words that spends every remaining letter use exactly, flattening the whole board for the
+        Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
+        first <em>and</em> cleaning the plate earns Smush's PERFECT bonus, doubling your final
+        score. The words work in any order (pangram first!), and the plan recalculates whenever
+        you play or reject a word.
+        <br><br>
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
         (+4 if it's your first word). Points = base × multiplier.
@@ -673,7 +705,7 @@
 </div>
 
 <br>
-<div style="margin: 20px 0; text-align: center;">
+<div style="margin: 20px 0; text-align: center; min-height: 51px;">
     <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="
         background-color: #f8f9fa;
         color: #495057;
@@ -712,8 +744,8 @@
     " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Board</a>
 </div>
 
-<div style="margin-top: 20px;">
-    <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Other Word Game Solvers:</p>
+<div style="margin-top: 20px; min-height: 100px;">
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
     <div style="
         display: flex;
         flex-wrap: wrap;
@@ -804,6 +836,10 @@
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play the pangram first - the +4 first-word bonus makes it worth roughly five times its base score, usually the biggest single play of the game. After that, chase words that combine the spicy letter with smushing letters flat, since every bonus adds another +1 to the multiplier. Lean on the center letter as much as possible: it is free and its points still count.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the ✗ button on the word: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
     </div>
@@ -813,7 +849,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d;">hankgreen.com/smush</a>.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">hankgreen.com/smush</a>.</p>
     </div>
   </div>
 </section>
@@ -845,6 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let solveMode = false;
     let selected = -1;
     let lastResults = [];
+    let planData = null;                     // /smush "plan" payload for the All 8 mode
     let totalPlayable = 0;
     let pangramStatus = 'none';
     let sortMode = 'pts';
@@ -918,7 +955,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const old = letters[i];
         letters[i] = '';
         if (old) { delete uses[old]; if (spicy === old) spicy = ''; }
+        if (solveMode) exitSolveMode();
         renderBoard();
+    }
+
+    /* Clearing a letter mid-solve invalidates the results: /smush rejects
+       partial boards, and a stale word marked ✓ Played would spend the wrong
+       letters. Drop back to entry mode (keeping the tracked game) until all
+       nine tiles are filled again. */
+    function exitSolveMode() {
+        solveMode = false;
+        selected = -1;
+        clearTimeout(fetchTimer);
+        fetchSeq++;
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        board.classList.remove('solve-mode');
+        document.getElementById('smush-status').style.display = 'none';
+        document.getElementById('pangram-banner').className = 'pangram-banner';
+        boardHint.textContent = 'Fill every tile to get your ranked words back.';
+        tiles.forEach(t => t.querySelector('input').classList.remove('editing'));
+        resultsContainer.innerHTML = '';
+        renderControls();
+        persist();
     }
 
     function onBackspace(i) {
@@ -1085,14 +1143,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function scheduleFetch() {
         if (!solveMode) return;
         clearTimeout(fetchTimer);
+        // Bump the sequence now so a response already in flight for the old
+        // state can't render during the debounce window.
+        const seq = ++fetchSeq;
         resultsContainer.innerHTML = '<div class="loading">Crunching the letters…</div>';
-        fetchTimer = setTimeout(fetchResults, 250);
+        fetchTimer = setTimeout(() => fetchResults(seq), 250);
     }
 
-    function fetchResults() {
+    function fetchResults(seq) {
         const outerUses = {};
         letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
-        const seq = ++fetchSeq;
         fetch('/smush', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -1102,13 +1162,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 spicy: spicy,
                 first_word: played.length === 0,
                 rejected: rejected,
-                played: played.map(p => p.word)
+                played: played.map(p => p.word),
+                plan: sortMode === 'all8'
             })
         })
         .then(r => r.json())
         .then(data => {
             if (seq !== fetchSeq) return;   // a newer request superseded this one
             lastResults = data.results || [];
+            planData = data.plan || null;
             totalPlayable = data.total_playable || 0;
             pangramStatus = data.pangram_status || 'none';
             visibleCount = WORDS_STEP;
@@ -1141,8 +1203,94 @@ document.addEventListener('DOMContentLoaded', () => {
         return bits.join(' ');
     }
 
+    function sortChipsHtml() {
+        const chips = [['pts', 'Points'], ['eff', 'Pts per use'], ['len', 'Length'], ['all8', '🥞 All 8']];
+        return `<span class="sort-chips" role="group" aria-label="Sort results">`
+            + chips.map(([k, label]) =>
+                `<button type="button" class="sort-chip ${sortMode === k ? 'active' : ''}" data-sort="${k}">${label}</button>`).join('')
+            + `</span>`;
+    }
+
+    function wordRowHtml(w) {
+        const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
+        return `
+            <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
+                <span class="word-text">${w.word.toUpperCase()}</span>
+                <span class="word-bonuses">${bonusBadges(w)}</span>
+                <span class="word-pts">${w.pts}</span>
+                <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
+                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
+                <a class="define-link"
+                   href="https://en.wiktionary.org/wiki/${w.word}"
+                   target="_blank" rel="noopener noreferrer"
+                   title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
+                   onclick="event.stopPropagation()">↗</a>
+                <div class="copy-feedback">Copied!</div>
+            </div>`;
+    }
+
+    function wireResults() {
+        resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
+            chip.addEventListener('click', () => {
+                sortMode = chip.dataset.sort;
+                visibleCount = WORDS_STEP;
+                // The All 8 plan is only computed when asked for, so entering
+                // that mode without one in hand means a refetch.
+                if (sortMode === 'all8' && !planData) scheduleFetch();
+                else renderResults();
+            }));
+        resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
+        resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        resultsContainer.querySelectorAll('.word-result').forEach(el =>
+            el.addEventListener('click', () => copyWord(el)));
+    }
+
+    /* The All 8 view: a set of words whose letter costs together spend every
+       remaining use, smushing the whole board flat. Totals never exceed the
+       remaining uses, so the words work in any order; every ✓ or ✗ refetches
+       with the rejected/played lists, which recalculates the plan. */
+    function renderPlan() {
+        if (!planData) { scheduleFetch(); return; }
+        const words = planData.words || [];
+        const leftover = Object.entries(planData.leftover || {})
+            .map(([l, n]) => `${l.toUpperCase()}×${n}`).join(', ');
+        let count, banner, partial = false;
+        if (planData.complete && words.length === 0) {
+            count = 'Board smushed flat';
+            banner = '🥞 Every letter is already smushed flat - board complete!';
+        } else if (planData.complete) {
+            count = `${words.length}-word plan`;
+            if (words[0].pangram && played.length === 0) {
+                banner = `★ Play the pangram FIRST, then the rest in any order, and every letter ends smushed flat. ` +
+                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled. ` +
+                         `If Smush refuses a word, hit ✗ and a new plan is calculated.`;
+            } else {
+                banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat` +
+                         `${words[0].pangram ? ' (pangram included)' : ''}. ` +
+                         `If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+            }
+        } else {
+            partial = true;
+            count = `${words.length}-word plan (best effort)`;
+            banner = `🫥 No combination in our dictionary smushes everything flat - this plan leaves ${leftover || 'nothing else'} stranded. ` +
+                     `It recalculates after every ✓ or ✗.`;
+        }
+        let html = `
+            <div class="results-header">
+                <span class="results-count">${count}</span>
+                ${sortChipsHtml()}
+            </div>
+            <div class="plan-banner${partial ? ' partial' : ''}">${banner}</div>`;
+        words.forEach(w => { html += wordRowHtml(w); });
+        resultsContainer.innerHTML = html;
+        wireResults();
+    }
+
     function renderResults() {
         if (!solveMode) { resultsContainer.innerHTML = ''; return; }
+        if (sortMode === 'all8') { renderPlan(); return; }
         if (lastResults.length === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No playable words left with these letters</div>';
             return;
@@ -1153,30 +1301,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = `
             <div class="results-header">
                 <span class="results-count">${totalPlayable} playable word${totalPlayable === 1 ? '' : 's'}${capped ? ` (top ${lastResults.length} shown)` : ''}</span>
-                <span class="sort-chips" role="group" aria-label="Sort results">
-                    <button type="button" class="sort-chip ${sortMode === 'pts' ? 'active' : ''}" data-sort="pts">Points</button>
-                    <button type="button" class="sort-chip ${sortMode === 'eff' ? 'active' : ''}" data-sort="eff">Pts per use</button>
-                    <button type="button" class="sort-chip ${sortMode === 'len' ? 'active' : ''}" data-sort="len">Length</button>
-                </span>
+                ${sortChipsHtml()}
             </div>`;
 
-        r.slice(0, visibleCount).forEach(w => {
-            const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
-            html += `
-                <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
-                    <span class="word-text">${w.word.toUpperCase()}</span>
-                    <span class="word-bonuses">${bonusBadges(w)}</span>
-                    <span class="word-pts">${w.pts}</span>
-                    <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
-                    <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
-                    <a class="define-link"
-                       href="https://en.wiktionary.org/wiki/${w.word}"
-                       target="_blank" rel="noopener noreferrer"
-                       title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
-                       onclick="event.stopPropagation()">↗</a>
-                    <div class="copy-feedback">Copied!</div>
-                </div>`;
-        });
+        r.slice(0, visibleCount).forEach(w => { html += wordRowHtml(w); });
 
         resultsContainer.innerHTML = html;
 
@@ -1190,14 +1318,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resultsContainer.appendChild(btn);
         }
 
-        resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
-            chip.addEventListener('click', () => { sortMode = chip.dataset.sort; visibleCount = WORDS_STEP; renderResults(); }));
-        resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
-        resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
-        resultsContainer.querySelectorAll('.word-result').forEach(el =>
-            el.addEventListener('click', () => copyWord(el)));
+        wireResults();
     }
 
     /* ---------- playing words ---------- */
@@ -1206,7 +1327,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function markPlayed(word) {
-        const r = lastResults.find(x => x.word === word);
+        // Plan words can sit below the ranked list's cutoff, so check both.
+        const planWords = (planData && planData.words) || [];
+        const r = lastResults.find(x => x.word === word) || planWords.find(x => x.word === word);
         if (!r) return;
         history.push(snapshot());
         score += r.pts;
@@ -1251,7 +1374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         letters = Array(9).fill('');
         uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
         solveMode = false; selected = -1;
-        lastResults = []; totalPlayable = 0; pangramStatus = 'none';
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
         document.getElementById('smush-status').style.display = 'none';
         document.getElementById('pangram-banner').className = 'pangram-banner';
