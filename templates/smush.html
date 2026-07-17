@@ -66,7 +66,7 @@
       "name": "Will Smush accept every word this solver suggests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the X button on the word: it is hidden from the results without spending any letters, just like a refused guess in the real game."
+        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver tags as rare based on real-world word frequency. When a word is refused, hit the X button on it: it is hidden from the results without spending any letters, just like a refused guess in the real game."
       }
     },
     {
@@ -406,6 +406,16 @@
 
 .word-bonuses { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
 
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 4px;
+    cursor: pointer;
+}
+
 .word-pts {
     background-color: #02484d;
     color: white;
@@ -631,6 +641,7 @@
     .word-result { padding: 8px 10px; gap: 7px; }
     .word-text { font-size: 14px; letter-spacing: 0.5px; }
     .word-bonuses { font-size: 11px; }
+    .rare-flag { font-size: 12px; padding: 3px; }
     .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
     .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
     .results-container { padding: 10px 8px 20px; }
@@ -659,7 +670,8 @@
         <strong>As you play:</strong> tap a tile to set the 🌶 spicy letter or fix its remaining uses,
         and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
         after every play, so tap the new spicy tile after each word. If Smush refuses a word, hit
-        <strong>✗</strong> to hide it - rejected words don't spend any letters.
+        <strong>✗</strong> to hide it - rejected words don't spend any letters. Words marked
+        <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
         <br><br>
         <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
         words that spends every remaining letter use exactly, flattening the whole board for the
@@ -841,7 +853,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the ✗ button on the word: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver marks with <strong>⚠</strong> based on real-world word frequency. When a word is refused, hit the ✗ button on it: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
@@ -1211,12 +1223,18 @@ document.addEventListener('DOMContentLoaded', () => {
             + `</span>`;
     }
 
+    function isRare(w) { return typeof w.pop === 'number' && w.pop < 2; }
+
     function wordRowHtml(w) {
         const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
+        const rareFlag = isRare(w)
+            ? `<button type="button" class="rare-flag" data-rare="${w.word}"
+                       title="Rare word - Smush may not accept it"
+                       aria-label="${w.word.toUpperCase()} is rare - Smush may not accept it, tap for details">⚠</button> ` : '';
         return `
             <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
                 <span class="word-text">${w.word.toUpperCase()}</span>
-                <span class="word-bonuses">${bonusBadges(w)}</span>
+                <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
                 <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
@@ -1243,6 +1261,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
         resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
             btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        // The rare tag must explain itself on tap: mobile players have no
+        // hover, and letting the tap fall through would copy the word.
+        resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toast(`⚠ ${btn.dataset.rare.toUpperCase()} is a rare word - Smush may refuse it. ` +
+                      `If it does, hit ✗: no letters are spent and the plan reroutes.`);
+            }));
         resultsContainer.querySelectorAll('.word-result').forEach(el =>
             el.addEventListener('click', () => copyWord(el)));
     }
@@ -1256,6 +1282,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const words = planData.words || [];
         const leftover = Object.entries(planData.leftover || {})
             .map(([l, n]) => `${l.toUpperCase()}×${n}`).join(', ');
+        const risky = words.filter(isRare).length;
+        const riskNote = words.length === 0 ? ''
+            : risky === 0 ? ' Every word here is a common one Smush should accept.'
+            : ` ⚠ ${risky} of these ${risky === 1 ? 'is a rare word' : 'are rare words'} Smush may refuse.`;
         let count, banner, partial = false;
         if (planData.complete && words.length === 0) {
             count = 'Board smushed flat';
@@ -1264,12 +1294,12 @@ document.addEventListener('DOMContentLoaded', () => {
             count = `${words.length}-word plan`;
             if (words[0].pangram && played.length === 0) {
                 banner = `★ Play the pangram FIRST, then the rest in any order, and every letter ends smushed flat. ` +
-                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled. ` +
-                         `If Smush refuses a word, hit ✗ and a new plan is calculated.`;
+                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled.` +
+                         riskNote + ` If Smush refuses a word, hit ✗ and a new plan is calculated.`;
             } else {
                 banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat` +
-                         `${words[0].pangram ? ' (pangram included)' : ''}. ` +
-                         `If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+                         `${words[0].pangram ? ' (pangram included)' : ''}.` + riskNote +
+                         ` If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
             }
         } else {
             partial = true;

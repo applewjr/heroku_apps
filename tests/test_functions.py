@@ -146,9 +146,10 @@ def test_smush_center_letter_is_free_and_required():
         assert "l" not in r["cost"]  # the gold center never costs uses
 
 
-def _smush_plan(center, outer, word_list):
+def _smush_plan(center, outer, word_list, popularity=None):
     results, _, _ = all_words.smush_solver(
-        center, outer, "", False, word_list, list_len=None)
+        center, outer, "", False, word_list, list_len=None,
+        popularity=popularity)
     return all_words.smush_all_plan(results, outer)
 
 
@@ -179,6 +180,41 @@ def test_smush_all_plan_reports_stranded_letters():
 def test_smush_all_plan_flat_board_is_an_empty_complete_plan():
     plan, leftover = _smush_plan("a", {"b": 0, "c": 0}, {"bab", "aca"})
     assert plan == [] and leftover == {}
+
+
+def test_smush_solver_attaches_popularity():
+    results, _, _ = all_words.smush_solver(
+        "l", {"e": 2, "z": 5}, "", False, {"eel"}, popularity={"eel": 3.1})
+    assert results[0]["pop"] == 3.1
+    results, _, _ = all_words.smush_solver("l", {"e": 2, "z": 5}, "", False, {"eel"})
+    assert results[0]["pop"] == 0.0
+
+
+def test_smush_all_plan_prefers_popular_words():
+    # Two complete plans exist; only BAB+ACAD clears the popularity floor,
+    # so the coin-toss words BAD/BAC never enter the plan.
+    plan, leftover = _smush_plan(
+        "a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad", "bad", "bac"},
+        popularity={"bab": 4.0, "acad": 4.0})
+    assert leftover == {}
+    assert sorted(r["word"] for r in plan) == ["acad", "bab"]
+
+
+def test_smush_all_plan_picks_popular_words_within_a_signature():
+    # ABBA and BAB spend identical letters; the common spelling wins the slot.
+    plan, leftover = _smush_plan(
+        "a", {"b": 2, "c": 1}, {"bab", "abba", "aca"},
+        popularity={"abba": 4.0, "aca": 4.0})
+    assert leftover == {}
+    assert "abba" in {r["word"] for r in plan}
+
+
+def test_smush_all_plan_pangram_is_exempt_from_the_popularity_floor():
+    # The pangram is unscored (rare) but still seeds and leads the plan.
+    plan, leftover = _smush_plan(
+        "a", {"b": 2, "c": 2}, {"cabba", "aca"}, popularity={"aca": 4.0})
+    assert leftover == {}
+    assert [r["word"] for r in plan] == ["cabba", "aca"]
 
 
 def test_smush_all_plan_full_board_accounting_is_exact():
