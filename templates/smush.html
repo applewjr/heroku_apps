@@ -34,7 +34,7 @@
       "name": "How does this Smush solver work?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to adjust its remaining uses or mark it as the spicy letter, and mark words as played to automatically track letter wear as your game progresses."
+        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the spicy letter - or use Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses."
       }
     },
     {
@@ -66,7 +66,7 @@
       "name": "Will Smush accept every word this solver suggests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the X button on the word: it is hidden from the results without spending any letters, just like a refused guess in the real game."
+        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver tags as rare based on real-world word frequency. When a word is refused, hit the X button on it: it is hidden from the results without spending any letters, just like a refused guess in the real game."
       }
     },
     {
@@ -280,6 +280,27 @@
 
 .board-hint { font-size: 13px; color: #6b7280; margin: 8px auto 0; max-width: 420px; }
 
+/* rare tile adjustments (uses / letter) live behind this toggle so a plain
+   tile tap can set the spicy letter in one go */
+.fix-toggle {
+    display: none;
+    margin: 10px auto 0;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    min-height: 40px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.fix-toggle.visible { display: inline-block; }
+.fix-toggle:hover, .fix-toggle.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+
 /* ---------- status chips ---------- */
 .smush-status {
     display: flex;
@@ -405,6 +426,16 @@
 }
 
 .word-bonuses { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
+
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 4px;
+    cursor: pointer;
+}
 
 .word-pts {
     background-color: #02484d;
@@ -631,6 +662,7 @@
     .word-result { padding: 8px 10px; gap: 7px; }
     .word-text { font-size: 14px; letter-spacing: 0.5px; }
     .word-bonuses { font-size: 11px; }
+    .rare-flag { font-size: 12px; padding: 3px; }
     .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
     .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
     .results-container { padding: 10px 8px 20px; }
@@ -656,10 +688,12 @@
         One caveat: Smush's official word list isn't public, so the solver uses its own dictionary
         and the game may refuse some suggestions.
         <br><br>
-        <strong>As you play:</strong> tap a tile to set the 🌶 spicy letter or fix its remaining uses,
+        <strong>As you play:</strong> tap a tile to make it the 🌶 spicy letter,
         and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
-        after every play, so tap the new spicy tile after each word. If Smush refuses a word, hit
-        <strong>✗</strong> to hide it - rejected words don't spend any letters.
+        after every play, so tap the new spicy tile after each word. To fix a tile's remaining uses
+        or change a letter, tap <strong>✏️ Fix a tile</strong> first. If Smush refuses a word, hit
+        <strong>✗</strong> to hide it - rejected words don't spend any letters. Words marked
+        <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
         <br><br>
         <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
         words that spends every remaining letter use exactly, flattening the whole board for the
@@ -677,6 +711,8 @@
 <div class="smush-board" id="smush-board" role="group" aria-label="Smush board letters"></div>
 
 <div class="board-hint" id="board-hint">Enter the gold center letter first, then the eight around it.</div>
+
+<button type="button" class="fix-toggle" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
 
 <div class="tile-controls" id="tile-controls" aria-live="polite"></div>
 
@@ -825,7 +861,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Smush solver work?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to adjust its remaining uses or mark it as the spicy letter, and mark words as played to automatically track letter wear as your game progresses.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the 🌶 spicy letter - or use ✏️ Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How is a word scored in Smush?</p>
@@ -841,7 +877,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words. When that happens, hit the ✗ button on the word: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver marks with <strong>⚠</strong> based on real-world word frequency. When a word is refused, hit the ✗ button on it: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
@@ -880,6 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let history = [];                        // snapshots for undo
     let solveMode = false;
     let selected = -1;
+    let fixMode = false;                     // when on, tile taps open the adjust strip
     let lastResults = [];
     let planData = null;                     // /smush "plan" payload for the All 8 mode
     let totalPlayable = 0;
@@ -893,6 +930,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsContainer = document.getElementById('results-container');
     const boardHint = document.getElementById('board-hint');
     const tileControls = document.getElementById('tile-controls');
+    const fixBtn = document.getElementById('fix-tiles-btn');
+
+    const SOLVE_HINT = 'Tap a tile to move the 🌶 spicy letter - it moves after every play. ' +
+                       'Need to fix a tile\'s uses or letter? Tap ✏️ Fix a tile first.';
+    const FIX_HINT = 'Fix mode: tap a tile to adjust its remaining uses or change its letter.';
 
     /* ---------- build the 9 tiles ---------- */
     const tiles = [];
@@ -966,10 +1008,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function exitSolveMode() {
         solveMode = false;
         selected = -1;
+        fixMode = false;
         clearTimeout(fetchTimer);
         fetchSeq++;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
+        fixBtn.classList.remove('visible', 'active');
+        fixBtn.setAttribute('aria-pressed', 'false');
         document.getElementById('smush-status').style.display = 'none';
         document.getElementById('pangram-banner').className = 'pangram-banner';
         boardHint.textContent = 'Fill every tile to get your ranked words back.';
@@ -996,17 +1041,47 @@ document.addEventListener('DOMContentLoaded', () => {
     function enterSolveMode() {
         solveMode = true;
         selected = -1;
+        fixMode = false;
         board.classList.add('solve-mode');
         document.getElementById('smush-status').style.display = 'flex';
-        boardHint.textContent = 'Tap a tile to set the 🌶 spicy letter or fix its remaining uses. Mark words ✓ Played below to auto-track letter wear.';
+        boardHint.textContent = SOLVE_HINT;
+        fixBtn.classList.add('visible');
+        fixBtn.classList.remove('active');
+        fixBtn.setAttribute('aria-pressed', 'false');
         document.activeElement && document.activeElement.blur();
         afterStateChange();
     }
 
     /* ---------- tile selection & controls ---------- */
+    /* Spicy moves after every play, making it the most frequent tracked
+       action, so a plain tile tap sets it in one go. The rare adjustments
+       (uses / letter) only open when ✏️ Fix a tile is on. */
     function onTileClick(i) {
         if (!solveMode) { inputOf(i).focus(); return; }
-        selected = (selected === i) ? -1 : i;
+        if (fixMode) {
+            selected = (selected === i) ? -1 : i;
+            renderBoard();
+            renderControls();
+            return;
+        }
+        const ch = letters[i];
+        if (i === CENTER) {
+            toast("The gold center letter can't be spicy - it never runs out");
+            return;
+        }
+        if ((uses[ch] ?? MAX_USES) === 0) {
+            toast(`${ch.toUpperCase()} is smushed flat - it can't be spicy`, true);
+            return;
+        }
+        toggleSpicy(ch);
+    }
+
+    function setFixMode(on) {
+        fixMode = on;
+        selected = -1;
+        fixBtn.classList.toggle('active', on);
+        fixBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        boardHint.textContent = on ? FIX_HINT : SOLVE_HINT;
         renderBoard();
         renderControls();
     }
@@ -1211,12 +1286,18 @@ document.addEventListener('DOMContentLoaded', () => {
             + `</span>`;
     }
 
+    function isRare(w) { return typeof w.pop === 'number' && w.pop < 2; }
+
     function wordRowHtml(w) {
         const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
+        const rareFlag = isRare(w)
+            ? `<button type="button" class="rare-flag" data-rare="${w.word}"
+                       title="Rare word - Smush may not accept it"
+                       aria-label="${w.word.toUpperCase()} is rare - Smush may not accept it, tap for details">⚠</button> ` : '';
         return `
             <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
                 <span class="word-text">${w.word.toUpperCase()}</span>
-                <span class="word-bonuses">${bonusBadges(w)}</span>
+                <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
                 <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
@@ -1243,6 +1324,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
         resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
             btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        // The rare tag must explain itself on tap: mobile players have no
+        // hover, and letting the tap fall through would copy the word.
+        resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toast(`⚠ ${btn.dataset.rare.toUpperCase()} is a rare word - Smush may refuse it. ` +
+                      `If it does, hit ✗: no letters are spent and the plan reroutes.`);
+            }));
         resultsContainer.querySelectorAll('.word-result').forEach(el =>
             el.addEventListener('click', () => copyWord(el)));
     }
@@ -1256,6 +1345,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const words = planData.words || [];
         const leftover = Object.entries(planData.leftover || {})
             .map(([l, n]) => `${l.toUpperCase()}×${n}`).join(', ');
+        const risky = words.filter(isRare).length;
+        const riskNote = words.length === 0 ? ''
+            : risky === 0 ? ' Every word here is a common one Smush should accept.'
+            : ` ⚠ ${risky} of these ${risky === 1 ? 'is a rare word' : 'are rare words'} Smush may refuse.`;
         let count, banner, partial = false;
         if (planData.complete && words.length === 0) {
             count = 'Board smushed flat';
@@ -1264,12 +1357,12 @@ document.addEventListener('DOMContentLoaded', () => {
             count = `${words.length}-word plan`;
             if (words[0].pangram && played.length === 0) {
                 banner = `★ Play the pangram FIRST, then the rest in any order, and every letter ends smushed flat. ` +
-                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled. ` +
-                         `If Smush refuses a word, hit ✗ and a new plan is calculated.`;
+                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled.` +
+                         riskNote + ` If Smush refuses a word, hit ✗ and a new plan is calculated.`;
             } else {
                 banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat` +
-                         `${words[0].pangram ? ' (pangram included)' : ''}. ` +
-                         `If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+                         `${words[0].pangram ? ' (pangram included)' : ''}.` + riskNote +
+                         ` If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
             }
         } else {
             partial = true;
@@ -1340,6 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (spicy && uses[spicy] === 0) { /* spicy tile smushed flat */ }
         spicy = '';
         selected = -1;
+        if (fixMode) setFixMode(false);   // next tap should place the new 🌶
         const anyAlive = letters.some((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
         toast(`${word.toUpperCase()} +${r.pts} · ${anyAlive ? 'the 🌶 moved - tap the new spicy tile' : 'board smushed flat!'}`);
         afterStateChange();
@@ -1373,9 +1467,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (solveMode && !confirm('Reset the board and clear your tracked game?')) return;
         letters = Array(9).fill('');
         uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
-        solveMode = false; selected = -1;
+        solveMode = false; selected = -1; fixMode = false;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
+        fixBtn.classList.remove('visible', 'active');
+        fixBtn.setAttribute('aria-pressed', 'false');
         document.getElementById('smush-status').style.display = 'none';
         document.getElementById('pangram-banner').className = 'pangram-banner';
         boardHint.textContent = 'Enter the gold center letter first, then the eight around it.';
@@ -1448,6 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- wiring ---------- */
     document.getElementById('reset-btn').addEventListener('click', resetBoard);
     document.getElementById('undo-btn').addEventListener('click', undoLast);
+    fixBtn.addEventListener('click', () => setFixMode(!fixMode));
 
     const instructionsPanel = document.getElementById('instructions-panel');
     document.getElementById('instructions-toggle').addEventListener('click', () => {

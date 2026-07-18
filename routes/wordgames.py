@@ -5,7 +5,7 @@ import time
 
 from flask import Blueprint, jsonify, render_template, request
 
-from data import df, words
+from data import df, word_pop, words
 from extensions import add_data_to_stream, db_cursor
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
@@ -351,7 +351,7 @@ def run_smush():
         # that the ranked response cuts off.
         results, total_playable, pangram_status = all_words.smush_solver(
             center, outer_uses, spicy.lower(), first_word, get_smush_words(),
-            list_len=None, exclude=rejected, played=played)
+            list_len=None, exclude=rejected, played=played, popularity=word_pop)
 
         plan = None
         if want_plan:
