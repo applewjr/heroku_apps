@@ -66,7 +66,7 @@
       "name": "Can this solver smush all 8 letters flat?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, rejecting it recalculates a fresh plan from the words that remain."
+        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, rejecting it recalculates a fresh plan from the words that remain."
       }
     },
     {
@@ -707,8 +707,9 @@
         words that spends every remaining letter use exactly, flattening the whole board for the
         Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
         first <em>and</em> cleaning the plate earns Smush's PERFECT bonus, doubling your final
-        score. The words work in any order (pangram first!), and the plan recalculates whenever
-        you play or reject a word.
+        score. Play the plan top to bottom: after the pangram it leads with its riskiest words,
+        so if Smush refuses one there are still plenty of letters left to re-plan around. The
+        plan recalculates whenever you play or reject a word.
         <br><br>
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
@@ -885,7 +886,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
@@ -1349,9 +1350,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* The All 8 view: a set of words whose letter costs together spend every
-       remaining use, smushing the whole board flat. Totals never exceed the
-       remaining uses, so the words work in any order; every ✓ or ✗ refetches
-       with the rejected/played lists, which recalculates the plan. */
+       remaining use, smushing the whole board flat. The server orders it for
+       play - pangram first, then riskiest (least popular) words - so a
+       refusal lands while there are still letters left to re-plan around;
+       every ✓ or ✗ refetches with the rejected/played lists, which
+       recalculates the plan. */
     function renderPlan() {
         if (!planData) { scheduleFetch(); return; }
         const words = planData.words || [];
@@ -1368,13 +1371,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (planData.complete) {
             count = `${words.length}-word plan`;
             if (words[0].pangram && played.length === 0) {
-                banner = `★ Play the pangram FIRST, then the rest in any order, and every letter ends smushed flat. ` +
+                banner = `★ Play the pangram FIRST, then the rest top to bottom, and every letter ends smushed flat. ` +
                          `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled.` +
-                         riskNote + ` If Smush refuses a word, hit ✗ and a new plan is calculated.`;
+                         riskNote + ` The riskiest words come early, while there's still room to re-plan - ` +
+                         `if Smush refuses one, hit ✗ and a new plan is calculated.`;
             } else {
-                banner = `🥞 Play all ${words.length} of these - in any order - and every letter ends smushed flat` +
+                banner = `🥞 Play these ${words.length} top to bottom and every letter ends smushed flat` +
                          `${words[0].pangram ? ' (pangram included)' : ''}.` + riskNote +
-                         ` If Smush refuses one, hit ✗ and a new plan is calculated; points refresh after every word.`;
+                         ` The riskiest words come early, while there's still room to re-plan - ` +
+                         `if Smush refuses one, hit ✗ and a new plan is calculated.`;
             }
         } else {
             partial = true;

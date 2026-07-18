@@ -209,6 +209,16 @@ def test_smush_all_plan_picks_popular_words_within_a_signature():
     assert "abba" in {r["word"] for r in plan}
 
 
+def test_smush_all_plan_orders_riskiest_words_first():
+    # After any pangram, least popular comes first: an early refusal leaves
+    # letters to re-plan around; a late one can strand the clean plate.
+    plan, leftover = _smush_plan(
+        "a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad"},
+        popularity={"bab": 4.5, "acad": 2.5})
+    assert leftover == {}
+    assert [r["word"] for r in plan] == ["acad", "bab"]
+
+
 def test_smush_all_plan_pangram_is_exempt_from_the_popularity_floor():
     # The pangram is unscored (rare) but still seeds and leads the plan.
     plan, leftover = _smush_plan(

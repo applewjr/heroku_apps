@@ -574,9 +574,12 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
     can't be fully flattened the exact requirement is relaxed one letter at
     a time - scarcest first - and a greedy pass spends what it still can.
 
-    Returns (plan, leftover): plan is a list of result dicts (pangram first,
-    then points desc) and leftover maps each letter the plan fails to flatten
-    to its stranded uses ({} means a complete smush).
+    Returns (plan, leftover): plan is a list of result dicts and leftover
+    maps each letter the plan fails to flatten to its stranded uses ({}
+    means a complete smush). The plan is ordered for play: pangram first
+    (PERFECT needs it as the game's first word), then least popular to most
+    popular, so any refusal lands while the board still has enough letters
+    left to re-plan around.
     """
     norm = {str(l).lower(): int(n) for l, n in outer_uses.items()}
     letters = sorted(norm)
@@ -722,8 +725,10 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
         for s in path:
             plan.append(groups[s][take.get(s, 0)])
             take[s] = take.get(s, 0) + 1
-        # Pangram up front (play it first for PERFECT), then points desc.
-        plan.sort(key=lambda r: (not r['pangram'], -r['pts']))
+        # Pangram up front (play it first for PERFECT), then least popular
+        # first: a refusal early leaves letters to re-plan around, while a
+        # refusal on a nearly-flat board can make all 8 impossible.
+        plan.sort(key=lambda r: (not r['pangram'], r.get('pop', 0.0), -r['pts']))
         leftover = {letters[i]: state[i]
                     for i in range(n_letters) if state[i] > 0}
         return plan, leftover
