@@ -296,8 +296,8 @@ def parse_smush_word_list(data, key):
 def run_smush():
 
     schema_data = make_schema_data(
-        "Smush Solver - Find the Best Words & Pangram Instantly",
-        "Free Smush solver for Hank Green's daily word game. Enter your 9 letters, track letter uses and the spicy letter, and get every word ranked by points - pangram included.",
+        "Smush Solver - Find Today's Pangram & Best Words",
+        "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
         "https://jamesapplewhite.com/smush"
     )
 

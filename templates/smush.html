@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Smush Solver - Find the Best Words & Pangram Instantly{% endblock %}
+{% block title %}Smush Solver - Find Today's Pangram & Best Words{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free Smush solver for Hank Green's daily word game. Enter your 9 letters, track letter wear and the spicy letter, and see every playable word ranked by points - pangram included.">
+<meta name="description" content="Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game, with letter wear and spicy tracking.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/smush">
-<meta name="keywords" content="smush solver, smush word game, hank green smush, smush pangram, smush answers today, smush help, smush word finder, word game solver">
-<meta property="og:title" content="Smush Solver - Find the Best Words & Pangram Instantly">
-<meta property="og:description" content="Free Smush solver - enter your 9 letters and instantly see every playable word ranked by points, with spicy and smush multipliers tracked as you play.">
+<meta name="keywords" content="smush solver, smush word game, hank green smush, smush pangram, smush pangram today, smush answers today, smush help, smush word finder, word game solver">
+<meta property="og:title" content="Smush Solver - Find Today's Pangram & Best Words">
+<meta property="og:description" content="Find today's Smush pangram in seconds - enter your nine letters and instantly see every playable word ranked by points, with spicy and smush multipliers tracked as you play.">
 <meta property="og:url" content="https://jamesapplewhite.com/smush">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
@@ -51,6 +51,14 @@
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "A pangram is a word that uses every one of the nine letters on the board at least once. Every Smush board has at least one. A pangram gets +2 added to its multiplier, or +4 if it is the first word you play, so playing the pangram first is usually the single highest-scoring move of the game."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I find today's Smush pangram?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Enter today's nine Smush letters into the solver with the gold center letter in the middle. Every pangram in the word list is highlighted and marked with a star, usually right at the top of the points ranking. Play it as your very first word for the biggest bonus - the pangram-first multiplier, and the setup for Smush's PERFECT score doubler."
       }
     },
     {
@@ -872,6 +880,10 @@
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play the pangram first - the +4 first-word bonus makes it worth roughly five times its base score, usually the biggest single play of the game. After that, chase words that combine the spicy letter with smushing letters flat, since every bonus adds another +1 to the multiplier. Lean on the center letter as much as possible: it is free and its points still count.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I find today's Smush pangram?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter today's nine Smush letters into the solver with the gold center letter in the middle. Every pangram in the word list is highlighted gold and marked with a ★, usually right at the top of the points ranking. Play it as your very first word for the biggest bonus - the pangram-first multiplier, and the setup for Smush's PERFECT score doubler.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. The words can be played in any order, and if Smush refuses one of them, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
     </div>
@@ -1507,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!s || !Array.isArray(s.letters) || s.letters.length !== 9) return false;
         if (isStale(s)) {
             try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
-            if (s.solveMode) toast("Cleared yesterday's board — enter today's letters 🥞");
+            if (s.solveMode) toast("Cleared yesterday's board - enter today's letters 🥞");
             return false;
         }
         letters = s.letters.map(l => (typeof l === 'string' ? l : ''));
