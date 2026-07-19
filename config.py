@@ -14,7 +14,9 @@ if IS_HEROKU:
         "password": os.environ.get('jawsdb_pass'),
         "host": os.environ.get('jawsdb_host'),
         "pool_name": "mypool",
-        "pool_size": 3,
+        # 5 covers the 8-thread worker's realistic concurrency while keeping
+        # prod + staging + Workbench under the 15-connection JawsDB cap.
+        "pool_size": 5,
         "pool_reset_session": True,
         "autocommit": True
     }
