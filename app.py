@@ -39,6 +39,11 @@ app = Flask(__name__)
 app.secret_key = config.SESSION_KEY
 app.permanent_session_lifetime = timedelta(hours=4)  # Sessions last 4 hours
 
+# Cap request bodies app-wide: every endpoint's inputs (form fields, JSON
+# search filters) are tiny, so anything larger is junk or abuse. Werkzeug
+# rejects an over-limit body with a 413 before it's read into memory.
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024  # 64 KB
+
 ##### extensions #####
 
 limiter.init_app(app)

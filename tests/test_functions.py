@@ -82,6 +82,33 @@ def test_search_words_wildcard_pattern():
     assert star == all_words.search_words(words, pattern="qu%", list_len=1000)[0]
 
 
+def test_wildcard_match_semantics():
+    # anchored full-word match: '*' any run, '?' exactly one, else literal
+    assert all_words.wildcard_match("c?t", "cat")
+    assert not all_words.wildcard_match("c?t", "cats")   # anchored, not "contains"
+    assert all_words.wildcard_match("c*t", "caught")
+    assert all_words.wildcard_match("*", "anything")
+    assert all_words.wildcard_match("pre*ing", "prewashing")
+    assert not all_words.wildcard_match("pre*ing", "presiding" + "x")
+    # normalize_wildcard folds SQL wildcards and collapses runs of '*'
+    assert all_words.normalize_wildcard("a%_b**c") == "a*?b*c"
+
+
+def test_search_words_pattern_is_not_vulnerable_to_backtracking():
+    # Regression guard: translating this pattern to a regex made the engine
+    # backtrack combinatorially (seconds per long word, hanging the worker).
+    # The linear matcher resolves the whole dictionary in well under a second.
+    import time
+    hostile = "*" * 29 + "z"
+    start = time.perf_counter()
+    out, total = all_words.search_words(words, pattern=hostile, list_len=50)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 2.0, f"pattern search took {elapsed:.2f}s (possible ReDoS)"
+    # every match ends in z (the trailing literal); the leading * runs collapse
+    assert all(w.endswith("z") for w in out)
+    assert total >= len(out)
+
+
 def test_search_words_no_filter_returns_all_words():
     # No filters is the page's default "browse all words" state: the true
     # total is the whole dictionary, with results capped to list_len.

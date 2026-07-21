@@ -1,5 +1,4 @@
 import random
-import re
 import pandas as pd
 from datetime import date
 import math
@@ -236,24 +235,56 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
 
     return valid_words[:list_len]
 
-def wildcard_to_regex(pattern):
-    """Compile a user wildcard pattern into an anchored regex.
+def normalize_wildcard(pattern):
+    """Normalize a user wildcard pattern to the tokens ``wildcard_match`` uses.
 
-    SQL-LIKE style, forgiving of both conventions: ``*`` or ``%`` matches any
-    run of characters (including none), ``?`` or ``_`` matches exactly one.
-    Every other character is matched literally (case handled by the caller
-    lowercasing first). Only ``.``/``.*`` ever reach the regex engine, so there
-    is no catastrophic-backtracking risk regardless of input.
+    SQL-LIKE style, forgiving of both conventions: ``*`` or ``%`` -> ``*`` (any
+    run of characters, including none), ``?`` or ``_`` -> ``?`` (exactly one),
+    every other character stays a literal. Consecutive any-run wildcards are
+    collapsed to a single ``*`` (``**`` and ``*`` mean the same thing).
     """
     out = []
     for ch in pattern:
-        if ch in '*%':
-            out.append('.*')
-        elif ch in '?_':
-            out.append('.')
+        c = '*' if ch in '*%' else '?' if ch in '?_' else ch
+        if c == '*' and out and out[-1] == '*':
+            continue
+        out.append(c)
+    return ''.join(out)
+
+
+def wildcard_match(pattern, s):
+    """Anchored glob match of ``s`` against a normalized wildcard ``pattern``
+    (``*`` = any run, ``?`` = one char, else literal).
+
+    Deliberately NOT implemented by translating the pattern to a regex:
+    adjacent ``.*`` segments make the regex engine backtrack combinatorially,
+    so a hostile pattern like ``****************z`` against long words hangs a
+    worker for seconds each (a denial-of-service vector). This iterative
+    two-pointer scan is O(len(s) * len(pattern)) worst case with no
+    backtracking blowup.
+    """
+    n, m = len(s), len(pattern)
+    si = pi = 0
+    star = -1        # index just past the most recent '*' in the pattern
+    star_si = 0      # where in s that '*' started matching from
+    while si < n:
+        if pi < m and (pattern[pi] == '?' or pattern[pi] == s[si]):
+            si += 1
+            pi += 1
+        elif pi < m and pattern[pi] == '*':
+            star = pi
+            star_si = si
+            pi += 1
+        elif star != -1:
+            # backtrack: let the last '*' swallow one more character
+            pi = star + 1
+            star_si += 1
+            si = star_si
         else:
-            out.append(re.escape(ch))
-    return re.compile('^' + ''.join(out) + '$')
+            return False
+    while pi < m and pattern[pi] == '*':
+        pi += 1
+    return pi == m
 
 
 def search_words(words, starts_with='', ends_with='', contains='',
@@ -268,7 +299,7 @@ def search_words(words, starts_with='', ends_with='', contains='',
     starts_with / ends_with / contains -- literal prefix / suffix / substring.
     contains_letters -- each of these letters must appear somewhere (any order).
     excludes_letters -- none of these letters may appear.
-    pattern          -- wildcard pattern (see ``wildcard_to_regex``); must match
+    pattern          -- wildcard pattern (see ``wildcard_match``); must match
                         the whole word.
     min_length / max_length -- inclusive length bounds.
     sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', or 'Random'.
@@ -283,7 +314,7 @@ def search_words(words, starts_with='', ends_with='', contains='',
     max_length = int(max_length)
     list_len = int(list_len)
 
-    regex = wildcard_to_regex(pattern) if pattern else None
+    pattern = normalize_wildcard(pattern) if pattern else ''
 
     # With no filters set this returns the whole dictionary (capped to
     # list_len by the caller), which is the page's default "browse all words"
@@ -304,7 +335,7 @@ def search_words(words, starts_with='', ends_with='', contains='',
             continue
         if excludes_letters and any(c in w for c in excludes_letters):
             continue
-        if regex and not regex.match(w):
+        if pattern and not wildcard_match(pattern, w):
             continue
         results.append(w)
 
