@@ -1,209 +1,638 @@
 {% extends 'base.html' %}
 
-{% block title %}Any Word Finder - Search Words by Letters & Patterns{% endblock %}
+{% block title %}Any Word Finder - Search Words by Pattern, Letters & Length{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free word finder tool. Search for words containing specific letters, matching a pattern, or by length. Instant results for word games, crosswords, and puzzles.">
+<meta name="description" content="Free word finder. Search a huge dictionary by starts with, ends with, contained text, wildcard patterns (like SQL fuzzy search), required or excluded letters, and word length. Instant results for crosswords, Scrabble, and word games.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/any_word">
-<meta property="og:title" content="Any Word Finder - Search Words by Letters & Patterns">
-<meta property="og:description" content="Free word finder tool. Search for words containing specific letters or matching a pattern. Instant results for word games and puzzles.">
+<meta name="keywords" content="word finder, word search by pattern, words starting with, words ending with, words containing, wildcard word search, crossword solver, scrabble word finder">
+<meta property="og:title" content="Any Word Finder - Search Words by Pattern & Letters">
+<meta property="og:description" content="Find any word: starts with, ends with, contains text, wildcard patterns, required or excluded letters, and length. Instant results.">
 <meta property="og:url" content="https://jamesapplewhite.com/any_word">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I search for words by pattern?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use the pattern field with wildcards. An asterisk (*) matches any run of letters and a question mark (?) matches exactly one letter. For example, c?t matches cat, cot, and cut, while pre* matches every word starting with pre. The percent sign and underscore from SQL LIKE also work."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I find words that start with or end with certain letters?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Type into the Starts with and Ends with fields to require an exact prefix or suffix. You can combine both to find words that start with one string and end with another."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between Contains text and Must include letters?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Contains text looks for an exact string of letters in a row, like tion. Must include letters only checks that each letter appears somewhere in the word, in any order and any position."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this word finder free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, this word finder is completely free with no signup required. Results update instantly as you type."
+      }
+    }
+  ]
+}
+</script>
 {% endblock %}
 
 {% block head %}
 <style>
 .aw-hero {
-    padding: 2.5rem 1rem 2rem;
+    padding: 2.25rem 1rem 1.75rem;
     text-align: center;
     background: linear-gradient(140deg, #02484d 0%, #013438 100%);
-    margin-bottom: 2rem;
 }
 .aw-hero h1 {
-    font-size: 2.2rem;
+    font-size: clamp(1.6rem, 4vw, 2.3rem);
     font-weight: 600;
     color: white;
     margin: 0 0 0.4rem;
+    line-height: 1.15;
 }
 .aw-hero p {
     font-size: 0.95rem;
     color: rgba(255,255,255,0.72);
     margin: 0;
 }
-.aw-body {
-    max-width: 540px;
+
+.aw-wrap {
+    max-width: 620px;
     margin: 0 auto;
-    padding: 0 1.5rem 3rem;
-    text-align: center;
+    padding: 1.5rem 1.25rem 3rem;
 }
-.aw-field {
-    margin-bottom: 1.25rem;
+
+/* Search card */
+.aw-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    padding: 1.25rem 1.25rem 1.35rem;
+    text-align: left;
 }
+.aw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem 0.9rem;
+}
+.aw-field { display: flex; flex-direction: column; }
+.aw-field.aw-span { grid-column: 1 / -1; }
 .aw-field label {
-    display: block;
-    font-size: 0.88rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     color: #374151;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.32rem;
 }
 .aw-field input[type=text],
 .aw-field select {
-    padding: 9px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
     border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 8px;
+    font-size: 15px;
     color: #111;
-    text-align: center;
     font-family: inherit;
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
+.aw-field input[type=text] { text-transform: lowercase; }
+.aw-field input[type=text]::placeholder { text-transform: none; color: #9ca3af; }
 .aw-field input[type=text]:focus,
 .aw-field select:focus {
     outline: none;
     border-color: #02484d;
+    box-shadow: 0 0 0 3px rgba(2,72,77,0.12);
 }
-.aw-divider {
-    border: none;
-    border-top: 1px solid #e5e7eb;
-    margin: 0.1rem 0 1.25rem;
-}
-.aw-submit {
-    background-color: #02484d;
-    color: white;
-    padding: 10px 28px;
-    border: none;
-    border-radius: 6px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    margin-top: 0.5rem;
-}
-.aw-submit:hover { background-color: #013438; }
-.aw-results {
-    margin-top: 1.5rem;
-    list-style: none;
-    padding: 0;
-}
-.aw-results li {
-    font-size: 0.95rem;
-    color: #374151;
-    padding: 4px 0;
-}
-.aw-footer {
-    margin-top: 1rem;
-    font-size: 13px;
+.aw-hint {
+    font-size: 0.72rem;
     color: #6b7280;
+    margin-top: 0.3rem;
+    line-height: 1.4;
 }
-.aw-footer a { color: #02484d; }
-.aw-reset {
-    display: inline-block;
-    margin-top: 1.25rem;
-    padding: 8px 22px;
+.aw-hint code {
+    background: #f0fafa;
+    border: 1px solid #d7ebeb;
+    border-radius: 4px;
+    padding: 0 4px;
+    color: #02484d;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+.aw-hint code:hover { background: #02484d; color: #fff; border-color: #02484d; }
+
+.aw-fill-unused {
+    align-self: flex-start;
+    margin-top: 0.4rem;
+    padding: 5px 12px;
     border: 1px solid #d1d5db;
     border-radius: 6px;
-    font-size: 14px;
-    color: #374151;
-    text-decoration: none;
-    transition: all 0.15s ease;
-}
-.aw-reset:hover { border-color: #02484d; color: #02484d; }
-.aw-complement-btn {
-    margin-top: 0.45rem;
-    padding: 5px 14px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 12px;
+    font-size: 0.74rem;
+    font-weight: 600;
     color: #374151;
     background: #f9fafb;
     cursor: pointer;
+    font-family: inherit;
     transition: all 0.15s ease;
 }
-.aw-complement-btn:hover { border-color: #02484d; color: #02484d; background: #f0fafa; }
-</style>
-<script>
-function fillComplement() {
-    const have = document.getElementById('must_have').value.toUpperCase().replace(/[^A-Z]/g, '');
-    const haveSet = new Set(have.split(''));
-    const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const complement = all.split('').filter(c => !haveSet.has(c)).join('');
-    document.getElementById('must_not_have').value = complement;
+.aw-fill-unused:hover { border-color: #02484d; color: #02484d; background: #f0fafa; }
+
+/* Advanced toggle */
+.aw-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 1.05rem;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #02484d;
+    cursor: pointer;
 }
-</script>
+.aw-advanced-toggle .aw-chevron {
+    font-size: 0.62rem;
+    transition: transform 0.2s ease;
+}
+.aw-advanced-body {
+    margin-top: 0.9rem;
+    padding-top: 1.05rem;
+    border-top: 1px dashed #e5e7eb;
+}
+.aw-advanced-body[hidden] { display: none; }
+
+.aw-actions {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin-top: 1.15rem;
+}
+.aw-clear {
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+.aw-clear:hover { border-color: #02484d; color: #02484d; }
+.aw-count {
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Results */
+.aw-results { margin: 1.4rem 0 0; }
+.aw-word {
+    background-color: #f8f9fa;
+    padding: 11px 16px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+    position: relative;
+}
+.aw-word:hover { background-color: #eef2f2; transform: translateX(4px); }
+.aw-word.copied { background-color: #6aaa64; border-color: #6aaa64; }
+.aw-word.copied .aw-word-text,
+.aw-word.copied .aw-word-len { color: #fff; }
+.aw-word-text {
+    flex: 1;
+    text-align: left;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    word-break: break-all;
+    line-height: 1.25;
+    text-transform: lowercase;
+}
+.aw-word-len {
+    flex-shrink: 0;
+    background-color: #02484d;
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.aw-define {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 4px 10px;
+    border: 1px solid #cdd8d7;
+    border-radius: 5px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.aw-define:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.aw-word.copied .aw-define {
+    color: #fff;
+    border-color: rgba(255,255,255,0.7);
+    background-color: transparent;
+}
+.aw-copy-feedback {
+    position: absolute;
+    left: 50%;
+    top: -28px;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 5px 11px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.aw-copy-feedback.show { opacity: 1; }
+
+.aw-show-more {
+    display: block;
+    margin: 14px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-family: inherit;
+}
+.aw-show-more:hover { background-color: #03595f; }
+
+.aw-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.92rem;
+    padding: 1.75rem 1rem;
+    line-height: 1.6;
+}
+.aw-copy-hint {
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 0.85rem;
+}
+
+/* FAQ (matched to sibling solver pages) */
+.aw-faq { max-width: 640px; margin: 2.5rem auto 0; padding: 0 0.5rem; text-align: left; }
+.aw-faq h2 { font-size: 18px; color: #333; margin-bottom: 12px; text-align: center; }
+.aw-faq .aw-faq-list { border-top: 1px solid #e9ecef; }
+.aw-faq .aw-faq-item { padding: 14px 0; border-bottom: 1px solid #e9ecef; }
+.aw-faq .aw-faq-item p:first-child { font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px; }
+.aw-faq .aw-faq-item p:last-child { font-size: 14px; color: #555; margin: 0; line-height: 1.6; }
+.aw-source { text-align: center; font-size: 12px; color: #9ca3af; margin-top: 1.75rem; }
+.aw-source a { color: #02484d; }
+
+@media (max-width: 520px) {
+    .aw-grid { grid-template-columns: 1fr; }
+    .aw-word-text { font-size: 15px; }
+}
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="aw-hero">
     <h1>Any Word Finder</h1>
-    <p>Search by letters, pattern, and length</p>
+    <p>Search by starts with, ends with, contained text, wildcard pattern, letters, and length</p>
 </div>
 
-<div class="aw-body">
-  <form name="form1" action="#" method="post">
+<div class="aw-wrap">
+  <div class="aw-card">
+    <div class="aw-grid">
+      <div class="aw-field">
+        <label for="aw-starts">Starts with</label>
+        <input type="text" id="aw-starts" autocomplete="off" placeholder="e.g. pre">
+      </div>
+      <div class="aw-field">
+        <label for="aw-ends">Ends with</label>
+        <input type="text" id="aw-ends" autocomplete="off" placeholder="e.g. tion">
+      </div>
 
-    <div class="aw-field">
-        <label>Letters That Must Be Contained</label>
-        <input type="text" pattern="[A-Za-z]+" name="must_have" id="must_have" style="width:200px;" value="{{must_have_val}}">
-    </div>
-    <hr class="aw-divider">
+      <div class="aw-field aw-span">
+        <label for="aw-contains">Contains text (letters in a row)</label>
+        <input type="text" id="aw-contains" autocomplete="off" placeholder="e.g. rhy">
+      </div>
 
-    <div class="aw-field">
-        <label>Letters That Must Not Be Contained</label>
-        <input type="text" pattern="[A-Za-z]+" name="must_not_have" id="must_not_have" style="width:200px;" value="{{must_not_have_val}}">
-        <br>
-        <button type="button" class="aw-complement-btn" onclick="fillComplement()">Fill with unused letters</button>
-    </div>
-    <hr class="aw-divider">
-
-    <div class="aw-field">
-        <label>First Letter (single letter or leave blank)</label>
-        <input type="text" pattern="[A-Za-z]+" name="first_letter" style="width:55px;" value="{{first_letter_val}}" maxlength="1">
-    </div>
-    <hr class="aw-divider">
-
-    <div class="aw-field">
-        <label>Sort Order</label>
-        <select name="sort_order">
-          <option value="{{sort_order_val}}">{{sort_order_val}}</option>
-          <option disabled>______</option>
-          <option value="Max-Min">Max-Min</option>
-          <option value="Min-Max">Min-Max</option>
-          <option value="A-Z">A-Z</option>
-          <option value="Z-A">Z-A</option>
-          <option value="Random">Random</option>
-        </select>
-    </div>
-    <hr class="aw-divider">
-
-    <div class="aw-field">
-        <label>Count of Words to Produce</label>
-        <input type="text" pattern="[0-9]*" required name="list_len" style="width:95px;" value="{{list_len_val}}">
-    </div>
-    <hr class="aw-divider">
-
-    <div class="aw-field">
-        <label>Min Word Length</label>
-        <input type="text" pattern="[0-9]*" required name="min_length" style="width:95px;" value="{{min_length_val}}">
-    </div>
-    <hr class="aw-divider">
-
-    <div class="aw-field">
-        <label>Max Word Length</label>
-        <input type="text" pattern="[0-9]*" required name="max_length" style="width:95px;" value="{{max_length_val}}">
+      <div class="aw-field aw-span">
+        <label for="aw-pattern">Pattern (wildcard / SQL-style fuzzy search)</label>
+        <input type="text" id="aw-pattern" autocomplete="off" placeholder="e.g. c?t or pre*ing">
+        <div class="aw-hint">
+          <code data-fill="aw-pattern" data-val="*">*</code> = any letters,
+          <code data-fill="aw-pattern" data-val="?">?</code> = one letter.
+          Try <code data-fill="aw-pattern" data-val="c?t">c?t</code>,
+          <code data-fill="aw-pattern" data-val="*ology">*ology</code>,
+          <code data-fill="aw-pattern" data-val="q??n*">q??n*</code>.
+          SQL <code data-fill="aw-pattern" data-val="%">%</code> and
+          <code data-fill="aw-pattern" data-val="_">_</code> work too.
+        </div>
+      </div>
     </div>
 
-    <input type="submit" value="Find Words" class="aw-submit">
+    <button type="button" class="aw-advanced-toggle" id="aw-advanced-toggle" aria-expanded="false" aria-controls="aw-advanced-body">
+      <span class="aw-chevron">&#9654;</span> More filters
+    </button>
 
-    <ul class="aw-results">
-      {% for item in list_out %}
-      <li>{{ item }}</li>
-      {% endfor %}
-    </ul>
+    <div class="aw-advanced-body" id="aw-advanced-body" hidden>
+      <div class="aw-grid">
+        <div class="aw-field aw-span">
+          <label for="aw-include">Must include letters (any order)</label>
+          <input type="text" id="aw-include" autocomplete="off" placeholder="e.g. aeiou">
+        </div>
+        <div class="aw-field aw-span">
+          <label for="aw-exclude">Exclude letters</label>
+          <input type="text" id="aw-exclude" autocomplete="off" placeholder="e.g. sxz">
+          <button type="button" class="aw-fill-unused" id="aw-fill-unused">Fill with unused letters</button>
+        </div>
+        <div class="aw-field">
+          <label for="aw-min">Min length</label>
+          <input type="text" inputmode="numeric" id="aw-min" autocomplete="off" placeholder="1">
+        </div>
+        <div class="aw-field">
+          <label for="aw-max">Max length</label>
+          <input type="text" inputmode="numeric" id="aw-max" autocomplete="off" placeholder="100">
+        </div>
+        <div class="aw-field aw-span">
+          <label for="aw-sort">Sort order</label>
+          <select id="aw-sort">
+            <option value="Max-Min">Longest first</option>
+            <option value="Min-Max">Shortest first</option>
+            <option value="A-Z">A to Z</option>
+            <option value="Z-A">Z to A</option>
+            <option value="Random">Random</option>
+          </select>
+        </div>
+      </div>
+    </div>
 
-    <a href="/any_word" class="aw-reset">Reset</a>
+    <div class="aw-actions">
+      <button type="button" class="aw-clear" id="aw-clear">Clear</button>
+      <span class="aw-count" id="aw-count"></span>
+    </div>
+  </div>
 
-    <p class="aw-footer"><a href="https://pypi.org/project/english-words/" target="_blank">english-words</a> package used for source word list</p>
-    <br><br>
+  <div class="aw-results" id="aw-results">
+    <div class="aw-empty">Loading words&hellip;</div>
+  </div>
+  <div class="aw-copy-hint" id="aw-copy-hint" style="display:none;">Click a word to copy it &middot; use &ldquo;Define &#8599;&rdquo; to look it up</div>
 
-  </form>
+  <section class="aw-faq">
+    <h2>Frequently Asked Questions</h2>
+    <div class="aw-faq-list">
+      <div class="aw-faq-item">
+        <p>How do I search for words by pattern?</p>
+        <p>Use the pattern field with wildcards. An asterisk (*) matches any run of letters and a question mark (?) matches exactly one letter. For example, c?t matches cat, cot, and cut, while pre* matches every word starting with pre. The SQL LIKE characters % and _ work too.</p>
+      </div>
+      <div class="aw-faq-item">
+        <p>Can I find words that start with or end with certain letters?</p>
+        <p>Yes. Type into the Starts with and Ends with fields to require an exact prefix or suffix, and combine both to pin down words that begin one way and end another.</p>
+      </div>
+      <div class="aw-faq-item">
+        <p>What is the difference between Contains text and Must include letters?</p>
+        <p>Contains text looks for an exact string of letters in a row, like tion. Must include letters only checks that each letter appears somewhere in the word, in any order and any position.</p>
+      </div>
+      <div class="aw-faq-item">
+        <p>Is this word finder free?</p>
+        <p>Yes, it is completely free with no signup required. Results update instantly as you type.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="aw-source"><a href="https://pypi.org/project/english-words/" target="_blank" rel="noopener noreferrer">english-words</a> package used for the source word list</p>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var STEP = 60;
+    var fields = {
+        starts_with: document.getElementById('aw-starts'),
+        ends_with: document.getElementById('aw-ends'),
+        contains: document.getElementById('aw-contains'),
+        pattern: document.getElementById('aw-pattern'),
+        contains_letters: document.getElementById('aw-include'),
+        excludes_letters: document.getElementById('aw-exclude'),
+        min_length: document.getElementById('aw-min'),
+        max_length: document.getElementById('aw-max'),
+        sort_order: document.getElementById('aw-sort')
+    };
+    var resultsEl = document.getElementById('aw-results');
+    var countEl = document.getElementById('aw-count');
+    var copyHint = document.getElementById('aw-copy-hint');
+
+    var allResults = [];
+    var total = 0;
+    var visible = STEP;
+    var searchTimeout = null;
+    var reqToken = 0;
+
+    // Advanced section toggle
+    var advToggle = document.getElementById('aw-advanced-toggle');
+    var advBody = document.getElementById('aw-advanced-body');
+    advToggle.addEventListener('click', function () {
+        var open = advBody.hasAttribute('hidden');
+        if (open) { advBody.removeAttribute('hidden'); } else { advBody.setAttribute('hidden', ''); }
+        advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        advToggle.querySelector('.aw-chevron').style.transform = open ? 'rotate(90deg)' : 'none';
+    });
+
+    // Clickable pattern examples
+    document.querySelectorAll('code[data-fill]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            var target = document.getElementById(el.dataset.fill);
+            target.value = el.dataset.val;
+            target.focus();
+            scheduleSearch();
+        });
+    });
+
+    // "Fill with unused letters": every letter NOT in Must include letters.
+    document.getElementById('aw-fill-unused').addEventListener('click', function () {
+        var have = new Set(fields.contains_letters.value.toLowerCase().replace(/[^a-z]/g, '').split(''));
+        var unused = '';
+        for (var code = 97; code <= 122; code++) {
+            var ch = String.fromCharCode(code);
+            if (!have.has(ch)) { unused += ch; }
+        }
+        fields.excludes_letters.value = unused;
+        scheduleSearch();
+    });
+
+    function payload() {
+        return {
+            starts_with: fields.starts_with.value.trim(),
+            ends_with: fields.ends_with.value.trim(),
+            contains: fields.contains.value.trim(),
+            pattern: fields.pattern.value.trim(),
+            contains_letters: fields.contains_letters.value.trim(),
+            excludes_letters: fields.excludes_letters.value.trim(),
+            min_length: fields.min_length.value.trim(),
+            max_length: fields.max_length.value.trim(),
+            sort_order: fields.sort_order.value
+        };
+    }
+
+    function showEmpty(msg) {
+        resultsEl.innerHTML = '<div class="aw-empty">' + msg + '</div>';
+        copyHint.style.display = 'none';
+        countEl.textContent = '';
+    }
+
+    function scheduleSearch() {
+        clearTimeout(searchTimeout);
+        var p = payload();
+        countEl.textContent = 'searching...';
+        var myToken = ++reqToken;
+        searchTimeout = setTimeout(function () {
+            fetch('/any_word', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(p)
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (myToken !== reqToken) { return; } // stale response, ignore
+                allResults = data.results || [];
+                total = data.total || 0;
+                visible = STEP;
+                render();
+            })
+            .catch(function () {
+                if (myToken !== reqToken) { return; }
+                showEmpty('Something went wrong. Try again.');
+            });
+        }, 220);
+    }
+
+    function render() {
+        if (allResults.length === 0) {
+            showEmpty('No words match those filters.');
+            return;
+        }
+        var shown = allResults.slice(0, visible);
+        var html = '';
+        shown.forEach(function (word) {
+            html += '<div class="aw-word" data-word="' + word + '">' +
+                        '<span class="aw-word-text">' + word + '</span>' +
+                        '<span class="aw-word-len">' + word.length + '</span>' +
+                        '<a class="aw-define" href="https://en.wiktionary.org/wiki/' + word +
+                           '" target="_blank" rel="noopener noreferrer" ' +
+                           'onclick="event.stopPropagation()" ' +
+                           'aria-label="Define ' + word + '">Define &#8599;</a>' +
+                        '<div class="aw-copy-feedback">Copied!</div>' +
+                    '</div>';
+        });
+        resultsEl.innerHTML = html;
+
+        var loaded = Math.min(visible, allResults.length);
+        countEl.textContent = loaded.toLocaleString() + ' of ' + total.toLocaleString() +
+                              (total === 1 ? ' match' : ' matches');
+        copyHint.style.display = 'block';
+
+        document.querySelectorAll('.aw-word').forEach(function (el) {
+            el.addEventListener('click', function () { copyWord(el); });
+        });
+
+        var remaining = allResults.length - visible;
+        if (remaining > 0) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'aw-show-more';
+            btn.textContent = 'Show ' + Math.min(STEP, remaining) + ' more';
+            btn.addEventListener('click', function () { visible += STEP; render(); });
+            resultsEl.appendChild(btn);
+        } else if (total > allResults.length) {
+            // Server caps results at 300; the true total is higher.
+            var note = document.createElement('div');
+            note.className = 'aw-empty';
+            note.style.padding = '0.9rem 1rem';
+            note.textContent = 'Showing the top ' + allResults.length.toLocaleString() +
+                               '. Narrow your search to see the rest.';
+            resultsEl.appendChild(note);
+        }
+    }
+
+    function copyWord(el) {
+        var word = el.dataset.word;
+        var ta = document.createElement('textarea');
+        ta.value = word;
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, 99999);
+        try {
+            document.execCommand('copy');
+            el.classList.add('copied');
+            var fb = el.querySelector('.aw-copy-feedback');
+            fb.classList.add('show');
+            setTimeout(function () {
+                el.classList.remove('copied');
+                fb.classList.remove('show');
+            }, 1400);
+        } catch (e) { /* clipboard unavailable */ }
+        document.body.removeChild(ta);
+    }
+
+    Object.keys(fields).forEach(function (key) {
+        var evt = (key === 'sort_order') ? 'change' : 'input';
+        fields[key].addEventListener(evt, scheduleSearch);
+    });
+
+    document.getElementById('aw-clear').addEventListener('click', function () {
+        Object.keys(fields).forEach(function (key) {
+            if (key === 'sort_order') { fields[key].value = 'Max-Min'; }
+            else { fields[key].value = ''; }
+        });
+        fields.starts_with.focus();
+        scheduleSearch(); // back to the full "all words" list
+    });
+
+    // Start by showing all words (no filters applied).
+    scheduleSearch();
+});
+</script>
 {% endblock %}

@@ -40,22 +40,54 @@ def test_unused_letters():
     assert all_words.unused_letters("abc", "") == ["defghijklmnopqrstuvwxyz"]
 
 
-def test_filter_words_all_respects_constraints():
-    out = all_words.filter_words_all(
-        required_letters="q",
-        forbidden_letters="z",
-        first_letter="",
+def test_search_words_respects_constraints():
+    out, total = all_words.search_words(
+        words,
+        contains_letters="q",
+        excludes_letters="z",
         sort_order="A-Z",
         list_len=5,
-        words=words,
         min_length=4,
         max_length=5,
     )
     assert len(out) <= 5
+    assert total >= len(out)
     for word in out:
         assert "q" in word and "z" not in word
         assert 4 <= len(word) <= 5
     assert out == sorted(out)  # A-Z ordering
+
+
+def test_search_words_starts_ends_and_contains():
+    out, total = all_words.search_words(
+        words, starts_with="pre", ends_with="tion", list_len=1000)
+    assert total == len(out)  # small enough to be untruncated
+    assert total > 0
+    for word in out:
+        assert word.startswith("pre") and word.endswith("tion")
+    # "contains" is a contiguous substring, distinct from must-include letters
+    sub, _ = all_words.search_words(words, contains="zzl", list_len=1000)
+    assert "puzzle" in sub
+    assert all("zzl" in w for w in sub)
+
+
+def test_search_words_wildcard_pattern():
+    out, _ = all_words.search_words(words, pattern="c?t", list_len=1000)
+    # ? matches exactly one letter, so results are all three letters long
+    assert {"cat", "cot", "cut"} <= set(out)
+    assert all(len(w) == 3 and w[0] == "c" and w[2] == "t" for w in out)
+    # * matches any run; % / _ are accepted as SQL-style equivalents
+    star, _ = all_words.search_words(words, pattern="qu*", list_len=1000)
+    assert all(w.startswith("qu") for w in star)
+    assert star == all_words.search_words(words, pattern="qu%", list_len=1000)[0]
+
+
+def test_search_words_no_filter_returns_all_words():
+    # No filters is the page's default "browse all words" state: the true
+    # total is the whole dictionary, with results capped to list_len.
+    out, total = all_words.search_words(words, list_len=50)
+    assert total == len(words)
+    assert len(out) == 50
 
 
 # --- smush -------------------------------------------------------------------

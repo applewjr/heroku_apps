@@ -1,4 +1,5 @@
 import random
+import re
 import pandas as pd
 from datetime import date
 import math
@@ -235,58 +236,94 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
 
     return valid_words[:list_len]
 
-def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length):
-    """
-    Filter a list of words by required and forbidden letters, and an optional first letter.
+def wildcard_to_regex(pattern):
+    """Compile a user wildcard pattern into an anchored regex.
 
-    Args:
-        words (list): A list of words to filter.
-        required_letters (list): A list of letters that must be present in the words.
-        forbidden_letters (list): A list of letters that must not be present in the words.
-        first_letter (str): An optional letter that must be the first letter of the words.
-        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
-        min_length (int): The minimum length of the words to return.
-        max_length (int): The maximum length of the words to return.
-                
-    Returns:
-        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+    SQL-LIKE style, forgiving of both conventions: ``*`` or ``%`` matches any
+    run of characters (including none), ``?`` or ``_`` matches exactly one.
+    Every other character is matched literally (case handled by the caller
+    lowercasing first). Only ``.``/``.*`` ever reach the regex engine, so there
+    is no catastrophic-backtracking risk regardless of input.
     """
+    out = []
+    for ch in pattern:
+        if ch in '*%':
+            out.append('.*')
+        elif ch in '?_':
+            out.append('.')
+        else:
+            out.append(re.escape(ch))
+    return re.compile('^' + ''.join(out) + '$')
 
-    required_letters = [char.lower() for char in required_letters]
-    forbidden_letters = [char.lower() for char in forbidden_letters]
-    first_letter = first_letter.lower()
+
+def search_words(words, starts_with='', ends_with='', contains='',
+                 contains_letters='', excludes_letters='', pattern='',
+                 min_length=1, max_length=100, sort_order='Max-Min',
+                 list_len=300):
+    """Search a word list against any mix of substring / letter / pattern
+    filters. Every supplied filter must pass (logical AND); blank filters are
+    ignored. Returns ``(results, total)`` where ``results`` is truncated to
+    ``list_len`` and ``total`` is the full match count.
+
+    starts_with / ends_with / contains -- literal prefix / suffix / substring.
+    contains_letters -- each of these letters must appear somewhere (any order).
+    excludes_letters -- none of these letters may appear.
+    pattern          -- wildcard pattern (see ``wildcard_to_regex``); must match
+                        the whole word.
+    min_length / max_length -- inclusive length bounds.
+    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', or 'Random'.
+    """
+    starts_with = str(starts_with).lower().strip()
+    ends_with = str(ends_with).lower().strip()
+    contains = str(contains).lower().strip()
+    pattern = str(pattern).lower().strip()
+    contains_letters = [c for c in str(contains_letters).lower() if c.isalpha()]
+    excludes_letters = [c for c in str(excludes_letters).lower() if c.isalpha()]
     min_length = int(min_length)
-    max_length= int(max_length)
-    # words = get_english_words_set(['web2'], lower=True)
-    # words = words
-    # required_letters = list(required_letters[0])
-    # try:
-    #     forbidden_letters = list(forbidden_letters[0])
-    # except:
-    #     forbidden_letters = forbidden_letters
+    max_length = int(max_length)
     list_len = int(list_len)
 
-    valid_words = []
+    regex = wildcard_to_regex(pattern) if pattern else None
+
+    # With no filters set this returns the whole dictionary (capped to
+    # list_len by the caller), which is the page's default "browse all words"
+    # state - every filter below is simply skipped when blank.
+    results = []
     for word in words:
-        word = str(word)
-        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if (first_letter is None or word.startswith(first_letter)) and \
-                    (min_length is None or len(word) >= min_length) and \
-                    (max_length is None or len(word) <= max_length):
-                valid_words.append(word)
+        w = str(word).lower()
+        n = len(w)
+        if n < min_length or n > max_length:
+            continue
+        if starts_with and not w.startswith(starts_with):
+            continue
+        if ends_with and not w.endswith(ends_with):
+            continue
+        if contains and contains not in w:
+            continue
+        if contains_letters and not all(c in w for c in contains_letters):
+            continue
+        if excludes_letters and any(c in w for c in excludes_letters):
+            continue
+        if regex and not regex.match(w):
+            continue
+        results.append(w)
 
+    total = len(results)
+
+    # Secondary alphabetical key keeps ties (and thus the truncated slice)
+    # deterministic for the length-based orders.
     if sort_order == 'A-Z':
-        valid_words.sort()
+        results.sort()
     elif sort_order == 'Z-A':
-        valid_words.sort(reverse=True)
+        results.sort(reverse=True)
     elif sort_order == 'Min-Max':
-        valid_words.sort(key=len)
-    elif sort_order == 'Max-Min':
-        valid_words.sort(key=len, reverse=True)
+        results.sort(key=lambda x: (len(x), x))
     elif sort_order == 'Random':
-        random.shuffle(valid_words)
+        random.shuffle(results)
+    else:  # 'Max-Min' default
+        results.sort(key=lambda x: (-len(x), x))
 
-    return valid_words[:list_len]
+    return results[:list_len], total
 
 def unused_letters_revamp(must_have, may_have, petal):
     called_out = (must_have + may_have + petal).lower()
