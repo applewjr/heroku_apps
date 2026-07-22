@@ -302,10 +302,12 @@ def search_words(words, starts_with='', ends_with='', contains='',
     pattern          -- wildcard pattern (see ``wildcard_match``); must match
                         the whole word.
     min_length / max_length -- inclusive length bounds.
-    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', 'Random', or
-                  'Common' (most common first, needs ``popularity``).
-    popularity -- optional {word: Zipf score} used only by the 'Common' sort;
-                  words absent from it rank as 0.0 (obscure).
+    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', 'Random',
+                  'Common' (most common first), 'Uncommon' (least common first
+                  among scored words, unscored last), or 'Score' (highest
+                  Scrabble score first).
+    popularity -- optional {word: Zipf score} used by the 'Common'/'Uncommon'
+                  sorts; words absent from it rank as 0.0 (obscure).
     """
     starts_with = str(starts_with).lower().strip()
     ends_with = str(ends_with).lower().strip()
@@ -357,6 +359,14 @@ def search_words(words, starts_with='', ends_with='', contains='',
     elif sort_order == 'Common':
         pop = popularity or {}
         results.sort(key=lambda x: (-pop.get(x, 0.0), x))
+    elif sort_order == 'Uncommon':
+        # Least common first, but only among words that HAVE a score: unscored
+        # words (0.0 = absent from the corpus, i.e. obscure) sink to the bottom
+        # rather than dominating the top as "least common".
+        pop = popularity or {}
+        results.sort(key=lambda x: (pop.get(x, 0.0) == 0.0, pop.get(x, 0.0), x))
+    elif sort_order == 'Score':
+        results.sort(key=lambda x: (-scrabble_score(x), x))
     else:  # 'Max-Min' default
         results.sort(key=lambda x: (-len(x), x))
 

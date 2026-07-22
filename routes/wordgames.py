@@ -209,7 +209,8 @@ def run_common_denominator():
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 
-ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random', 'Common'}
+ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random',
+                  'Common', 'Uncommon', 'Score'}
 
 
 @bp.route("/any_word", methods=["POST", "GET"])

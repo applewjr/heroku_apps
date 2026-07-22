@@ -134,6 +134,37 @@ def test_search_words_common_sort_ranks_by_popularity():
     assert pops == sorted(pops, reverse=True)  # non-increasing popularity
 
 
+def test_search_words_uncommon_sort_least_common_scored_first():
+    from data import word_pop
+    out, _ = all_words.search_words(
+        words, sort_order="Uncommon", popularity=word_pop, list_len=50)
+    pops = [word_pop.get(w, 0.0) for w in out]
+    # far more than 50 scored words exist, so the top 50 are all scored...
+    assert all(p > 0 for p in pops)
+    # ...and ordered least-common first
+    assert pops == sorted(pops)
+
+
+def test_search_words_uncommon_sort_sinks_unscored_words():
+    from data import word_pop
+    # a narrow filter that yields both scored and unscored (obscure) matches
+    out, _ = all_words.search_words(
+        words, ends_with="est", sort_order="Uncommon",
+        popularity=word_pop, list_len=1000)
+    pops = [word_pop.get(w, 0.0) for w in out]
+    scored = [p for p in pops if p > 0]
+    # scored words (ascending) come first, then all the 0.0 unscored ones
+    assert scored  # sanity: some scored matches exist
+    assert 0.0 in pops
+    assert pops == sorted(scored) + [0.0] * (len(pops) - len(scored))
+
+
+def test_search_words_score_sort_highest_scrabble_first():
+    out, _ = all_words.search_words(words, sort_order="Score", list_len=50)
+    scores = [all_words.scrabble_score(w) for w in out]
+    assert scores == sorted(scores, reverse=True)
+
+
 def test_word_pop_has_wordfreq_gapfills():
     # word_popularity.csv is Norvig count_1w + wordfreq gap-fills (see
     # scripts/build_word_popularity.py). Sanity-check the merge is present and
