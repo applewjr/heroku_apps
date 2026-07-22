@@ -290,7 +290,7 @@ def wildcard_match(pattern, s):
 def search_words(words, starts_with='', ends_with='', contains='',
                  contains_letters='', excludes_letters='', pattern='',
                  min_length=1, max_length=100, sort_order='Max-Min',
-                 list_len=300):
+                 list_len=300, popularity=None):
     """Search a word list against any mix of substring / letter / pattern
     filters. Every supplied filter must pass (logical AND); blank filters are
     ignored. Returns ``(results, total)`` where ``results`` is truncated to
@@ -302,7 +302,10 @@ def search_words(words, starts_with='', ends_with='', contains='',
     pattern          -- wildcard pattern (see ``wildcard_match``); must match
                         the whole word.
     min_length / max_length -- inclusive length bounds.
-    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', or 'Random'.
+    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', 'Random', or
+                  'Common' (most common first, needs ``popularity``).
+    popularity -- optional {word: Zipf score} used only by the 'Common' sort;
+                  words absent from it rank as 0.0 (obscure).
     """
     starts_with = str(starts_with).lower().strip()
     ends_with = str(ends_with).lower().strip()
@@ -351,6 +354,9 @@ def search_words(words, starts_with='', ends_with='', contains='',
         results.sort(key=lambda x: (len(x), x))
     elif sort_order == 'Random':
         random.shuffle(results)
+    elif sort_order == 'Common':
+        pop = popularity or {}
+        results.sort(key=lambda x: (-pop.get(x, 0.0), x))
     else:  # 'Max-Min' default
         results.sort(key=lambda x: (-len(x), x))
 
@@ -512,6 +518,12 @@ def smush_word_score(word):
     """Base Smush score: sum of letter values over every letter (center
     letter uses count toward the score even though they cost nothing)."""
     return sum(SMUSH_LETTER_VALUES.get(ch, 1) for ch in word)
+
+
+def scrabble_score(word):
+    """Standard Scrabble letter-point total for a word. Shares the Scrabble
+    letter values used by Smush (SMUSH_LETTER_VALUES); non-letters score 0."""
+    return sum(SMUSH_LETTER_VALUES.get(ch, 0) for ch in str(word).lower())
 
 
 def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,

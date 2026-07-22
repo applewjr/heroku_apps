@@ -86,6 +86,12 @@ def test_any_word_post_valid_returns_json(client):
     body = resp.get_json()
     assert "results" in body and "total" in body
     assert isinstance(body["results"], list)
+    # each match is enriched with word / popularity / scrabble-score
+    for item in body["results"]:
+        assert set(item) == {"w", "p", "s"}
+        assert isinstance(item["w"], str)
+        assert isinstance(item["p"], (int, float))
+        assert isinstance(item["s"], int)
 
 
 @pytest.mark.parametrize("field", ["min_length", "max_length"])

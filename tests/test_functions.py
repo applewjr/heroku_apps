@@ -117,6 +117,33 @@ def test_search_words_no_filter_returns_all_words():
     assert len(out) == 50
 
 
+def test_scrabble_score():
+    assert all_words.scrabble_score("cat") == 5      # 3 + 1 + 1
+    assert all_words.scrabble_score("quiz") == 22     # 10 + 1 + 1 + 10
+    assert all_words.scrabble_score("") == 0
+
+
+def test_search_words_common_sort_ranks_by_popularity():
+    from data import word_pop
+    out, _ = all_words.search_words(
+        words, starts_with="th", sort_order="Common",
+        popularity=word_pop, list_len=20)
+    # "the" starts with th and is the most frequent English word
+    assert out[0] == "the"
+    pops = [word_pop.get(w, 0.0) for w in out]
+    assert pops == sorted(pops, reverse=True)  # non-increasing popularity
+
+
+def test_word_pop_has_wordfreq_gapfills():
+    # word_popularity.csv is Norvig count_1w + wordfreq gap-fills (see
+    # scripts/build_word_popularity.py). Sanity-check the merge is present and
+    # that Smush-calibrated common words kept sensible values.
+    from data import word_pop
+    assert len(word_pop) > 90000                 # gap-fills raised coverage
+    assert word_pop["the"] > 7                    # calibrated value preserved
+    assert word_pop.get("abashed", 0.0) > 0.0     # a former gap (was obscure)
+
+
 # --- smush -------------------------------------------------------------------
 
 # The 2026-07-08 board from hankgreen.com/smush: center L, pangram "employing".

@@ -209,7 +209,7 @@ def run_common_denominator():
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 
-ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random'}
+ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random', 'Common'}
 
 
 @bp.route("/any_word", methods=["POST", "GET"])
@@ -254,9 +254,17 @@ def any_word():
             excludes_letters=text_field('excludes_letters'),
             pattern=text_field('pattern'),
             min_length=min_length, max_length=max_length,
-            sort_order=sort_order, list_len=300,
+            sort_order=sort_order, list_len=300, popularity=word_pop,
         )
-        return jsonify(results=results, total=total)
+        # Enrich each returned word with its Zipf popularity (0.0 = absent from
+        # the frequency corpora, i.e. obscure) and Scrabble score. Only the
+        # <=300 shown words are enriched, not every match.
+        enriched = [
+            {'w': w, 'p': round(word_pop.get(w, 0.0), 1),
+             's': all_words.scrabble_score(w)}
+            for w in results
+        ]
+        return jsonify(results=enriched, total=total)
 
     return render_template("any_word.html", schema_data=schema_data)
 

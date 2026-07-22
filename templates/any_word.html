@@ -252,6 +252,61 @@
     font-weight: 700;
     white-space: nowrap;
 }
+/* Popularity meter: signal-style bars filled by rarity tier (0-4). */
+.aw-meter {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+    flex-shrink: 0;
+    cursor: help;
+}
+.aw-meter i {
+    width: 3px;
+    display: inline-block;
+    background: #d8dde1;
+    border-radius: 1px;
+}
+.aw-meter i:nth-child(1) { height: 5px; }
+.aw-meter i:nth-child(2) { height: 8px; }
+.aw-meter i:nth-child(3) { height: 11px; }
+.aw-meter i:nth-child(4) { height: 14px; }
+.aw-meter i.on { background: #02484d; }
+/* Scrabble score badge */
+.aw-word-pts {
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
+    background: #f0fafa;
+    color: #02484d;
+    border: 1px solid #d7ebeb;
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.aw-word.copied .aw-word-pts { background: transparent; color: #fff; border-color: rgba(255,255,255,0.7); }
+.aw-word.copied .aw-meter i { background: rgba(255,255,255,0.45); }
+.aw-word.copied .aw-meter i.on { background: #fff; }
+.aw-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.aw-legend .aw-meter { cursor: default; }
+.aw-pts-key {
+    background: #f0fafa;
+    color: #02484d;
+    border: 1px solid #d7ebeb;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 10px;
+}
 .aw-define {
     flex-shrink: 0;
     font-size: 12px;
@@ -401,6 +456,7 @@
           <select id="aw-sort">
             <option value="Max-Min">Longest first</option>
             <option value="Min-Max">Shortest first</option>
+            <option value="Common">Most common first</option>
             <option value="A-Z">A to Z</option>
             <option value="Z-A">Z to A</option>
             <option value="Random">Random</option>
@@ -418,7 +474,14 @@
   <div class="aw-results" id="aw-results">
     <div class="aw-empty">Loading words&hellip;</div>
   </div>
-  <div class="aw-copy-hint" id="aw-copy-hint" style="display:none;">Click a word to copy it &middot; use &ldquo;Define &#8599;&rdquo; to look it up</div>
+  <div class="aw-copy-hint" id="aw-copy-hint" style="display:none;">
+    Click a word to copy it &middot; use &ldquo;Define &#8599;&rdquo; to look it up
+    <br>
+    <span class="aw-legend">
+      <span class="aw-meter" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> how common the word is &middot;
+      <span class="aw-pts-key">12</span> Scrabble score
+    </span>
+  </div>
 
   <section class="aw-faq">
     <h2>Frequently Asked Questions</h2>
@@ -547,6 +610,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 220);
     }
 
+    // Map a Zipf popularity score (0 = absent from the corpus) to a rarity
+    // tier 0-4 and a human label for the meter tooltip.
+    function popInfo(p) {
+        var tier, label;
+        if (p >= 5.0) { tier = 4; label = 'Very common'; }
+        else if (p >= 4.0) { tier = 3; label = 'Common'; }
+        else if (p >= 3.0) { tier = 2; label = 'Uncommon'; }
+        else if (p > 0) { tier = 1; label = 'Rare'; }
+        else { tier = 0; label = 'Obscure'; }
+        var title = (tier === 0)
+            ? 'Obscure - not in the frequency corpus'
+            : label + ' - Zipf ' + p.toFixed(1);
+        return { tier: tier, label: label, title: title };
+    }
+
+    function meterBars(tier) {
+        var s = '';
+        for (var i = 0; i < 4; i++) {
+            s += '<i' + (i < tier ? ' class="on"' : '') + '></i>';
+        }
+        return s;
+    }
+
     function render() {
         if (allResults.length === 0) {
             showEmpty('No words match those filters.');
@@ -554,10 +640,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         var shown = allResults.slice(0, visible);
         var html = '';
-        shown.forEach(function (word) {
+        shown.forEach(function (r) {
+            var word = r.w;
+            var info = popInfo(r.p);
             html += '<div class="aw-word" data-word="' + word + '">' +
                         '<span class="aw-word-text">' + word + '</span>' +
-                        '<span class="aw-word-len">' + word.length + '</span>' +
+                        '<span class="aw-meter" title="' + info.title + '">' + meterBars(info.tier) + '</span>' +
+                        '<span class="aw-word-pts" title="Scrabble score">' + r.s + '</span>' +
+                        '<span class="aw-word-len" title="Letters">' + word.length + '</span>' +
                         '<a class="aw-define" href="https://en.wiktionary.org/wiki/' + word +
                            '" target="_blank" rel="noopener noreferrer" ' +
                            'onclick="event.stopPropagation()" ' +
