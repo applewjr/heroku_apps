@@ -122,7 +122,19 @@
        title so the full text shows on hover). .table-scroll handles overflow on
        narrow screens. */
     .dashboard-section table[data-collapse] {
-        table-layout: fixed; max-width: none; min-width: 1420px;
+        table-layout: fixed; max-width: none;
+        /* Floor the table wide enough that the auto Video column keeps a usable
+           minimum instead of collapsing on narrow screens. The 11 non-Video
+           columns actually render at ~1432px: their set widths below sum to
+           1157px, PLUS 24px of horizontal padding each - box-sizing is
+           content-box here (the global border-box reset only covers inputs), so
+           every px width below is content, not border, box. In fixed layout the
+           table can't shrink below the sum of its columns, so if min-width is
+           less than that ~1432px the fixed columns eat everything and Video (the
+           auto column) collapses to just its padding. min-width must clear
+           ~1432px PLUS the Video floor we want (~285px). Below this,
+           .table-scroll scrolls horizontally rather than squeezing Video. */
+        min-width: 1740px;
     }
     /* Numeric columns are sized to hold their header on one line (with room for
        the sort-arrow that appears on the active column); headers stay nowrap (no
