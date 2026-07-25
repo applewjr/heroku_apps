@@ -220,6 +220,31 @@
 .rb-node.frog input { display: none; }
 .rb-frog { font-size: clamp(16px, 5vw, 24px); line-height: 1; }
 
+/* ---------- rotate animation ---------- */
+/* Spin the tile + connection layers 90deg clockwise about the board centre,
+   and counter-rotate the glyphs so letters/frogs/badges stay upright while the
+   board turns under them. The data remap is committed at the end (see JS),
+   which redraws everything at its new slot - visually identical to the spun
+   state, so the hand-off is seamless. */
+.rb-edges, .rb-nodes { transition: transform 0.35s ease; transform-origin: 50% 50%; }
+.rb-board-wrap.rotating { pointer-events: none; }
+.rb-board-wrap.rotating .rb-edges,
+.rb-board-wrap.rotating .rb-nodes { transform: rotate(90deg); }
+.rb-node input, .rb-frog, .rb-count { transition: transform 0.35s ease; }
+.rb-board-wrap.rotating .rb-node input,
+.rb-board-wrap.rotating .rb-frog,
+.rb-board-wrap.rotating .rb-count { transform: rotate(-90deg); }
+/* the commit re-renders at the new slots; suppress transitions for that frame
+   so nothing animates back from the rotated transform */
+.rb-board-wrap.no-anim .rb-edges,
+.rb-board-wrap.no-anim .rb-nodes,
+.rb-board-wrap.no-anim .rb-node input,
+.rb-board-wrap.no-anim .rb-frog,
+.rb-board-wrap.no-anim .rb-count { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .rb-edges, .rb-nodes, .rb-node input, .rb-frog, .rb-count { transition: none !important; }
+}
+
 .rb-count {
     position: absolute;
     top: -7px;
@@ -616,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let keyWords = new Set();     // words that are the only reach to some tile
 
     let gesture = null;           // {mode:'link'|'erase', lastCell, moved}
+    let rotating = false;         // true during the rotate spin (blocks board input)
     let fetchTimer = null, fetchSeq = 0;
 
     const wrap = document.getElementById('rb-board-wrap');
@@ -789,6 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // In Type mode the native input focus handles taps (so the mobile keyboard
     // opens reliably); Link/Erase and Solve are driven by pointer geometry.
     wrap.addEventListener('pointerdown', e => {
+        if (rotating) return;
         const cell = cellAt(e.clientX, e.clientY);
         if (cell < 0) return;
         if (phase === 'solve') {
@@ -869,8 +896,10 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => setTool(b.dataset.tool)));
 
     /* ---------- rotate + clear ---------- */
-    // rotate the whole board 90 degrees clockwise: cell (r, c) -> (c, N-1-r)
-    document.getElementById('rotate-btn').addEventListener('click', () => {
+    // Remap the board 90 degrees clockwise: slot (r, c) -> (c, N-1-r). This
+    // matches a visual rotate(90deg) of the board, so the animation and the
+    // committed data line up exactly.
+    function commitRotation() {
         const map = new Array(N * N);
         for (let r = 0; r < N; r++)
             for (let c = 0; c < N; c++) map[idx(r, c)] = idx(c, N - 1 - r);
@@ -882,6 +911,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAll();
         persist();
         if (phase === 'solve') scheduleFetch();
+    }
+
+    document.getElementById('rotate-btn').addEventListener('click', () => {
+        if (rotating) return;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) { commitRotation(); return; }
+        rotating = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        wrap.classList.add('rotating');   // spins tiles+edges +90, glyphs -90 (see CSS)
+        setTimeout(() => {
+            // Commit at the new slots with transitions suppressed, so nothing
+            // animates back from the rotated transform - the tiles are already
+            // drawn where the spin left them.
+            wrap.classList.add('no-anim');
+            wrap.classList.remove('rotating');
+            commitRotation();
+            void wrap.offsetWidth;         // flush styles before re-enabling transitions
+            wrap.classList.remove('no-anim');
+            rotating = false;
+        }, 380);
     });
 
     document.getElementById('clear-btn').addEventListener('click', () => {
