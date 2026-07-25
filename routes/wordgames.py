@@ -209,27 +209,65 @@ def run_common_denominator():
             user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 
+ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random',
+                  'Common', 'Uncommon', 'Score'}
+
+
 @bp.route("/any_word", methods=["POST", "GET"])
 def any_word():
+    schema_data = make_schema_data(
+        "Any Word Finder - Search Words by Pattern",
+        "Free word finder. Search a large dictionary by starts-with, ends-with, "
+        "contained text, wildcard pattern, letters, and length.",
+        "https://jamesapplewhite.com/any_word",
+    )
+
     if request.method == "POST":
-        must_have = request.form["must_have"]
-        must_not_have = request.form["must_not_have"]
-        first_letter = request.form["first_letter"]
-        sort_order = request.form["sort_order"]
-        # Parsed here so junk input 400s instead of 500ing on the int() casts
-        # inside filter_words_all.
-        list_len = parse_int(request.form["list_len"], "list_len",
-                             default=10, min_value=1, max_value=1000)
-        min_length = parse_int(request.form["min_length"], "min_length",
+        # Live-search endpoint (see any_word.html): a JSON body of filters in,
+        # ranked matches out. get_json() yields a clean 415 for non-JSON bodies;
+        # a JSON null / non-dict payload would 500 on .get, so guard the shape.
+        data = request.get_json()
+        if not isinstance(data, dict):
+            data = {}
+
+        def text_field(key, max_len=30):
+            val = data.get(key, '')
+            if not isinstance(val, str) or len(val) > max_len:
+                raise ValidationError(
+                    f"{key} must be a string of at most {max_len} characters")
+            return val
+
+        sort_order = text_field('sort_order', 10)
+        if sort_order not in ANY_WORD_SORTS:
+            sort_order = 'Max-Min'
+        # Parsed defensively so junk input 400s instead of 500ing on int() casts.
+        min_length = parse_int(data.get('min_length'), 'min_length',
                                default=1, min_value=1, max_value=100)
-        max_length = parse_int(request.form["max_length"], "max_length",
+        max_length = parse_int(data.get('max_length'), 'max_length',
                                default=100, min_value=1, max_value=100)
-        list_out = all_words.filter_words_all(must_have, must_not_have, first_letter, sort_order, list_len, words, min_length, max_length)
-        return render_template("any_word.html", list_out=list_out, \
-            must_have_val=must_have, must_not_have_val=must_not_have, first_letter_val=first_letter, sort_order_val=sort_order, list_len_val=list_len, \
-            min_length_val=min_length, max_length_val=max_length)
-    else:
-        return render_template("any_word.html", sort_order_val='Max-Min', list_len_val=10, min_length_val=1, max_length_val=100)
+
+        results, total = all_words.search_words(
+            words,
+            starts_with=text_field('starts_with'),
+            ends_with=text_field('ends_with'),
+            contains=text_field('contains'),
+            contains_letters=text_field('contains_letters'),
+            excludes_letters=text_field('excludes_letters'),
+            pattern=text_field('pattern'),
+            min_length=min_length, max_length=max_length,
+            sort_order=sort_order, list_len=300, popularity=word_pop,
+        )
+        # Enrich each returned word with its Zipf popularity (0.0 = absent from
+        # the frequency corpora, i.e. obscure) and Scrabble score. Only the
+        # <=300 shown words are enriched, not every match.
+        enriched = [
+            {'w': w, 'p': round(word_pop.get(w, 0.0), 1),
+             's': all_words.scrabble_score(w)}
+            for w in results
+        ]
+        return jsonify(results=enriched, total=total)
+
+    return render_template("any_word.html", schema_data=schema_data)
 
 
 # Memoized in the module (not SimpleCache: that pickles, so every cache.get

@@ -66,9 +66,11 @@ def test_protected_dashboard_requires_auth(client):
 # Junk input (scanner probes) in numeric form fields -> clean 400, never a 500.
 # ---------------------------------------------------------------------------
 
-ANY_WORD_FORM = {
-    "must_have": "tr", "must_not_have": "z", "first_letter": "s",
-    "sort_order": "Max-Min", "list_len": "10", "min_length": "1", "max_length": "100",
+# /any_word is now a JSON live-search endpoint (like /wordiply).
+ANY_WORD_JSON = {
+    "starts_with": "pre", "ends_with": "tion", "contains": "",
+    "pattern": "", "contains_letters": "a", "excludes_letters": "z",
+    "sort_order": "Max-Min", "min_length": "1", "max_length": "100",
 }
 
 COMMON_DENOM_FORM = {
@@ -78,13 +80,23 @@ COMMON_DENOM_FORM = {
 }
 
 
-def test_any_word_post_valid_returns_200(client):
-    assert client.post("/any_word", data=ANY_WORD_FORM).status_code == 200
+def test_any_word_post_valid_returns_json(client):
+    resp = client.post("/any_word", json=ANY_WORD_JSON)
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert "results" in body and "total" in body
+    assert isinstance(body["results"], list)
+    # each match is enriched with word / popularity / scrabble-score
+    for item in body["results"]:
+        assert set(item) == {"w", "p", "s"}
+        assert isinstance(item["w"], str)
+        assert isinstance(item["p"], (int, float))
+        assert isinstance(item["s"], int)
 
 
-@pytest.mark.parametrize("field", ["list_len", "min_length", "max_length"])
+@pytest.mark.parametrize("field", ["min_length", "max_length"])
 def test_any_word_post_junk_numeric_returns_400(client, field):
-    resp = client.post("/any_word", data={**ANY_WORD_FORM, field: "25AND 1=1"})
+    resp = client.post("/any_word", json={**ANY_WORD_JSON, field: "25AND 1=1"})
     assert resp.status_code == 400
 
 
@@ -150,7 +162,7 @@ def test_espresso_explore_non_finite_returns_400(client, bad):
 # Exception handler used to convert 400/405/415 into logged-traceback 500s.
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("path", ["/fixer", "/any_word", "/feedback"])
+@pytest.mark.parametrize("path", ["/fixer", "/feedback"])
 def test_missing_form_fields_return_400_not_500(client, path):
     assert client.post(path, data={}).status_code == 400
 
@@ -168,6 +180,18 @@ def test_wordiply_non_json_body_returns_415(client):
 def test_wordiply_json_null_body_returns_200(client):
     # A literal `null` JSON body falls back to the default (empty) search.
     resp = client.post("/wordiply", data="null", content_type="application/json")
+    assert resp.status_code == 200
+
+
+def test_any_word_non_json_body_returns_415(client):
+    resp = client.post("/any_word", data="x=1",
+                       content_type="application/x-www-form-urlencoded")
+    assert resp.status_code == 415
+
+
+def test_any_word_json_null_body_returns_200(client):
+    # A literal `null` JSON body falls back to the default (no-filter) search.
+    resp = client.post("/any_word", data="null", content_type="application/json")
     assert resp.status_code == 200
 
 

@@ -235,58 +235,142 @@ def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
 
     return valid_words[:list_len]
 
-def filter_words_all(required_letters, forbidden_letters, first_letter, sort_order, list_len, words, min_length, max_length):
-    """
-    Filter a list of words by required and forbidden letters, and an optional first letter.
+def normalize_wildcard(pattern):
+    """Normalize a user wildcard pattern to the tokens ``wildcard_match`` uses.
 
-    Args:
-        words (list): A list of words to filter.
-        required_letters (list): A list of letters that must be present in the words.
-        forbidden_letters (list): A list of letters that must not be present in the words.
-        first_letter (str): An optional letter that must be the first letter of the words.
-        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
-        min_length (int): The minimum length of the words to return.
-        max_length (int): The maximum length of the words to return.
-                
-    Returns:
-        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
+    SQL-LIKE style, forgiving of both conventions: ``*`` or ``%`` -> ``*`` (any
+    run of characters, including none), ``?`` or ``_`` -> ``?`` (exactly one),
+    every other character stays a literal. Consecutive any-run wildcards are
+    collapsed to a single ``*`` (``**`` and ``*`` mean the same thing).
     """
+    out = []
+    for ch in pattern:
+        c = '*' if ch in '*%' else '?' if ch in '?_' else ch
+        if c == '*' and out and out[-1] == '*':
+            continue
+        out.append(c)
+    return ''.join(out)
 
-    required_letters = [char.lower() for char in required_letters]
-    forbidden_letters = [char.lower() for char in forbidden_letters]
-    first_letter = first_letter.lower()
+
+def wildcard_match(pattern, s):
+    """Anchored glob match of ``s`` against a normalized wildcard ``pattern``
+    (``*`` = any run, ``?`` = one char, else literal).
+
+    Deliberately NOT implemented by translating the pattern to a regex:
+    adjacent ``.*`` segments make the regex engine backtrack combinatorially,
+    so a hostile pattern like ``****************z`` against long words hangs a
+    worker for seconds each (a denial-of-service vector). This iterative
+    two-pointer scan is O(len(s) * len(pattern)) worst case with no
+    backtracking blowup.
+    """
+    n, m = len(s), len(pattern)
+    si = pi = 0
+    star = -1        # index just past the most recent '*' in the pattern
+    star_si = 0      # where in s that '*' started matching from
+    while si < n:
+        if pi < m and (pattern[pi] == '?' or pattern[pi] == s[si]):
+            si += 1
+            pi += 1
+        elif pi < m and pattern[pi] == '*':
+            star = pi
+            star_si = si
+            pi += 1
+        elif star != -1:
+            # backtrack: let the last '*' swallow one more character
+            pi = star + 1
+            star_si += 1
+            si = star_si
+        else:
+            return False
+    while pi < m and pattern[pi] == '*':
+        pi += 1
+    return pi == m
+
+
+def search_words(words, starts_with='', ends_with='', contains='',
+                 contains_letters='', excludes_letters='', pattern='',
+                 min_length=1, max_length=100, sort_order='Max-Min',
+                 list_len=300, popularity=None):
+    """Search a word list against any mix of substring / letter / pattern
+    filters. Every supplied filter must pass (logical AND); blank filters are
+    ignored. Returns ``(results, total)`` where ``results`` is truncated to
+    ``list_len`` and ``total`` is the full match count.
+
+    starts_with / ends_with / contains -- literal prefix / suffix / substring.
+    contains_letters -- each of these letters must appear somewhere (any order).
+    excludes_letters -- none of these letters may appear.
+    pattern          -- wildcard pattern (see ``wildcard_match``); must match
+                        the whole word.
+    min_length / max_length -- inclusive length bounds.
+    sort_order -- 'Max-Min' (default), 'Min-Max', 'A-Z', 'Z-A', 'Random',
+                  'Common' (most common first), 'Uncommon' (least common first
+                  among scored words, unscored last), or 'Score' (highest
+                  Scrabble score first).
+    popularity -- optional {word: Zipf score} used by the 'Common'/'Uncommon'
+                  sorts; words absent from it rank as 0.0 (obscure).
+    """
+    starts_with = str(starts_with).lower().strip()
+    ends_with = str(ends_with).lower().strip()
+    contains = str(contains).lower().strip()
+    pattern = str(pattern).lower().strip()
+    contains_letters = [c for c in str(contains_letters).lower() if c.isalpha()]
+    excludes_letters = [c for c in str(excludes_letters).lower() if c.isalpha()]
     min_length = int(min_length)
-    max_length= int(max_length)
-    # words = get_english_words_set(['web2'], lower=True)
-    # words = words
-    # required_letters = list(required_letters[0])
-    # try:
-    #     forbidden_letters = list(forbidden_letters[0])
-    # except:
-    #     forbidden_letters = forbidden_letters
+    max_length = int(max_length)
     list_len = int(list_len)
 
-    valid_words = []
+    pattern = normalize_wildcard(pattern) if pattern else ''
+
+    # With no filters set this returns the whole dictionary (capped to
+    # list_len by the caller), which is the page's default "browse all words"
+    # state - every filter below is simply skipped when blank.
+    results = []
     for word in words:
-        word = str(word)
-        if all(letter in word for letter in required_letters) and all(letter not in word for letter in forbidden_letters):
-            if (first_letter is None or word.startswith(first_letter)) and \
-                    (min_length is None or len(word) >= min_length) and \
-                    (max_length is None or len(word) <= max_length):
-                valid_words.append(word)
+        w = str(word).lower()
+        n = len(w)
+        if n < min_length or n > max_length:
+            continue
+        if starts_with and not w.startswith(starts_with):
+            continue
+        if ends_with and not w.endswith(ends_with):
+            continue
+        if contains and contains not in w:
+            continue
+        if contains_letters and not all(c in w for c in contains_letters):
+            continue
+        if excludes_letters and any(c in w for c in excludes_letters):
+            continue
+        if pattern and not wildcard_match(pattern, w):
+            continue
+        results.append(w)
 
+    total = len(results)
+
+    # Secondary alphabetical key keeps ties (and thus the truncated slice)
+    # deterministic for the length-based orders.
     if sort_order == 'A-Z':
-        valid_words.sort()
+        results.sort()
     elif sort_order == 'Z-A':
-        valid_words.sort(reverse=True)
+        results.sort(reverse=True)
     elif sort_order == 'Min-Max':
-        valid_words.sort(key=len)
-    elif sort_order == 'Max-Min':
-        valid_words.sort(key=len, reverse=True)
+        results.sort(key=lambda x: (len(x), x))
     elif sort_order == 'Random':
-        random.shuffle(valid_words)
+        random.shuffle(results)
+    elif sort_order == 'Common':
+        pop = popularity or {}
+        results.sort(key=lambda x: (-pop.get(x, 0.0), x))
+    elif sort_order == 'Uncommon':
+        # Least common first, but only among words that HAVE a score: unscored
+        # words (0.0 = absent from the corpus, i.e. obscure) sink to the bottom
+        # rather than dominating the top as "least common".
+        pop = popularity or {}
+        results.sort(key=lambda x: (pop.get(x, 0.0) == 0.0, pop.get(x, 0.0), x))
+    elif sort_order == 'Score':
+        results.sort(key=lambda x: (-scrabble_score(x), x))
+    else:  # 'Max-Min' default
+        results.sort(key=lambda x: (-len(x), x))
 
-    return valid_words[:list_len]
+    return results[:list_len], total
 
 def unused_letters_revamp(must_have, may_have, petal):
     called_out = (must_have + may_have + petal).lower()
@@ -444,6 +528,12 @@ def smush_word_score(word):
     """Base Smush score: sum of letter values over every letter (center
     letter uses count toward the score even though they cost nothing)."""
     return sum(SMUSH_LETTER_VALUES.get(ch, 1) for ch in word)
+
+
+def scrabble_score(word):
+    """Standard Scrabble letter-point total for a word. Shares the Scrabble
+    letter values used by Smush (SMUSH_LETTER_VALUES); non-letters score 0."""
+    return sum(SMUSH_LETTER_VALUES.get(ch, 0) for ch in str(word).lower())
 
 
 def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,

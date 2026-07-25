@@ -40,22 +40,139 @@ def test_unused_letters():
     assert all_words.unused_letters("abc", "") == ["defghijklmnopqrstuvwxyz"]
 
 
-def test_filter_words_all_respects_constraints():
-    out = all_words.filter_words_all(
-        required_letters="q",
-        forbidden_letters="z",
-        first_letter="",
+def test_search_words_respects_constraints():
+    out, total = all_words.search_words(
+        words,
+        contains_letters="q",
+        excludes_letters="z",
         sort_order="A-Z",
         list_len=5,
-        words=words,
         min_length=4,
         max_length=5,
     )
     assert len(out) <= 5
+    assert total >= len(out)
     for word in out:
         assert "q" in word and "z" not in word
         assert 4 <= len(word) <= 5
     assert out == sorted(out)  # A-Z ordering
+
+
+def test_search_words_starts_ends_and_contains():
+    out, total = all_words.search_words(
+        words, starts_with="pre", ends_with="tion", list_len=1000)
+    assert total == len(out)  # small enough to be untruncated
+    assert total > 0
+    for word in out:
+        assert word.startswith("pre") and word.endswith("tion")
+    # "contains" is a contiguous substring, distinct from must-include letters
+    sub, _ = all_words.search_words(words, contains="zzl", list_len=1000)
+    assert "puzzle" in sub
+    assert all("zzl" in w for w in sub)
+
+
+def test_search_words_wildcard_pattern():
+    out, _ = all_words.search_words(words, pattern="c?t", list_len=1000)
+    # ? matches exactly one letter, so results are all three letters long
+    assert {"cat", "cot", "cut"} <= set(out)
+    assert all(len(w) == 3 and w[0] == "c" and w[2] == "t" for w in out)
+    # * matches any run; % / _ are accepted as SQL-style equivalents
+    star, _ = all_words.search_words(words, pattern="qu*", list_len=1000)
+    assert all(w.startswith("qu") for w in star)
+    assert star == all_words.search_words(words, pattern="qu%", list_len=1000)[0]
+
+
+def test_wildcard_match_semantics():
+    # anchored full-word match: '*' any run, '?' exactly one, else literal
+    assert all_words.wildcard_match("c?t", "cat")
+    assert not all_words.wildcard_match("c?t", "cats")   # anchored, not "contains"
+    assert all_words.wildcard_match("c*t", "caught")
+    assert all_words.wildcard_match("*", "anything")
+    assert all_words.wildcard_match("pre*ing", "prewashing")
+    assert not all_words.wildcard_match("pre*ing", "presiding" + "x")
+    # normalize_wildcard folds SQL wildcards and collapses runs of '*'
+    assert all_words.normalize_wildcard("a%_b**c") == "a*?b*c"
+
+
+def test_search_words_pattern_is_not_vulnerable_to_backtracking():
+    # Regression guard: translating this pattern to a regex made the engine
+    # backtrack combinatorially (seconds per long word, hanging the worker).
+    # The linear matcher resolves the whole dictionary in well under a second.
+    import time
+    hostile = "*" * 29 + "z"
+    start = time.perf_counter()
+    out, total = all_words.search_words(words, pattern=hostile, list_len=50)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 2.0, f"pattern search took {elapsed:.2f}s (possible ReDoS)"
+    # every match ends in z (the trailing literal); the leading * runs collapse
+    assert all(w.endswith("z") for w in out)
+    assert total >= len(out)
+
+
+def test_search_words_no_filter_returns_all_words():
+    # No filters is the page's default "browse all words" state: the true
+    # total is the whole dictionary, with results capped to list_len.
+    out, total = all_words.search_words(words, list_len=50)
+    assert total == len(words)
+    assert len(out) == 50
+
+
+def test_scrabble_score():
+    assert all_words.scrabble_score("cat") == 5      # 3 + 1 + 1
+    assert all_words.scrabble_score("quiz") == 22     # 10 + 1 + 1 + 10
+    assert all_words.scrabble_score("") == 0
+
+
+def test_search_words_common_sort_ranks_by_popularity():
+    from data import word_pop
+    out, _ = all_words.search_words(
+        words, starts_with="th", sort_order="Common",
+        popularity=word_pop, list_len=20)
+    # "the" starts with th and is the most frequent English word
+    assert out[0] == "the"
+    pops = [word_pop.get(w, 0.0) for w in out]
+    assert pops == sorted(pops, reverse=True)  # non-increasing popularity
+
+
+def test_search_words_uncommon_sort_least_common_scored_first():
+    from data import word_pop
+    out, _ = all_words.search_words(
+        words, sort_order="Uncommon", popularity=word_pop, list_len=50)
+    pops = [word_pop.get(w, 0.0) for w in out]
+    # far more than 50 scored words exist, so the top 50 are all scored...
+    assert all(p > 0 for p in pops)
+    # ...and ordered least-common first
+    assert pops == sorted(pops)
+
+
+def test_search_words_uncommon_sort_sinks_unscored_words():
+    from data import word_pop
+    # a narrow filter that yields both scored and unscored (obscure) matches
+    out, _ = all_words.search_words(
+        words, ends_with="est", sort_order="Uncommon",
+        popularity=word_pop, list_len=1000)
+    pops = [word_pop.get(w, 0.0) for w in out]
+    scored = [p for p in pops if p > 0]
+    # scored words (ascending) come first, then all the 0.0 unscored ones
+    assert scored  # sanity: some scored matches exist
+    assert 0.0 in pops
+    assert pops == sorted(scored) + [0.0] * (len(pops) - len(scored))
+
+
+def test_search_words_score_sort_highest_scrabble_first():
+    out, _ = all_words.search_words(words, sort_order="Score", list_len=50)
+    scores = [all_words.scrabble_score(w) for w in out]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_word_pop_has_wordfreq_gapfills():
+    # word_popularity.csv is Norvig count_1w + wordfreq gap-fills (see
+    # scripts/build_word_popularity.py). Sanity-check the merge is present and
+    # that Smush-calibrated common words kept sensible values.
+    from data import word_pop
+    assert len(word_pop) > 90000                 # gap-fills raised coverage
+    assert word_pop["the"] > 7                    # calibrated value preserved
+    assert word_pop.get("abashed", 0.0) > 0.0     # a former gap (was obscure)
 
 
 # --- smush -------------------------------------------------------------------
