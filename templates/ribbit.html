@@ -1,0 +1,1242 @@
+{% extends 'base.html' %}
+
+{% block title %}Ribbit Solver - Find Every Word on Today's Board{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Solve Puzzmo's Ribbit in seconds. Type today's 4x4 board, draw the connections, and see every word you can trace - longest first, with rare words flagged so you know which the game might refuse. Free solver for the daily frog word game.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/ribbit">
+<meta name="keywords" content="ribbit solver, ribbit puzzmo, ribbit word game, puzzmo ribbit answers, ribbit help, ribbit word finder, frog word game solver, ribbit today">
+<meta property="og:title" content="Ribbit Solver - Find Every Word on Today's Board">
+<meta property="og:description" content="Type Puzzmo's 4x4 Ribbit board, draw the connections, and instantly see every word you can trace, ranked longest first, with rare words flagged. Mark words found or refused and clear tiles as they turn into frogs.">
+<meta property="og:url" content="https://jamesapplewhite.com/ribbit">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Ribbit?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Ribbit is Puzzmo's daily word game. You are given a 4x4 board of letter tiles joined by drawn connections, and you make words by tracing a path from one connected tile to the next. Every word must be at least four letters long. As you find the words that use a tile, it clears from the board and turns into a frog. The goal is to clear every tile."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this Ribbit solver work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type today's 4x4 board into the grid, then draw the same connections the game shows by dragging a line across the tiles - across a whole row, column, or diagonal to link them all at once. The solver lists every word you can trace on that board, longest first. Mark a word as found or as refused to hide it, and tap a tile to clear it once Ribbit turns it into a frog - the word list updates to match."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I enter the board?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The board is a fixed 4x4 grid. Tap a square and type its letter - it advances to the next square automatically. Then draw connections by dragging a line across the connected tiles: a straight drag across a row, column, or diagonal links every tile it crosses in one motion. Connections can run up, down, left, right, or diagonally. Switch on Erase links and drag across a connection to remove it. Use Rotate to spin the board to match the game's orientation."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How are words ranked?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "By default the solver lists the longest words first, because those are usually the marquee words a Ribbit board is built around. You can switch to Common first to surface the words the game is most likely to accept. Each result shows its length, and rare words are flagged so you know which ones Ribbit may refuse."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Will Ribbit accept every word this solver suggests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Not always. Puzzmo's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the X on it: it is hidden without affecting anything else, and you carry on."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does clearing tiles work in the solver?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "In Ribbit a tile turns into a frog once you have found every word that uses it - there is no fixed number of uses. Because Puzzmo keeps the exact rule private, the solver leaves clearing in your hands: when the game frogs a tile, tap that tile to clear it here too. Any word that could only be traced through a cleared tile drops out of the list, keeping your remaining suggestions accurate."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial solver for the Ribbit word game, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by Puzzmo. You can play the real game at puzzmo.com."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- phase + tools ---------- */
+.rb-phase, .rb-tools {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 14px auto 0;
+    max-width: 480px;
+}
+
+.rb-phase-btn, .rb-tool, .rb-ctrl {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.rb-phase-btn:hover, .rb-tool:hover, .rb-ctrl:hover {
+    background-color: #02484d; color: #fff; border-color: #02484d;
+}
+.rb-phase-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+.rb-tool.active { background-color: #e55555; color: #fff; border-color: #c0392b; }
+.rb-tool.active:hover { background-color: #d94444; }
+.rb-tools { display: none; margin-top: 10px; }
+.rb-tools.visible { display: flex; }
+
+.rb-hint {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 10px auto 0;
+    max-width: 460px;
+    min-height: 18px;
+    padding: 0 12px;
+    line-height: 1.4;
+}
+
+/* ---------- board (fixed 4x4 grid) ---------- */
+.rb-board-wrap {
+    position: relative;
+    width: min(92vw, 440px);
+    aspect-ratio: 1;
+    margin: 12px auto 4px;
+    background-color: #f4f8f8;
+    border: 2px solid #cfe0e0;
+    border-radius: 14px;
+    /* stop touch drags from scrolling the page while typing/linking */
+    touch-action: none;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.rb-board-wrap.solving { border-color: #02484d; background-color: #eef4f4; }
+
+.rb-edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.rb-edges .rb-edge { stroke: #4f9a97; stroke-width: 4; stroke-linecap: round; }
+.rb-edges .rb-edge.hl { stroke: #ffd700; stroke-width: 6; }
+
+/* the whole board is driven by pointer geometry on the wrap, so the tiles and
+   their inputs never capture pointer events themselves */
+.rb-nodes { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+.rb-node {
+    position: absolute;
+    width: 15%;
+    height: 15%;
+    transform: translate(-50%, -50%);
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background-color: #02484d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.12s ease, opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.rb-node input {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    border: none !important;
+    text-align: center;
+    font-size: clamp(16px, 5vw, 24px);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    outline: none;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    caret-color: #ffd700;
+    pointer-events: none;
+}
+
+/* In Type mode the tile input is the tap target, so a tap focuses it natively
+   and the mobile keyboard is guaranteed to open. In Link/Erase (and Solve) the
+   inputs stay inert and the wrap's pointer geometry drives everything. */
+.rb-board-wrap.mode-type .rb-node input { pointer-events: auto; cursor: text; }
+
+.rb-node.empty {
+    background-color: transparent;
+    border: 2px dashed #cfe0e0;
+    box-shadow: none;
+}
+.rb-node.empty input { color: #02484d !important; -webkit-text-fill-color: #02484d !important; caret-color: #02484d; }
+
+.rb-node.hl { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.5), 0 2px 4px rgba(0,0,0,0.2); }
+.rb-node.bottleneck { border-color: #e0a800; box-shadow: 0 0 0 3px rgba(224, 168, 0, 0.35); }
+.rb-node.unreachable { opacity: 0.7; border-color: #d08a8a; border-style: dashed; }
+
+.rb-node.frog {
+    background-color: #e9edec;
+    border-color: #cfe0e0;
+    box-shadow: none;
+}
+.rb-node.frog input { display: none; }
+.rb-frog { font-size: clamp(16px, 5vw, 24px); line-height: 1; }
+
+/* ---------- rotate animation ---------- */
+/* Spin the tile + connection layers 90deg clockwise about the board centre,
+   and counter-rotate the glyphs so letters/frogs/badges stay upright while the
+   board turns under them. The data remap is committed at the end (see JS),
+   which redraws everything at its new slot - visually identical to the spun
+   state, so the hand-off is seamless. */
+.rb-edges, .rb-nodes { transition: transform 0.35s ease; transform-origin: 50% 50%; }
+.rb-board-wrap.rotating { pointer-events: none; }
+.rb-board-wrap.rotating .rb-edges,
+.rb-board-wrap.rotating .rb-nodes { transform: rotate(90deg); }
+.rb-node input, .rb-frog, .rb-count { transition: transform 0.35s ease; }
+.rb-board-wrap.rotating .rb-node input,
+.rb-board-wrap.rotating .rb-frog,
+.rb-board-wrap.rotating .rb-count { transform: rotate(-90deg); }
+/* the commit re-renders at the new slots; suppress transitions for that frame
+   so nothing animates back from the rotated transform */
+.rb-board-wrap.no-anim .rb-edges,
+.rb-board-wrap.no-anim .rb-nodes,
+.rb-board-wrap.no-anim .rb-node input,
+.rb-board-wrap.no-anim .rb-frog,
+.rb-board-wrap.no-anim .rb-count { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .rb-edges, .rb-nodes, .rb-node input, .rb-frog, .rb-count { transition: none !important; }
+}
+
+.rb-count {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border-radius: 8px;
+    background-color: #02484d;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-sizing: border-box;
+}
+.rb-count.zero { background-color: #c0392b; }
+.rb-count.one { background-color: #e0a800; color: #02484d; }
+
+.rb-board-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px auto 0;
+}
+.rb-ctrl { font-size: 13px; padding: 8px 14px; min-height: 40px; }
+
+/* ---------- status chips ---------- */
+.rb-status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px auto 4px;
+    max-width: 560px;
+}
+.status-chip {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #374151;
+}
+.status-chip b { color: #02484d; }
+
+/* ---------- results ---------- */
+.results-container { max-width: 620px; margin: 10px auto; padding: 10px 20px 20px; min-height: 120px; }
+.results-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.results-count { font-size: 14px; color: #6b7280; }
+.sort-chips { display: flex; gap: 6px; }
+.sort-chip {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.word-result {
+    background-color: #f8f9fa;
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+.word-result:hover { background-color: #e9ecef; }
+.word-result.active { background-color: #fefdf5; border-color: #f0ebb8; border-left: 4px solid #e8d44d; }
+.word-result.key { border-left: 4px solid #e0a800; }
+
+.word-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #1f2937;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+.word-meta { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+
+.len-badge {
+    background-color: #02484d;
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.key-flag { color: #b7791f; font-size: 14px; cursor: help; }
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+.played-btn, .reject-btn, .define-link {
+    flex-shrink: 0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    background-color: #fff;
+}
+.played-btn { border: 1px solid #cdd8d7; color: #02484d; }
+.played-btn:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.reject-btn { border: 1px solid #e0d5d5; color: #a55; }
+.reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.define-link { border: 1px solid #cdd8d7; color: #02484d; text-decoration: none; }
+.define-link:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.show-more-btn:hover { background-color: #03595f; }
+.no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; line-height: 1.6; }
+.loading { text-align: center; color: #6b7280; margin: 20px 0; }
+
+/* ---------- played / rejected piles ---------- */
+.played-section { display: none; max-width: 620px; margin: 6px auto 0; padding: 12px 20px; text-align: center; }
+.played-section.visible { display: block; }
+.played-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+.played-pile { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.played-chip, .rejected-chip {
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+.played-chip { background-color: #eef4f4; border: 1px solid #cfe0e0; color: #02484d; }
+.played-chip:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.rejected-chip { background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; text-decoration: line-through; }
+.rejected-chip:hover { background-color: #e55555; border-color: #e55555; color: #fff; text-decoration: none; }
+
+/* ---------- shared bits ---------- */
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+
+.rb-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+.rb-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .word-result { padding: 6px 10px; margin: 5px 0; min-height: 0; gap: 3px 7px; flex-wrap: wrap; }
+    .word-text { font-size: 15px; letter-spacing: 0.5px; }
+    .word-meta { order: 1; flex: 0 0 100%; }
+    .results-container { padding: 10px 8px 20px; }
+    .rb-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<center>
+<br>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Ribbit Solver &amp; Word Finder</h1>
+
+<div class="instructions collapsed" id="instructions-panel">
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Type the board.</strong> The grid is a fixed 4x4. Tap a square and type its
+        letter - it hops to the next square automatically, so you can type the board left to right,
+        top to bottom.
+        <br><br>
+        <strong>2. Draw the connections.</strong> Drag a line across the tiles the game connects.
+        A straight drag across a whole <strong>row, column, or diagonal links every tile it
+        crosses</strong> in one motion; a short drag between two neighbours links just those two.
+        Got one wrong? Switch on <strong>🗑 Erase links</strong> and drag across it to remove it.
+        Use <strong>↻ Rotate</strong> to spin the board to match the game.
+        <br><br>
+        <strong>3. Solve.</strong> Hit <strong>▶ Solve</strong> for every word you can trace, longest
+        first. Ribbit's word list isn't public, so the solver uses its own dictionary - words flagged
+        <strong>⚠</strong> are rare and the most likely to be refused. Tap a word to light up its path
+        on the board.
+        <br><br>
+        <strong>4. Play along.</strong> Hit <strong>✓ Found</strong> on a word you've played or
+        <strong>✗</strong> on one Ribbit refused to hide it. When the game clears a tile into a frog,
+        <strong>tap that tile</strong> to clear it here too - words that could only run through it drop
+        out. The small number on each tile is how many suggested words can still reach it; a gold
+        <strong>1</strong> means only one word can clear that tile, so play it before it gets stranded.
+    </div>
+</div>
+
+<div class="rb-phase" role="group" aria-label="Mode">
+    <button type="button" class="rb-phase-btn active" id="phase-edit">✏️ Edit board</button>
+    <button type="button" class="rb-phase-btn" id="phase-solve">▶ Solve</button>
+</div>
+
+<div class="rb-tools" id="rb-tools" role="group" aria-label="Board tools">
+    <button type="button" class="rb-tool active" data-tool="type">⌨️ Type</button>
+    <button type="button" class="rb-tool" data-tool="link">🔗 Link</button>
+    <button type="button" class="rb-tool" data-tool="erase">🗑 Erase</button>
+</div>
+
+<div class="rb-hint" id="rb-hint"></div>
+
+<div class="rb-board-wrap" id="rb-board-wrap">
+    <svg class="rb-edges" id="rb-edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="rb-nodes" id="rb-nodes"></div>
+</div>
+
+<div class="rb-board-controls">
+    <button type="button" class="rb-ctrl" id="rotate-btn">↻ Rotate</button>
+    <button type="button" class="rb-ctrl" id="clear-btn">🔄 Clear board</button>
+</div>
+
+<div class="rb-status" id="rb-status" style="display: none;">
+    <span class="status-chip">Words found: <b id="chip-found">0</b></span>
+    <span class="status-chip">Suggestions: <b id="chip-suggestions">0</b></span>
+    <span class="status-chip">Tiles cleared: <b id="chip-cleared">0</b>/<b id="chip-total">0</b></span>
+</div>
+
+<div class="played-section" id="played-section">
+    <div class="played-title">Words you've found (tap to put one back)</div>
+    <div class="played-pile" id="played-pile"></div>
+</div>
+
+<div class="played-section" id="rejected-section">
+    <div class="played-title">Hidden - Ribbit didn't accept these (tap to restore)</div>
+    <div class="played-pile" id="rejected-pile"></div>
+</div>
+
+<div id="results-container" class="results-container" aria-live="polite"></div>
+
+<br>
+<div style="margin: 20px 0; text-align: center; min-height: 51px;">
+    <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link" target="_blank" rel="noopener noreferrer" style="
+        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
+        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🐸 Play Ribbit</a>
+    <a href="/feedback" style="
+        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
+        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+</div>
+
+<div style="margin-top: 20px; min-height: 100px;">
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 400px; margin: 0 auto;">
+        <a href="/smush" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Smush</a>
+        <a href="/blossom" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
+        <a href="/wordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
+        <a href="/quordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
+        <a href="/antiwordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
+        <a href="/wordiply" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
+    </div>
+</div>
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Ribbit?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Ribbit is Puzzmo's daily word game. You get a 4x4 board of letter tiles joined by drawn connections, and you make words by tracing a path from one connected tile to the next. Every word must be at least four letters long. As you find the words that use a tile, it clears from the board and turns into a frog, and the goal is to clear every tile.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Ribbit solver work?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type today's 4x4 board into the grid, then draw the same connections the game shows by dragging a line across the tiles - across a whole row, column, or diagonal to link them all at once. The solver lists every word you can trace on that board, longest first. Mark a word as found or refused to hide it, and tap a tile to clear it once Ribbit turns it into a frog - the word list updates to match.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The board is a fixed 4x4 grid. Tap a square and type its letter - it advances to the next square automatically. Then draw connections by dragging a line across the connected tiles: a straight drag across a row, column, or diagonal links every tile it crosses in one motion. Connections can run up, down, left, right, or diagonally. Switch on Erase links and drag across a connection to remove it, or use Rotate to spin the board to match the game.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How are words ranked?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">By default the solver lists the longest words first, because those are usually the marquee words a Ribbit board is built around. Switch to Common first to surface the words the game is most likely to accept. Each result shows its length, and rare words are flagged with ⚠ so you know which ones Ribbit may refuse.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Ribbit accept every word this solver suggests?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Puzzmo's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the ✗ on it and it's hidden while you carry on.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does clearing tiles work in the solver?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">In Ribbit a tile turns into a frog once you've found every word that uses it - there's no fixed number of uses. Because Puzzmo keeps the exact rule private, the solver leaves clearing in your hands: when the game frogs a tile, tap that tile to clear it here too. Any word that could only be traced through a cleared tile drops out of the list, keeping your remaining suggestions accurate.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Ribbit word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Puzzmo. Play the real game at <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">puzzmo.com</a>.</p>
+    </div>
+  </div>
+</section>
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const RARE_ZIPF = 2;          // Zipf popularity below this gets the ⚠ rare flag
+    const WORDS_STEP = 25;
+    const N = 4;                  // fixed 4x4 board
+    const STORAGE_KEY = 'ribbitSolverState_v2';
+
+    /* ---------- state ---------- */
+    let phase = 'edit';           // 'edit' | 'solve'
+    let tool = 'type';            // edit tool: 'type' | 'link' | 'erase'
+    let cells = Array(N * N).fill('');   // letters, index = row*4 + col
+    let edges = [];               // {a, b} cell-index pairs (undirected)
+    let disabled = new Set();     // cell indices cleared into frogs
+    let played = [];              // words found  [{word}]
+    let rejected = [];            // words Ribbit refused  [word]
+
+    let lastResults = [];
+    let totalPlayable = 0;
+    let sortMode = 'len';         // 'len' | 'pop'
+    let visibleCount = WORDS_STEP;
+    let activeWord = null;        // word whose path is lit on the board
+    let cover = {};               // cell index -> how many suggested words reach it
+    let keyWords = new Set();     // words that are the only reach to some tile
+
+    let gesture = null;           // {mode:'link'|'erase', lastCell, moved}
+    let rotating = false;         // true during the rotate spin (blocks board input)
+    let fetchTimer = null, fetchSeq = 0;
+
+    const wrap = document.getElementById('rb-board-wrap');
+    const svg = document.getElementById('rb-edges');
+    const nodesLayer = document.getElementById('rb-nodes');
+    const hint = document.getElementById('rb-hint');
+    const toolsBar = document.getElementById('rb-tools');
+    const resultsContainer = document.getElementById('results-container');
+
+    const HINTS = {
+        type: 'Tap a square and type its letter - it hops to the next square automatically.',
+        link: 'Drag a line across the connected tiles to link them - a straight drag links a whole row, column, or diagonal at once.',
+        erase: 'Drag across a connection to remove it. Switch to Type or Link when you\'re done.',
+        solve: 'Tap a word to light up its path. Tap a tile to clear it into a frog once the game does.'
+    };
+
+    const rc = i => [Math.floor(i / N), i % N];
+    const idx = (r, c) => r * N + c;
+    const edgeKey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const center = i => { const [r, c] = rc(i); return {x: c * 25 + 12.5, y: r * 25 + 12.5}; };
+    const areAdjacent = (a, b) => {
+        const [ra, ca] = rc(a), [rb, cb] = rc(b);
+        return Math.max(Math.abs(ra - rb), Math.abs(ca - cb)) === 1;
+    };
+
+    /* ---------- build the 16 fixed tiles once ---------- */
+    const cellEls = [];
+    for (let i = 0; i < N * N; i++) {
+        const el = document.createElement('div');
+        el.className = 'rb-node empty';
+        el.dataset.i = i;
+        const p = center(i);
+        el.style.left = p.x + '%';
+        el.style.top = p.y + '%';
+        el.innerHTML =
+            '<input type="text" maxlength="1" inputmode="text" autocomplete="off" ' +
+            'autocapitalize="characters" aria-label="Square ' + (i + 1) + '">' +
+            '<span class="rb-frog" hidden>🐸</span>' +
+            '<span class="rb-count" hidden></span>';
+        const input = el.querySelector('input');
+        input.addEventListener('input', () => onLetterInput(i, input));
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Backspace' && input.value === '' && i > 0) focusCell(i - 1);
+        });
+        nodesLayer.appendChild(el);
+        cellEls.push(el);
+    }
+
+    function focusCell(i) {
+        if (i < 0 || i >= N * N) return;
+        const input = cellEls[i].querySelector('input');
+        input.focus();
+        if (input.select) input.select();
+    }
+
+    /* ---------- geometry ---------- */
+    // Which tile a screen point is ON: the nearest tile centre, but only if the
+    // point is within HIT% of it. The gaps between tiles return -1, which is what
+    // lets a diagonal drag land on the diagonal tile instead of stair-stepping
+    // through the orthogonal neighbour whose quadrant the line clips.
+    const HIT = 11;   // percent half-extent of a tile's hit region (< 12.5 = half pitch)
+    function cellAt(clientX, clientY) {
+        const r = wrap.getBoundingClientRect();
+        if (!r.width || !r.height) return -1;
+        const px = (clientX - r.left) / r.width * 100;
+        const py = (clientY - r.top) / r.height * 100;
+        const col = clamp(Math.round((px - 12.5) / 25), 0, N - 1);
+        const row = clamp(Math.round((py - 12.5) / 25), 0, N - 1);
+        if (Math.abs(px - (col * 25 + 12.5)) > HIT || Math.abs(py - (row * 25 + 12.5)) > HIT) return -1;
+        return idx(row, col);
+    }
+
+    // the run of cells between a and b along a straight row/column/diagonal,
+    // so a fast swipe that skips a cell still links every step; a non-straight
+    // jump just returns the endpoints (and non-adjacent pairs are ignored)
+    function cellsBetween(a, b) {
+        if (a === b) return [a];
+        const [ra, ca] = rc(a), [rb, cb] = rc(b);
+        const dr = rb - ra, dc = cb - ca, adr = Math.abs(dr), adc = Math.abs(dc);
+        if (dr === 0 || dc === 0 || adr === adc) {
+            const sr = Math.sign(dr), sc = Math.sign(dc), steps = Math.max(adr, adc), out = [];
+            for (let k = 0; k <= steps; k++) out.push(idx(ra + sr * k, ca + sc * k));
+            return out;
+        }
+        return [a, b];
+    }
+
+    /* ---------- board mutations ---------- */
+    function addEdge(a, b) {
+        if (!areAdjacent(a, b)) return;
+        const k = edgeKey(a, b);
+        if (!edges.some(e => edgeKey(e.a, e.b) === k)) edges.push({a, b});
+    }
+    function removeEdge(a, b) {
+        const k = edgeKey(a, b);
+        edges = edges.filter(e => edgeKey(e.a, e.b) !== k);
+    }
+
+    function toggleDisabled(i) {
+        if (disabled.has(i)) disabled.delete(i);
+        else disabled.add(i);
+        renderCells();
+        afterChange();
+    }
+
+    /* ---------- rendering ---------- */
+    function renderAll() { renderCells(); renderEdges(); }
+
+    function renderCells() {
+        const highlight = activeWordPath();
+        for (let i = 0; i < N * N; i++) {
+            const el = cellEls[i], ch = cells[i], input = el.querySelector('input');
+            const isFrog = phase === 'solve' && disabled.has(i);
+            el.classList.toggle('empty', !ch);
+            el.classList.toggle('frog', isFrog);
+            el.classList.toggle('hl', highlight.nodeSet.has(i));
+            el.classList.toggle('bottleneck', phase === 'solve' && !isFrog && !!ch && cover[i] === 1);
+            el.classList.toggle('unreachable', phase === 'solve' && !isFrog && !!ch && cover[i] === 0);
+            if (document.activeElement !== input) input.value = (ch || '').toUpperCase();
+            el.querySelector('.rb-frog').hidden = !isFrog;
+
+            const badge = el.querySelector('.rb-count');
+            if (phase === 'solve' && !isFrog && ch) {
+                const c = cover[i] || 0;
+                badge.textContent = c;
+                badge.hidden = false;
+                badge.classList.toggle('zero', c === 0);
+                badge.classList.toggle('one', c === 1);
+            } else {
+                badge.hidden = true;
+            }
+        }
+    }
+
+    function renderEdges() {
+        const highlight = activeWordPath();
+        let html = '';
+        edges.forEach(e => {
+            const A = center(e.a), B = center(e.b);
+            const lit = highlight.edgeSet.has(edgeKey(e.a, e.b));
+            html += '<line class="rb-edge' + (lit ? ' hl' : '') + '" x1="' + A.x + '" y1="' + A.y +
+                    '" x2="' + B.x + '" y2="' + B.y + '" vector-effect="non-scaling-stroke"></line>';
+        });
+        svg.innerHTML = html;
+    }
+
+    // cells + edge keys to light up for the active word's stored path
+    function activeWordPath() {
+        if (!activeWord) return {nodeSet: new Set(), edgeSet: new Set()};
+        const r = lastResults.find(x => x.word === activeWord);
+        if (!r || !r.path) return {nodeSet: new Set(), edgeSet: new Set()};
+        const nodeSet = new Set(r.path);
+        const edgeSet = new Set();
+        for (let i = 0; i < r.path.length - 1; i++) edgeSet.add(edgeKey(r.path[i], r.path[i + 1]));
+        return {nodeSet, edgeSet};
+    }
+
+    /* ---------- letter entry ---------- */
+    function onLetterInput(i, input) {
+        const ch = (input.value.replace(/[^A-Za-z]/g, '').slice(-1) || '').toLowerCase();
+        cells[i] = ch;
+        input.value = ch.toUpperCase();
+        renderCells();
+        persist();
+        if (ch && i < N * N - 1) focusCell(i + 1);   // auto-advance while typing the board
+        if (phase === 'solve') scheduleFetch();
+    }
+
+    /* ---------- pointer interaction ---------- */
+    // In Type mode the native input focus handles taps (so the mobile keyboard
+    // opens reliably); Link/Erase and Solve are driven by pointer geometry.
+    wrap.addEventListener('pointerdown', e => {
+        if (rotating) return;
+        const cell = cellAt(e.clientX, e.clientY);
+        if (cell < 0) return;
+        if (phase === 'solve') {
+            e.preventDefault();
+            if (cells[cell]) toggleDisabled(cell);
+            return;
+        }
+        if (tool === 'type') return;   // let the input focus natively
+        e.preventDefault();
+        gesture = {mode: tool, lastCell: cell, moved: false};
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+    });
+
+    function onPointerMove(e) {
+        if (!gesture) return;
+        const cell = cellAt(e.clientX, e.clientY);
+        if (cell < 0 || cell === gesture.lastCell) return;
+        const chain = cellsBetween(gesture.lastCell, cell);
+        for (let k = 1; k < chain.length; k++) {
+            if (gesture.mode === 'erase') removeEdge(chain[k - 1], chain[k]);
+            else addEdge(chain[k - 1], chain[k]);
+        }
+        gesture.lastCell = cell;
+        gesture.moved = true;
+        renderEdges();
+    }
+
+    function onPointerUp() {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        if (!gesture) return;
+        gesture = null;
+        renderEdges();
+        persist();
+        if (phase === 'solve') scheduleFetch();
+    }
+
+    /* ---------- phase + tool switching ---------- */
+    function setTool(t) {
+        tool = t;
+        toolsBar.querySelectorAll('.rb-tool').forEach(b =>
+            b.classList.toggle('active', b.dataset.tool === t));
+        ['mode-type', 'mode-link', 'mode-erase'].forEach(c => wrap.classList.remove(c));
+        wrap.classList.add('mode-' + t);
+        hint.textContent = HINTS[t];
+    }
+
+    function setPhase(p) {
+        phase = p;
+        activeWord = null;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        const editing = p === 'edit';
+        document.getElementById('phase-edit').classList.toggle('active', editing);
+        document.getElementById('phase-solve').classList.toggle('active', !editing);
+        toolsBar.classList.toggle('visible', editing);
+        wrap.classList.toggle('solving', !editing);
+        document.getElementById('rb-status').style.display = editing ? 'none' : 'flex';
+        if (editing) {
+            setTool(tool);
+            resultsContainer.innerHTML = '';
+            cover = {}; keyWords = new Set();
+        } else {
+            ['mode-type', 'mode-link', 'mode-erase'].forEach(c => wrap.classList.remove(c));
+            hint.textContent = HINTS.solve;
+            scheduleFetch();
+        }
+        renderAll();
+        persist();
+    }
+
+    document.getElementById('phase-edit').addEventListener('click', () => setPhase('edit'));
+    document.getElementById('phase-solve').addEventListener('click', () => {
+        if (!cells.some(c => c)) { toast('Type some letters into the board first', true); return; }
+        setPhase('solve');
+    });
+    toolsBar.querySelectorAll('.rb-tool').forEach(b =>
+        b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+    /* ---------- rotate + clear ---------- */
+    // Remap the board 90 degrees clockwise: slot (r, c) -> (c, N-1-r). This
+    // matches a visual rotate(90deg) of the board, so the animation and the
+    // committed data line up exactly.
+    function commitRotation() {
+        const map = new Array(N * N);
+        for (let r = 0; r < N; r++)
+            for (let c = 0; c < N; c++) map[idx(r, c)] = idx(c, N - 1 - r);
+        const newCells = Array(N * N).fill('');
+        cells.forEach((ch, i) => { newCells[map[i]] = ch; });
+        cells = newCells;
+        edges = edges.map(e => ({a: map[e.a], b: map[e.b]}));
+        disabled = new Set([...disabled].map(i => map[i]));
+        renderAll();
+        persist();
+        if (phase === 'solve') scheduleFetch();
+    }
+
+    document.getElementById('rotate-btn').addEventListener('click', () => {
+        if (rotating) return;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) { commitRotation(); return; }
+        rotating = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        wrap.classList.add('rotating');   // spins tiles+edges +90, glyphs -90 (see CSS)
+        setTimeout(() => {
+            // Commit at the new slots with transitions suppressed, so nothing
+            // animates back from the rotated transform - the tiles are already
+            // drawn where the spin left them.
+            wrap.classList.add('no-anim');
+            wrap.classList.remove('rotating');
+            commitRotation();
+            void wrap.offsetWidth;         // flush styles before re-enabling transitions
+            wrap.classList.remove('no-anim');
+            rotating = false;
+        }, 380);
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+        if (cells.some(c => c) && !confirm('Clear the whole board and start over?')) return;
+        cells = Array(N * N).fill('');
+        edges = []; disabled = new Set();
+        played = []; rejected = [];
+        lastResults = []; totalPlayable = 0; activeWord = null;
+        cover = {}; keyWords = new Set();
+        tool = 'type';
+        renderPiles();
+        setPhase('edit');
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    });
+
+    /* ---------- solving ---------- */
+    function afterChange() {
+        renderStatus();
+        persist();
+        if (phase === 'solve') scheduleFetch();
+    }
+
+    function scheduleFetch() {
+        if (phase !== 'solve') return;
+        clearTimeout(fetchTimer);
+        const seq = ++fetchSeq;
+        resultsContainer.innerHTML = '<div class="loading">Tracing words…</div>';
+        fetchTimer = setTimeout(() => fetchResults(seq), 250);
+    }
+
+    function fetchResults(seq) {
+        const placed = [];
+        cells.forEach((ch, i) => { if (ch) placed.push(i); });
+        if (!placed.length) {
+            resultsContainer.innerHTML = '<div class="no-results">Type letters into the board, then solve.</div>';
+            return;
+        }
+        const idset = new Set(placed);
+        const payload = {
+            nodes: placed.map(i => ({id: i, letter: cells[i]})),
+            edges: edges.filter(e => idset.has(e.a) && idset.has(e.b)).map(e => [e.a, e.b]),
+            disabled: [...disabled].filter(i => idset.has(i)),
+            played: played.map(p => p.word),
+            rejected: rejected,
+            min_len: 4
+        };
+        fetch('/ribbit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (seq !== fetchSeq) return;
+            lastResults = data.results || [];
+            totalPlayable = data.total_playable || 0;
+            visibleCount = WORDS_STEP;
+            computeStrategy();
+            renderStatus();
+            renderCells();
+            renderResults();
+        })
+        .catch(() => {
+            if (seq !== fetchSeq) return;
+            resultsContainer.innerHTML = '<div class="no-results">Error loading results - try again</div>';
+        });
+    }
+
+    // Per-tile coverage: how many suggested words can still route through each
+    // tile. A tile only one word can reach is a bottleneck - that word is "key",
+    // so play it before the tile gets stranded.
+    function computeStrategy() {
+        cover = {}; keyWords = new Set();
+        lastResults.forEach(r => {
+            new Set(r.nodes || []).forEach(i => { cover[i] = (cover[i] || 0) + 1; });
+        });
+        const bottleneck = new Set();
+        Object.keys(cover).forEach(i => { if (cover[i] === 1) bottleneck.add(+i); });
+        lastResults.forEach(r => {
+            if ((r.nodes || []).some(i => bottleneck.has(i))) keyWords.add(r.word);
+        });
+    }
+
+    function renderStatus() {
+        document.getElementById('chip-found').textContent = played.length;
+        document.getElementById('chip-suggestions').textContent = totalPlayable;
+        document.getElementById('chip-cleared').textContent =
+            [...disabled].filter(i => cells[i]).length;
+        document.getElementById('chip-total').textContent = cells.filter(c => c).length;
+    }
+
+    function isRare(r) { return typeof r.pop === 'number' && r.pop < RARE_ZIPF; }
+
+    function sortedResults() {
+        const r = lastResults.slice();
+        if (sortMode === 'pop') r.sort((a, b) => b.pop - a.pop || b.len - a.len || (a.word < b.word ? -1 : 1));
+        else r.sort((a, b) => b.len - a.len || b.pop - a.pop || (a.word < b.word ? -1 : 1));
+        return r;
+    }
+
+    function sortChipsHtml() {
+        const chips = [['len', 'Longest'], ['pop', 'Common first']];
+        return '<span class="sort-chips" role="group" aria-label="Sort results">' +
+            chips.map(([k, label]) =>
+                '<button type="button" class="sort-chip ' + (sortMode === k ? 'active' : '') +
+                '" data-sort="' + k + '">' + label + '</button>').join('') + '</span>';
+    }
+
+    function wordRowHtml(r) {
+        const key = keyWords.has(r.word)
+            ? '<span class="key-flag" title="Key word: the only suggestion that can reach one of its tiles - play it before that tile gets stranded">★</span>' : '';
+        const rare = isRare(r)
+            ? '<button type="button" class="rare-flag" data-rare="' + r.word +
+              '" title="Rare word - Ribbit may not accept it" aria-label="' + r.word.toUpperCase() +
+              ' is rare, tap for details">⚠</button>' : '';
+        return '<div class="word-result' + (activeWord === r.word ? ' active' : '') +
+               (keyWords.has(r.word) ? ' key' : '') + '" data-word="' + r.word + '">' +
+               '<span class="word-text">' + r.word.toUpperCase() + '</span>' +
+               '<span class="word-meta"><span class="len-badge">' + r.len + '</span>' + key + rare + '</span>' +
+               '<button type="button" class="played-btn" data-play="' + r.word + '" aria-label="Mark ' + r.word.toUpperCase() + ' as found">✓ Found</button>' +
+               '<button type="button" class="reject-btn" data-reject="' + r.word + '" title="Ribbit didn\'t accept this - hide it" aria-label="Hide ' + r.word.toUpperCase() + '">✗</button>' +
+               '<a class="define-link" href="https://en.wiktionary.org/wiki/' + r.word + '" target="_blank" rel="noopener noreferrer" title="View definition" onclick="event.stopPropagation()">↗</a>' +
+               '</div>';
+    }
+
+    function renderResults() {
+        if (phase !== 'solve') { resultsContainer.innerHTML = ''; return; }
+        if (!cells.some(c => c)) {
+            resultsContainer.innerHTML = '<div class="no-results">Type letters into the board, then solve.</div>';
+            return;
+        }
+        if (lastResults.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No traceable words left.<br>' +
+                'Check the board is connected the way the game shows, or you may have found them all. 🐸</div>';
+            return;
+        }
+        const r = sortedResults();
+        const capped = totalPlayable > lastResults.length;
+        let html = '<div class="results-header"><span class="results-count">' +
+            totalPlayable + ' word' + (totalPlayable === 1 ? '' : 's') +
+            (capped ? ' (top ' + lastResults.length + ' shown)' : '') + '</span>' +
+            sortChipsHtml() + '</div>';
+        r.slice(0, visibleCount).forEach(w => { html += wordRowHtml(w); });
+        resultsContainer.innerHTML = html;
+
+        const remaining = r.length - visibleCount;
+        if (remaining > 0) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'show-more-btn';
+            btn.textContent = 'Show ' + Math.min(WORDS_STEP, remaining) + ' more (' + remaining + ' remaining)';
+            btn.addEventListener('click', () => { visibleCount += WORDS_STEP; renderResults(); });
+            resultsContainer.appendChild(btn);
+        }
+        wireResults();
+    }
+
+    function wireResults() {
+        resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
+            chip.addEventListener('click', () => { sortMode = chip.dataset.sort; visibleCount = WORDS_STEP; renderResults(); }));
+        resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
+            btn.addEventListener('click', e => { e.stopPropagation(); markFound(btn.dataset.play); }));
+        resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
+            btn.addEventListener('click', e => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                toast('⚠ ' + btn.dataset.rare.toUpperCase() + ' is a rare word - Ribbit may refuse it. If it does, hit ✗.');
+            }));
+        resultsContainer.querySelectorAll('.word-result').forEach(el =>
+            el.addEventListener('click', () => toggleActiveWord(el.dataset.word)));
+    }
+
+    // light up (or clear) a word's path on the board
+    function toggleActiveWord(word) {
+        activeWord = (activeWord === word) ? null : word;
+        renderCells(); renderEdges(); renderResults();
+        if (activeWord) wrap.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    }
+
+    /* ---------- found / rejected ---------- */
+    function markFound(word) {
+        if (played.some(p => p.word === word)) return;
+        played.push({word});
+        if (activeWord === word) activeWord = null;
+        toast(word.toUpperCase() + ' marked found - hidden from the list.');
+        renderPiles();
+        afterChange();
+    }
+
+    function markRejected(word) {
+        if (rejected.includes(word)) return;
+        rejected.push(word);
+        if (activeWord === word) activeWord = null;
+        toast(word.toUpperCase() + ' hidden - Ribbit didn\'t accept it.');
+        renderPiles();
+        afterChange();
+    }
+
+    function restoreFound(word) { played = played.filter(p => p.word !== word); renderPiles(); afterChange(); }
+    function restoreRejected(word) { rejected = rejected.filter(w => w !== word); renderPiles(); afterChange(); }
+
+    function renderPiles() {
+        const pSection = document.getElementById('played-section');
+        pSection.classList.toggle('visible', played.length > 0);
+        const pPile = document.getElementById('played-pile');
+        pPile.innerHTML = played.map(p =>
+            '<button type="button" class="played-chip" data-w="' + p.word + '" aria-label="Put ' + p.word.toUpperCase() + ' back">' +
+            p.word.toUpperCase() + '</button>').join('');
+        pPile.querySelectorAll('.played-chip').forEach(c =>
+            c.addEventListener('click', () => restoreFound(c.dataset.w)));
+
+        const rSection = document.getElementById('rejected-section');
+        rSection.classList.toggle('visible', rejected.length > 0);
+        const rPile = document.getElementById('rejected-pile');
+        rPile.innerHTML = rejected.map(w =>
+            '<button type="button" class="rejected-chip" data-w="' + w + '" aria-label="Restore ' + w.toUpperCase() + '">' +
+            w.toUpperCase() + '</button>').join('');
+        rPile.querySelectorAll('.rejected-chip').forEach(c =>
+            c.addEventListener('click', () => restoreRejected(c.dataset.w)));
+    }
+
+    /* ---------- persistence ---------- */
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                phase, cells, edges, disabled: [...disabled],
+                played, rejected, savedAt: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    // A save from a previous day is a finished puzzle; start fresh unless the
+    // game straddled midnight (< 6h old).
+    const STALE_FLOOR_HOURS = 6;
+    function isStale(s) {
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        return new Date(s.savedAt).toDateString() !== new Date().toDateString() && ageHours > STALE_FLOOR_HOURS;
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.cells) || s.cells.length !== N * N) return false;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            toast("Cleared yesterday's board - build today's 🐸");
+            return false;
+        }
+        cells = s.cells.map(c => (typeof c === 'string' ? c : ''));
+        edges = (s.edges || []).filter(e => e && Number.isInteger(e.a) && Number.isInteger(e.b));
+        disabled = new Set((s.disabled || []).filter(i => Number.isInteger(i)));
+        played = s.played || []; rejected = s.rejected || [];
+        renderPiles();
+        setPhase(s.phase === 'solve' && cells.some(c => c) ? 'solve' : 'edit');
+        return true;
+    }
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'rb-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        toastTimer = setTimeout(() => {
+            if (!toastEl) return;
+            toastEl.style.transition = 'opacity 0.5s ease';
+            toastEl.style.opacity = '0';
+            setTimeout(() => { toastEl && toastEl.remove(); toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('ribbitInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('ribbitInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- dated Puzzmo links ---------- */
+    // Puzzmo's Ribbit URL carries the date, e.g. /puzzle/2026-07-25/ribbit;
+    // point the "play" links at today's puzzle.
+    (function () {
+        const d = new Date();
+        const iso = d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0');
+        document.querySelectorAll('.puzzmo-ribbit-link').forEach(a => {
+            a.href = 'https://www.puzzmo.com/puzzle/' + iso + '/ribbit';
+        });
+    })();
+
+    /* ---------- boot ---------- */
+    if (!restore()) {
+        setPhase('edit');
+        focusCell(0);
+    }
+});
+</script>
+
+{% endblock %}

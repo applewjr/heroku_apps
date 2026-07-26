@@ -15,6 +15,7 @@ GET_OK = [
     "/quordle",
     "/wordiply",
     "/smush",
+    "/ribbit",
     "/any_word",
     "/fixer",
     "/common_denominator",
@@ -319,6 +320,87 @@ def test_smush_non_json_body_returns_415(client):
 def test_smush_json_null_body_returns_400(client):
     resp = client.post("/smush", data="null", content_type="application/json")
     assert resp.status_code == 400
+
+
+# ---------- Ribbit ----------
+
+# A fully connected 5-tile board (letters a r e t s); any distinct-letter
+# sequence is traceable, so it yields plenty of common 4-5 letter words.
+_RIBBIT_LETTERS = {1: "a", 2: "r", 3: "e", 4: "t", 5: "s"}
+RIBBIT_BODY = {
+    "nodes": [{"id": i, "letter": l} for i, l in _RIBBIT_LETTERS.items()],
+    "edges": [[i, j] for i in range(1, 6) for j in range(i + 1, 6)],
+}
+
+
+@pytest.fixture
+def ribbit_client(client, monkeypatch):
+    # Hermetic like smush_client: run the solver on the committed word list.
+    import routes.wordgames as wordgames
+    from data import words
+    monkeypatch.setattr(wordgames, "get_smush_words", lambda: words)
+    return client
+
+
+def test_ribbit_post_returns_traceable_words(ribbit_client):
+    resp = ribbit_client.post("/ribbit", json=RIBBIT_BODY)
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["total_playable"] > 0
+    lengths = [r["len"] for r in body["results"]]
+    assert lengths == sorted(lengths, reverse=True)  # longest first by default
+    for r in body["results"]:
+        assert r["len"] >= 4
+        assert set(r["word"]) <= set(_RIBBIT_LETTERS.values())
+        # the representative path must spell the word on distinct, real tiles
+        assert len(r["path"]) == len(r["word"])
+        assert len(set(r["path"])) == len(r["path"])
+        assert [_RIBBIT_LETTERS[i] for i in r["path"]] == list(r["word"])
+
+
+def test_ribbit_disabled_tile_drops_its_words(ribbit_client):
+    full = ribbit_client.post("/ribbit", json=RIBBIT_BODY).get_json()
+    # disable the S tile (id 5): no remaining word may contain an s
+    resp = ribbit_client.post("/ribbit", json=dict(RIBBIT_BODY, disabled=[5]))
+    body = resp.get_json()
+    assert body["total_playable"] < full["total_playable"]
+    assert all("s" not in r["word"] for r in body["results"])
+
+
+def test_ribbit_played_and_rejected_are_hidden(ribbit_client):
+    body = ribbit_client.post("/ribbit", json=RIBBIT_BODY).get_json()
+    a_word = body["results"][0]["word"]
+    other = body["results"][-1]["word"]
+    resp = ribbit_client.post("/ribbit", json=dict(RIBBIT_BODY, played=[a_word], rejected=[other]))
+    words_out = {r["word"] for r in resp.get_json()["results"]}
+    assert a_word not in words_out
+    assert other not in words_out
+
+
+def test_ribbit_no_edges_yields_nothing(ribbit_client):
+    resp = ribbit_client.post("/ribbit", json=dict(RIBBIT_BODY, edges=[]))
+    assert resp.status_code == 200
+    assert resp.get_json()["total_playable"] == 0
+
+
+@pytest.mark.parametrize("patch", [
+    {"nodes": []},                                             # no tiles
+    {"nodes": [{"id": 1, "letter": "ab"}]},                    # multi-char letter
+    {"nodes": [{"id": 1, "letter": "1"}]},                     # not a letter
+    {"nodes": [{"id": 1, "letter": "a"}, {"id": 1, "letter": "b"}]},  # dup id
+    {"edges": [[1, 99]]},                                      # edge to missing tile
+    {"edges": [[1, 2, 3]]},                                    # edge not a pair
+    {"disabled": [99]},                                        # disable missing tile
+], ids=["empty", "multichar", "nonletter", "dupid", "badedge", "triedge", "baddisable"])
+def test_ribbit_junk_input_returns_400(ribbit_client, patch):
+    body = dict(RIBBIT_BODY, **patch)
+    assert ribbit_client.post("/ribbit", json=body).status_code == 400
+
+
+def test_ribbit_non_json_body_returns_415(client):
+    resp = client.post("/ribbit", data="x=1",
+                       content_type="application/x-www-form-urlencoded")
+    assert resp.status_code == 415
 
 
 def test_wordle_post_returns_picks(client):

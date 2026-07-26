@@ -839,3 +839,132 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
             return found
 
     return solve(tagged, exact_only=False)
+
+
+def _ribbit_trace(word, node_letter, adj, starts, step_budget):
+    """Walk `word` along the board graph, stepping only between connected
+    tiles and never reusing a tile within the word.
+
+    Returns (rep_path, used_nodes, capped): the first complete path found (a
+    list of node ids, or None if the word can't be traced), the union of node
+    ids over every complete path explored (which tiles the word can route
+    through), and whether the per-word step budget cut the search short.
+    """
+    rep = {'path': None}
+    used = set()
+    last = len(word) - 1
+    steps = [0]
+    capped = [False]
+
+    def dfs(node, idx, path, path_set):
+        if capped[0]:
+            return
+        steps[0] += 1
+        if steps[0] > step_budget:
+            capped[0] = True
+            return
+        if idx == last:
+            if rep['path'] is None:
+                rep['path'] = list(path)
+            used.update(path)
+            return
+        nxt = word[idx + 1]
+        for nb in adj[node]:
+            if nb not in path_set and node_letter[nb] == nxt:
+                path.append(nb)
+                path_set.add(nb)
+                dfs(nb, idx + 1, path, path_set)
+                path.pop()
+                path_set.discard(nb)
+
+    for s in starts.get(word[0], ()):
+        dfs(s, 0, [s], {s})
+        if capped[0]:
+            break
+    return rep['path'], used, capped[0]
+
+
+def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
+                  disabled=None, popularity=None, list_len=None,
+                  step_budget=30000):
+    """Find every dictionary word playable on a Ribbit board.
+
+    Ribbit gives you a graph of letter tiles joined by drawn connections. A
+    word is playable if its letters can be spelled by stepping from a tile to
+    a connected tile, never reusing a tile within that word, and is at least
+    `min_len` (Ribbit's floor is 4) letters long. This enumerates every such
+    word in the dictionary for the current board.
+
+    nodes       -- {node_id: letter} for every tile placed on the board
+    edges       -- iterable of (id_a, id_b) undirected connections; endpoints
+                   not among `nodes` (or self-loops / duplicates) are ignored
+    exclude     -- words to drop entirely (already played, or refused by the
+                   game so they shouldn't be suggested again)
+    disabled    -- node_ids the player has marked cleared (Ribbit turned them
+                   into frogs); removed from the board before solving, which
+                   drops any word that could only be traced through them
+    popularity  -- {word: Zipf}; attached to each result as 'pop' (0.0 when
+                   unknown) so the caller can flag words Ribbit may refuse
+    list_len    -- cap on returned words (None returns every playable word)
+    step_budget -- per-word DFS step cap; guards against a pathologically
+                   dense board blowing up the path search
+
+    Returns (results, total_playable). Each result is a dict:
+      {'word', 'len', 'pop', 'path': [node ids], 'nodes': [node ids]}
+    where 'path' is one concrete route through the board (for drawing the
+    word) and 'nodes' is the union of every tile the word can route through
+    (for the tap-a-tile-to-see-its-words view). Results are sorted longest
+    first, then most common, then alphabetically.
+    """
+    disabled = {int(n) for n in disabled} if disabled else set()
+    node_letter = {int(i): str(l).lower() for i, l in nodes.items()
+                   if int(i) not in disabled}
+
+    # Undirected adjacency, de-duplicated, skipping disabled/unknown endpoints.
+    adj = {i: [] for i in node_letter}
+    seen_pairs = set()
+    for a, b in edges:
+        a, b = int(a), int(b)
+        if a == b or a not in node_letter or b not in node_letter:
+            continue
+        key = (a, b) if a < b else (b, a)
+        if key in seen_pairs:
+            continue
+        seen_pairs.add(key)
+        adj[a].append(b)
+        adj[b].append(a)
+
+    board_letters = set(node_letter.values())
+    starts = {}
+    for i, l in node_letter.items():
+        starts.setdefault(l, []).append(i)
+
+    exclude = {str(w).lower() for w in exclude} if exclude else set()
+
+    results = []
+    for word in words:
+        w = str(word).lower()
+        n = len(w)
+        if n < min_len or n > 15 or w in exclude:
+            continue
+        # Cheap prefilters before the DFS: the first letter must sit on a tile
+        # and every letter must be somewhere on the board.
+        if w[0] not in starts or not set(w) <= board_letters:
+            continue
+        rep_path, used_nodes, _capped = _ribbit_trace(
+            w, node_letter, adj, starts, step_budget)
+        if rep_path is None:
+            continue
+        results.append({
+            'word': w,
+            'len': n,
+            'pop': round(popularity.get(w, 0.0), 1) if popularity else 0.0,
+            'path': rep_path,
+            'nodes': sorted(used_nodes) if used_nodes else list(rep_path),
+        })
+
+    # Longest first (Ribbit's marquee words), then most common, then A-Z. The
+    # client re-sorts on demand, so this is just a useful, stable default.
+    results.sort(key=lambda r: (-r['len'], -r['pop'], r['word']))
+    total_playable = len(results)
+    return (results[:list_len] if list_len else results), total_playable

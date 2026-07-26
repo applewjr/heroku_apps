@@ -361,7 +361,7 @@
 
 .results-count { font-size: 14px; color: #6b7280; }
 
-.sort-chips { display: flex; gap: 6px; }
+.sort-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .sort-chip {
     background-color: #fff;
@@ -801,6 +801,21 @@
         max-width: 400px;
         margin: 0 auto;
     ">
+        <a href="/ribbit" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Ribbit</a>
+
         <a href="/blossom" style="
             background-color: #f8f9fa;
             color: #495057;
@@ -860,6 +875,21 @@
             text-align: center;
             box-sizing: border-box;
         " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
+
+        <a href="/antiwordle" style="
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #e9ecef;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            flex: 0 0 calc(50% - 2px);
+            text-align: center;
+            box-sizing: border-box;
+        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
     </div>
 </div>
 
@@ -920,6 +950,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_USES = 5;
     const WORDS_STEP = 25;
     const STORAGE_KEY = 'smushSolverState_v1';
+    // The chosen sort/filter is a UI preference, not game state, so it lives
+    // under its own key and survives board resets and the daily wipe.
+    const SORT_KEY = 'smushSortMode_v1';
+    const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
 
     /* ---------- state ---------- */
     let letters = Array(9).fill('');         // board letters, index 4 = center
@@ -936,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let planData = null;                     // /smush "plan" payload for the All 8 mode
     let totalPlayable = 0;
     let pangramStatus = 'none';
-    let sortMode = 'pts';
+    let sortMode = 'pts';                     // default; overridden by SORT_KEY if saved
     let visibleCount = WORDS_STEP;
     let fetchTimer = null;
     let fetchSeq = 0;
@@ -1274,12 +1308,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function sortedResults() {
-        const r = lastResults.slice();
-        if (sortMode === 'eff') {
+        let r = lastResults.slice();
+        if (sortMode === 'pan') {
+            // Pangrams-only view. lastResults is already points-desc from the
+            // server and only holds affordable words, so no extra sort needed.
+            r = r.filter(w => w.pangram);
+        } else if (sortMode === 'eff') {
             const costOf = w => Object.values(w.cost).reduce((s, n) => s + n, 0) || 1;
             r.sort((a, b) => (b.pts / costOf(b)) - (a.pts / costOf(a)) || b.pts - a.pts);
-        } else if (sortMode === 'len') {
-            r.sort((a, b) => b.word.length - a.word.length || b.pts - a.pts);
         }
         return r;
     }
@@ -1294,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function sortChipsHtml() {
-        const chips = [['pts', 'Points'], ['eff', 'Pts per use'], ['len', 'Length'], ['all8', '🥞 All 8']];
+        const chips = [['all8', '🥞 All 8'], ['pan', '★ Pangrams'], ['pts', 'Points'], ['eff', 'Pts per use']];
         return `<span class="sort-chips" role="group" aria-label="Sort results">`
             + chips.map(([k, label]) =>
                 `<button type="button" class="sort-chip ${sortMode === k ? 'active' : ''}" data-sort="${k}">${label}</button>`).join('')
@@ -1330,6 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chip.addEventListener('click', () => {
                 sortMode = chip.dataset.sort;
                 visibleCount = WORDS_STEP;
+                try { localStorage.setItem(SORT_KEY, sortMode); } catch (_) {}
                 // The All 8 plan is only computed when asked for, so entering
                 // that mode without one in hand means a refetch.
                 if (sortMode === 'all8' && !planData) scheduleFetch();
@@ -1409,12 +1446,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const r = sortedResults();
-        const capped = totalPlayable > lastResults.length;
+
+        let countLabel;
+        if (sortMode === 'pan') {
+            countLabel = `${r.length} pangram${r.length === 1 ? '' : 's'}`;
+        } else {
+            const capped = totalPlayable > lastResults.length;
+            countLabel = `${totalPlayable} playable word${totalPlayable === 1 ? '' : 's'}${capped ? ` (top ${lastResults.length} shown)` : ''}`;
+        }
+
         let html = `
             <div class="results-header">
-                <span class="results-count">${totalPlayable} playable word${totalPlayable === 1 ? '' : 's'}${capped ? ` (top ${lastResults.length} shown)` : ''}</span>
+                <span class="results-count">${countLabel}</span>
                 ${sortChipsHtml()}
             </div>`;
+
+        // Pangrams view with none to show: keep the header (and its chips) so
+        // the player can switch back, and explain why the list is empty.
+        if (r.length === 0) {
+            const msg = pangramStatus === 'found'
+                    ? '★ You already played the pangram - nice!'
+                : pangramStatus === 'out_of_reach'
+                    ? 'The pangram is out of reach with your remaining letter uses'
+                    : 'No pangram in our word list for these letters';
+            html += `<div class="no-results">${msg}</div>`;
+            resultsContainer.innerHTML = html;
+            wireResults();
+            return;
+        }
 
         r.slice(0, visibleCount).forEach(w => { html += wordRowHtml(w); });
 
@@ -1572,6 +1631,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     try {
         if (localStorage.getItem('smushInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    // Restore the player's last sort/filter before restore() below, so a
+    // resumed board's first fetch already knows whether to build the All 8 plan.
+    try {
+        const savedSort = localStorage.getItem(SORT_KEY);
+        if (SORT_MODES.includes(savedSort)) sortMode = savedSort;
     } catch (_) {}
 
     function copyWord(element) {
