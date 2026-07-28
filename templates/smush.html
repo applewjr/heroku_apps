@@ -1290,7 +1290,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 plan: sortMode === 'all8'
             })
         })
-        .then(r => r.json())
+        .then(r => {
+            // A 400/500 from the route still carries a JSON body, so parsing it
+            // would leave results undefined and render as "no words playable".
+            if (!r.ok) throw new Error('solve failed: ' + r.status);
+            return r.json();
+        })
         .then(data => {
             if (seq !== fetchSeq) return;   // a newer request superseded this one
             lastResults = data.results || [];
@@ -1590,8 +1595,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         letters = s.letters.map(l => (typeof l === 'string' ? l : ''));
         uses = s.uses || {}; spicy = s.spicy || '';
-        played = s.played || []; rejected = s.rejected || [];
-        score = s.score || 0; history = s.history || [];
+        // renderPlayed() calls .toUpperCase() on these, and restore() runs during
+        // boot outside any try/catch - one bad entry would abort the board setup.
+        played = (Array.isArray(s.played) ? s.played : [])
+            .filter(p => p && typeof p.word === 'string');
+        rejected = (Array.isArray(s.rejected) ? s.rejected : [])
+            .filter(w => typeof w === 'string');
+        score = s.score || 0; history = Array.isArray(s.history) ? s.history : [];
         letters.forEach((ch, i) => { inputOf(i).value = ch.toUpperCase(); });
         if (s.solveMode && letters.every(l => l)) {
             enterSolveMode();
@@ -1611,11 +1621,13 @@ document.addEventListener('DOMContentLoaded', () => {
         toastEl.setAttribute('role', 'status');
         toastEl.textContent = msg;
         document.body.appendChild(toastEl);
+        // Hold onto this element: clearTimeout can't reach the inner fade timer,
+        // so a toast raised mid-fade would otherwise be removed by the old one.
+        const el = toastEl;
         toastTimer = setTimeout(() => {
-            if (!toastEl) return;
-            toastEl.style.transition = 'opacity 0.5s ease';
-            toastEl.style.opacity = '0';
-            setTimeout(() => { toastEl && toastEl.remove(); toastEl = null; }, 500);
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
         }, 2600);
     }
 
