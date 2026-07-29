@@ -6,7 +6,7 @@ import time
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import add_data_to_stream, db_cursor
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, db_cursor, limiter
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
@@ -22,6 +22,7 @@ def abbreviate_keys(data):
 
 
 @bp.route("/wordle", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_wordle_revamp():
 
     schema_data = make_schema_data(
@@ -91,6 +92,7 @@ def run_wordle_revamp():
 
 
 @bp.route("/antiwordle", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_antiwordle_revamp():
 
     schema_data = make_schema_data(
@@ -149,6 +151,7 @@ def quordle_no_words_payload():
 
 
 @bp.route("/quordle", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_quordle_revamp():
 
     schema_data = make_schema_data(
@@ -214,6 +217,7 @@ ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random',
 
 
 @bp.route("/any_word", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def any_word():
     schema_data = make_schema_data(
         "Any Word Finder - Search Words by Pattern",
@@ -331,6 +335,7 @@ def parse_smush_word_list(data, key):
 
 
 @bp.route("/smush", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_smush():
 
     schema_data = make_schema_data(
@@ -456,6 +461,7 @@ def parse_ribbit_board(data):
 
 
 @bp.route("/ribbit", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_ribbit():
 
     schema_data = make_schema_data(
@@ -491,6 +497,7 @@ def run_ribbit():
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
 def run_wordiply():
 
     schema_data = make_schema_data(

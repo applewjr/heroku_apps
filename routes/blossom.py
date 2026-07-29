@@ -10,7 +10,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 
 import config
 from data import words_blossom
-from extensions import auth, cache, db_cursor, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, auth, cache, db_cursor, limiter, log_page_visit
 from functions import all_words
 from helpers import ValidationError, make_schema_data, parse_int, parse_letters
 
@@ -18,7 +18,7 @@ bp = Blueprint('blossom', __name__)
 
 
 @bp.route("/blossom", methods=["POST", "GET"])
-@limiter.limit("30 per minute")
+@limiter.limit(INTERACTIVE_LIMITS)
 def blossom_solver():
     try:
 

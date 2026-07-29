@@ -3,7 +3,7 @@
 import mysql.connector
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
-from extensions import db_cursor, limiter
+from extensions import NOT_FOUND_LIMITS, db_cursor, limiter
 
 bp = Blueprint('misc', __name__)
 
@@ -137,6 +137,6 @@ def wordle_og_redirect():
 
 # Catch-all route for undefined paths
 @bp.route('/<path:path>')
-@limiter.limit("10 per minute; 30 per hour")
+@limiter.limit(NOT_FOUND_LIMITS)
 def catch_all(path):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
