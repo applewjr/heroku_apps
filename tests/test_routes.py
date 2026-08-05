@@ -311,6 +311,29 @@ def test_smush_plan_flag_returns_a_reconciled_plan(smush_client):
     assert plan["complete"] == (plan["leftover"] == {})
 
 
+def test_smush_page_ships_the_played_word_entry_box(smush_client):
+    # Players resume games mid-board, and the words they already used are
+    # often past the 400-word display cutoff. The type-it-in box is their only
+    # way to record those, so a rename that breaks its wiring should fail here.
+    html = smush_client.get("/smush").get_data(as_text=True)
+    for hook in ('id="board-tools"', 'id="we-toggle"', 'id="word-entry"',
+                 'id="we-input"', 'id="we-add"', 'id="we-status"'):
+        assert hook in html, f"smush.html lost {hook}"
+    # The panel is collapsed until its toggle is tapped: the strip between the
+    # board and the word list must stay clear on arrival.
+    assert 'class="word-entry" id="word-entry"' in html, "entry panel starts expanded"
+
+
+def test_smush_accepts_a_played_word_we_do_not_suggest(smush_client):
+    # The entry box takes any board-legal word, so the played pile can carry
+    # words missing from our dictionary; the route must still solve.
+    body = dict(SMUSH_BODY, outer_uses=dict.fromkeys("mguoaecf", 5),
+                played=["flumagoce"])
+    resp = smush_client.post("/smush", json=body)
+    assert resp.status_code == 200
+    assert resp.get_json()["total_playable"] > 0
+
+
 def test_smush_non_json_body_returns_415(client):
     resp = client.post("/smush", data="x=1",
                        content_type="application/x-www-form-urlencoded")
