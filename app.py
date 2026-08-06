@@ -30,7 +30,7 @@ if config.IS_HEROKU:
         stream=sys.stdout
     )
 
-from extensions import cache, limiter
+from extensions import NOT_FOUND_LIMITS, cache, limiter
 from helpers import ValidationError
 from routes import blossom, dashboards, espresso, misc, wordgames
 
@@ -75,7 +75,7 @@ app.register_blueprint(dashboards.bp)
 
 # Error handler for 404 Not Found
 @app.errorhandler(404)
-@limiter.limit("10 per minute; 30 per hour")
+@limiter.limit(NOT_FOUND_LIMITS)
 def page_not_found(e):
     return render_template('error.html', return_type='404 - Page Not Found'), 404
 

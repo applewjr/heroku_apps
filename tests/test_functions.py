@@ -256,6 +256,18 @@ def test_smush_played_words_are_dropped_and_pangram_reports_found():
     assert status == "affordable"
 
 
+def test_smush_played_word_outside_the_word_list_still_counts():
+    # The page's type-it-in box accepts any board-legal word, so the pile can
+    # hold words our dictionary doesn't have (Smush's list isn't public). They
+    # must not break the solve, and a typed pangram still reports found.
+    assert "moping" in words and "pingemoly" not in words
+    results, total, status = all_words.smush_solver(
+        "l", SMUSH_FRESH, "", False, words, played=["pingemoly"])
+    assert total > 0
+    assert status == "found"  # covers all 9 board letters, list membership aside
+    assert all(r["word"] != "pingemoly" for r in results)
+
+
 def test_smush_center_letter_is_free_and_required():
     results, _, _ = all_words.smush_solver("l", {"e": 1}, "", False, words)
     for r in results:

@@ -31,6 +31,20 @@ limiter = Limiter(
     storage_uri="memory://"  # Use in-memory storage
 )
 
+# Limits are keyed on the Cloudflare edge IP, not the visitor: gunicorn takes
+# the last X-Forwarded-For hop and ProxyFix doesn't rewrite it. So every budget
+# below is shared by all visitors behind the same Cloudflare POP, and the
+# solver pages POST once per keystroke (~45/min for one active player), which
+# the 500/hour default can't cover. Note flask-limiter's override_defaults is
+# True by default: a decorated limit replaces the defaults rather than adding
+# to them, so these strings carry their own daily backstop.
+INTERACTIVE_LIMITS = "120 per minute; 1500 per hour; 6000 per day"
+
+# 404s are mostly scanner traffic that shares a key with real visitors, and
+# Googlebot arrives through the same POP - answering a crawl with 429 instead
+# of 404 keeps dead URLs alive in the index, so keep this loose.
+NOT_FOUND_LIMITS = "60 per minute; 600 per hour"
+
 ##### logins #####
 
 auth = HTTPBasicAuth()

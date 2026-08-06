@@ -34,7 +34,15 @@
       "name": "How does this Smush solver work?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the spicy letter - or use Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses."
+        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the spicy letter, and mark words as played to automatically track letter wear as your game progresses. If you are already partway through a game, tap Add played word and type in the words you have used - the solver spends their letters for you."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I enter words I already played?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Tap Add played word under the board, type in each word you have used, and hit Played - the solver spends its letters and adds it to your played pile, so the rest of its suggestions fit the uses you actually have left. This is the fast way to pick the solver up mid-game when you are down to the last few letters. The box accepts any word your board can spell, whether or not it is one we suggested, so you do not need to find it in the ranked list first. One caveat: it scores the word with whatever spicy letter is set right now, so words you are catching up on can score low - the letters they spend are still exact."
       }
     },
     {
@@ -288,11 +296,21 @@
 
 .board-hint { font-size: 13px; color: #6b7280; margin: 8px auto 0; max-width: 420px; }
 
-/* rare tile adjustments (uses / letter) live behind this toggle so a plain
-   tile tap can set the spicy letter in one go */
-.fix-toggle {
+/* The two hand-correction tools share one row. Both open a panel below
+   instead of living on the page: the strip between the board and the word
+   list is the page's most valuable space, so nothing parks there uninvited. */
+.board-tools {
     display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     margin: 10px auto 0;
+}
+
+.board-tools.visible { display: flex; }
+
+.tool-btn {
     background-color: #fff;
     border: 1px solid #cdd8d7;
     border-radius: 8px;
@@ -306,8 +324,7 @@
     transition: all 0.15s ease;
 }
 
-.fix-toggle.visible { display: inline-block; }
-.fix-toggle:hover, .fix-toggle.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+.tool-btn:hover, .tool-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
 
 /* ---------- status chips ---------- */
 .smush-status {
@@ -550,6 +567,79 @@
 .no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; }
 .loading { text-align: center; color: #6b7280; margin: 20px 0; }
 
+/* ---------- type in a word you already played ---------- */
+/* Words the results list can't offer - below the ranked cutoff, or missing
+   from our dictionary entirely - still spent their letters in the real game,
+   so players catching the solver up mid-board type them in here. Collapsed
+   until ➕ Add played word is tapped; catching up is a once-a-session job. */
+.word-entry {
+    display: none;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 12px 14px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.word-entry.visible { display: block; }
+
+.we-row { display: flex; gap: 8px; }
+
+/* Beats base.html's input[type=text] on specificity, so the field can drop
+   that rule's wide padding without reaching for !important. */
+.word-entry .we-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    /* 16px: anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+.word-entry .we-input::placeholder {
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+    color: #9ca3af;
+}
+
+.we-btn {
+    flex-shrink: 0;
+    background-color: #02484d;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.we-btn:hover:not(:disabled) { background-color: #03595f; }
+.we-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Reserve the line so the panel doesn't jump as the message appears. */
+.we-status { font-size: 13px; line-height: 1.4; margin-top: 8px; min-height: 18px; color: #6b7280; }
+.we-status.good { color: #02484d; }
+.we-status.bad { color: #a55; }
+
+.we-note { font-size: 12px; line-height: 1.45; color: #6b7280; margin-top: 6px; }
+
 /* ---------- played pile ---------- */
 .played-section {
     display: none;
@@ -705,6 +795,12 @@
         <strong>✗</strong> to hide it - rejected words don't spend any letters. Words marked
         <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
         <br><br>
+        <strong>Joining a game already in progress?</strong> Tap <strong>➕&nbsp;Add played word</strong>
+        under the board, then type in each word you've already used and hit <strong>✓&nbsp;Played</strong>.
+        The solver spends those letters for you, so everything it suggests fits the uses you have left.
+        It takes any word your board can spell, including ones missing from our list, so there's no
+        hunting through the results for it.
+        <br><br>
         <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
         words that spends every remaining letter use exactly, flattening the whole board for the
         Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
@@ -723,9 +819,26 @@
 
 <div class="board-hint" id="board-hint">Enter the gold center letter first, then the eight around it.</div>
 
-<button type="button" class="fix-toggle" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
+<div class="board-tools" id="board-tools">
+    <button type="button" class="tool-btn" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
+    <button type="button" class="tool-btn" id="we-toggle" aria-expanded="false"
+            aria-controls="word-entry">➕ Add played word</button>
+</div>
 
 <div class="tile-controls" id="tile-controls" aria-live="polite"></div>
+
+<div class="word-entry" id="word-entry">
+    <div class="we-row">
+        <input type="text" id="we-input" class="we-input" maxlength="15" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="a word you already played" aria-label="A word you already played"
+               aria-describedby="we-status">
+        <button type="button" class="we-btn" id="we-add" disabled>✓ Played</button>
+    </div>
+    <div class="we-status" id="we-status" aria-live="polite"></div>
+    <div class="we-note">Any word works, even ones we didn't suggest. Points use the 🌶 spicy letter set
+        right now, so catch-up words can score low - the letters they spend are always exact.</div>
+</div>
 
 <div class="smush-status" id="smush-status" style="display: none;">
     <span class="status-chip">Score: <b id="chip-score">0</b></span>
@@ -905,6 +1018,10 @@
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the 🌶 spicy letter - or use ✏️ Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can I enter words I already played?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Tap ➕ Add played word under the board, type in each word you've used, and hit ✓ Played - the solver spends its letters and adds it to your played pile, so the rest of its suggestions fit the uses you actually have left. This is the fast way to pick the solver up mid-game when you're down to the last few letters. The box accepts any word your board can spell, whether or not it's one we suggested, so you don't need to find it in the ranked list first. One caveat: it scores the word with whatever 🌶 spicy letter is set right now, so words you're catching up on can score low - the letters they spend are still exact.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How is a word scored in Smush?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Each letter has a point value similar to Scrabble, and a word's base score is the sum of its letter values. Bonuses then add to a single multiplier: +1 for each use of the 🌶 spicy letter, +1 for each letter the word 🥞 smushes flat (spends its last use), and +2 for a ★ pangram, or +4 if the pangram is your very first word. The word's points are its base score times that multiplier - so a word that uses the spicy letter once and smushes two letters scores ×4.</p>
     </div>
@@ -980,6 +1097,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const boardHint = document.getElementById('board-hint');
     const tileControls = document.getElementById('tile-controls');
     const fixBtn = document.getElementById('fix-tiles-btn');
+    const boardTools = document.getElementById('board-tools');
+    const weToggle = document.getElementById('we-toggle');
+    const weWrap = document.getElementById('word-entry');
+    const weInput = document.getElementById('we-input');
+    const weBtn = document.getElementById('we-add');
+    const weStatus = document.getElementById('we-status');
 
     const SOLVE_HINT = 'Tap a tile to move the 🌶 spicy letter - it moves after every play. ' +
                        'Need to fix a tile\'s uses or letter? Tap ✏️ Fix a tile first.';
@@ -1062,13 +1185,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchSeq++;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
-        fixBtn.classList.remove('visible', 'active');
+        boardTools.classList.remove('visible');
+        fixBtn.classList.remove('active');
         fixBtn.setAttribute('aria-pressed', 'false');
         document.getElementById('smush-status').style.display = 'none';
         document.getElementById('pangram-banner').className = 'pangram-banner';
         boardHint.textContent = 'Fill every tile to get your ranked words back.';
         tiles.forEach(t => t.querySelector('input').classList.remove('editing'));
         resultsContainer.innerHTML = '';
+        setEntryOpen(false);
         renderControls();
         persist();
     }
@@ -1094,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         board.classList.add('solve-mode');
         document.getElementById('smush-status').style.display = 'flex';
         boardHint.textContent = SOLVE_HINT;
-        fixBtn.classList.add('visible');
+        boardTools.classList.add('visible');
         fixBtn.classList.remove('active');
         fixBtn.setAttribute('aria-pressed', 'false');
         document.activeElement && document.activeElement.blur();
@@ -1126,6 +1251,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setFixMode(on) {
+        // Only one hand-correction panel at a time; two stacked would push the
+        // word list off the screen. Turning fix mode OFF leaves the entry panel
+        // alone - recordPlay does exactly that after every word logged.
+        if (on) setEntryOpen(false);
         fixMode = on;
         selected = -1;
         fixBtn.classList.toggle('active', on);
@@ -1260,6 +1389,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderControls();
         renderStatus();
         renderPlayed();
+        renderEntry();
         persist();
         scheduleFetch();
     }
@@ -1502,24 +1632,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return JSON.stringify({uses, spicy, played, score});
     }
 
-    function markPlayed(word) {
-        // Plan words can sit below the ranked list's cutoff, so check both.
-        const planWords = (planData && planData.words) || [];
-        const r = lastResults.find(x => x.word === word) || planWords.find(x => x.word === word);
-        if (!r) return;
+    /* Bank a word's points and spend its letters. Shared by the results
+       list's ✓ Played button and the type-it-in box, so a word recorded
+       either way moves the game state identically. */
+    function recordPlay(r) {
         history.push(snapshot());
         score += r.pts;
         played.push({word: r.word, pts: r.pts});
         for (const [l, n] of Object.entries(r.cost)) {
             uses[l] = Math.max(0, (uses[l] ?? MAX_USES) - n);
         }
-        if (spicy && uses[spicy] === 0) { /* spicy tile smushed flat */ }
         spicy = '';
         selected = -1;
         if (fixMode) setFixMode(false);   // next tap should place the new 🌶
         const anyAlive = letters.some((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
-        toast(`${word.toUpperCase()} +${r.pts} · ${anyAlive ? 'the 🌶 moved - tap the new spicy tile' : 'board smushed flat!'}`);
+        toast(`${r.word.toUpperCase()} +${r.pts} · ${anyAlive ? 'the 🌶 moved - tap the new spicy tile' : 'board smushed flat!'}`);
         afterStateChange();
+    }
+
+    function markPlayed(word) {
+        // Plan words can sit below the ranked list's cutoff, so check both.
+        const planWords = (planData && planData.words) || [];
+        const r = lastResults.find(x => x.word === word) || planWords.find(x => x.word === word);
+        if (!r) return;
+        recordPlay(r);
     }
 
     /* The game refused this word: hide it from results without spending
@@ -1544,6 +1680,100 @@ document.addEventListener('DOMContentLoaded', () => {
         afterStateChange();
     }
 
+    /* ---------- typing in a word you already played ---------- */
+    /* The ranked list is capped and our dictionary isn't Smush's, so a word a
+       player already used can be nowhere on the page. Re-implementing the
+       server's scoring here lets any board-legal word be recorded, which is
+       the only practical way to catch the solver up on a game in progress. */
+    function scoreTyped(w) {
+        const center = letters[CENTER];
+        const cost = {};
+        for (const ch of w) { if (ch !== center) cost[ch] = (cost[ch] || 0) + 1; }
+        const smushes = Object.entries(cost)
+            .filter(([l, n]) => (uses[l] ?? MAX_USES) > 0 && n === (uses[l] ?? MAX_USES)).length;
+        const spicyUses = spicy ? (cost[spicy] || 0) : 0;
+        // Callers reject any letter that isn't on the board first, so hitting
+        // nine distinct letters is the same test as the server's set equality.
+        const pangram = new Set(w).size === letters.length;
+        const base = Array.from(w).reduce((s, ch) => s + (LVAL[ch] || 1), 0);
+        const mult = 1 + spicyUses + smushes + (pangram ? (played.length === 0 ? 4 : 2) : 0);
+        return {word: w, base, mult, pts: base * mult,
+                spicy_uses: spicyUses, smushes, pangram, cost};
+    }
+
+    /* -> {word, ok, scored} for a recordable word, or {word, msg} naming the
+       first rule it breaks. */
+    function checkTyped(raw) {
+        const w = (raw || '').toLowerCase().replace(/[^a-z]/g, '');
+        if (!w) return {word: ''};
+        if (w.length < 3) return {word: w, msg: 'Smush words are at least 3 letters.'};
+        // Longer than the /smush route accepts back in the played list.
+        if (w.length > 15) return {word: w, msg: 'Too long to track - 15 letters max.'};
+        const center = letters[CENTER];
+        if (!w.includes(center)) {
+            return {word: w, msg: `Every Smush word has to use the gold ${center.toUpperCase()}.`};
+        }
+        const offBoard = Array.from(new Set(w)).filter(ch => !letters.includes(ch));
+        if (offBoard.length) {
+            return {word: w, msg: `${offBoard.join(', ').toUpperCase()} ${offBoard.length > 1 ? 'are' : 'is'} not on this board.`};
+        }
+        if (played.some(p => p.word === w)) {
+            return {word: w, msg: `${w.toUpperCase()} is already in your played words.`};
+        }
+        const scored = scoreTyped(w);
+        const short = Object.entries(scored.cost)
+            .filter(([l, n]) => n > (uses[l] ?? MAX_USES))
+            .map(([l, n]) => `${l.toUpperCase()} needs ${n}, ${uses[l] ?? MAX_USES} left`);
+        if (short.length) {
+            return {word: w, msg: `Not enough uses left - ${short.join('; ')}. `
+                                + `If the board is off, fix it with ✏️ Fix a tile.`};
+        }
+        return {word: w, ok: true, scored};
+    }
+
+    function renderEntry() {
+        const res = checkTyped(weInput.value);
+        weBtn.disabled = !res.ok;
+        if (!res.word) {
+            weStatus.textContent = '';
+            weStatus.className = 'we-status';
+        } else if (!res.ok) {
+            weStatus.textContent = res.msg;
+            weStatus.className = 'we-status bad';
+        } else {
+            const badges = bonusBadges(res.scored);
+            weStatus.textContent = `${res.word.toUpperCase()} · ${res.scored.pts} pts`
+                + (badges ? ` · ${badges}` : '') + ' · hit ✓ Played to spend its letters';
+            weStatus.className = 'we-status good';
+        }
+    }
+
+    function addTyped() {
+        const res = checkTyped(weInput.value);
+        if (!res.ok) { if (res.msg) toast(res.msg, true); return; }
+        // Clear first: recordPlay re-renders this box through afterStateChange.
+        weInput.value = '';
+        recordPlay(res.scored);
+        weInput.focus();   // keep the keyboard up for the next word
+    }
+
+    /* Collapsed by default - the strip between the board and the word list is
+       the page's most valuable space, and catching up on already-played words
+       is usually a once-a-session job. Stays open across adds so a player
+       resuming a game can log word after word. */
+    function setEntryOpen(open) {
+        if (open && fixMode) setFixMode(false);   // see setFixMode: one at a time
+        weWrap.classList.toggle('visible', open);
+        weToggle.classList.toggle('active', open);
+        weToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            weInput.focus();
+        } else {
+            weInput.value = '';
+            renderEntry();
+        }
+    }
+
     /* ---------- reset & persistence ---------- */
     function resetBoard(e) {
         e && e.preventDefault();
@@ -1553,13 +1783,15 @@ document.addEventListener('DOMContentLoaded', () => {
         solveMode = false; selected = -1; fixMode = false;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
-        fixBtn.classList.remove('visible', 'active');
+        boardTools.classList.remove('visible');
+        fixBtn.classList.remove('active');
         fixBtn.setAttribute('aria-pressed', 'false');
         document.getElementById('smush-status').style.display = 'none';
         document.getElementById('pangram-banner').className = 'pangram-banner';
         boardHint.textContent = 'Enter the gold center letter first, then the eight around it.';
         tiles.forEach(t => { const inp = t.querySelector('input'); inp.value = ''; inp.classList.remove('editing'); });
         resultsContainer.innerHTML = '';
+        setEntryOpen(false);
         renderControls(); renderStatus(); renderPlayed(); renderBoard();
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         inputOf(CENTER).focus();
@@ -1635,6 +1867,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reset-btn').addEventListener('click', resetBoard);
     document.getElementById('undo-btn').addEventListener('click', undoLast);
     fixBtn.addEventListener('click', () => setFixMode(!fixMode));
+
+    weToggle.addEventListener('click', () => setEntryOpen(!weWrap.classList.contains('visible')));
+    weInput.addEventListener('input', renderEntry);
+    weInput.addEventListener('keydown', (e) => {
+        // Enter is the natural way to log word after word while catching up.
+        if (e.key === 'Enter') { e.preventDefault(); addTyped(); }
+    });
+    weBtn.addEventListener('click', addTyped);
 
     const instructionsPanel = document.getElementById('instructions-panel');
     document.getElementById('instructions-toggle').addEventListener('click', () => {
