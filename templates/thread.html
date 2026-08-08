@@ -427,6 +427,37 @@
     .icon-btn:disabled { opacity: 0.3; cursor: default; }
     .icon-btn.del:hover { background: #fdf0ec; color: #b4441e; border-color: #e8bda9; }
 
+    .rule-grip {
+        flex: 0 0 auto;
+        width: 15px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: #cbd2da;
+        font-size: 13px;
+        line-height: 22px;
+        cursor: grab;
+    }
+
+    .rule-grip:hover { color: #6b7280; }
+    .rule-grip:active { cursor: grabbing; }
+    .rule-grip:focus-visible { outline: 2px solid #17726b; outline-offset: 1px; border-radius: 3px; }
+
+    .rule-row.dragging { opacity: 0.35; }
+    .rule-row.drop-above { box-shadow: inset 0 3px 0 -1px #17726b; }
+    .rule-row.drop-below { box-shadow: inset 0 -3px 0 -1px #17726b; }
+
+    /* Dragging covers the desktop. The arrows stay as the fallback for touch,
+       where the drag-and-drop API does not fire at all. */
+    .rule-row .up,
+    .rule-row .down { display: none; }
+
+    @media (max-width: 760px) {
+        .rule-row .up,
+        .rule-row .down { display: inline-block; }
+    }
+
     .rule-row input[type="checkbox"] { flex: 0 0 auto; margin: 0; cursor: pointer; }
 
     .editor-foot {
@@ -559,6 +590,11 @@
           <p>Only three things: the walls of the square it is standing on, its own memory of where it
           has already walked, and its flags. It has no map. Directions are relative to the way it
           faces, so <b>right</b> means the bot's right, not east.</p>
+
+          <p>It can also see through a doorway, but no further. <b>Is the exit</b> and <b>is the
+          key</b> only ever become true for a square the bot has an open way into, which is the same
+          moment that square stops being dark on the board. It cannot spot either one through a
+          wall, or from across the maze.</p>
           <p>Memory comes in two kinds. A <b>way</b> is the gap between two squares, and the bot
           counts how many times it has walked through each one. A <b>square</b> is a place, and it
           counts how often it has stood there. In the menus, any condition with the word
@@ -1054,8 +1090,12 @@
             case "trodden1":  return trod === 1;
             case "trodden2":  return trod >= 2;
             case "unvisited": return ok && st.visits[idx(nx, ny)] === 0;
-            case "exit":      return ok && idx(nx, ny) === exitIdx;
-            case "key":       return ok && keyIdx >= 0 && idx(nx, ny) === keyIdx;
+            // Sighting the exit or the key needs an open way to look through.
+            // Without that the bot could spot them through a solid wall, and a
+            // rule like "IF ahead is the exit THEN move ahead" would then bump
+            // that wall forever, since the condition never stops being true.
+            case "exit":      return ok && isOpen(here, d) && idx(nx, ny) === exitIdx;
+            case "key":       return ok && isOpen(here, d) && keyIdx >= 0 && idx(nx, ny) === keyIdx;
         }
         return false;
     }
@@ -1612,6 +1652,9 @@
 
         el.ruleList.innerHTML = rules.map(function (r, i) {
             return '<div class="rule-row' + (r.on ? "" : " off") + '" data-i="' + i + '">' +
+                '<button type="button" class="rule-grip" aria-label="Reorder rule ' + (i + 1) +
+                '" title="Drag to reorder. Or focus this and use the up and down arrow keys.">' +
+                "&#10303;</button>" +
                 '<span class="rule-num">' + (i + 1) + "</span>" +
                 '<input type="checkbox" class="chk-on"' + (r.on ? " checked" : "") + ' title="Enable rule">' +
                 '<span class="rule-kw">IF</span>' +
@@ -1651,19 +1694,88 @@
             row.querySelector(".op").addEventListener("click", function () {
                 rules[i].op = (rules[i].op === "or") ? "and" : "or"; changed();
             });
-            row.querySelector(".up").addEventListener("click", function () {
-                if (i > 0) { const t = rules[i - 1]; rules[i - 1] = rules[i]; rules[i] = t; changed(); }
-            });
-            row.querySelector(".down").addEventListener("click", function () {
-                if (i < rules.length - 1) { const t = rules[i + 1]; rules[i + 1] = rules[i]; rules[i] = t; changed(); }
-            });
+            row.querySelector(".up").addEventListener("click", function () { moveRule(i, i - 1); });
+            row.querySelector(".down").addEventListener("click", function () { moveRule(i, i + 2); });
             row.querySelector(".del").addEventListener("click", function () {
                 if (rules.length > 1) { rules.splice(i, 1); changed(); }
+            });
+
+            // ---- reordering ----
+            const grip = row.querySelector(".rule-grip");
+
+            // The row is only made draggable while the grip is held, so a drag
+            // can never start from inside one of the dropdowns.
+            grip.addEventListener("mousedown", function () { row.setAttribute("draggable", "true"); });
+            grip.addEventListener("keydown", function (e) {
+                if (e.key === "ArrowUp") { e.preventDefault(); moveRule(i, i - 1); focusGrip(i - 1); }
+                else if (e.key === "ArrowDown") { e.preventDefault(); moveRule(i, i + 2); focusGrip(i + 1); }
+            });
+
+            row.addEventListener("dragstart", function (e) {
+                dragFrom = i;
+                row.classList.add("dragging");
+                e.dataTransfer.effectAllowed = "move";
+                try { e.dataTransfer.setData("text/plain", String(i)); } catch (err) { /* IE-ish */ }
+            });
+
+            row.addEventListener("dragend", function () {
+                row.removeAttribute("draggable");
+                dragFrom = -1;
+                clearDropMarks();
+            });
+
+            row.addEventListener("dragover", function (e) {
+                if (dragFrom < 0 || dragFrom === i) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                clearDropMarks();
+                row.classList.add(dropsBelow(e, row) ? "drop-below" : "drop-above");
+            });
+
+            row.addEventListener("drop", function (e) {
+                e.preventDefault();
+                const from = dragFrom;
+                dragFrom = -1;
+                clearDropMarks();
+                if (from < 0) return;
+                moveRule(from, i + (dropsBelow(e, row) ? 1 : 0));
             });
         });
 
         const n = rules.filter(function (r) { return r.on; }).length;
         el.ruleCount.textContent = n + " active / " + rules.length + " rule" + (rules.length === 1 ? "" : "s");
+    }
+
+    let dragFrom = -1;
+
+    function dropsBelow(e, row) {
+        const box = row.getBoundingClientRect();
+        return (e.clientY - box.top) > box.height / 2;
+    }
+
+    function clearDropMarks() {
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (r) {
+            r.classList.remove("drop-above", "drop-below", "dragging");
+        });
+    }
+
+    // `to` is the slot the rule should land in, counted before the move.
+    function moveRule(from, to) {
+        if (from < 0 || from >= rules.length) return;
+        let target = Math.max(0, Math.min(rules.length, to));
+        if (target === from || target === from + 1) return;   // stayed put
+        const rule = rules.splice(from, 1)[0];
+        if (target > from) target--;                          // the splice shifted everything after
+        rules.splice(target, 0, rule);
+        changed();
+    }
+
+    function focusGrip(i) {
+        const rows = el.ruleList.querySelectorAll(".rule-row");
+        if (rows[i]) {
+            const grip = rows[i].querySelector(".rule-grip");
+            if (grip) grip.focus();
+        }
     }
 
     function changed() {
