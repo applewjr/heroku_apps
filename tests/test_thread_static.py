@@ -203,6 +203,41 @@ def test_dom_ids_the_script_reaches_for_exist():
         assert wanted in present, f"getElementById({wanted!r}) matches no element"
 
 
+def test_the_animation_loop_can_actually_go_idle():
+    """The canvas redraws about 225 rectangles and three radial gradients per
+    frame. That is right while something moves and pure waste when nothing
+    does, so the loop must be able to bail out - and its bail-out must depend
+    on whether a run is playing. An earlier version keyed it on whether the
+    exit had been seen, which is true forever after any win, so the page
+    redrew sixty times a second while the player sat reading their rules."""
+    body = re.search(r"function paint\(\) \{(.*?)\n    \}", JS, re.S)
+    assert body, "could not find the paint loop"
+    # strip comments first, or the prose explaining the fix satisfies the check
+    code = re.sub(r"//[^\n]*", "", body.group(1))
+    # the idle guard specifically, not the "nothing to draw yet" one above it
+    guard = re.search(r"if \([^)]*needsPaint[^)]*\) return;", code)
+    assert guard, (
+        "the paint loop has no idle guard keyed on needsPaint - it will repaint "
+        "every single frame whether or not anything changed"
+    )
+    assert "playing" in code, (
+        "the paint loop's idle check does not consider whether a run is playing, "
+        "so it may animate forever on a still page"
+    )
+
+
+def test_draw_takes_a_pulse_rather_than_reading_the_clock():
+    """If draw derives the pulse from the clock itself, an idle board can never
+    hold still no matter what the loop decides."""
+    assert re.search(r"function draw\(view, frame, prev, t, pulse\)", JS), (
+        "draw should be handed a pulse value, not a timestamp"
+    )
+    body = re.search(r"function draw\(.*?\n    \}", JS, re.S).group(0)
+    assert "performance.now" not in body and "Math.sin(now" not in body, (
+        "draw is reading the clock directly, so the pulse cannot be stopped"
+    )
+
+
 def test_rule_row_markup_has_every_control_its_handlers_bind():
     row = re.search(r"el\.ruleList\.innerHTML = rules\.map\((.*?)\}\)\.join\(\"\"\);",
                     JS, re.S).group(1)

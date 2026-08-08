@@ -1469,8 +1469,9 @@
     function centreOf(i) { return { x: PAD + cx(i) * CS + CS / 2, y: PAD + cy(i) * CS + CS / 2 }; }
 
     // `t` slides the bot from the previous frame to the current one so motion
-    // reads as walking rather than teleporting; `now` drives the exit pulse.
-    function draw(view, frame, prev, t, now) {
+    // reads as walking rather than teleporting. `pulse` runs 0..1 while a run
+    // is playing and sits at 1 once it stops, so an idle board holds still.
+    function draw(view, frame, prev, t, pulse) {
         const w = PAD * 2 + CS * W, h = PAD * 2 + CS * H;
 
         ctx.fillStyle = C_FOG;
@@ -1575,7 +1576,6 @@
         // the key, while it is still lying there waiting to be picked up
         if (keyIdx >= 0 && !frame.k && view.seen[keyIdx]) {
             const k = centreOf(keyIdx);
-            const pulse = 0.5 + 0.5 * Math.sin(now / 470);
             const kh = ctx.createRadialGradient(k.x, k.y, 0, k.x, k.y, CS * (0.7 + 0.22 * pulse));
             kh.addColorStop(0, "rgba(227,194,92," + (0.38 + 0.2 * pulse).toFixed(3) + ")");
             kh.addColorStop(1, "rgba(227,194,92,0)");
@@ -1598,7 +1598,6 @@
         // door only shows once the bot is actually carrying the key.
         if (view.seen[exitIdx] && (keyIdx < 0 || frame.k)) {
             const e = centreOf(exitIdx);
-            const pulse = 0.5 + 0.5 * Math.sin(now / 470);
             const rad = CS * 0.28;
 
             const halo = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, CS * (0.75 + 0.25 * pulse));
@@ -1708,11 +1707,17 @@
         if (!paintView) return;
         const now = performance.now();
         const t = tickDur > 0 ? Math.min(1, (now - tickAt) / tickDur) : 1;
-        // Idle pages should not burn a repaint every frame. Only the glide and
-        // the exit pulse are actually moving.
-        if (!needsPaint && t >= 1 && !paintView.seen[exitIdx]) return;
+
+        // Only the glide and the exit pulse actually move, and the pulse only
+        // beats while a run is playing. Letting it breathe forever redrew the
+        // canvas sixty times a second on a page where nothing was happening -
+        // and since every solved run ends with the exit on screen, that was
+        // the resting state, not an edge case.
+        const beating = playing && paintView.seen[exitIdx];
+        if (!needsPaint && t >= 1 && !beating) return;
         needsPaint = false;
-        draw(paintView, paintFrame, paintPrev, t, now);
+
+        draw(paintView, paintFrame, paintPrev, t, beating ? 0.5 + 0.5 * Math.sin(now / 470) : 1);
     }
 
     function render() {
