@@ -241,8 +241,9 @@ def eval_cond(code, st, m):
         "untrodden": trod == 0,
         "trodden1": trod == 1,
         "trodden2": trod >= 2,
-        "unvisited": ok and st.visits[m.idx(nx, ny)] == 0,
-        # sighting needs an open way to look through, never through a wall
+        # every predicate that reads the square beyond needs an open way to read
+        # it through, never through a wall
+        "unvisited": ok and m.is_open(here, d) and st.visits[m.idx(nx, ny)] == 0,
         "exit": ok and m.is_open(here, d) and m.idx(nx, ny) == m.exit,
         "key": ok and m.is_open(here, d) and m.key >= 0 and m.idx(nx, ny) == m.key,
     }[p[1]]
@@ -569,16 +570,23 @@ def test_or_is_exactly_two_adjacent_rows():
 
 
 @pytest.mark.parametrize("level_i", range(len(LEVELS)))
-def test_the_goal_is_never_visible_through_a_wall(level_i):
+def test_nothing_is_ever_sensed_through_a_wall(level_i):
     """A bot that can sense the exit through a wall will walk into that wall
-    forever, because the condition never stops being true."""
+    forever, because the condition never stops being true.
+
+    `unvisited` is the same promise and used to break it: it answered about the
+    square behind a wall, so a bot could be told it had already stood somewhere
+    it had no way into. That contradicts the one rule the whole game rests on,
+    and it made `IF ahead unvisited THEN move ahead` - the most natural first
+    rule anyone writes - a silent wall-bump."""
     for seed in SEEDS[:6]:
         m = build_maze(LEVELS[level_i], seed)
         st = St()
         st.flags = {"A": False, "B": False, "C": False}
-        st.visits = [0] * (m.W * m.H)
         st.cross = [0] * (m.W * m.H * 4)
         st.key = False
+        # every square already stood on, so "unvisited" has something to leak
+        st.visits = [1] * (m.W * m.H)
         for i in range(m.W * m.H):
             for d in range(4):
                 if m.is_open(i, d):
@@ -586,6 +594,17 @@ def test_the_goal_is_never_visible_through_a_wall(level_i):
                 st.x, st.y, st.facing = m.cx(i), m.cy(i), d
                 assert not eval_cond("ahead.exit", st, m)
                 assert not eval_cond("ahead.key", st, m)
+                # false either way round: the square beyond a wall is
+                # unreadable, not unvisited, so the answer must not move when
+                # the square behind that wall does
+                assert not eval_cond("ahead.unvisited", st, m)
+                nx, ny = m.cx(i) + DX[d], m.cy(i) + DY[d]
+                if not m.inb(nx, ny):
+                    continue
+                j = m.idx(nx, ny)
+                st.visits[j] = 0
+                assert not eval_cond("ahead.unvisited", st, m)
+                st.visits[j] = 1
 
 
 def test_a_program_with_no_catch_all_halts_rather_than_hanging():

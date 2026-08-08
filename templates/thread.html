@@ -74,6 +74,12 @@
 
     .instructions-header:hover { background-color: #f3f4f6; }
 
+    /* It carries role="button", so it has to show focus like one */
+    .instructions-header:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: -2px;
+    }
+
     .instructions-chevron {
         font-size: 10px;
         transition: transform 0.2s ease;
@@ -578,11 +584,15 @@
     .rule-row.drop-below { box-shadow: inset 0 -3px 0 -1px #17726b; }
 
     /* Dragging covers the desktop. The arrows stay as the fallback for touch,
-       where the drag-and-drop API does not fire at all. */
+       where the drag-and-drop API does not fire at all.
+
+       Keyed on the pointer, not on the width. A tablet in landscape is wide
+       enough to miss a max-width rule and still has no drag events, which left
+       it with no way to reorder a rule at all. */
     .rule-row .up,
     .rule-row .down { display: none; }
 
-    @media (max-width: 760px) {
+    @media (max-width: 760px), (hover: none), (pointer: coarse) {
         .rule-row .up,
         .rule-row .down { display: inline-block; }
     }
@@ -698,11 +708,14 @@
     <p class="thread-tagline">You never see the maze. You only write the rules that walk it.</p>
 
     <div class="instructions" id="instructions">
-      <div class="instructions-header" id="instructions-toggle">
+      <!-- A div that behaves like a button has to say so and be reachable by
+           tab, or the only way into the rules is a mouse. -->
+      <div class="instructions-header" id="instructions-toggle" role="button" tabindex="0"
+           aria-expanded="false" aria-controls="instructions-body">
         <span>How to play</span>
         <span class="instructions-chevron">&#9660;</span>
       </div>
-      <div class="instructions-body">
+      <div class="instructions-body" id="instructions-body">
         <p>You do not solve the maze. You write a program that solves the maze, then watch it run in
         the dark. The maze is only revealed where your bot has been.</p>
 
@@ -720,10 +733,11 @@
           has already walked, and its flags. It has no map. Directions are relative to the way it
           faces, so <b>right</b> means the bot's right, not east.</p>
 
-          <p>It can also see through a doorway, but no further. <b>Is the exit</b> and <b>is the
-          key</b> only ever become true for a square the bot has an open way into, which is the same
-          moment that square stops being dark on the board. It cannot spot either one through a
-          wall, or from across the maze.</p>
+          <p>It can also see through a doorway, but no further. Every condition that reads a
+          square - <b>is the exit</b>, <b>is the key</b>, <b>unvisited</b> - only ever becomes true
+          for a square the bot has an open way into, which is the same moment that square stops
+          being dark on the board. It cannot read anything through a wall, or from across the
+          maze.</p>
           <p>Memory comes in two kinds. A <b>way</b> is the gap between two squares, and the bot
           counts how many times it has walked through each one. A <b>square</b> is a place, and it
           counts how often it has stood there. In the menus, any condition with the word
@@ -803,7 +817,7 @@
 
       <div class="thread-right">
         <div class="shared-note" id="sharedNote" hidden>
-          <span>You are looking at a program someone shared. Your own is saved and safe.</span>
+          <span id="sharedNoteText"></span>
           <button type="button" class="thread-btn" id="restoreMine">Restore mine</button>
         </div>
 
@@ -1180,6 +1194,48 @@
         return value;
     }
 
+    // Exactly the codes the menus can produce, as sets rather than plain
+    // objects so that a key like "constructor" cannot pass on a prototype.
+    // A shared link is arbitrary text from a stranger, and a code from outside
+    // these sets reaches the evaluator as a NaN direction and every label as
+    // itself. Both are handled downstream now, but the fix belongs at the door.
+    function riderCodes() {
+        const out = [""];
+        for (const f of ["A", "B", "C"]) {
+            for (const op of ["on", "off", "toggle"]) out.push("flag." + f + "." + op);
+        }
+        return new Set(out);
+    }
+
+    function condCodes() {
+        const out = ["", "always"];
+        for (const s of DIR_SUBJECTS) for (const p of DIR_PREDS) out.push(s[0] + "." + p[0]);
+        for (const p of HERE_PREDS) out.push("here." + p[0]);
+        for (const f of ["A", "B", "C"]) {
+            out.push("flag." + f + ".on");
+            out.push("flag." + f + ".off");
+        }
+        return new Set(out);
+    }
+
+    function actCodes() {
+        const out = [];
+        for (const d of ["ahead", "right", "left", "back"]) out.push("move." + d);
+        for (const t of ["right", "left", "around"]) out.push("turn." + t);
+        for (const c of riderCodes()) if (c) out.push(c);
+        return new Set(out);
+    }
+
+    // Every label the editor prints goes through here. The flag names in them
+    // are player text, and on a shared link they are a stranger's text.
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
     // ---------------------------------------------------------------
     // program
     // ---------------------------------------------------------------
@@ -1271,11 +1327,13 @@
             case "untrodden": return trod === 0;
             case "trodden1":  return trod === 1;
             case "trodden2":  return trod >= 2;
-            case "unvisited": return ok && st.visits[idx(nx, ny)] === 0;
-            // Sighting the exit or the key needs an open way to look through.
-            // Without that the bot could spot them through a solid wall, and a
-            // rule like "IF ahead is the exit THEN move ahead" would then bump
-            // that wall forever, since the condition never stops being true.
+            // Every predicate that reads the square beyond needs an open way to
+            // read it through. Without that the bot senses through solid wall,
+            // and a rule like "IF ahead is the exit THEN move ahead" bumps that
+            // wall forever, since the condition never stops being true.
+            // "unvisited" is the same promise: a walled-off square is not a
+            // square you can be told about, however untouched it is.
+            case "unvisited": return ok && isOpen(here, d) && st.visits[idx(nx, ny)] === 0;
             case "exit":      return ok && isOpen(here, d) && idx(nx, ny) === exitIdx;
             case "key":       return ok && isOpen(here, d) && keyIdx >= 0 && idx(nx, ny) === keyIdx;
         }
@@ -1662,6 +1720,7 @@
         levelSelect: document.getElementById("levelSelect"),
         practiceBadge: document.getElementById("practiceBadge"),
         sharedNote: document.getElementById("sharedNote"),
+        sharedNoteText: document.getElementById("sharedNoteText"),
         restoreMine: document.getElementById("restoreMine"),
         levelDesc: document.getElementById("levelDesc"),
         newMaze: document.getElementById("newMazeBtn"),
@@ -1861,23 +1920,42 @@
         if (keep !== "") el.levelSelect.value = keep;
     }
 
+    function traceEl(tag, cls, text) {
+        const node = document.createElement(tag);
+        node.className = cls;
+        node.textContent = text;
+        return node;
+    }
+
+    // Built as nodes, not as a string of HTML. An action label is only a label
+    // when the code behind it is one the menus know; anything else falls
+    // through labelFor() as itself, and a link could put arbitrary text there.
+    // Assigned as text it is inert whatever it says.
     function renderTrace() {
-        const lines = [];
         const ag = actionGroups();
         const from = Math.max(1, playhead - 9);
+        const frag = document.createDocumentFragment();
+
         for (let k = from; k <= playhead; k++) {
             const f = sim.frames[k];
-            lines.push('<div><span class="t-step">' + String(k).padStart(4, " ") +
-                '</span> <span class="t-rule">r' + (f.ri + 1) + '</span> ' +
-                '<span class="t-act">' + labelFor(ag, f.act) + "</span></div>");
+            const row = document.createElement("div");
+            row.appendChild(traceEl("span", "t-step", String(k).padStart(4, " ")));
+            row.appendChild(document.createTextNode(" "));
+            row.appendChild(traceEl("span", "t-rule", "r" + (f.ri + 1)));
+            row.appendChild(document.createTextNode(" "));
+            row.appendChild(traceEl("span", "t-act", labelFor(ag, f.act)));
+            frag.appendChild(row);
         }
-        if (playhead >= sim.frames.length - 1 && sim.outcome !== "solved") {
-            lines.push('<div class="t-halt">halted: ' + sim.outcome + "</div>");
+
+        if (playhead >= sim.frames.length - 1) {
+            frag.appendChild(sim.outcome === "solved"
+                ? traceEl("div", "t-rule", "exit reached")
+                : traceEl("div", "t-halt", "halted: " + sim.outcome));
         }
-        if (playhead >= sim.frames.length - 1 && sim.outcome === "solved") {
-            lines.push('<div class="t-rule">exit reached</div>');
-        }
-        el.trace.innerHTML = lines.join("") || '<div class="t-step">ready</div>';
+        if (!frag.childNodes.length) frag.appendChild(traceEl("div", "t-step", "ready"));
+
+        el.trace.textContent = "";
+        el.trace.appendChild(frag);
         el.trace.scrollTop = el.trace.scrollHeight;
     }
 
@@ -1888,7 +1966,7 @@
             return '<span class="flag-chip" title="Flag ' + ["A", "B", "C"][n] +
                 ' - lit when on. Rename it to whatever it means in your program.">' +
                 '<span class="flag-led" data-led="' + n + '"></span>' +
-                '<input type="text" data-flag="' + n + '" value="' + flagNames[n].replace(/"/g, "&quot;") +
+                '<input type="text" data-flag="' + n + '" value="' + esc(flagNames[n]) +
                 '" maxlength="8" aria-label="Name for flag ' + ["A", "B", "C"][n] + '"></span>';
         }).join("");
         el.flagsBar.querySelectorAll("input[data-flag]").forEach(function (inp) {
@@ -1947,12 +2025,13 @@
     function buildSelect(cls, groups, value, emptyLabel) {
         let h = '<select class="' + cls + '">';
         if (emptyLabel !== undefined) {
-            h += '<option value=""' + (value === "" ? " selected" : "") + ">" + emptyLabel + "</option>";
+            h += '<option value=""' + (value === "" ? " selected" : "") + ">" + esc(emptyLabel) + "</option>";
         }
         for (const g of groups) {
-            h += '<optgroup label="' + g.label + '">';
+            h += '<optgroup label="' + esc(g.label) + '">';
             for (const it of g.items) {
-                h += '<option value="' + it[0] + '"' + (it[0] === value ? " selected" : "") + ">" + it[1] + "</option>";
+                h += '<option value="' + esc(it[0]) + '"' + (it[0] === value ? " selected" : "") +
+                    ">" + esc(it[1]) + "</option>";
             }
             h += "</optgroup>";
         }
@@ -2270,22 +2349,26 @@
     }
 
     function adoptProgram(obj) {
+        // A shared link is a stranger's text. Nothing from it reaches the
+        // evaluator, the editor or the trace unless the menus could have
+        // produced it: the rider stays a flag op so it cannot smuggle in a
+        // second move per tick, and the rest is checked the same way rather
+        // than trusted for being a string. An empty c1 mattered too - it reads
+        // as "always" in the evaluator while the dropdown shows a condition.
+        const okCond = condCodes(), okAct = actCodes(), okRider = riderCodes();
         rules = obj.r.slice(0, MAX_RULES).map(function (raw) {
             // v2 packs a rule as an array; v1 links and local saves use objects
             const r = Array.isArray(raw)
                 ? { on: raw[0] !== 0, c1: raw[1], c2: raw[2], op: raw[3] ? "or" : "and",
                     act: raw[4], act2: raw[5] }
                 : raw;
-            // A shared link is untrusted input: the rider has to be a flag op
-            // or nothing, or it would smuggle in a second move per tick.
-            const rider = (typeof r.act2 === "string" && r.act2.indexOf("flag.") === 0) ? r.act2 : "";
             return {
                 on: r.on !== false,
-                c1: typeof r.c1 === "string" ? r.c1 : "always",
-                c2: typeof r.c2 === "string" ? r.c2 : "",
+                c1: okCond.has(r.c1) && r.c1 !== "" ? r.c1 : "always",
+                c2: okCond.has(r.c2) ? r.c2 : "",
                 op: r.op === "or" ? "or" : "and",
-                act: typeof r.act === "string" ? r.act : "move.ahead",
-                act2: rider
+                act: okAct.has(r.act) ? r.act : "move.ahead",
+                act2: okRider.has(r.act2) ? r.act2 : ""
             };
         });
         if (Array.isArray(obj.f) && obj.f.length === 3) {
@@ -2306,9 +2389,16 @@
                 // takes over. Both share one slot, so without this the
                 // visitor's first edit writes the shared program straight over
                 // a program they may have spent an hour on.
+                //
+                // Only ever stash once. After that first edit the live slot
+                // holds the shared program, so stashing again on the next link
+                // would file a stranger's program as "mine" and drop the real
+                // one for good - the one failure here that cannot be undone.
                 try {
                     const mine = localStorage.getItem("thread.program");
-                    if (mine) localStorage.setItem("thread.program.mine", mine);
+                    if (mine && localStorage.getItem("thread.program.mine") === null) {
+                        localStorage.setItem("thread.program.mine", mine);
+                    }
                 } catch (e) { /* storage off */ }
                 adoptProgram(incoming);
                 sharedLink = true;
@@ -2423,6 +2513,18 @@
         try { return localStorage.getItem("thread.program.mine"); } catch (e) { return null; }
     }
 
+    // Tied to the stash, not to the hash. Editing while a link is open writes
+    // that program into the live slot, so on the next visit - no hash, no
+    // banner under the old rule - the program on screen still is not theirs and
+    // the way back had quietly disappeared.
+    function updateSharedNote() {
+        const stashed = stashedProgram();
+        el.sharedNote.hidden = !stashed;
+        el.sharedNoteText.textContent = sharedLink
+            ? "You are looking at a program someone shared. Your own is saved and safe."
+            : "A program you had before opening a shared link is still saved.";
+    }
+
     el.restoreMine.addEventListener("click", function () {
         const raw = stashedProgram();
         if (!raw) return;
@@ -2434,8 +2536,8 @@
 
         sharedLink = false;
         try { localStorage.removeItem("thread.program.mine"); } catch (e) { /* storage off */ }
-        if (location.hash) history.replaceState(null, "", location.pathname);
-        el.sharedNote.hidden = true;
+        if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+        updateSharedNote();
         buildFlags();
         changed();          // writes the restored program back to the live slot
     });
@@ -2453,8 +2555,18 @@
     });
 
     const instr = document.getElementById("instructions");
-    document.getElementById("instructions-toggle").addEventListener("click", function () {
-        instr.classList.toggle("open");
+    const instrToggle = document.getElementById("instructions-toggle");
+
+    function toggleInstructions() {
+        instrToggle.setAttribute("aria-expanded", instr.classList.toggle("open") ? "true" : "false");
+    }
+
+    instrToggle.addEventListener("click", toggleInstructions);
+
+    // role="button" is a claim the element has to make good on itself. A real
+    // button answers Enter and Space; a div answers nothing until told to.
+    instrToggle.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleInstructions(); }
     });
 
     // Nothing is preloaded into the editor any more, so a first-time visitor
@@ -2465,7 +2577,7 @@
         catch (e) { return true; }
     }
 
-    if (isFirstVisit()) instr.classList.add("open");
+    if (isFirstVisit()) toggleInstructions();
 
     // ---------------------------------------------------------------
     // layout mode - chosen once, then held. Resizing only ever changes how
@@ -2520,7 +2632,8 @@
     el.undo.addEventListener("click", undo);
 
     window.addEventListener("keydown", function (e) {
-        const tag = (document.activeElement || {}).tagName || "";
+        const active = document.activeElement || {};
+        const tag = active.tagName || "";
 
         if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "z") {
             // inside a text field, let the field undo its own typing
@@ -2530,13 +2643,20 @@
             return;
         }
 
-        if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+        // Anything that answers keys itself keeps them. Space used to be taken
+        // from the whole page, and since preventDefault on keydown is what
+        // suppresses a button's own activation, tabbing to Reset and pressing
+        // Space ran the program instead of resetting it. Every button on the
+        // page was dead to the keyboard.
+        if (/^(INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY|A)$/.test(tag)) return;
+        if (active.getAttribute && active.getAttribute("role") === "button") return;
+
         if (e.key === " ") { e.preventDefault(); if (playing) stop(); else play(); }
         else if (e.key === "ArrowRight") { e.preventDefault(); el.step.click(); }
     });
 
     loadStored();
-    el.sharedNote.hidden = !(sharedLink && stashedProgram());
+    updateSharedNote();
     buildFlags();
     renderRules();
     markSettled();

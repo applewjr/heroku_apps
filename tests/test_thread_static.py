@@ -238,6 +238,73 @@ def test_draw_takes_a_pulse_rather_than_reading_the_clock():
     )
 
 
+def test_the_trace_never_builds_html_from_an_action_label():
+    """labelFor() returns the raw code when it recognises none, and a shared
+    link can put any string in that slot. Concatenated into innerHTML that was
+    script execution on our own origin from a link anyone could send. The trace
+    has to be built as text nodes."""
+    body = re.search(r"function renderTrace\(\) \{(.*?)\n    \}", JS, re.S)
+    assert body, "could not find renderTrace"
+    code = re.sub(r"//[^\n]*", "", body.group(1))
+    assert "innerHTML" not in code, (
+        "renderTrace is assembling innerHTML again - an action label from a "
+        "shared link goes in there verbatim"
+    )
+    assert "labelFor" in code and "textContent" in code, (
+        "renderTrace should still print labels, but only ever as text"
+    )
+
+
+def test_a_shared_link_cannot_introduce_a_code_the_menus_could_not():
+    """Unvalidated codes reach the evaluator as NaN directions and every label
+    as themselves. adoptProgram is the one door they come through."""
+    body = re.search(r"function adoptProgram\(obj\) \{(.*?)\n    \}", JS, re.S)
+    assert body, "could not find adoptProgram"
+    code = re.sub(r"//[^\n]*", "", body.group(1))
+    for field, checker in (("c1", "condCodes"), ("c2", "condCodes"),
+                           ("act", "actCodes"), ("act2", "riderCodes")):
+        assert re.search(r"\b" + field + r":", code), f"adoptProgram no longer sets {field}"
+        assert checker in code, (
+            f"adoptProgram does not consult {checker}(), so {field} is taken on trust"
+        )
+    # The flag names below are free text and stay a typeof check. The rule
+    # fields are not: a typeof check passes any string, and any string is
+    # exactly the problem.
+    assert "typeof r." not in code, (
+        "a rule field is being taken on typeof alone rather than checked "
+        "against the vocabulary"
+    )
+
+
+def test_the_code_sets_cover_the_whole_vocabulary():
+    """If the whitelist and the menus ever disagree, the game silently rewrites
+    a rule the player legitimately built."""
+    conds, acts = _vocabulary()
+    listed = set(re.findall(r'"(move|turn|flag)\.[^"]*"', JS))
+    assert listed, "sanity: expected action codes in the source"
+
+    cond_fn = re.search(r"function condCodes\(\) \{(.*?)\n    \}", JS, re.S)
+    act_fn = re.search(r"function actCodes\(\) \{(.*?)\n    \}", JS, re.S)
+    assert cond_fn and act_fn, "the whitelist builders are gone"
+
+    # built from the same tables the menus are, rather than retyped
+    for table in ("DIR_SUBJECTS", "DIR_PREDS", "HERE_PREDS"):
+        assert table in cond_fn.group(1), (
+            f"condCodes() does not read {table}, so the whitelist can drift "
+            f"out of step with the dropdowns"
+        )
+    assert "always" in cond_fn.group(1)
+    assert len(conds) > 30 and len(acts) == 16      # guards the helper itself
+
+
+def test_menu_labels_are_escaped():
+    """Flag names are player text, and on a shared link they are a stranger's."""
+    body = re.search(r"function buildSelect\((.*?)\n    \}", JS, re.S).group(1)
+    assert "esc(" in body, "buildSelect interpolates labels without escaping them"
+    for raw in ("+ g.label +", "+ it[1] +", "+ emptyLabel +"):
+        assert raw not in body, f"unescaped interpolation in buildSelect: {raw}"
+
+
 def test_rule_row_markup_has_every_control_its_handlers_bind():
     row = re.search(r"el\.ruleList\.innerHTML = rules\.map\((.*?)\}\)\.join\(\"\"\);",
                     JS, re.S).group(1)
