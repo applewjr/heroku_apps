@@ -38,7 +38,7 @@ BROWSER_GLOBALS = {
     "escape", "unescape", "encodeURIComponent", "decodeURIComponent",
     "Uint8Array", "Uint16Array", "Int8Array", "Int32Array", "Float32Array",
     "Map", "Set", "requestAnimationFrame", "cancelAnimationFrame", "performance",
-    "undefined", "NaN", "Infinity", "Promise", "arguments", "this",
+    "undefined", "NaN", "Infinity", "Promise", "arguments", "this", "history",
 }
 
 

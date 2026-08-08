@@ -366,6 +366,23 @@
 
     /* ---- rule editor ---- */
 
+    .shared-note {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: #f4f1e8;
+        border: 1px solid #e4dcc6;
+        color: #6f6544;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .shared-note[hidden] { display: none; }
+
     .preset-bar {
         display: flex;
         flex-wrap: wrap;
@@ -717,6 +734,11 @@
       </div>
 
       <div class="thread-right">
+        <div class="shared-note" id="sharedNote" hidden>
+          <span>You are looking at a program someone shared. Your own is saved and safe.</span>
+          <button type="button" class="thread-btn" id="restoreMine">Restore mine</button>
+        </div>
+
         <div class="panel-label">Program</div>
 
         <div class="preset-bar">
@@ -915,7 +937,7 @@
         // question left is how well - which is the one question the earlier
         // levels cannot ask, because on a maze with no loops every working
         // program walks the very same route.
-        { id: "short",  name: "6 - The Short Way", w: 15, h: 15, braid: 0.4, island: false }
+        { id: "short",  name: "6 - The Short Way", w: 15, h: 15, braid: 0.4, island: false, group: "speed" }
     ];
 
     const CANON_SEED = 1;      // the maze a level's Best score is measured on
@@ -1115,6 +1137,8 @@
     function clone(rules) { return rules.map(function (r) { return Object.assign({}, r); }); }
 
     let rules = clone(PRESETS.right);
+    let startLevel = 0;         // a shared link can say which level it is for
+    let sharedLink = false;     // this page is showing somebody else's program
 
     // ---------------------------------------------------------------
     // simulation
@@ -1537,6 +1561,8 @@
     const el = {
         levelSelect: document.getElementById("levelSelect"),
         practiceBadge: document.getElementById("practiceBadge"),
+        sharedNote: document.getElementById("sharedNote"),
+        restoreMine: document.getElementById("restoreMine"),
         levelDesc: document.getElementById("levelDesc"),
         newMaze: document.getElementById("newMazeBtn"),
         run: document.getElementById("runBtn"),
@@ -1668,13 +1694,29 @@
     // A level only has a best once it has been solved on its own maze, so show
     // the score itself rather than a tick. A number explains what it means; a
     // tick just asserts something and leaves the player to guess what.
+    // Two groups, because the ladder now has two axes. Levels 1 to 5 ask
+    // whether you can reach the exit at all; level 6 is beatable by the very
+    // first preset and asks only how quickly. Listing them as one run of
+    // rising numbers claims a difficulty order that is not true.
+    const LEVEL_GROUPS = { way: "Find the way", speed: "Find it faster" };
+
     function renderLevelOptions() {
         const keep = el.levelSelect.value;
-        el.levelSelect.innerHTML = LEVELS.map(function (L, i) {
+        let html = "";
+        let open = null;
+        LEVELS.forEach(function (L, i) {
+            const group = L.group || "way";
+            if (group !== open) {
+                if (open !== null) html += "</optgroup>";
+                html += '<optgroup label="' + LEVEL_GROUPS[group] + '">';
+                open = group;
+            }
             const best = bestFor(L.id);
-            return '<option value="' + i + '">' + L.name +
+            html += '<option value="' + i + '">' + L.name +
                 (best === null ? "" : " (best " + best + ")") + "</option>";
-        }).join("");
+        });
+        if (open !== null) html += "</optgroup>";
+        el.levelSelect.innerHTML = html;
         if (keep !== "") el.levelSelect.value = keep;
     }
 
@@ -2016,8 +2058,10 @@
         } catch (e) { /* storage disabled - the page still works, just forgets */ }
     }
 
+    // `l` carries the level, so a bot tuned for the key maze does not open on
+    // level 1 and look broken to whoever you sent it to.
     function encodeProgram() {
-        const json = JSON.stringify({ r: rules, f: flagNames });
+        const json = JSON.stringify({ r: rules, f: flagNames, l: levelIdx });
         return btoa(unescape(encodeURIComponent(json)));
     }
 
@@ -2046,12 +2090,27 @@
                 return (typeof n === "string" && n.trim()) ? n.trim().slice(0, 8) : ["A", "B", "C"][i];
             });
         }
+        if (typeof obj.l === "number" && obj.l >= 0 && obj.l < LEVELS.length) {
+            startLevel = obj.l | 0;
+        }
     }
 
     function loadStored() {
         if (location.hash.length > 2) {
-            try { adoptProgram(decodeProgram(location.hash.slice(1))); return; }
-            catch (e) { /* malformed link - fall through to local storage */ }
+            try {
+                const incoming = decodeProgram(location.hash.slice(1));
+                // Put whatever was already saved somewhere safe before the link
+                // takes over. Both share one slot, so without this the
+                // visitor's first edit writes the shared program straight over
+                // a program they may have spent an hour on.
+                try {
+                    const mine = localStorage.getItem("thread.program");
+                    if (mine) localStorage.setItem("thread.program.mine", mine);
+                } catch (e) { /* storage off */ }
+                adoptProgram(incoming);
+                sharedLink = true;
+                return;
+            } catch (e) { /* malformed link - fall through to local storage */ }
         }
         try {
             const raw = localStorage.getItem("thread.program");
@@ -2153,6 +2212,27 @@
         }
     });
 
+    function stashedProgram() {
+        try { return localStorage.getItem("thread.program.mine"); } catch (e) { return null; }
+    }
+
+    el.restoreMine.addEventListener("click", function () {
+        const raw = stashedProgram();
+        if (!raw) return;
+        try {
+            const obj = JSON.parse(raw);
+            if (!obj || !Array.isArray(obj.rules)) return;
+            adoptProgram({ r: obj.rules, f: obj.flags });
+        } catch (e) { return; }
+
+        sharedLink = false;
+        try { localStorage.removeItem("thread.program.mine"); } catch (e) { /* storage off */ }
+        if (location.hash) history.replaceState(null, "", location.pathname);
+        el.sharedNote.hidden = true;
+        buildFlags();
+        changed();          // writes the restored program back to the live slot
+    });
+
     document.querySelectorAll(".preset").forEach(function (b) {
         b.addEventListener("click", function () {
             if (b.dataset.preset === "breadcrumbs" &&
@@ -2228,10 +2308,11 @@
     });
 
     loadStored();
+    el.sharedNote.hidden = !(sharedLink && stashedProgram());
     buildFlags();
     renderRules();
     setLayout(storedLayout());
-    loadLevel(0);
+    loadLevel(startLevel);
     requestAnimationFrame(paint);
 })();
 </script>
