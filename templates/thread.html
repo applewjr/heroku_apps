@@ -119,7 +119,7 @@
     /* nowrap: content can never trigger a reflow into the other mode */
     .thread-layout.mode-side { flex-wrap: nowrap; }
     .thread-layout.mode-side .thread-left  { flex: 1 1 0; min-width: 0; max-width: 900px; margin: 0; }
-    .thread-layout.mode-side .thread-right { flex: 0 0 700px; min-width: 0; }
+    .thread-layout.mode-side .thread-right { flex: 0 0 820px; min-width: 0; }
 
     .thread-layout.mode-stack { flex-wrap: wrap; }
 
@@ -127,6 +127,62 @@
         display: flex;
         justify-content: flex-end;
         margin: 0 auto 10px;
+    }
+
+    /* ---- the name ---- */
+
+    .why-thread {
+        max-width: 680px;
+        margin: 54px auto 8px;
+        padding: 26px 30px 30px;
+        background: #fbfaf7;
+        border: 1px solid #ece7db;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* a thread laid along the top edge */
+    .why-thread::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg,
+            rgba(217,181,69,0) 0%,
+            rgba(217,181,69,0.9) 22%,
+            rgba(217,181,69,0.9) 78%,
+            rgba(217,181,69,0) 100%);
+    }
+
+    .why-thread h2 {
+        font-size: 17px;
+        font-weight: 600;
+        color: #3a3a33;
+        margin: 0 0 14px;
+        letter-spacing: 0.01em;
+    }
+
+    .why-thread p {
+        margin: 0 0 13px;
+        font-size: 14.5px;
+        line-height: 1.72;
+        color: #55524a;
+    }
+
+    .why-thread em { color: #8a7433; font-style: italic; }
+
+    .why-thread-coda {
+        margin-top: 18px !important;
+        margin-bottom: 0 !important;
+        padding-top: 15px;
+        border-top: 1px solid #ece7db;
+        font-style: italic;
+        color: #6d6a60 !important;
+    }
+
+    @media (max-width: 620px) {
+        .why-thread { padding: 20px 18px 22px; margin-top: 36px; }
     }
 
     .panel-label {
@@ -272,7 +328,7 @@
     .rule-row {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         background: #fff;
         border: 1px solid #e5e7eb;
         border-radius: 7px;
@@ -310,6 +366,29 @@
 
     .rule-row .sel-cond { flex: 1 1 158px; }
     .rule-row .sel-act  { flex: 1 1 140px; }
+    .rule-row .sel-act2 { flex: 1 1 110px; color: #7b8794; }
+
+    .rule-op {
+        flex: 0 0 auto;
+        font-family: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        min-width: 34px;
+        padding: 3px 4px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: #f9fafb;
+        color: #6b7280;
+        cursor: pointer;
+    }
+
+    .rule-op:hover { background: #eef2f7; color: #374151; border-color: #cbd5e1; }
+
+    /* OR is the unusual choice, so it is the one that gets to stand out */
+    .rule-op:not(.idle) { border-color: #cbd5e1; }
+    .rule-op.is-or { background: #fdf6e3; border-color: #dcc98a; color: #8a7433; }
+    .rule-op.idle { opacity: 0.4; }
 
     .rule-kw {
         color: #9ca3af;
@@ -569,6 +648,30 @@
       </div>
 
     </div>
+
+    <section class="why-thread">
+      <h2>Why it is called Thread</h2>
+
+      <p>Theseus went into the Labyrinth to kill the Minotaur, and the monster was never the hard
+      part. Getting back out was. So Ariadne gave him a ball of thread to unwind behind him as he
+      walked, and that thin unwinding line became the only thing in the whole maze that knew where
+      he had been.</p>
+
+      <p>Your bot is in the same position. It has no map and no view of the walls ahead, only a
+      record of the ground it has already covered, laid down one step at a time behind it. The gold
+      line drawn across the board is that thread, and every condition in your rules that asks about
+      a way already trodden is your bot reading it.</p>
+
+      <p>There is a small piece of etymology tangled up in this. The ball of thread had its own
+      name in older English: a <em>clew</em>. When the word drifted from meaning a literal ball of
+      yarn to meaning anything at all that guides you out of a confusion, the spelling drifted with
+      it, and we ended up with <em>clue</em>. Every clue ever followed is a thread being wound back
+      in.</p>
+
+      <p class="why-thread-coda">Leaving a trail behind you turns out to be more than a story. Done
+      properly it is provably enough to escape any maze that exists, however tangled, without ever
+      seeing it. Working out what "properly" means is the game.</p>
+    </section>
   </div>
 </div>
 
@@ -606,7 +709,7 @@
 
     let W = 9, H = 9;
     let cells = null;                  // Uint8Array wall bitmasks
-    let startIdx = 0, exitIdx = 0;
+    let startIdx = 0, exitIdx = 0, keyIdx = -1;
 
     function idx(x, y) { return y * W + x; }
     function cx(i) { return i % W; }
@@ -707,7 +810,8 @@
         { id: "warmup", name: "1 - Threshold",  w: 9,  h: 9,  braid: 0,   island: false },
         { id: "long",   name: "2 - Descent",    w: 15, h: 15, braid: 0,   island: false },
         { id: "island", name: "3 - Deeper",     w: 13, h: 13, braid: 0,   island: true },
-        { id: "tangle", name: "4 - Farthest In", w: 15, h: 15, braid: 0.6, island: true }
+        { id: "tangle", name: "4 - Farthest In", w: 15, h: 15, braid: 0.6, island: true },
+        { id: "key",    name: "5 - And Back Again", w: 15, h: 15, braid: 0.3, island: true, key: true }
     ];
 
     const CANON_SEED = 1;      // the maze a level's Best score is measured on
@@ -721,13 +825,49 @@
         genPerfect(rand);
         if (L.braid > 0) braid(rand, L.braid);
         startIdx = idx(0, 0);
+        keyIdx = -1;
+
+        let islandCell = -1;
         if (L.island) {
-            const gx = (W / 2) | 0, gy = (H / 2) | 0;
+            // On a key level the island holds the key rather than the door, so
+            // it sits out in a far corner: walled off AND a long walk away.
+            const gx = L.key ? W - 3 : (W / 2) | 0;
+            const gy = L.key ? H - 3 : (H / 2) | 0;
             makeIsland(gx, gy, rand);
-            exitIdx = idx(gx, gy);
+            islandCell = idx(gx, gy);
+        }
+
+        if (L.key) {
+            // Out and back. The key goes somewhere a hand on the wall can never
+            // reach, so getting it is the whole first half of the problem, and
+            // the door is the square the bot started on.
+            keyIdx = (islandCell >= 0) ? islandCell : farthestFrom(startIdx);
+            exitIdx = startIdx;
+        } else if (islandCell >= 0) {
+            exitIdx = islandCell;
         } else {
             exitIdx = idx(W - 1, H - 1);
         }
+    }
+
+    function farthestFrom(from) {
+        const dist = new Int32Array(W * H).fill(-1);
+        const queue = [from];
+        dist[from] = 0;
+        let best = from;
+        for (let head = 0; head < queue.length; head++) {
+            const i = queue[head];
+            if (dist[i] > dist[best]) best = i;
+            const x = cx(i), y = cy(i);
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d)) continue;
+                const nx = x + DX[d], ny = y + DY[d];
+                if (!inBounds(nx, ny)) continue;
+                const j = idx(nx, ny);
+                if (dist[j] < 0) { dist[j] = dist[i] + 1; queue.push(j); }
+            }
+        }
+        return best;
     }
 
     // ---------------------------------------------------------------
@@ -749,7 +889,8 @@
         ["trodden1", "way trodden 1x"],
         ["trodden2", "way trodden 2+"],
         ["unvisited", "unvisited"],
-        ["exit", "is the exit"]
+        ["exit", "is the exit"],
+        ["key", "is the key"]
     ];
     const HERE_PREDS = [
         ["deadend", "is a dead end"],
@@ -757,7 +898,8 @@
         ["corridor", "is a corridor"],
         ["first", "first visit"],
         ["visited2", "visited 2+"],
-        ["visited3", "visited 3+"]
+        ["visited3", "visited 3+"],
+        ["key", "is the key"]
     ];
 
     let flagNames = ["A", "B", "C"];
@@ -808,6 +950,18 @@
             },
             { label: "Flags", items: flags }
         ];
+    }
+
+    // The rider slot on a rule. Flags only, deliberately: a second movement
+    // would just halve everyone's step count for free.
+    function riderGroups() {
+        const items = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            items.push(["flag." + f + ".on", flagNames[n] + " on"]);
+            items.push(["flag." + f + ".off", flagNames[n] + " off"]);
+            items.push(["flag." + f + ".toggle", flagNames[n] + " flip"]);
+        });
+        return [{ label: "Also set a flag", items: items }];
     }
 
     function labelFor(groups, value) {
@@ -881,6 +1035,10 @@
                 case "first":    return st.visits[here] === 1;
                 case "visited2": return st.visits[here] >= 2;
                 case "visited3": return st.visits[here] >= 3;
+                // Standing on the key is a passing signal, not a lasting one.
+                // Walk away and the bot has no way to know it ever held it,
+                // unless it wrote that down in a flag.
+                case "key":      return keyIdx >= 0 && here === keyIdx;
             }
             return false;
         }
@@ -897,8 +1055,18 @@
             case "trodden2":  return trod >= 2;
             case "unvisited": return ok && st.visits[idx(nx, ny)] === 0;
             case "exit":      return ok && idx(nx, ny) === exitIdx;
+            case "key":       return ok && keyIdx >= 0 && idx(nx, ny) === keyIdx;
         }
         return false;
+    }
+
+    // AND is the connective that earns its keep - a priority list cannot express
+    // conjunction any other way. OR is pure convenience: the same rule with OR
+    // is always two adjacent rows sharing an action.
+    function ruleMatches(r, st) {
+        const first = evalCond(r.c1, st);
+        if (!r.c2) return first;
+        return r.op === "or" ? (first || evalCond(r.c2, st)) : (first && evalCond(r.c2, st));
     }
 
     function applyAction(code, st) {
@@ -946,8 +1114,9 @@
             cross: new Uint8Array(W * H * 4)
         };
         st.visits[startIdx] = 1;
+        st.key = (keyIdx >= 0 && startIdx === keyIdx);
 
-        const frames = [{ x: st.x, y: st.y, f: st.facing, ri: -1, act: "", fl: 0 }];
+        const frames = [{ x: st.x, y: st.y, f: st.facing, ri: -1, act: "", fl: 0, k: st.key ? 1 : 0 }];
         const stall = Math.max(300, W * H * 2);
 
         let lastNew = 0;
@@ -956,18 +1125,26 @@
         for (let step = 1; step <= STEP_CAP; step++) {
             let chosen = null;
             for (const a of active) {
-                if (evalCond(a.r.c1, st) && evalCond(a.r.c2, st)) { chosen = a; break; }
+                if (ruleMatches(a.r, st)) { chosen = a; break; }
             }
             if (!chosen) { outcome = "norule"; break; }
 
             const before = idx(st.x, st.y);
             applyAction(chosen.r.act, st);
+            // The rider rides along free. It is flags only, so a tick still
+            // holds at most one move and the step count stays honest.
+            if (chosen.r.act2) applyAction(chosen.r.act2, st);
             const after = idx(st.x, st.y);
+            if (keyIdx >= 0 && after === keyIdx) st.key = true;
 
-            frames.push({ x: st.x, y: st.y, f: st.facing, ri: chosen.i, act: chosen.r.act, fl: flagBits(st.flags) });
+            frames.push({
+                x: st.x, y: st.y, f: st.facing, ri: chosen.i,
+                act: chosen.r.act, act2: chosen.r.act2 || "",
+                fl: flagBits(st.flags), k: st.key ? 1 : 0
+            });
 
             if (after !== before && st.visits[after] === 1) lastNew = step;
-            if (after === exitIdx) { outcome = "solved"; break; }
+            if (after === exitIdx && (keyIdx < 0 || st.key)) { outcome = "solved"; break; }
             if (step - lastNew >= stall) { outcome = "stuck"; break; }
         }
 
@@ -1120,9 +1297,31 @@
         ctx.fillStyle = lantern;
         ctx.fillRect(0, 0, w, h);
 
+        // the key, while it is still lying there waiting to be picked up
+        if (keyIdx >= 0 && !frame.k && view.seen[keyIdx]) {
+            const k = centreOf(keyIdx);
+            const pulse = 0.5 + 0.5 * Math.sin(now / 470);
+            const kh = ctx.createRadialGradient(k.x, k.y, 0, k.x, k.y, CS * (0.7 + 0.22 * pulse));
+            kh.addColorStop(0, "rgba(227,194,92," + (0.38 + 0.2 * pulse).toFixed(3) + ")");
+            kh.addColorStop(1, "rgba(227,194,92,0)");
+            ctx.fillStyle = kh;
+            ctx.fillRect(k.x - CS, k.y - CS, CS * 2, CS * 2);
+
+            ctx.strokeStyle = C_GOLD;
+            ctx.lineWidth = Math.max(2, CS * 0.09);
+            ctx.beginPath();
+            ctx.arc(k.x, k.y - CS * 0.1, CS * 0.15, 0, Math.PI * 2);
+            ctx.moveTo(k.x, k.y + CS * 0.05);
+            ctx.lineTo(k.x, k.y + CS * 0.3);
+            ctx.moveTo(k.x, k.y + CS * 0.24);
+            ctx.lineTo(k.x + CS * 0.12, k.y + CS * 0.24);
+            ctx.stroke();
+        }
+
         // exit, once it has been sensed - drawn over the lantern so that
-        // finding it always reads, however far off it is
-        if (view.seen[exitIdx]) {
+        // finding it always reads, however far off it is. On a key level the
+        // door only shows once the bot is actually carrying the key.
+        if (view.seen[exitIdx] && (keyIdx < 0 || frame.k)) {
             const e = centreOf(exitIdx);
             const pulse = 0.5 + 0.5 * Math.sin(now / 470);
             const rad = CS * 0.28;
@@ -1337,12 +1536,12 @@
                 ' - lit when on. Rename it to whatever it means in your program.">' +
                 '<span class="flag-led" data-led="' + n + '"></span>' +
                 '<input type="text" data-flag="' + n + '" value="' + flagNames[n].replace(/"/g, "&quot;") +
-                '" maxlength="10" aria-label="Name for flag ' + ["A", "B", "C"][n] + '"></span>';
+                '" maxlength="8" aria-label="Name for flag ' + ["A", "B", "C"][n] + '"></span>';
         }).join("");
         el.flagsBar.querySelectorAll("input[data-flag]").forEach(function (inp) {
             inp.addEventListener("change", function () {
                 const n = parseInt(inp.dataset.flag, 10);
-                flagNames[n] = (inp.value || "").trim().slice(0, 10) || ["A", "B", "C"][n];
+                flagNames[n] = (inp.value || "").trim().slice(0, 8) || ["A", "B", "C"][n];
                 inp.value = flagNames[n];
                 saveLocal();
                 renderRules();
@@ -1409,7 +1608,7 @@
     }
 
     function renderRules() {
-        const cg = condGroups(), ag = actionGroups();
+        const cg = condGroups(), ag = actionGroups(), rg = riderGroups();
 
         el.ruleList.innerHTML = rules.map(function (r, i) {
             return '<div class="rule-row' + (r.on ? "" : " off") + '" data-i="' + i + '">' +
@@ -1417,10 +1616,14 @@
                 '<input type="checkbox" class="chk-on"' + (r.on ? " checked" : "") + ' title="Enable rule">' +
                 '<span class="rule-kw">IF</span>' +
                 buildSelect("sel-cond c1", cg, r.c1) +
-                '<span class="rule-kw">AND</span>' +
+                '<button type="button" class="rule-op op' + (r.c2 ? "" : " idle") +
+                (r.op === "or" ? " is-or" : "") +
+                '" title="Switch to ' + (r.op === "or" ? "AND" : "OR") + '">' +
+                (r.op === "or" ? "OR" : "AND") + "</button>" +
                 buildSelect("sel-cond c2", cg, r.c2, "(nothing)") +
                 '<span class="rule-arrow">&rarr;</span>' +
                 buildSelect("sel-act act", ag, r.act) +
+                buildSelect("sel-act2 act2", rg, r.act2 || "", "no flag") +
                 '<button class="icon-btn up" title="Move up"' + (i === 0 ? " disabled" : "") + ">&#9650;</button>" +
                 '<button class="icon-btn down" title="Move down"' + (i === rules.length - 1 ? " disabled" : "") + ">&#9660;</button>" +
                 '<button class="icon-btn del" title="Delete rule">&times;</button>' +
@@ -1441,6 +1644,12 @@
             });
             row.querySelector(".act").addEventListener("change", function (e) {
                 rules[i].act = e.target.value; changed();
+            });
+            row.querySelector(".act2").addEventListener("change", function (e) {
+                rules[i].act2 = e.target.value; changed();
+            });
+            row.querySelector(".op").addEventListener("click", function () {
+                rules[i].op = (rules[i].op === "or") ? "and" : "or"; changed();
             });
             row.querySelector(".up").addEventListener("click", function () {
                 if (i > 0) { const t = rules[i - 1]; rules[i - 1] = rules[i]; rules[i] = t; changed(); }
@@ -1516,16 +1725,21 @@
 
     function adoptProgram(obj) {
         rules = obj.r.slice(0, MAX_RULES).map(function (r) {
+            // A shared link is untrusted input: the rider has to be a flag op
+            // or nothing, or it would smuggle in a second move per tick.
+            const rider = (typeof r.act2 === "string" && r.act2.indexOf("flag.") === 0) ? r.act2 : "";
             return {
                 on: r.on !== false,
                 c1: typeof r.c1 === "string" ? r.c1 : "always",
                 c2: typeof r.c2 === "string" ? r.c2 : "",
-                act: typeof r.act === "string" ? r.act : "move.ahead"
+                op: r.op === "or" ? "or" : "and",
+                act: typeof r.act === "string" ? r.act : "move.ahead",
+                act2: rider
             };
         });
         if (Array.isArray(obj.f) && obj.f.length === 3) {
             flagNames = obj.f.map(function (n, i) {
-                return (typeof n === "string" && n.trim()) ? n.trim().slice(0, 10) : ["A", "B", "C"][i];
+                return (typeof n === "string" && n.trim()) ? n.trim().slice(0, 8) : ["A", "B", "C"][i];
             });
         }
     }
@@ -1556,8 +1770,10 @@
         levelIdx = i;
         el.levelSelect.value = String(i);
         const L = LEVELS[i];
-        el.levelDesc.textContent = L.w + " by " + L.h + ". " + (L.w * L.h) +
-            " squares, one exit, and no map.";
+        // Goal, never strategy. The player has to be told the rules changed.
+        el.levelDesc.textContent = L.key
+            ? L.w + " by " + L.h + ". Find the key, then carry it back to the square you started on."
+            : L.w + " by " + L.h + ". " + (L.w * L.h) + " squares, one exit, and no map.";
         buildMaze();
         sizeCanvas();
         dirty = true;
@@ -1604,7 +1820,7 @@
 
     el.addRule.addEventListener("click", function () {
         if (rules.length >= MAX_RULES) return;
-        rules.push({ on: true, c1: "always", c2: "", act: "move.ahead" });
+        rules.push({ on: true, c1: "always", c2: "", op: "and", act: "move.ahead", act2: "" });
         changed();
     });
 
@@ -1642,7 +1858,7 @@
     // layout mode - chosen once, then held. Resizing only ever changes how
     // big the board is drawn, never which arrangement the page is in.
     // ---------------------------------------------------------------
-    const SIDE_MIN = 1200;      // below this, side by side leaves no board worth looking at
+    const SIDE_MIN = 1320;      // below this, side by side leaves no board worth looking at
     const layoutEl = document.getElementById("threadLayout");
     const layoutBtn = document.getElementById("layoutBtn");
     let layoutPref = "stack";
