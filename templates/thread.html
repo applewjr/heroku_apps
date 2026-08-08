@@ -352,6 +352,8 @@
     }
 
     .verdict.show { display: block; }
+    .verdict-actions:not(:empty) { margin-top: 10px; }
+
     .verdict-aside {
         margin-top: 7px;
         font-size: 12.5px;
@@ -761,7 +763,8 @@
         <p class="level-desc" id="levelDesc"></p>
         <div class="practice-badge" id="practiceBadge" hidden>Practice maze. Only a level's own maze counts towards Best.</div>
 
-        <canvas id="mazeCanvas" width="520" height="520"></canvas>
+        <canvas id="mazeCanvas" width="520" height="520" role="img"
+                aria-label="The maze. Only ground the bot has walked is drawn. Its position and progress are reported in the counters below, and the result of each run is announced when it ends."></canvas>
 
         <div class="transport">
           <button id="runBtn" class="thread-btn thread-btn-primary">Run</button>
@@ -790,7 +793,12 @@
           <div class="hud-item" title="Your own fewest steps on this level's own maze">Best<b id="hudBest">-</b></div>
         </div>
 
-        <div class="verdict" id="verdict"></div>
+        <!-- role="status" carries an implicit polite, atomic live region, so the
+             whole verdict is announced as one message once a run ends. Buttons
+             live in the sibling below rather than inside it - controls in a live
+             region get read out as prose. -->
+        <div class="verdict" id="verdict" role="status"></div>
+        <div class="verdict-actions" id="verdictActions"></div>
       </div>
 
       <div class="thread-right">
@@ -805,6 +813,7 @@
 
         <div class="editor-foot">
           <button id="addRuleBtn" class="thread-btn">+ Add rule</button>
+          <button id="undoBtn" class="thread-btn" disabled title="Undo the last change to the program (Ctrl+Z)">Undo</button>
           <button id="shareBtn" class="thread-btn">Copy link</button>
           <span class="rule-count" id="ruleCount"></span>
         </div>
@@ -1674,7 +1683,9 @@
         ruleList: document.getElementById("ruleList"),
         ruleCount: document.getElementById("ruleCount"),
         addRule: document.getElementById("addRuleBtn"),
+        undo: document.getElementById("undoBtn"),
         share: document.getElementById("shareBtn"),
+        verdictActions: document.getElementById("verdictActions"),
         flagsBar: document.getElementById("flagsBar"),
         trace: document.getElementById("trace")
     };
@@ -1730,9 +1741,14 @@
         renderVerdict();
     }
 
+    function hideVerdict() {
+        el.verdict.className = "verdict";
+        el.verdictActions.innerHTML = "";
+    }
+
     function renderVerdict() {
         const done = playhead >= sim.frames.length - 1;
-        if (!done) { el.verdict.className = "verdict"; return; }
+        if (!done) { hideVerdict(); return; }
 
         const n = rules.filter(function (r) { return r.on; }).length;
         let cls, msg;
@@ -1777,6 +1793,7 @@
             cls = "fail";
             msg = "<b>Out of steps</b> after " + STEP_CAP + " ticks without reaching the exit.";
         }
+        el.verdictActions.innerHTML = "";
         el.verdict.className = "verdict show " + cls;
         el.verdict.innerHTML = msg;
         updateBest();
@@ -1874,8 +1891,7 @@
                 const n = parseInt(inp.dataset.flag, 10);
                 flagNames[n] = (inp.value || "").trim().slice(0, 8) || ["A", "B", "C"][n];
                 inp.value = flagNames[n];
-                saveLocal();
-                renderRules();
+                changed();      // renaming a flag is an edit, so it is undoable
             });
         });
     }
@@ -2075,7 +2091,52 @@
         }
     }
 
+    // Every edit already funnels through changed(), so undo hangs off that one
+    // point rather than off each of the dozen controls that can mutate a rule.
+    const UNDO_DEPTH = 40;
+    let undoStack = [];
+    let settled = null;          // the program as it stood after the last edit
+
+    function programState() {
+        return JSON.stringify({ r: rules, f: flagNames });
+    }
+
+    function updateUndoButton() {
+        el.undo.disabled = undoStack.length === 0;
+    }
+
+    function markSettled() {
+        settled = programState();
+        updateUndoButton();
+    }
+
+    function undo() {
+        if (!undoStack.length) return;
+        const prev = undoStack.pop();
+        try {
+            const obj = JSON.parse(prev);
+            adoptProgram({ r: obj.r, f: obj.f });
+        } catch (e) { return; }
+
+        settled = programState();   // restoring is not itself an undo point
+        updateUndoButton();
+        stop();
+        dirty = true;
+        saveLocal();
+        buildFlags();
+        ensureSim();
+        render();
+    }
+
     function changed() {
+        const now = programState();
+        if (settled !== null && now !== settled) {
+            undoStack.push(settled);
+            if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+        }
+        settled = now;
+        updateUndoButton();
+
         stop();
         dirty = true;
         saveLocal();
@@ -2140,12 +2201,15 @@
         el.verdict.className = "verdict show " + (solved === GAUNTLET_N ? "win" : "fail");
         el.verdict.innerHTML =
             "<b>Daily gauntlet, " + lastGauntlet.stamp + "</b> on " + lastGauntlet.level +
-            '<div class="gauntlet-squares">' + lastGauntlet.squares + "</div>" +
+            // hidden from screen readers: five emoji would be read out one name
+            // at a time, ahead of the sentence that actually says the result
+            '<div class="gauntlet-squares" aria-hidden="true">' + lastGauntlet.squares + "</div>" +
             solved + " of " + GAUNTLET_N + " solved in " + total + " steps, with " + n +
             " rule" + (n === 1 ? "" : "s") + "." +
-            (solved === GAUNTLET_N ? "" : " Unsolved mazes score " + STEP_CAP + " each.") +
-            '<div><button type="button" class="thread-btn" id="gauntletShare">Copy result</button></div>';
+            (solved === GAUNTLET_N ? "" : " Unsolved mazes score " + STEP_CAP + " each.");
 
+        el.verdictActions.innerHTML =
+            '<button type="button" class="thread-btn" id="gauntletShare">Copy result</button>';
         const shareBtn = document.getElementById("gauntletShare");
         if (shareBtn) shareBtn.addEventListener("click", copyGauntlet);
     }
@@ -2285,7 +2349,7 @@
         dirty = true;
         ensureSim();
         updateBest();
-        el.verdict.className = "verdict";
+        hideVerdict();
         render();
     }
 
@@ -2314,7 +2378,7 @@
         stop();
         ensureSim();
         playhead = 0;
-        el.verdict.className = "verdict";
+        hideVerdict();
         render();
     });
 
@@ -2378,7 +2442,7 @@
             rules = clone(PRESETS[b.dataset.preset]);
             changed();
             playhead = 0;
-            el.verdict.className = "verdict";
+            hideVerdict();
             render();
         });
     });
@@ -2387,6 +2451,16 @@
     document.getElementById("instructions-toggle").addEventListener("click", function () {
         instr.classList.toggle("open");
     });
+
+    // Nothing is preloaded into the editor any more, so a first-time visitor
+    // arrives with an inert program and no visible explanation. Open the
+    // instructions for them once; after that the collapsed state is the norm.
+    function isFirstVisit() {
+        try { return localStorage.getItem("thread.program") === null; }
+        catch (e) { return true; }
+    }
+
+    if (isFirstVisit()) instr.classList.add("open");
 
     // ---------------------------------------------------------------
     // layout mode - chosen once, then held. Resizing only ever changes how
@@ -2438,8 +2512,19 @@
         resizeTimer = setTimeout(applyLayout, 120);
     });
 
+    el.undo.addEventListener("click", undo);
+
     window.addEventListener("keydown", function (e) {
         const tag = (document.activeElement || {}).tagName || "";
+
+        if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "z") {
+            // inside a text field, let the field undo its own typing
+            if (tag === "INPUT" || tag === "TEXTAREA") return;
+            e.preventDefault();
+            undo();
+            return;
+        }
+
         if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
         if (e.key === " ") { e.preventDefault(); if (playing) stop(); else play(); }
         else if (e.key === "ArrowRight") { e.preventDefault(); el.step.click(); }
@@ -2449,6 +2534,7 @@
     el.sharedNote.hidden = !(sharedLink && stashedProgram());
     buildFlags();
     renderRules();
+    markSettled();
     setLayout(storedLayout());
     loadLevel(startLevel);
     requestAnimationFrame(paint);
