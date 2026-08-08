@@ -209,9 +209,22 @@
         font-size: 13px;
         color: #6b7280;
         line-height: 1.5;
-        margin: 0 0 12px;
+        margin: 0 0 8px;
         min-height: 40px;
     }
+
+    .practice-badge {
+        display: inline-block;
+        margin-bottom: 10px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: #f4f1e8;
+        border: 1px solid #e4dcc6;
+        color: #8a7433;
+        font-size: 11px;
+    }
+
+    .practice-badge[hidden] { display: none; }
 
     /* ---- canvas ---- */
 
@@ -670,6 +683,7 @@
           <button id="newMazeBtn" class="thread-btn">New maze</button>
         </div>
         <p class="level-desc" id="levelDesc"></p>
+        <div class="practice-badge" id="practiceBadge" hidden>Practice maze. Only a level's own maze counts towards Best.</div>
 
         <canvas id="mazeCanvas" width="520" height="520"></canvas>
 
@@ -896,7 +910,12 @@
         { id: "long",   name: "2 - Descent",    w: 15, h: 15, braid: 0,   island: false },
         { id: "island", name: "3 - Deeper",     w: 13, h: 13, braid: 0,   island: true },
         { id: "tangle", name: "4 - Farthest In", w: 15, h: 15, braid: 0.6, island: true },
-        { id: "key",    name: "5 - And Back Again", w: 15, h: 15, braid: 0.3, island: true, key: true }
+        { id: "key",    name: "5 - And Back Again", w: 15, h: 15, braid: 0.3, island: true, key: true },
+        // Loops, no island. Everything reaches the exit here, so the only
+        // question left is how well - which is the one question the earlier
+        // levels cannot ask, because on a maze with no loops every working
+        // program walks the very same route.
+        { id: "short",  name: "6 - The Short Way", w: 15, h: 15, braid: 0.4, island: false }
     ];
 
     const CANON_SEED = 1;      // the maze a level's Best score is measured on
@@ -1517,6 +1536,7 @@
 
     const el = {
         levelSelect: document.getElementById("levelSelect"),
+        practiceBadge: document.getElementById("practiceBadge"),
         levelDesc: document.getElementById("levelDesc"),
         newMaze: document.getElementById("newMazeBtn"),
         run: document.getElementById("runBtn"),
@@ -1606,6 +1626,7 @@
                 const prev = bestGet();
                 if (prev === null || sim.steps < prev) {
                     bestSet(sim.steps);
+                    renderLevelOptions();
                     msg += " New best.";
                 }
             }
@@ -1624,22 +1645,37 @@
         updateBest();
     }
 
-    function bestKey() { return "thread.best." + LEVELS[levelIdx].id; }
-
-    function bestGet() {
+    function bestFor(id) {
         try {
-            const v = localStorage.getItem(bestKey());
+            const v = localStorage.getItem("thread.best." + id);
             return v === null ? null : parseInt(v, 10);
         } catch (e) { return null; }
     }
 
+    function bestGet() { return bestFor(LEVELS[levelIdx].id); }
+
     function bestSet(steps) {
-        try { localStorage.setItem(bestKey(), String(steps)); } catch (e) { /* storage off */ }
+        try {
+            localStorage.setItem("thread.best." + LEVELS[levelIdx].id, String(steps));
+        } catch (e) { /* storage off */ }
     }
 
     function updateBest() {
         const v = bestGet();
-        el.hudBest.textContent = v === null ? "-" : (mazeSeed === CANON_SEED ? v : v + "*");
+        el.hudBest.textContent = v === null ? "-" : v;
+    }
+
+    // A level only has a best once it has been solved on its own maze, so show
+    // the score itself rather than a tick. A number explains what it means; a
+    // tick just asserts something and leaves the player to guess what.
+    function renderLevelOptions() {
+        const keep = el.levelSelect.value;
+        el.levelSelect.innerHTML = LEVELS.map(function (L, i) {
+            const best = bestFor(L.id);
+            return '<option value="' + i + '">' + L.name +
+                (best === null ? "" : " (best " + best + ")") + "</option>";
+        }).join("");
+        if (keep !== "") el.levelSelect.value = keep;
     }
 
     function renderTrace() {
@@ -1763,6 +1799,7 @@
                 buildSelect("sel-act2 act2", rg, r.act2 || "", "no flag") +
                 '<button class="icon-btn up" title="Move up"' + (i === 0 ? " disabled" : "") + ">&#9650;</button>" +
                 '<button class="icon-btn down" title="Move down"' + (i === rules.length - 1 ? " disabled" : "") + ">&#9660;</button>" +
+                '<button class="icon-btn dup" title="Duplicate this rule">&#10697;</button>' +
                 '<button class="icon-btn del" title="Delete rule">&times;</button>' +
                 '<span class="rule-hits"></span>' +
                 "</div>";
@@ -1790,6 +1827,11 @@
             });
             row.querySelector(".up").addEventListener("click", function () { moveRule(i, i - 1); });
             row.querySelector(".down").addEventListener("click", function () { moveRule(i, i + 2); });
+            row.querySelector(".dup").addEventListener("click", function () {
+                if (rules.length >= MAX_RULES) return;
+                rules.splice(i + 1, 0, Object.assign({}, rules[i]));
+                changed();
+            });
             row.querySelector(".del").addEventListener("click", function () {
                 if (rules.length > 1) { rules.splice(i, 1); changed(); }
             });
@@ -2023,19 +2065,24 @@
     // ---------------------------------------------------------------
     // wiring
     // ---------------------------------------------------------------
-    el.levelSelect.innerHTML = LEVELS.map(function (L, i) {
-        return '<option value="' + i + '">' + L.name + "</option>";
-    }).join("");
+    renderLevelOptions();
 
     function loadLevel(i) {
         stop();
         levelIdx = i;
         el.levelSelect.value = String(i);
         const L = LEVELS[i];
-        // Goal, never strategy. The player has to be told the rules changed.
-        el.levelDesc.textContent = L.key
-            ? L.w + " by " + L.h + ". Find the key, then carry it back to the square you started on."
-            : L.w + " by " + L.h + ". " + (L.w * L.h) + " squares, one exit, and no map.";
+        // Goal and scoring, never strategy. The player has to be told when the
+        // rules of the level change.
+        const size = L.w + " by " + L.h + ". ";
+        if (L.key) {
+            el.levelDesc.textContent = size + "Find the key, then carry it back to the square you started on.";
+        } else if (L.id === "short") {
+            el.levelDesc.textContent = size + "This one is scored on steps, not on whether you finish.";
+        } else {
+            el.levelDesc.textContent = size + (L.w * L.h) + " squares, one exit, and no map.";
+        }
+        el.practiceBadge.hidden = (mazeSeed === CANON_SEED);
         buildMaze();
         sizeCanvas();
         dirty = true;

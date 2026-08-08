@@ -42,11 +42,13 @@ LEVELS = [
     {"id": "island", "w": 13, "h": 13, "braid": 0, "island": True, "key": False},
     {"id": "tangle", "w": 15, "h": 15, "braid": 0.6, "island": True, "key": False},
     {"id": "key", "w": 15, "h": 15, "braid": 0.3, "island": True, "key": True},
+    {"id": "short", "w": 15, "h": 15, "braid": 0.4, "island": False, "key": False},
 ]
 
-OPEN_LEVELS = [0, 1]        # a hand on the wall reaches the exit
+OPEN_LEVELS = [0, 1, 5]     # a hand on the wall reaches the exit
 WALLED_LEVELS = [2, 3, 4]   # the goal is fenced off from the outer wall
 KEY_LEVEL = 4
+SHORT_LEVEL = 5             # loops, no island: the level where steps are the score
 
 SEEDS = [1] + [(i * 7919 + 13) & 0x7FFFFFFF for i in range(1, 16)]
 
@@ -500,6 +502,45 @@ def test_flags_pay_for_themselves_on_the_key_level():
 
     saving = 1 - (sum(flagged) / len(flagged)) / (sum(flagless) / len(flagless))
     assert saving > 0.10, f"flags only saved {saving:.0%} of the steps, not worth the rules"
+
+
+def test_the_short_way_rewards_a_better_program():
+    """Level 6 only earns its place if different programs get meaningfully
+    different step counts on the same maze. That is what makes "fewest steps"
+    a thing a player can chase rather than a number they are handed."""
+    results = {}
+    for name, prog in (("right", WALL_RIGHT), ("left", WALL_LEFT), ("crumbs", BREADCRUMBS)):
+        out = run_all(SHORT_LEVEL, prog)
+        assert all(o == "solved" for o, _ in out), f"{name} failed to solve level 6"
+        results[name] = [steps for _, steps in out]
+
+    per_maze = list(zip(*results.values()))
+
+    # The sharp test. On a maze with no loops, "prefer untrodden" and "hand on
+    # the wall" walk byte-identical routes, so memory is worth exactly nothing
+    # and there is no craft to reward. Loops are the only thing that breaks it.
+    moved = sum(1 for a, b in zip(results["right"], results["crumbs"]) if a != b)
+    assert moved > len(SEEDS) * 0.35, (
+        f"carrying memory changed the step count on only {moved}/{len(SEEDS)} mazes - "
+        f"this level is not braided enough to reward a better program"
+    )
+
+    spread = sum(max(row) - min(row) for row in per_maze) / len(per_maze)
+    mean = sum(sum(row) for row in per_maze) / (len(per_maze) * len(results))
+    assert spread / mean > 0.25, (
+        f"best and worst program differ by only {spread / mean:.0%} of a run - "
+        f"too flat to be worth tuning"
+    )
+
+
+def test_a_maze_without_loops_gives_nothing_to_optimise():
+    """The other half of that claim, and the reason level 6 has to be braided.
+    On a maze with no loops, "prefer untrodden ways" and "keep a hand on the
+    wall" walk the identical route, step for step - so all the extra machinery
+    buys exactly nothing and the step score is decoration."""
+    right = [steps for o, steps in run_all(1, WALL_RIGHT) if o == "solved"]
+    crumbs = [steps for o, steps in run_all(1, BREADCRUMBS) if o == "solved"]
+    assert right == crumbs, "a loopless maze unexpectedly separated these two programs"
 
 
 # --------------------------------------------------------------------------
