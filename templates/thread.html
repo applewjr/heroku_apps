@@ -25,7 +25,7 @@
     }
 
     .thread-page .container {
-        max-width: 1180px;
+        max-width: 1600px;
     }
 
     .thread-page h1 {
@@ -108,8 +108,26 @@
         justify-content: center;
     }
 
-    .thread-left  { flex: 0 0 auto; width: 520px; max-width: 100%; }
-    .thread-right { flex: 1 1 520px; min-width: 340px; }
+    /* Layout is chosen explicitly, never inferred from content. The old
+       `flex: 1 1 auto` took its basis from the column's own content width, so
+       a long verdict sentence could widen the column and bounce the page into
+       stacked mode on its own. Both modes below use definite sizes. */
+
+    .thread-left  { flex: 1 1 100%; min-width: 0; max-width: 700px; margin: 0 auto; }
+    .thread-right { flex: 1 1 100%; min-width: 0; }
+
+    /* nowrap: content can never trigger a reflow into the other mode */
+    .thread-layout.mode-side { flex-wrap: nowrap; }
+    .thread-layout.mode-side .thread-left  { flex: 1 1 0; min-width: 0; max-width: 900px; margin: 0; }
+    .thread-layout.mode-side .thread-right { flex: 0 0 700px; min-width: 0; }
+
+    .thread-layout.mode-stack { flex-wrap: wrap; }
+
+    .layout-bar {
+        display: flex;
+        justify-content: flex-end;
+        margin: 0 auto 10px;
+    }
 
     .panel-label {
         font-size: 11px;
@@ -142,8 +160,10 @@
     /* ---- canvas ---- */
 
     #mazeCanvas {
-        width: 100%;
         display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
         border-radius: 10px;
         background: #161b26;
         box-shadow: 0 12px 30px rgba(22, 27, 38, 0.30), 0 2px 6px rgba(22, 27, 38, 0.20);
@@ -288,8 +308,8 @@
         min-width: 0;
     }
 
-    .rule-row .sel-cond { flex: 1 1 130px; }
-    .rule-row .sel-act  { flex: 1 1 118px; }
+    .rule-row .sel-cond { flex: 1 1 158px; }
+    .rule-row .sel-act  { flex: 1 1 140px; }
 
     .rule-kw {
         color: #9ca3af;
@@ -413,11 +433,20 @@
     .trace .t-act  { color: #cfd8e3; }
     .trace .t-halt { color: #e8a27f; }
 
+    /* Below this the two columns cannot both be comfortable, and a squeezed
+       program panel clips its own labels. Stack instead. */
+    /* Narrower than this a rule cannot hold its widest label on one line, so
+       let it break onto two rather than clip. */
+    @media (max-width: 760px) {
+        .rule-row { flex-wrap: wrap; }
+        .rule-row .sel-cond,
+        .rule-row .sel-act { flex: 1 1 145px; }
+    }
+
     @media (max-width: 620px) {
         .thread-page { padding: 12px; }
-        .thread-left { width: 100%; }
+        .thread-left { max-width: 100%; }
         .thread-right { min-width: 0; }
-        .rule-row { flex-wrap: wrap; }
     }
 </style>
 {% endblock %}
@@ -453,7 +482,9 @@
           faces, so <b>right</b> means the bot's right, not east.</p>
           <p>Memory comes in two kinds. A <b>way</b> is the gap between two squares, and the bot
           counts how many times it has walked through each one. A <b>square</b> is a place, and it
-          counts how often it has stood there. Which of the two you lean on is up to you.</p>
+          counts how often it has stood there. In the menus, any condition with the word
+          <b>way</b> in it reads the passage; every other one reads the square. Which of the two
+          you lean on is up to you.</p>
         </div>
 
         <div class="instructions-section">
@@ -474,7 +505,11 @@
       </div>
     </div>
 
-    <div class="thread-layout">
+    <div class="layout-bar">
+      <button id="layoutBtn" class="thread-btn" type="button"></button>
+    </div>
+
+    <div class="thread-layout" id="threadLayout">
 
       <div class="thread-left">
         <div class="level-bar">
@@ -705,22 +740,24 @@
     // "way" predicates read the passage itself - how many times the bot has
     // walked through that gap. "square" reads the cell on the other side.
     // Marking passages rather than cells is what makes the loops solvable.
+    // Native selects clip rather than ellipsize, so these have to stay short.
+    // "way" marks the passage predicates; anything without it reads the square.
     const DIR_PREDS = [
         ["open", "is open"],
         ["wall", "is a wall"],
         ["untrodden", "way untrodden"],
-        ["trodden1", "way trodden once"],
+        ["trodden1", "way trodden 1x"],
         ["trodden2", "way trodden 2+"],
-        ["unvisited", "square unvisited"],
+        ["unvisited", "unvisited"],
         ["exit", "is the exit"]
     ];
     const HERE_PREDS = [
         ["deadend", "is a dead end"],
         ["junction", "is a junction"],
         ["corridor", "is a corridor"],
-        ["first", "is my first visit"],
-        ["visited2", "visited 2+ times"],
-        ["visited3", "visited 3+ times"]
+        ["first", "first visit"],
+        ["visited2", "visited 2+"],
+        ["visited3", "visited 3+"]
     ];
 
     let flagNames = ["A", "B", "C"];
@@ -972,15 +1009,27 @@
     const ctx = canvas.getContext("2d");
     let CS = 34, PAD = 10;
 
+    // Measure the space actually on offer rather than assuming a fixed board,
+    // and lay the grid out at whole pixels so nothing has to be scaled after
+    // the fact. A wider window - or a shorter maze - gets a bigger board.
     function sizeCanvas() {
-        const box = 520;
-        CS = Math.floor((box - PAD * 2) / Math.max(W, H));
+        const avail = (canvas.parentElement && canvas.parentElement.clientWidth) || 520;
+        // A short window trims the board so the controls stay in reach, but
+        // only down to a floor - scrolling a little beats a postage stamp.
+        const byHeight = Math.max(480, window.innerHeight - 170);
+        const box = Math.max(260, Math.min(avail, byHeight, 900));
+
+        CS = Math.max(10, Math.floor((box - PAD * 2) / Math.max(W, H)));
         const px = PAD * 2 + CS * W;
         const py = PAD * 2 + CS * H;
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = px * dpr;
-        canvas.height = py * dpr;
-        canvas.style.aspectRatio = px + " / " + py;
+
+        canvas.width = Math.round(px * dpr);
+        canvas.height = Math.round(py * dpr);
+        // Width only. CSS height:auto then derives the height from the bitmap's
+        // own ratio, so if max-width ever clamps this it scales instead of
+        // squashing.
+        canvas.style.width = px + "px";
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
@@ -1589,6 +1638,56 @@
         instr.classList.toggle("open");
     });
 
+    // ---------------------------------------------------------------
+    // layout mode - chosen once, then held. Resizing only ever changes how
+    // big the board is drawn, never which arrangement the page is in.
+    // ---------------------------------------------------------------
+    const SIDE_MIN = 1200;      // below this, side by side leaves no board worth looking at
+    const layoutEl = document.getElementById("threadLayout");
+    const layoutBtn = document.getElementById("layoutBtn");
+    let layoutPref = "stack";
+
+    function applyLayout() {
+        const roomForSide = window.innerWidth >= SIDE_MIN;
+        const mode = (layoutPref === "side" && roomForSide) ? "side" : "stack";
+
+        layoutEl.classList.toggle("mode-side", mode === "side");
+        layoutEl.classList.toggle("mode-stack", mode === "stack");
+
+        layoutBtn.disabled = !roomForSide;
+        layoutBtn.textContent = "Layout: " + (mode === "side" ? "side by side" : "stacked");
+        layoutBtn.title = roomForSide
+            ? "Switch to " + (mode === "side" ? "stacked" : "side by side")
+            : "Window is too narrow for side by side";
+
+        sizeCanvas();
+        if (sim) render();
+    }
+
+    function setLayout(pref) {
+        layoutPref = (pref === "side") ? "side" : "stack";
+        try { localStorage.setItem("thread.layout", layoutPref); } catch (e) { /* storage off */ }
+        applyLayout();
+    }
+
+    function storedLayout() {
+        try {
+            const v = localStorage.getItem("thread.layout");
+            if (v === "side" || v === "stack") return v;
+        } catch (e) { /* storage off */ }
+        return window.innerWidth >= SIDE_MIN ? "side" : "stack";   // first visit only
+    }
+
+    layoutBtn.addEventListener("click", function () {
+        setLayout(layoutPref === "side" ? "stack" : "side");
+    });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(applyLayout, 120);
+    });
+
     window.addEventListener("keydown", function (e) {
         const tag = (document.activeElement || {}).tagName || "";
         if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
@@ -1599,6 +1698,7 @@
     loadStored();
     buildFlags();
     renderRules();
+    setLayout(storedLayout());
     loadLevel(0);
     requestAnimationFrame(paint);
 })();
