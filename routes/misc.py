@@ -43,6 +43,11 @@ def kintsugi_game():
     return render_template("kintsugi.html")
 
 
+@bp.route("/thread")
+def thread_game():
+    return render_template("thread.html")
+
+
 @bp.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')

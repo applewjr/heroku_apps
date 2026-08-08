@@ -1,0 +1,1531 @@
+{% extends "base.html" %}
+
+{% block title %}Thread - Program a Bot Through a Maze You Cannot See{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Thread is a programming puzzle. You never see the maze - you write a priority list of IF/THEN rules and watch your bot feel its way through the dark. Solve every maze in as few steps, with as few rules, as you can.">
+    <link rel="canonical" href="https://www.jamesapplewhite.com/thread">
+    <meta property="og:title" content="Thread - Program a Bot Through a Maze You Cannot See">
+    <meta property="og:description" content="You never see the maze. Write the rules, and let your bot find its way through the dark.">
+    <meta property="og:url" content="https://jamesapplewhite.com/thread">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="JJ Apps">
+{% endblock %}
+
+{% block head %}
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .thread-page {
+        padding: 20px;
+        min-height: 100vh;
+    }
+
+    .thread-page .container {
+        max-width: 1180px;
+    }
+
+    .thread-page h1 {
+        text-align: center;
+        font-size: clamp(1.5rem, 4vw, 2.5rem);
+        line-height: 1.2;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .thread-tagline {
+        text-align: center;
+        margin: 0 auto 26px;
+        max-width: 560px;
+        font-style: italic;
+        font-size: 14px;
+        letter-spacing: 0.2px;
+        color: #8a7f63;
+    }
+
+    /* ---- instructions ---- */
+
+    .instructions {
+        background-color: #f9fafb;
+        border-radius: 8px;
+        margin: 0 auto 24px auto;
+        max-width: 760px;
+        font-size: 14px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+
+    .instructions-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 20px;
+        cursor: pointer;
+        user-select: none;
+        color: #374151;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .instructions-header:hover { background-color: #f3f4f6; }
+
+    .instructions-chevron {
+        font-size: 10px;
+        transition: transform 0.2s ease;
+    }
+
+    .instructions.open .instructions-chevron { transform: rotate(180deg); }
+
+    .instructions-body {
+        display: none;
+        padding: 0 20px 18px;
+        color: #4b5563;
+        line-height: 1.55;
+    }
+
+    .instructions.open .instructions-body { display: block; }
+
+    .instructions-body p { margin: 0 0 10px; }
+    .instructions-section { margin-top: 12px; }
+    .instructions-section strong {
+        display: block;
+        color: #374151;
+        margin-bottom: 3px;
+    }
+
+    /* ---- layout ---- */
+
+    .thread-layout {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: flex-start;
+        justify-content: center;
+    }
+
+    .thread-left  { flex: 0 0 auto; width: 520px; max-width: 100%; }
+    .thread-right { flex: 1 1 520px; min-width: 340px; }
+
+    .panel-label {
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+
+    /* ---- level bar ---- */
+
+    .level-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .level-bar select { flex: 1 1 auto; }
+
+    .level-desc {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.5;
+        margin: 0 0 12px;
+        min-height: 40px;
+    }
+
+    /* ---- canvas ---- */
+
+    #mazeCanvas {
+        width: 100%;
+        display: block;
+        border-radius: 10px;
+        background: #232935;
+        touch-action: manipulation;
+    }
+
+    /* ---- buttons ---- */
+
+    .thread-btn {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 13px;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        color: #374151;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .thread-btn:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+    .thread-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .thread-btn-primary {
+        background: #17726b;
+        border-color: #17726b;
+        color: #fff;
+    }
+
+    .thread-btn-primary:hover:not(:disabled) { background: #125d57; border-color: #125d57; }
+
+    .transport {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 12px;
+    }
+
+    .speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .speed-wrap input { width: 90px; }
+
+    /* ---- hud ---- */
+
+    .hud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .hud-item {
+        flex: 1 1 auto;
+        text-align: center;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 12px;
+        color: #6b7280;
+        min-width: 74px;
+    }
+
+    .hud-item b {
+        display: block;
+        font-size: 15px;
+        color: #1f2937;
+        font-weight: 600;
+        margin-top: 2px;
+    }
+
+    .verdict {
+        margin-top: 12px;
+        padding: 11px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.5;
+        display: none;
+    }
+
+    .verdict.show { display: block; }
+    .verdict.win  { background: #e7f4f1; border: 1px solid #9fcfc7; color: #14554f; }
+    .verdict.fail { background: #fdf0ec; border: 1px solid #e8bda9; color: #8a4526; }
+
+    /* ---- rule editor ---- */
+
+    .preset-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+        align-items: center;
+    }
+
+    .rule-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .rule-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 7px;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+
+    .rule-row.firing {
+        border-color: #d4af37;
+        background: #fdf9ec;
+        box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.22);
+    }
+
+    .rule-row.off { opacity: 0.42; }
+
+    .rule-num {
+        width: 17px;
+        text-align: right;
+        color: #9ca3af;
+        font-size: 11px;
+        flex: 0 0 auto;
+    }
+
+    .rule-row select {
+        font-family: inherit;
+        font-size: 12px;
+        padding: 4px 5px;
+        border: 1px solid #d1d5db;
+        border-radius: 5px;
+        background: #fff;
+        color: #374151;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .rule-row .sel-cond { flex: 1 1 130px; }
+    .rule-row .sel-act  { flex: 1 1 118px; }
+
+    .rule-kw {
+        color: #9ca3af;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        flex: 0 0 auto;
+    }
+
+    .rule-arrow { color: #17726b; flex: 0 0 auto; font-weight: 600; }
+
+    .rule-hits {
+        flex: 0 0 auto;
+        min-width: 26px;
+        text-align: right;
+        font-size: 11px;
+        color: #9ca3af;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .icon-btn {
+        flex: 0 0 auto;
+        width: 21px;
+        height: 21px;
+        line-height: 1;
+        padding: 0;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: #fff;
+        color: #6b7280;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .icon-btn:hover:not(:disabled) { background: #f3f4f6; color: #374151; }
+    .icon-btn:disabled { opacity: 0.3; cursor: default; }
+    .icon-btn.del:hover { background: #fdf0ec; color: #b4441e; border-color: #e8bda9; }
+
+    .rule-row input[type="checkbox"] { flex: 0 0 auto; margin: 0; cursor: pointer; }
+
+    .editor-foot {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .rule-count { font-size: 12px; color: #9ca3af; margin-left: auto; }
+
+    /* ---- flags ---- */
+
+    .flags-label { margin-top: 18px; }
+
+    .panel-hint {
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 400;
+        color: #b0b6bf;
+    }
+
+    .flags-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .flag-chip {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 4px 7px;
+        background: #f9fafb;
+    }
+
+    .flag-chip input {
+        font-family: inherit;
+        font-size: 12px;
+        width: 72px;
+        border: none;
+        background: transparent;
+        color: #374151;
+        padding: 1px 2px;
+        border-bottom: 1px dashed #d1d5db;
+    }
+
+    .flag-chip input:focus { outline: none; border-bottom-color: #17726b; }
+
+    .flag-led {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d1d5db;
+        flex: 0 0 auto;
+    }
+
+    .flag-led.on { background: #d4af37; box-shadow: 0 0 4px rgba(212, 175, 55, 0.8); }
+
+    /* ---- trace ---- */
+
+    .trace {
+        margin-top: 14px;
+        background: #232935;
+        border-radius: 7px;
+        padding: 9px 11px;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.65;
+        color: #9fb2c4;
+        height: 116px;
+        overflow-y: auto;
+    }
+
+    .trace .t-step { color: #5f7285; }
+    .trace .t-rule { color: #d4af37; }
+    .trace .t-act  { color: #cfd8e3; }
+    .trace .t-halt { color: #e8a27f; }
+
+    @media (max-width: 620px) {
+        .thread-page { padding: 12px; }
+        .thread-left { width: 100%; }
+        .thread-right { min-width: 0; }
+        .rule-row { flex-wrap: wrap; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="thread-page">
+  <div class="container">
+    <h1>Thread</h1>
+    <p class="thread-tagline">You never see the maze. You only write the rules that find its heart.</p>
+
+    <div class="instructions" id="instructions">
+      <div class="instructions-header" id="instructions-toggle">
+        <span>How to play</span>
+        <span class="instructions-chevron">&#9660;</span>
+      </div>
+      <div class="instructions-body">
+        <p>You do not solve the maze. You write a program that solves the maze, then watch it run in
+        the dark. The maze is only revealed where your bot has been.</p>
+
+        <div class="instructions-section">
+          <strong>The rules</strong>
+          <p>Your program is an ordered list. Every tick, the bot reads the list from the top and
+          runs the <em>first</em> rule whose conditions are all true. That is the whole language -
+          order is your only control flow, so a rule near the bottom only fires when everything
+          above it fails.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>What the bot can sense</strong>
+          <p>Only three things: the walls of the square it is standing on, its own memory of where it
+          has already walked, and its flags. It has no map. Directions are relative to the way it
+          faces, so <b>right</b> means the bot's right, not east.</p>
+          <p>Memory comes in two kinds, and the difference matters more than it looks. A
+          <b>way</b> is the gap between two squares, and the bot counts how many times it has walked
+          through each one. A <b>square</b> is a place, and it counts how often it has stood there.
+          Marking the ways you have walked is the older idea, and the stronger one.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>Ticks</strong>
+          <p>One rule fires per tick and every tick costs a step, including turns and flag changes.
+          Moving into a wall turns the bot to face that way but gets it nowhere - and still costs a
+          step. The run ends when the bot reaches the exit, when no rule matches, when it stops
+          finding new ground, or when it runs out of steps.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>Scoring</strong>
+          <p>Two numbers: steps taken and rules used. Solving is the floor. Solving in fewer steps,
+          with fewer rules, is the game. <b>Gauntlet</b> runs your program against five freshly
+          generated mazes it has never seen, which is the real test of whether you wrote a strategy
+          or just got lucky.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="thread-layout">
+
+      <div class="thread-left">
+        <div class="level-bar">
+          <select id="levelSelect" class="thread-btn" style="padding:7px 9px;"></select>
+          <button id="newMazeBtn" class="thread-btn">New maze</button>
+        </div>
+        <p class="level-desc" id="levelDesc"></p>
+
+        <canvas id="mazeCanvas" width="520" height="520"></canvas>
+
+        <div class="transport">
+          <button id="runBtn" class="thread-btn thread-btn-primary">Run</button>
+          <button id="stepBtn" class="thread-btn">Step</button>
+          <button id="resetBtn" class="thread-btn">Reset</button>
+          <button id="gauntletBtn" class="thread-btn">Gauntlet</button>
+          <div class="speed-wrap">
+            <span>Speed</span>
+            <input type="range" id="speedRange" min="0" max="6" step="1" value="3">
+          </div>
+        </div>
+
+        <div class="hud">
+          <div class="hud-item">Step<b id="hudStep">0</b></div>
+          <div class="hud-item">Facing<b id="hudFacing">-</b></div>
+          <div class="hud-item">Here<b id="hudHere">-</b></div>
+          <div class="hud-item">Seen<b id="hudSeen">0</b></div>
+          <div class="hud-item">Best<b id="hudBest">-</b></div>
+        </div>
+
+        <div class="verdict" id="verdict"></div>
+      </div>
+
+      <div class="thread-right">
+        <div class="panel-label">Program</div>
+
+        <div class="preset-bar">
+          <button class="thread-btn preset" data-preset="right">Right-hand rule</button>
+          <button class="thread-btn preset" data-preset="left">Left-hand rule</button>
+          <button class="thread-btn preset" data-preset="breadcrumbs" title="Solves every level - open it only if you want the answer">Breadcrumbs (spoiler)</button>
+          <button class="thread-btn preset" data-preset="clear">Clear</button>
+        </div>
+
+        <div class="rule-list" id="ruleList"></div>
+
+        <div class="editor-foot">
+          <button id="addRuleBtn" class="thread-btn">+ Add rule</button>
+          <button id="shareBtn" class="thread-btn">Copy link</button>
+          <span class="rule-count" id="ruleCount"></span>
+        </div>
+
+        <div class="panel-label flags-label">Flags
+          <span class="panel-hint">- the bot's memory switches. Rename one and it appears in the IF and action menus.</span>
+        </div>
+        <div class="flags-bar" id="flagsBar"></div>
+
+        <div class="trace" id="trace"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    // ---------------------------------------------------------------
+    // palette
+    // ---------------------------------------------------------------
+    const C_UNSEEN   = "#232935";   // fog: ground the bot has never sensed
+    const C_KNOWN    = "#e9edf3";   // sensed through an opening, never stood on
+    const C_VISIT    = ["#d8ece9", "#b7dcd7", "#93c9c2"];  // 1, 2, 3+ visits
+    // Walls sit between lit floor and unlit fog, so they need to read against
+    // both. A mid slate does; anything near the fog colour disappears.
+    const C_WALL     = "#65748e";
+    const C_INK      = "#20252f";   // outlines on top of the gold bot
+    const C_THREAD   = "rgba(212,175,55,0.80)";
+    const C_GOLD     = "#d4af37";
+    const C_BOT      = "#f0c94a";
+    const C_START    = "#6b7280";
+
+    // ---------------------------------------------------------------
+    // maze model
+    //   Walls live in a per-cell bitmask: bit d set means "wall on side d".
+    //   Carving clears the bit on both sides, so the two views never drift.
+    // ---------------------------------------------------------------
+    const DX = [0, 1, 0, -1];          // N, E, S, W
+    const DY = [-1, 0, 1, 0];
+    const OPP = [2, 3, 0, 1];
+    const FACE_NAME = ["North", "East", "South", "West"];
+
+    const STEP_CAP = 2000;
+
+    let W = 9, H = 9;
+    let cells = null;                  // Uint8Array wall bitmasks
+    let startIdx = 0, exitIdx = 0;
+
+    function idx(x, y) { return y * W + x; }
+    function cx(i) { return i % W; }
+    function cy(i) { return (i / W) | 0; }
+    function inBounds(x, y) { return x >= 0 && y >= 0 && x < W && y < H; }
+    function isOpen(i, d) { return (cells[i] & (1 << d)) === 0; }
+
+    function carve(x, y, d) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (!inBounds(nx, ny)) return;
+        cells[idx(x, y)] &= ~(1 << d);
+        cells[idx(nx, ny)] &= ~(1 << OPP[d]);
+    }
+
+    function wallUp(x, y, d) {
+        const nx = x + DX[d], ny = y + DY[d];
+        cells[idx(x, y)] |= (1 << d);
+        if (inBounds(nx, ny)) cells[idx(nx, ny)] |= (1 << OPP[d]);
+    }
+
+    function openCount(i) {
+        let n = 0;
+        for (let d = 0; d < 4; d++) if (isOpen(i, d)) n++;
+        return n;
+    }
+
+    // mulberry32 - small seeded PRNG so a maze can be replayed and shared
+    function mulberry32(a) {
+        return function () {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    function genPerfect(rand) {
+        cells = new Uint8Array(W * H).fill(0b1111);
+        const seen = new Uint8Array(W * H);
+        const stack = [0];
+        seen[0] = 1;
+        while (stack.length) {
+            const i = stack[stack.length - 1];
+            const x = cx(i), y = cy(i);
+            const options = [];
+            for (let d = 0; d < 4; d++) {
+                const nx = x + DX[d], ny = y + DY[d];
+                if (inBounds(nx, ny) && !seen[idx(nx, ny)]) options.push(d);
+            }
+            if (!options.length) { stack.pop(); continue; }
+            const d = options[(rand() * options.length) | 0];
+            carve(x, y, d);
+            const ni = idx(x + DX[d], y + DY[d]);
+            seen[ni] = 1;
+            stack.push(ni);
+        }
+    }
+
+    // Braiding removes dead ends, which is what puts loops in the maze -
+    // and loops are what let a wall-follower cycle forever.
+    function braid(rand, p) {
+        for (let i = 0; i < W * H; i++) {
+            if (openCount(i) !== 1 || rand() > p) continue;
+            const x = cx(i), y = cy(i);
+            const options = [];
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d) && inBounds(x + DX[d], y + DY[d])) options.push(d);
+            }
+            if (options.length) carve(x, y, options[(rand() * options.length) | 0]);
+        }
+    }
+
+    // The island: open the 3x3 block around the exit completely, then wall the
+    // exit back in on three sides. Those three wall segments now touch nothing
+    // else, so they are a wall component disconnected from the outer wall - and
+    // a hand-on-wall follower can never cross onto them.
+    function makeIsland(gx, gy, rand) {
+        for (let y = gy - 1; y <= gy + 1; y++) {
+            for (let x = gx - 1; x <= gx + 1; x++) {
+                for (let d = 0; d < 4; d++) {
+                    const nx = x + DX[d], ny = y + DY[d];
+                    if (nx >= gx - 1 && nx <= gx + 1 && ny >= gy - 1 && ny <= gy + 1) carve(x, y, d);
+                }
+            }
+        }
+        const keep = (rand() * 4) | 0;
+        for (let d = 0; d < 4; d++) if (d !== keep) wallUp(gx, gy, d);
+    }
+
+    // ---------------------------------------------------------------
+    // levels
+    // ---------------------------------------------------------------
+    const LEVELS = [
+        {
+            id: "warmup", name: "1. Warm Up", w: 9, h: 9, braid: 0, island: false,
+            desc: "A plain maze with the exit on the far corner. The right-hand rule handles this one on its own - run it and watch what it does."
+        },
+        {
+            id: "long", name: "2. The Long Way", w: 15, h: 15, braid: 0, island: false,
+            desc: "Same maze, more of it. Wall-following still solves it, but now the step count starts to sting. Can you cut it down?"
+        },
+        {
+            id: "island", name: "3. The Island", w: 13, h: 13, braid: 0, island: true,
+            desc: "The exit sits in a chamber whose walls touch nothing else. A hand on the wall will circle past it forever. Your bot needs memory."
+        },
+        {
+            id: "tangle", name: "4. Tangle", w: 15, h: 15, braid: 0.6, island: true,
+            desc: "Loops everywhere, and the exit is still an island. Preferring fresh ground is no longer enough - you have to notice the moment you close a loop."
+        }
+    ];
+
+    const CANON_SEED = 1;      // the maze a level's Best score is measured on
+    let levelIdx = 0;
+    let mazeSeed = CANON_SEED;
+
+    function buildMaze() {
+        const L = LEVELS[levelIdx];
+        W = L.w; H = L.h;
+        const rand = mulberry32(mazeSeed);
+        genPerfect(rand);
+        if (L.braid > 0) braid(rand, L.braid);
+        startIdx = idx(0, 0);
+        if (L.island) {
+            const gx = (W / 2) | 0, gy = (H / 2) | 0;
+            makeIsland(gx, gy, rand);
+            exitIdx = idx(gx, gy);
+        } else {
+            exitIdx = idx(W - 1, H - 1);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // vocabulary
+    // ---------------------------------------------------------------
+    const REL = { ahead: 0, right: 1, back: 2, left: 3 };
+
+    const DIR_SUBJECTS = [["ahead", "Ahead"], ["right", "Right"], ["left", "Left"], ["back", "Back"]];
+
+    // "way" predicates read the passage itself - how many times the bot has
+    // walked through that gap. "square" reads the cell on the other side.
+    // Marking passages rather than cells is what makes the loops solvable.
+    const DIR_PREDS = [
+        ["open", "is open"],
+        ["wall", "is a wall"],
+        ["untrodden", "way untrodden"],
+        ["trodden1", "way trodden once"],
+        ["trodden2", "way trodden 2+"],
+        ["unvisited", "square unvisited"],
+        ["exit", "is the exit"]
+    ];
+    const HERE_PREDS = [
+        ["deadend", "is a dead end"],
+        ["junction", "is a junction"],
+        ["corridor", "is a corridor"],
+        ["first", "is my first visit"],
+        ["visited2", "visited 2+ times"],
+        ["visited3", "visited 3+ times"]
+    ];
+
+    let flagNames = ["A", "B", "C"];
+
+    function condGroups() {
+        const groups = [];
+        for (const [sub, label] of DIR_SUBJECTS) {
+            groups.push({
+                label: label,
+                items: DIR_PREDS.map(function (p) {
+                    return [sub + "." + p[0], label + " " + p[1]];
+                })
+            });
+        }
+        groups.push({
+            label: "Here",
+            items: HERE_PREDS.map(function (p) { return ["here." + p[0], "Here " + p[1]]; })
+        });
+        const state = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            state.push(["flag." + f + ".on", flagNames[n] + " is on"]);
+            state.push(["flag." + f + ".off", flagNames[n] + " is off"]);
+        });
+        state.push(["always", "always"]);
+        groups.push({ label: "State", items: state });
+        return groups;
+    }
+
+    function actionGroups() {
+        const flags = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            flags.push(["flag." + f + ".on", "SET " + flagNames[n] + " on"]);
+            flags.push(["flag." + f + ".off", "SET " + flagNames[n] + " off"]);
+            flags.push(["flag." + f + ".toggle", "TOGGLE " + flagNames[n]]);
+        });
+        return [
+            {
+                label: "Move", items: [
+                    ["move.ahead", "MOVE ahead"], ["move.right", "MOVE right"],
+                    ["move.left", "MOVE left"], ["move.back", "MOVE back"]
+                ]
+            },
+            {
+                label: "Turn", items: [
+                    ["turn.right", "TURN right"], ["turn.left", "TURN left"],
+                    ["turn.around", "TURN around"]
+                ]
+            },
+            { label: "Flags", items: flags }
+        ];
+    }
+
+    function labelFor(groups, value) {
+        for (const g of groups) for (const it of g.items) if (it[0] === value) return it[1];
+        return value;
+    }
+
+    // ---------------------------------------------------------------
+    // program
+    // ---------------------------------------------------------------
+    const MAX_RULES = 24;
+
+    const PRESETS = {
+        right: [
+            { on: true, c1: "right.open", c2: "", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "", act: "move.left" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        left: [
+            { on: true, c1: "left.open", c2: "", act: "move.left" },
+            { on: true, c1: "ahead.open", c2: "", act: "move.ahead" },
+            { on: true, c1: "right.open", c2: "", act: "move.right" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        // Tremaux, and the spoiler for levels 3 and 4. Rule 1 is the whole
+        // trick: re-entering ground you already knew, by a passage you had
+        // never walked, means you closed a loop - so turn straight back.
+        // Without it the bot circles the loops forever.
+        breadcrumbs: [
+            { on: true, c1: "here.visited2", c2: "back.trodden1", act: "move.back" },
+            { on: true, c1: "right.open", c2: "right.untrodden", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "ahead.untrodden", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "left.untrodden", act: "move.left" },
+            { on: true, c1: "back.open", c2: "back.untrodden", act: "move.back" },
+            { on: true, c1: "right.open", c2: "right.trodden1", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "ahead.trodden1", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "left.trodden1", act: "move.left" },
+            { on: true, c1: "back.open", c2: "back.trodden1", act: "move.back" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        clear: [
+            { on: true, c1: "always", c2: "", act: "move.ahead" }
+        ]
+    };
+
+    function clone(rules) { return rules.map(function (r) { return Object.assign({}, r); }); }
+
+    let rules = clone(PRESETS.right);
+
+    // ---------------------------------------------------------------
+    // simulation
+    //   Runs headless to completion, recording one frame per tick. Playback
+    //   then just walks the frame list, which makes stepping, scrubbing and
+    //   speed changes free and keeps the renderer completely dumb.
+    // ---------------------------------------------------------------
+    function evalCond(code, st) {
+        if (!code || code === "always") return true;
+        const p = code.split(".");
+
+        if (p[0] === "flag") return st.flags[p[1]] === (p[2] === "on");
+
+        const here = idx(st.x, st.y);
+
+        if (p[0] === "here") {
+            const open = openCount(here);
+            switch (p[1]) {
+                case "deadend":  return open === 1;
+                case "junction": return open >= 3;
+                case "corridor": return open === 2;
+                case "first":    return st.visits[here] === 1;
+                case "visited2": return st.visits[here] >= 2;
+                case "visited3": return st.visits[here] >= 3;
+            }
+            return false;
+        }
+
+        const d = (st.facing + REL[p[0]]) % 4;
+        const nx = st.x + DX[d], ny = st.y + DY[d];
+        const ok = inBounds(nx, ny);
+        const trod = st.cross[here * 4 + d];
+        switch (p[1]) {
+            case "open":      return isOpen(here, d);
+            case "wall":      return !isOpen(here, d);
+            case "untrodden": return trod === 0;
+            case "trodden1":  return trod === 1;
+            case "trodden2":  return trod >= 2;
+            case "unvisited": return ok && st.visits[idx(nx, ny)] === 0;
+            case "exit":      return ok && idx(nx, ny) === exitIdx;
+        }
+        return false;
+    }
+
+    function applyAction(code, st) {
+        const p = code.split(".");
+
+        if (p[0] === "flag") {
+            if (p[2] === "toggle") st.flags[p[1]] = !st.flags[p[1]];
+            else st.flags[p[1]] = (p[2] === "on");
+            return false;
+        }
+
+        if (p[0] === "turn") {
+            const turn = { right: 1, around: 2, left: 3 }[p[1]];
+            st.facing = (st.facing + turn) % 4;
+            return false;
+        }
+
+        const d = (st.facing + REL[p[1]]) % 4;
+        st.facing = d;                                  // a bump still reorients
+        const here = idx(st.x, st.y);
+        if (!isOpen(here, d)) return false;
+        st.x += DX[d];
+        st.y += DY[d];
+        const there = idx(st.x, st.y);
+        // one passage, marked from both ends, so the count reads the same
+        // whichever side the bot is standing on
+        if (st.cross[here * 4 + d] < 250) {
+            st.cross[here * 4 + d]++;
+            st.cross[there * 4 + OPP[d]]++;
+        }
+        st.visits[there]++;
+        return true;
+    }
+
+    function flagBits(f) { return (f.A ? 1 : 0) | (f.B ? 2 : 0) | (f.C ? 4 : 0); }
+
+    function simulate(prog) {
+        const active = [];
+        prog.forEach(function (r, i) { if (r.on) active.push({ r: r, i: i }); });
+
+        const st = {
+            x: cx(startIdx), y: cy(startIdx), facing: 1,
+            flags: { A: false, B: false, C: false },
+            visits: new Uint16Array(W * H),
+            cross: new Uint8Array(W * H * 4)
+        };
+        st.visits[startIdx] = 1;
+
+        const frames = [{ x: st.x, y: st.y, f: st.facing, ri: -1, act: "", fl: 0 }];
+        const hits = new Array(prog.length).fill(0);
+        const stall = Math.max(300, W * H * 2);
+
+        let lastNew = 0;
+        let outcome = "cap";
+
+        for (let step = 1; step <= STEP_CAP; step++) {
+            let chosen = null;
+            for (const a of active) {
+                if (evalCond(a.r.c1, st) && evalCond(a.r.c2, st)) { chosen = a; break; }
+            }
+            if (!chosen) { outcome = "norule"; break; }
+
+            hits[chosen.i]++;
+            const before = idx(st.x, st.y);
+            applyAction(chosen.r.act, st);
+            const after = idx(st.x, st.y);
+
+            frames.push({ x: st.x, y: st.y, f: st.facing, ri: chosen.i, act: chosen.r.act, fl: flagBits(st.flags) });
+
+            if (after !== before && st.visits[after] === 1) lastNew = step;
+            if (after === exitIdx) { outcome = "solved"; break; }
+            if (step - lastNew >= stall) { outcome = "stuck"; break; }
+        }
+
+        return { frames: frames, hits: hits, outcome: outcome, steps: frames.length - 1 };
+    }
+
+    // Replays frame 0..n to rebuild what the player is allowed to see. Cheap
+    // enough at these sizes that scrubbing backwards needs no extra bookkeeping.
+    function viewAt(frames, n) {
+        const visits = new Uint16Array(W * H);
+        const seen = new Uint8Array(W * H);
+        const path = [];
+        let prev = -1;
+
+        function reveal(i) {
+            seen[i] = 1;
+            const x = cx(i), y = cy(i);
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d)) continue;
+                const nx = x + DX[d], ny = y + DY[d];
+                if (inBounds(nx, ny) && !seen[idx(nx, ny)]) seen[idx(nx, ny)] = 1;
+            }
+        }
+
+        for (let k = 0; k <= n && k < frames.length; k++) {
+            const c = idx(frames[k].x, frames[k].y);
+            if (c !== prev) { visits[c]++; reveal(c); path.push(c); prev = c; }
+        }
+        return { visits: visits, seen: seen, path: path };
+    }
+
+    // ---------------------------------------------------------------
+    // rendering
+    // ---------------------------------------------------------------
+    const canvas = document.getElementById("mazeCanvas");
+    const ctx = canvas.getContext("2d");
+    let CS = 34, PAD = 10;
+
+    function sizeCanvas() {
+        const box = 520;
+        CS = Math.floor((box - PAD * 2) / Math.max(W, H));
+        const px = PAD * 2 + CS * W;
+        const py = PAD * 2 + CS * H;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = px * dpr;
+        canvas.height = py * dpr;
+        canvas.style.aspectRatio = px + " / " + py;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function cellRect(i) {
+        return { x: PAD + cx(i) * CS, y: PAD + cy(i) * CS };
+    }
+
+    function draw(view, frame) {
+        const w = PAD * 2 + CS * W, h = PAD * 2 + CS * H;
+        ctx.fillStyle = C_UNSEEN;
+        ctx.fillRect(0, 0, w, h);
+
+        // floor
+        for (let i = 0; i < W * H; i++) {
+            if (!view.seen[i]) continue;
+            const v = view.visits[i];
+            ctx.fillStyle = v === 0 ? C_KNOWN : C_VISIT[Math.min(v, 3) - 1];
+            const r = cellRect(i);
+            ctx.fillRect(r.x, r.y, CS, CS);
+        }
+
+        // walls, but only of squares the bot has actually stood on - it cannot
+        // report walls it never touched
+        ctx.strokeStyle = C_WALL;
+        ctx.lineWidth = 2;
+        ctx.lineCap = "square";
+        ctx.beginPath();
+        for (let i = 0; i < W * H; i++) {
+            if (view.visits[i] === 0) continue;
+            const r = cellRect(i);
+            if (!isOpen(i, 0)) { ctx.moveTo(r.x, r.y); ctx.lineTo(r.x + CS, r.y); }
+            if (!isOpen(i, 1)) { ctx.moveTo(r.x + CS, r.y); ctx.lineTo(r.x + CS, r.y + CS); }
+            if (!isOpen(i, 2)) { ctx.moveTo(r.x, r.y + CS); ctx.lineTo(r.x + CS, r.y + CS); }
+            if (!isOpen(i, 3)) { ctx.moveTo(r.x, r.y); ctx.lineTo(r.x, r.y + CS); }
+        }
+        ctx.stroke();
+
+        // the thread
+        if (view.path.length > 1) {
+            ctx.strokeStyle = C_THREAD;
+            ctx.lineWidth = Math.max(2, CS * 0.16);
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            for (let k = 0; k < view.path.length; k++) {
+                const r = cellRect(view.path[k]);
+                const px = r.x + CS / 2, py = r.y + CS / 2;
+                if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+        }
+
+        // start marker
+        const sr = cellRect(startIdx);
+        ctx.strokeStyle = C_START;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sr.x + CS / 2, sr.y + CS / 2, CS * 0.22, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // exit, once it has been sensed
+        if (view.seen[exitIdx]) {
+            const er = cellRect(exitIdx);
+            const ex = er.x + CS / 2, ey = er.y + CS / 2, rad = CS * 0.3;
+            ctx.fillStyle = C_GOLD;
+            ctx.beginPath();
+            ctx.moveTo(ex, ey - rad);
+            ctx.lineTo(ex + rad, ey);
+            ctx.lineTo(ex, ey + rad);
+            ctx.lineTo(ex - rad, ey);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // bot
+        const br = cellRect(idx(frame.x, frame.y));
+        const bx = br.x + CS / 2, by = br.y + CS / 2, size = CS * 0.32;
+        const ang = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][frame.f];
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(size, 0);
+        ctx.lineTo(-size * 0.75, -size * 0.8);
+        ctx.lineTo(-size * 0.35, 0);
+        ctx.lineTo(-size * 0.75, size * 0.8);
+        ctx.closePath();
+        ctx.fillStyle = C_BOT;
+        ctx.fill();
+        ctx.strokeStyle = C_INK;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // ---------------------------------------------------------------
+    // playback
+    // ---------------------------------------------------------------
+    const SPEEDS = [600, 320, 170, 90, 45, 20, 6];   // ms per tick
+
+    let sim = null;
+    let dirty = true;
+    let playhead = 0;
+    let playing = false;
+    let timer = null;
+
+    const el = {
+        levelSelect: document.getElementById("levelSelect"),
+        levelDesc: document.getElementById("levelDesc"),
+        newMaze: document.getElementById("newMazeBtn"),
+        run: document.getElementById("runBtn"),
+        step: document.getElementById("stepBtn"),
+        reset: document.getElementById("resetBtn"),
+        gauntlet: document.getElementById("gauntletBtn"),
+        speed: document.getElementById("speedRange"),
+        hudStep: document.getElementById("hudStep"),
+        hudFacing: document.getElementById("hudFacing"),
+        hudHere: document.getElementById("hudHere"),
+        hudSeen: document.getElementById("hudSeen"),
+        hudBest: document.getElementById("hudBest"),
+        verdict: document.getElementById("verdict"),
+        ruleList: document.getElementById("ruleList"),
+        ruleCount: document.getElementById("ruleCount"),
+        addRule: document.getElementById("addRuleBtn"),
+        share: document.getElementById("shareBtn"),
+        flagsBar: document.getElementById("flagsBar"),
+        trace: document.getElementById("trace")
+    };
+
+    function ensureSim() {
+        if (!dirty && sim) return;
+        sim = simulate(rules);
+        dirty = false;
+        playhead = 0;
+        renderRules();
+    }
+
+    function render() {
+        const view = viewAt(sim.frames, playhead);
+        const frame = sim.frames[playhead];
+        draw(view, frame);
+
+        el.hudStep.textContent = playhead + " / " + sim.steps;
+        el.hudFacing.textContent = FACE_NAME[frame.f];
+        el.hudHere.textContent = "x" + view.visits[idx(frame.x, frame.y)];
+        let seenCount = 0;
+        for (let i = 0; i < view.seen.length; i++) if (view.seen[i]) seenCount++;
+        el.hudSeen.textContent = seenCount + " / " + (W * H);
+
+        updateFlagLeds(frame.fl);
+        renderTrace();
+        highlightRule(playhead > 0 ? frame.ri : -1);
+        renderVerdict();
+    }
+
+    function renderVerdict() {
+        const done = playhead >= sim.frames.length - 1;
+        if (!done) { el.verdict.className = "verdict"; return; }
+
+        const n = rules.filter(function (r) { return r.on; }).length;
+        let cls, msg;
+        if (sim.outcome === "solved") {
+            cls = "win";
+            msg = "<b>Solved</b> in " + sim.steps + " steps with " + n + " rule" + (n === 1 ? "" : "s") + ".";
+            // Only the level's own maze scores. Otherwise "best" just records
+            // whoever rolled the shortest random maze, which is not a score.
+            if (mazeSeed === CANON_SEED) {
+                const prev = bestGet();
+                if (prev === null || sim.steps < prev) {
+                    bestSet(sim.steps);
+                    msg += " New best.";
+                }
+            }
+        } else if (sim.outcome === "stuck") {
+            cls = "fail";
+            msg = "<b>Stuck.</b> The bot went " + sim.steps + " steps and stopped finding new ground - it is retracing a circuit it has already walked.";
+        } else if (sim.outcome === "norule") {
+            cls = "fail";
+            msg = "<b>No rule matched</b> at step " + sim.steps + ". Nothing changed, so nothing ever will. Add a catch-all <em>always</em> rule at the bottom.";
+        } else {
+            cls = "fail";
+            msg = "<b>Out of steps</b> after " + STEP_CAP + " ticks without reaching the exit.";
+        }
+        el.verdict.className = "verdict show " + cls;
+        el.verdict.innerHTML = msg;
+        updateBest();
+    }
+
+    function bestKey() { return "thread.best." + LEVELS[levelIdx].id; }
+
+    function bestGet() {
+        try {
+            const v = localStorage.getItem(bestKey());
+            return v === null ? null : parseInt(v, 10);
+        } catch (e) { return null; }
+    }
+
+    function bestSet(steps) {
+        try { localStorage.setItem(bestKey(), String(steps)); } catch (e) { /* storage off */ }
+    }
+
+    function updateBest() {
+        const v = bestGet();
+        el.hudBest.textContent = v === null ? "-" : (mazeSeed === CANON_SEED ? v : v + "*");
+    }
+
+    function renderTrace() {
+        const lines = [];
+        const ag = actionGroups();
+        const from = Math.max(1, playhead - 9);
+        for (let k = from; k <= playhead; k++) {
+            const f = sim.frames[k];
+            lines.push('<div><span class="t-step">' + String(k).padStart(4, " ") +
+                '</span> <span class="t-rule">r' + (f.ri + 1) + '</span> ' +
+                '<span class="t-act">' + labelFor(ag, f.act) + "</span></div>");
+        }
+        if (playhead >= sim.frames.length - 1 && sim.outcome !== "solved") {
+            lines.push('<div class="t-halt">halted: ' + sim.outcome + "</div>");
+        }
+        if (playhead >= sim.frames.length - 1 && sim.outcome === "solved") {
+            lines.push('<div class="t-rule">exit reached</div>');
+        }
+        el.trace.innerHTML = lines.join("") || '<div class="t-step">ready</div>';
+        el.trace.scrollTop = el.trace.scrollHeight;
+    }
+
+    // Built once. Playback only flips the LEDs, so a rename in progress is not
+    // ripped out from under the cursor sixty times a second.
+    function buildFlags() {
+        el.flagsBar.innerHTML = ["A", "B", "C"].map(function (f, n) {
+            return '<span class="flag-chip" title="Flag ' + ["A", "B", "C"][n] +
+                ' - lit when on. Rename it to whatever it means in your program.">' +
+                '<span class="flag-led" data-led="' + n + '"></span>' +
+                '<input type="text" data-flag="' + n + '" value="' + flagNames[n].replace(/"/g, "&quot;") +
+                '" maxlength="10" aria-label="Name for flag ' + ["A", "B", "C"][n] + '"></span>';
+        }).join("");
+        el.flagsBar.querySelectorAll("input[data-flag]").forEach(function (inp) {
+            inp.addEventListener("change", function () {
+                const n = parseInt(inp.dataset.flag, 10);
+                flagNames[n] = (inp.value || "").trim().slice(0, 10) || ["A", "B", "C"][n];
+                inp.value = flagNames[n];
+                saveLocal();
+                renderRules();
+            });
+        });
+    }
+
+    function updateFlagLeds(bits) {
+        el.flagsBar.querySelectorAll(".flag-led").forEach(function (led, n) {
+            led.classList.toggle("on", (bits & (1 << n)) !== 0);
+        });
+    }
+
+    function highlightRule(ri) {
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (row, i) {
+            row.classList.toggle("firing", i === ri);
+        });
+    }
+
+    function stop() {
+        playing = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        el.run.textContent = "Run";
+    }
+
+    function tick() {
+        if (playhead >= sim.frames.length - 1) { stop(); render(); return; }
+        playhead++;
+        render();
+        if (playhead >= sim.frames.length - 1) stop();
+    }
+
+    function play() {
+        ensureSim();
+        if (playhead >= sim.frames.length - 1) playhead = 0;
+        playing = true;
+        el.run.textContent = "Pause";
+        if (timer) clearInterval(timer);
+        timer = setInterval(tick, SPEEDS[parseInt(el.speed.value, 10)]);
+        render();
+    }
+
+    // ---------------------------------------------------------------
+    // rule editor
+    // ---------------------------------------------------------------
+    function buildSelect(cls, groups, value, emptyLabel) {
+        let h = '<select class="' + cls + '">';
+        if (emptyLabel !== undefined) {
+            h += '<option value=""' + (value === "" ? " selected" : "") + ">" + emptyLabel + "</option>";
+        }
+        for (const g of groups) {
+            h += '<optgroup label="' + g.label + '">';
+            for (const it of g.items) {
+                h += '<option value="' + it[0] + '"' + (it[0] === value ? " selected" : "") + ">" + it[1] + "</option>";
+            }
+            h += "</optgroup>";
+        }
+        return h + "</select>";
+    }
+
+    function renderRules() {
+        const cg = condGroups(), ag = actionGroups();
+        const hits = sim && !dirty ? sim.hits : null;
+
+        el.ruleList.innerHTML = rules.map(function (r, i) {
+            return '<div class="rule-row' + (r.on ? "" : " off") + '" data-i="' + i + '">' +
+                '<span class="rule-num">' + (i + 1) + "</span>" +
+                '<input type="checkbox" class="chk-on"' + (r.on ? " checked" : "") + ' title="Enable rule">' +
+                '<span class="rule-kw">IF</span>' +
+                buildSelect("sel-cond c1", cg, r.c1) +
+                '<span class="rule-kw">AND</span>' +
+                buildSelect("sel-cond c2", cg, r.c2, "(nothing)") +
+                '<span class="rule-arrow">&rarr;</span>' +
+                buildSelect("sel-act act", ag, r.act) +
+                '<button class="icon-btn up" title="Move up"' + (i === 0 ? " disabled" : "") + ">&#9650;</button>" +
+                '<button class="icon-btn down" title="Move down"' + (i === rules.length - 1 ? " disabled" : "") + ">&#9660;</button>" +
+                '<button class="icon-btn del" title="Delete rule">&times;</button>' +
+                '<span class="rule-hits">' + (hits ? (hits[i] || "") : "") + "</span>" +
+                "</div>";
+        }).join("");
+
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (row) {
+            const i = parseInt(row.dataset.i, 10);
+            row.querySelector(".chk-on").addEventListener("change", function (e) {
+                rules[i].on = e.target.checked; changed();
+            });
+            row.querySelector(".c1").addEventListener("change", function (e) {
+                rules[i].c1 = e.target.value; changed();
+            });
+            row.querySelector(".c2").addEventListener("change", function (e) {
+                rules[i].c2 = e.target.value; changed();
+            });
+            row.querySelector(".act").addEventListener("change", function (e) {
+                rules[i].act = e.target.value; changed();
+            });
+            row.querySelector(".up").addEventListener("click", function () {
+                if (i > 0) { const t = rules[i - 1]; rules[i - 1] = rules[i]; rules[i] = t; changed(); }
+            });
+            row.querySelector(".down").addEventListener("click", function () {
+                if (i < rules.length - 1) { const t = rules[i + 1]; rules[i + 1] = rules[i]; rules[i] = t; changed(); }
+            });
+            row.querySelector(".del").addEventListener("click", function () {
+                if (rules.length > 1) { rules.splice(i, 1); changed(); }
+            });
+        });
+
+        const n = rules.filter(function (r) { return r.on; }).length;
+        el.ruleCount.textContent = n + " active / " + rules.length + " rule" + (rules.length === 1 ? "" : "s");
+    }
+
+    function changed() {
+        stop();
+        dirty = true;
+        saveLocal();
+        ensureSim();
+        render();
+    }
+
+    // ---------------------------------------------------------------
+    // gauntlet - the same program against five mazes it has never seen
+    // ---------------------------------------------------------------
+    function runGauntlet() {
+        stop();
+        const keepSeed = mazeSeed;
+        let solved = 0, total = 0;
+        const marks = [];
+
+        for (let k = 0; k < 5; k++) {
+            mazeSeed = ((Date.now() % 100000) + k * 7919) | 0;
+            buildMaze();
+            const r = simulate(rules);
+            if (r.outcome === "solved") { solved++; total += r.steps; marks.push(String(r.steps)); }
+            else { total += STEP_CAP; marks.push("dnf"); }
+        }
+
+        mazeSeed = keepSeed;
+        buildMaze();
+        dirty = true;
+        ensureSim();
+        render();
+
+        el.verdict.className = "verdict show " + (solved === 5 ? "win" : "fail");
+        el.verdict.innerHTML = "<b>Gauntlet: " + solved + " / 5 solved</b> on fresh mazes - " +
+            marks.join(", ") + ". Total " + total + " steps" +
+            (solved === 5 ? "." : " (unsolved mazes score " + STEP_CAP + ").");
+    }
+
+    // ---------------------------------------------------------------
+    // persistence and sharing
+    // ---------------------------------------------------------------
+    function saveLocal() {
+        try {
+            localStorage.setItem("thread.program", JSON.stringify({ rules: rules, flags: flagNames }));
+        } catch (e) { /* storage disabled - the page still works, just forgets */ }
+    }
+
+    function encodeProgram() {
+        const json = JSON.stringify({ r: rules, f: flagNames });
+        return btoa(unescape(encodeURIComponent(json)));
+    }
+
+    function decodeProgram(s) {
+        const obj = JSON.parse(decodeURIComponent(escape(atob(s))));
+        if (!obj || !Array.isArray(obj.r) || !obj.r.length) throw new Error("bad program");
+        return obj;
+    }
+
+    function adoptProgram(obj) {
+        rules = obj.r.slice(0, MAX_RULES).map(function (r) {
+            return {
+                on: r.on !== false,
+                c1: typeof r.c1 === "string" ? r.c1 : "always",
+                c2: typeof r.c2 === "string" ? r.c2 : "",
+                act: typeof r.act === "string" ? r.act : "move.ahead"
+            };
+        });
+        if (Array.isArray(obj.f) && obj.f.length === 3) {
+            flagNames = obj.f.map(function (n, i) {
+                return (typeof n === "string" && n.trim()) ? n.trim().slice(0, 10) : ["A", "B", "C"][i];
+            });
+        }
+    }
+
+    function loadStored() {
+        if (location.hash.length > 2) {
+            try { adoptProgram(decodeProgram(location.hash.slice(1))); return; }
+            catch (e) { /* malformed link - fall through to local storage */ }
+        }
+        try {
+            const raw = localStorage.getItem("thread.program");
+            if (raw) {
+                const obj = JSON.parse(raw);
+                if (obj && Array.isArray(obj.rules)) adoptProgram({ r: obj.rules, f: obj.flags });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // ---------------------------------------------------------------
+    // wiring
+    // ---------------------------------------------------------------
+    el.levelSelect.innerHTML = LEVELS.map(function (L, i) {
+        return '<option value="' + i + '">' + L.name + "</option>";
+    }).join("");
+
+    function loadLevel(i) {
+        stop();
+        levelIdx = i;
+        el.levelSelect.value = String(i);
+        el.levelDesc.textContent = LEVELS[i].desc;
+        buildMaze();
+        sizeCanvas();
+        dirty = true;
+        ensureSim();
+        updateBest();
+        el.verdict.className = "verdict";
+        render();
+    }
+
+    el.levelSelect.addEventListener("change", function (e) {
+        mazeSeed = CANON_SEED;
+        loadLevel(parseInt(e.target.value, 10));
+    });
+
+    el.newMaze.addEventListener("click", function () {
+        mazeSeed = (Math.random() * 1e9) | 0;
+        loadLevel(levelIdx);
+    });
+
+    el.run.addEventListener("click", function () {
+        if (playing) stop(); else play();
+    });
+
+    el.step.addEventListener("click", function () {
+        stop();
+        ensureSim();
+        if (playhead >= sim.frames.length - 1) playhead = 0; else playhead++;
+        render();
+    });
+
+    el.reset.addEventListener("click", function () {
+        stop();
+        ensureSim();
+        playhead = 0;
+        el.verdict.className = "verdict";
+        render();
+    });
+
+    el.gauntlet.addEventListener("click", runGauntlet);
+
+    el.speed.addEventListener("input", function () {
+        if (playing) { clearInterval(timer); timer = setInterval(tick, SPEEDS[parseInt(el.speed.value, 10)]); }
+    });
+
+    el.addRule.addEventListener("click", function () {
+        if (rules.length >= MAX_RULES) return;
+        rules.push({ on: true, c1: "always", c2: "", act: "move.ahead" });
+        changed();
+    });
+
+    el.share.addEventListener("click", function () {
+        const url = location.origin + location.pathname + "#" + encodeProgram();
+        const done = function () {
+            el.share.textContent = "Copied";
+            setTimeout(function () { el.share.textContent = "Copy link"; }, 1400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done, function () { prompt("Copy this link:", url); });
+        } else {
+            prompt("Copy this link:", url);
+        }
+    });
+
+    document.querySelectorAll(".preset").forEach(function (b) {
+        b.addEventListener("click", function () {
+            rules = clone(PRESETS[b.dataset.preset]);
+            changed();
+            playhead = 0;
+            el.verdict.className = "verdict";
+            render();
+        });
+    });
+
+    const instr = document.getElementById("instructions");
+    document.getElementById("instructions-toggle").addEventListener("click", function () {
+        instr.classList.toggle("open");
+    });
+
+    window.addEventListener("keydown", function (e) {
+        const tag = (document.activeElement || {}).tagName || "";
+        if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+        if (e.key === " ") { e.preventDefault(); if (playing) stop(); else play(); }
+        else if (e.key === "ArrowRight") { e.preventDefault(); el.step.click(); }
+    });
+
+    loadStored();
+    buildFlags();
+    renderRules();
+    loadLevel(0);
+})();
+</script>
+
+{% endblock %}
