@@ -145,7 +145,8 @@
         width: 100%;
         display: block;
         border-radius: 10px;
-        background: #232935;
+        background: #161b26;
+        box-shadow: 0 12px 30px rgba(22, 27, 38, 0.30), 0 2px 6px rgba(22, 27, 38, 0.20);
         touch-action: manipulation;
     }
 
@@ -396,7 +397,7 @@
 
     .trace {
         margin-top: 14px;
-        background: #232935;
+        background: #161b26;
         border-radius: 7px;
         padding: 9px 11px;
         font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -543,17 +544,18 @@
     // ---------------------------------------------------------------
     // palette
     // ---------------------------------------------------------------
-    const C_UNSEEN   = "#232935";   // fog: ground the bot has never sensed
-    const C_KNOWN    = "#e9edf3";   // sensed through an opening, never stood on
-    const C_VISIT    = ["#d8ece9", "#b7dcd7", "#93c9c2"];  // 1, 2, 3+ visits
+    const C_FOG      = "#161b26";   // ground the bot has never sensed
+    const C_KNOWN    = "#93a2bb";   // sensed through an opening, never stood on
+    const C_VISIT    = ["#e2f0ec", "#c1e0d9", "#9fcbc3"];  // 1, 2, 3+ visits
     // Walls sit between lit floor and unlit fog, so they need to read against
     // both. A mid slate does; anything near the fog colour disappears.
-    const C_WALL     = "#65748e";
-    const C_INK      = "#20252f";   // outlines on top of the gold bot
-    const C_THREAD   = "rgba(212,175,55,0.80)";
-    const C_GOLD     = "#d4af37";
-    const C_BOT      = "#f0c94a";
-    const C_START    = "#6b7280";
+    const C_WALL     = "#6d7c94";
+    const C_INK      = "#141821";   // outlines on top of the gold bot
+    const C_THREAD      = "#d9b545";
+    const C_THREAD_GLOW = "rgba(217,181,69,0.22)";
+    const C_GOLD     = "#e3c25c";
+    const C_BOT      = "#f7d968";
+    const C_START    = "#8b98ad";
 
     // ---------------------------------------------------------------
     // maze model
@@ -986,9 +988,16 @@
         return { x: PAD + cx(i) * CS, y: PAD + cy(i) * CS };
     }
 
-    function draw(view, frame) {
+    const FACE_ANGLE = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
+
+    function centreOf(i) { return { x: PAD + cx(i) * CS + CS / 2, y: PAD + cy(i) * CS + CS / 2 }; }
+
+    // `t` slides the bot from the previous frame to the current one so motion
+    // reads as walking rather than teleporting; `now` drives the exit pulse.
+    function draw(view, frame, prev, t, now) {
         const w = PAD * 2 + CS * W, h = PAD * 2 + CS * H;
-        ctx.fillStyle = C_UNSEEN;
+
+        ctx.fillStyle = C_FOG;
         ctx.fillRect(0, 0, w, h);
 
         // floor
@@ -1003,8 +1012,9 @@
         // walls, but only of squares the bot has actually stood on - it cannot
         // report walls it never touched
         ctx.strokeStyle = C_WALL;
-        ctx.lineWidth = 2;
-        ctx.lineCap = "square";
+        ctx.lineWidth = Math.max(2, CS * 0.075);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath();
         for (let i = 0; i < W * H; i++) {
             if (view.visits[i] === 0) continue;
@@ -1016,50 +1026,89 @@
         }
         ctx.stroke();
 
-        // the thread
-        if (view.path.length > 1) {
-            ctx.strokeStyle = C_THREAD;
-            ctx.lineWidth = Math.max(2, CS * 0.16);
+        // where the bot actually is this instant
+        const a = centreOf(idx(prev.x, prev.y));
+        const b = centreOf(idx(frame.x, frame.y));
+        const bx = a.x + (b.x - a.x) * t;
+        const by = a.y + (b.y - a.y) * t;
+
+        // the thread, laid down to wherever the bot has got to. Two passes:
+        // a soft halo, then a bright core on top of it.
+        const pts = [];
+        for (let k = 0; k < view.path.length - 1; k++) pts.push(centreOf(view.path[k]));
+        pts.push({ x: bx, y: by });
+
+        if (pts.length > 1) {
+            const layThread = function () {
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+                ctx.stroke();
+            };
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
-            ctx.beginPath();
-            for (let k = 0; k < view.path.length; k++) {
-                const r = cellRect(view.path[k]);
-                const px = r.x + CS / 2, py = r.y + CS / 2;
-                if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
+            ctx.strokeStyle = C_THREAD_GLOW;
+            ctx.lineWidth = Math.max(5, CS * 0.40);
+            layThread();
+            ctx.strokeStyle = C_THREAD;
+            ctx.lineWidth = Math.max(2, CS * 0.13);
+            layThread();
         }
 
-        // start marker
-        const sr = cellRect(startIdx);
+        // where the bot set out from
+        const s = centreOf(startIdx);
         ctx.strokeStyle = C_START;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(sr.x + CS / 2, sr.y + CS / 2, CS * 0.22, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, CS * 0.2, 0, Math.PI * 2);
         ctx.stroke();
 
-        // exit, once it has been sensed
+        // Lantern: everything dims with distance from the bot, so the eye goes
+        // where the action is and the far corners keep some of their dark.
+        const lantern = ctx.createRadialGradient(bx, by, CS * 1.4, bx, by, CS * 7.5);
+        lantern.addColorStop(0, "rgba(16,20,29,0)");
+        lantern.addColorStop(1, "rgba(16,20,29,0.55)");
+        ctx.fillStyle = lantern;
+        ctx.fillRect(0, 0, w, h);
+
+        // exit, once it has been sensed - drawn over the lantern so that
+        // finding it always reads, however far off it is
         if (view.seen[exitIdx]) {
-            const er = cellRect(exitIdx);
-            const ex = er.x + CS / 2, ey = er.y + CS / 2, rad = CS * 0.3;
+            const e = centreOf(exitIdx);
+            const pulse = 0.5 + 0.5 * Math.sin(now / 470);
+            const rad = CS * 0.28;
+
+            const halo = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, CS * (0.75 + 0.25 * pulse));
+            halo.addColorStop(0, "rgba(227,194,92," + (0.42 + 0.22 * pulse).toFixed(3) + ")");
+            halo.addColorStop(1, "rgba(227,194,92,0)");
+            ctx.fillStyle = halo;
+            ctx.fillRect(e.x - CS, e.y - CS, CS * 2, CS * 2);
+
             ctx.fillStyle = C_GOLD;
             ctx.beginPath();
-            ctx.moveTo(ex, ey - rad);
-            ctx.lineTo(ex + rad, ey);
-            ctx.lineTo(ex, ey + rad);
-            ctx.lineTo(ex - rad, ey);
+            ctx.moveTo(e.x, e.y - rad);
+            ctx.lineTo(e.x + rad, e.y);
+            ctx.lineTo(e.x, e.y + rad);
+            ctx.lineTo(e.x - rad, e.y);
             ctx.closePath();
             ctx.fill();
         }
 
-        // bot
-        const br = cellRect(idx(frame.x, frame.y));
-        const bx = br.x + CS / 2, by = br.y + CS / 2, size = CS * 0.32;
-        const ang = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][frame.f];
+        // bot, with its own little pool of light
+        const glow = ctx.createRadialGradient(bx, by, 0, bx, by, CS * 0.95);
+        glow.addColorStop(0, "rgba(247,217,104,0.34)");
+        glow.addColorStop(1, "rgba(247,217,104,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(bx - CS, by - CS, CS * 2, CS * 2);
+
+        let da = FACE_ANGLE[frame.f] - FACE_ANGLE[prev.f];
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+
+        const size = CS * 0.3;
         ctx.save();
         ctx.translate(bx, by);
-        ctx.rotate(ang);
+        ctx.rotate(FACE_ANGLE[prev.f] + da * t);
         ctx.beginPath();
         ctx.moveTo(size, 0);
         ctx.lineTo(-size * 0.75, -size * 0.8);
@@ -1069,7 +1118,8 @@
         ctx.fillStyle = C_BOT;
         ctx.fill();
         ctx.strokeStyle = C_INK;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.4;
+        ctx.lineJoin = "round";
         ctx.stroke();
         ctx.restore();
     }
@@ -1116,10 +1166,33 @@
         renderRules();
     }
 
+    // The canvas is painted by an animation loop rather than by render(), so
+    // the bot can glide between ticks and the exit can pulse while paused.
+    let paintView = null, paintFrame = null, paintPrev = null;
+    let tickAt = 0, tickDur = 1, needsPaint = false;
+
+    function paint() {
+        requestAnimationFrame(paint);
+        if (!paintView) return;
+        const now = performance.now();
+        const t = tickDur > 0 ? Math.min(1, (now - tickAt) / tickDur) : 1;
+        // Idle pages should not burn a repaint every frame. Only the glide and
+        // the exit pulse are actually moving.
+        if (!needsPaint && t >= 1 && !paintView.seen[exitIdx]) return;
+        needsPaint = false;
+        draw(paintView, paintFrame, paintPrev, t, now);
+    }
+
     function render() {
         const view = viewAt(sim.frames, playhead);
         const frame = sim.frames[playhead];
-        draw(view, frame);
+
+        paintView = view;
+        paintFrame = frame;
+        paintPrev = sim.frames[Math.max(0, playhead - 1)];
+        tickAt = performance.now();
+        tickDur = playing ? SPEEDS[parseInt(el.speed.value, 10)] : 170;
+        needsPaint = true;
 
         // Never show the run length. The denominator would hand the player the
         // outcome before they ever pressed Run.
@@ -1527,6 +1600,7 @@
     buildFlags();
     renderRules();
     loadLevel(0);
+    requestAnimationFrame(paint);
 })();
 </script>
 
