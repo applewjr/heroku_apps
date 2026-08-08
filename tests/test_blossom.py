@@ -8,6 +8,7 @@ tests stub the DB cursor so the path is hermetic.
 
 import re
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -206,3 +207,89 @@ def test_blossom_reset_clears_session(client):
     assert resp.status_code == 302
     with client.session_transaction() as sess:
         assert sess.get("used_words", []) == []
+
+
+# ---------------------------------------------------------------------------
+# Template JS wiring. There's no JS runtime here, so these are source-order
+# assertions on templates/blossom.html. They exist because the page has a single
+# point of failure: every control is an inline on* handler resolved off window,
+# and clicking a petal is the only way to submit the form. If init throws before
+# the exports run, letters still type in (native input behaviour) but nothing
+# submits, which looks exactly like "no suggestions show up".
+# ---------------------------------------------------------------------------
+
+BLOSSOM_TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "blossom.html"
+
+INLINE_HANDLERS = [
+    "handleCenterInput", "handlePetalInput", "handleKeyDown", "handleBackspace",
+    "selectPetal", "showResetConfirmation", "cancelReset", "confirmReset",
+    "showLoadingOverlay",
+]
+
+
+@pytest.fixture(scope="module")
+def blossom_template():
+    return BLOSSOM_TEMPLATE.read_text(encoding="utf-8")
+
+
+def test_inline_handlers_exported_before_init_can_throw(blossom_template):
+    # initializeHelperMode() reads sessionStorage, which throws outright on
+    # browsers that block site data. Keep the window exports above it.
+    risky = blossom_template.index("initializeHelperMode();")
+    for name in INLINE_HANDLERS:
+        exported = blossom_template.index(f"window.{name} = {name};")
+        assert exported < risky, f"window.{name} is assigned after init can throw"
+
+
+# Keywords that look like calls inside an on* attribute, e.g. `if(...)`.
+_JS_KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "typeof",
+                "function", "new", "delete", "void", "in", "of"}
+
+
+def _enclosing_block_is_try(lines, idx, col):
+    """Walk back from lines[idx][col] to the brace that opens its enclosing
+    block, and report whether that brace belongs to a `try`.
+
+    Proximity is not sufficient: an already-closed try block a few lines above
+    would read as a guard while the access sits outside it.
+    """
+    depth = 0
+    for i in range(idx, -1, -1):
+        text = lines[idx][:col] if i == idx else lines[i]
+        for ch in reversed(text):
+            if ch == "}":
+                depth += 1
+            elif ch == "{":
+                if depth == 0:
+                    return re.search(r"\btry\b", lines[i]) is not None
+                depth -= 1
+    return False
+
+
+def test_every_inline_handler_in_markup_is_exported(blossom_template):
+    # Every call in the attribute, not just the first: the onkeydown attributes
+    # chain handleKeyDown(...) and then handleBackspace(...).
+    called = set()
+    for attr in re.findall(r'\son\w+\s*=\s*"([^"]*)"', blossom_template):
+        called.update(re.findall(r"\b([A-Za-z_$][\w$]*)\s*\(", attr))
+    called -= _JS_KEYWORDS
+    exported = set(re.findall(r"window\.(\w+)\s*=", blossom_template))
+    assert called, "expected inline handlers in the markup"
+    assert not called - exported, (
+        f"inline handlers missing from window: {sorted(called - exported)}"
+    )
+
+
+def test_session_storage_access_is_guarded(blossom_template):
+    # sessionStorage throws rather than returning null when a browser blocks
+    # site data, and a truncated write leaves unparseable JSON. Helper mode is
+    # optional, so neither may be allowed to abort the rest of init.
+    lines = blossom_template.splitlines()
+    hits = [(i, m.start())
+            for i, line in enumerate(lines)
+            for m in re.finditer(r"sessionStorage\.", line)]
+    assert hits, "expected sessionStorage use in the helper-mode code"
+    for i, col in hits:
+        assert _enclosing_block_is_try(lines, i, col), (
+            f"unguarded sessionStorage at line {i + 1}: {lines[i].strip()}"
+        )
