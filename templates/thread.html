@@ -352,6 +352,13 @@
     }
 
     .verdict.show { display: block; }
+    .verdict-aside {
+        margin-top: 7px;
+        font-size: 12.5px;
+        font-style: italic;
+        opacity: 0.8;
+    }
+
     .gauntlet-squares {
         font-size: 22px;
         letter-spacing: 3px;
@@ -727,7 +734,8 @@
           <div class="hud-item">Facing<b id="hudFacing">-</b></div>
           <div class="hud-item">Here<b id="hudHere">-</b></div>
           <div class="hud-item">Seen<b id="hudSeen">0</b></div>
-          <div class="hud-item">Best<b id="hudBest">-</b></div>
+          <div class="hud-item" title="What the shipped solution scores on this maze">Par<b id="hudPar">-</b></div>
+          <div class="hud-item" title="Your own fewest steps on this level's own maze">Best<b id="hudBest">-</b></div>
         </div>
 
         <div class="verdict" id="verdict"></div>
@@ -976,14 +984,12 @@
         }
     }
 
-    function farthestFrom(from) {
+    function bfsFrom(src) {
         const dist = new Int32Array(W * H).fill(-1);
-        const queue = [from];
-        dist[from] = 0;
-        let best = from;
+        const queue = [src];
+        dist[src] = 0;
         for (let head = 0; head < queue.length; head++) {
             const i = queue[head];
-            if (dist[i] > dist[best]) best = i;
             const x = cx(i), y = cy(i);
             for (let d = 0; d < 4; d++) {
                 if (!isOpen(i, d)) continue;
@@ -993,7 +999,22 @@
                 if (dist[j] < 0) { dist[j] = dist[i] + 1; queue.push(j); }
             }
         }
+        return dist;
+    }
+
+    function farthestFrom(from) {
+        const dist = bfsFrom(from);
+        let best = from;
+        for (let i = 0; i < W * H; i++) if (dist[i] > dist[best]) best = i;
         return best;
+    }
+
+    // What a bot that could see the whole maze would walk. Unreachable for a
+    // bot that cannot, which is the point - it is context, never a target.
+    function shortestRoute() {
+        const dist = bfsFrom(startIdx);
+        if (keyIdx >= 0) return dist[keyIdx] < 0 ? null : dist[keyIdx] * 2;
+        return dist[exitIdx] < 0 ? null : dist[exitIdx];
     }
 
     // ---------------------------------------------------------------
@@ -1139,6 +1160,8 @@
     let rules = clone(PRESETS.right);
     let startLevel = 0;         // a shared link can say which level it is for
     let sharedLink = false;     // this page is showing somebody else's program
+    let levelPar = null;        // what the shipped solution scores on this maze
+    let levelShortest = null;   // what a bot that could see the maze would walk
 
     // ---------------------------------------------------------------
     // simulation
@@ -1576,6 +1599,7 @@
         hudFacing: document.getElementById("hudFacing"),
         hudHere: document.getElementById("hudHere"),
         hudSeen: document.getElementById("hudSeen"),
+        hudPar: document.getElementById("hudPar"),
         hudBest: document.getElementById("hudBest"),
         verdict: document.getElementById("verdict"),
         ruleList: document.getElementById("ruleList"),
@@ -1656,6 +1680,18 @@
                     msg += " New best.";
                 }
             }
+
+            const asides = [];
+            if (levelPar !== null) {
+                if (sim.steps < levelPar) asides.push("That is " + (levelPar - sim.steps) + " under par.");
+                else if (sim.steps === levelPar) asides.push("Exactly par.");
+                else asides.push("Par is " + levelPar + ".");
+            }
+            if (levelShortest !== null) {
+                asides.push("The shortest way through was " + levelShortest +
+                    " steps, though nothing that cannot see the maze will ever find it.");
+            }
+            if (asides.length) msg += '<div class="verdict-aside">' + asides.join(" ") + "</div>";
         } else if (sim.outcome === "stuck") {
             cls = "fail";
             msg = "<b>Stuck.</b> The bot went " + sim.steps + " steps and stopped finding new ground - it is retracing a circuit it has already walked.";
@@ -1669,6 +1705,14 @@
         el.verdict.className = "verdict show " + cls;
         el.verdict.innerHTML = msg;
         updateBest();
+    }
+
+    // Par is what the shipped solution scores on the maze in front of you,
+    // simulated headlessly. A reachable target, unlike the shortest route, and
+    // computed rather than hardcoded so retuning a level cannot make it a lie.
+    function computePar() {
+        const r = simulate(PRESETS.breadcrumbs);
+        return r.outcome === "solved" ? r.steps : null;
     }
 
     function bestFor(id) {
@@ -2060,8 +2104,18 @@
 
     // `l` carries the level, so a bot tuned for the key maze does not open on
     // level 1 and look broken to whoever you sent it to.
+    //
+    // v2 packs each rule as a positional array. Spelling out six field names on
+    // every rule cost about a third of the URL, which is what pushed a full
+    // program past the length some chat clients will carry intact. v1 links are
+    // still read, so anything already shared keeps working.
+    const LINK_VERSION = 2;
+
     function encodeProgram() {
-        const json = JSON.stringify({ r: rules, f: flagNames, l: levelIdx });
+        const packed = rules.map(function (r) {
+            return [r.on ? 1 : 0, r.c1, r.c2 || "", r.op === "or" ? 1 : 0, r.act, r.act2 || ""];
+        });
+        const json = JSON.stringify({ v: LINK_VERSION, r: packed, f: flagNames, l: levelIdx });
         return btoa(unescape(encodeURIComponent(json)));
     }
 
@@ -2072,7 +2126,12 @@
     }
 
     function adoptProgram(obj) {
-        rules = obj.r.slice(0, MAX_RULES).map(function (r) {
+        rules = obj.r.slice(0, MAX_RULES).map(function (raw) {
+            // v2 packs a rule as an array; v1 links and local saves use objects
+            const r = Array.isArray(raw)
+                ? { on: raw[0] !== 0, c1: raw[1], c2: raw[2], op: raw[3] ? "or" : "and",
+                    act: raw[4], act2: raw[5] }
+                : raw;
             // A shared link is untrusted input: the rider has to be a flag op
             // or nothing, or it would smuggle in a second move per tick.
             const rider = (typeof r.act2 === "string" && r.act2.indexOf("flag.") === 0) ? r.act2 : "";
@@ -2143,6 +2202,10 @@
         }
         el.practiceBadge.hidden = (mazeSeed === CANON_SEED);
         buildMaze();
+        // after buildMaze, or these would score the maze we just left
+        levelPar = computePar();
+        levelShortest = shortestRoute();
+        el.hudPar.textContent = levelPar === null ? "-" : levelPar;
         sizeCanvas();
         dirty = true;
         ensureSim();
