@@ -273,6 +273,35 @@
 
     /* ---- hud ---- */
 
+    .heat-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: #6b7280;
+        align-items: center;
+    }
+
+    /* Any author `display` beats the browser's own [hidden] rule, so setting
+       the hidden attribute in script does nothing without this. */
+    .heat-legend[hidden] { display: none; }
+
+    .heat-legend span { display: flex; align-items: center; gap: 6px; }
+
+    .heat-legend i {
+        width: 16px;
+        height: 4px;
+        border-radius: 2px;
+        display: inline-block;
+    }
+
+    .thread-btn[aria-pressed="true"] {
+        background: #17726b;
+        border-color: #17726b;
+        color: #fff;
+    }
+
     .hud {
         display: flex;
         flex-wrap: wrap;
@@ -310,6 +339,15 @@
     }
 
     .verdict.show { display: block; }
+    .gauntlet-squares {
+        font-size: 22px;
+        letter-spacing: 3px;
+        margin: 8px 0 6px;
+        line-height: 1.1;
+    }
+
+    .verdict .thread-btn { margin-top: 9px; }
+
     .verdict.win  { background: #e7f4f1; border: 1px solid #9fcfc7; color: #14554f; }
     .verdict.fail { background: #fdf0ec; border: 1px solid #e8bda9; color: #8a4526; }
 
@@ -639,11 +677,18 @@
           <button id="runBtn" class="thread-btn thread-btn-primary">Run</button>
           <button id="stepBtn" class="thread-btn">Step</button>
           <button id="resetBtn" class="thread-btn">Reset</button>
+          <button id="heatBtn" class="thread-btn" aria-pressed="false" title="Shade every way by how often the bot walked it">Heatmap</button>
           <button id="gauntletBtn" class="thread-btn">Gauntlet</button>
           <div class="speed-wrap">
             <span>Speed</span>
             <input type="range" id="speedRange" min="0" max="6" step="1" value="3">
           </div>
+        </div>
+
+        <div class="heat-legend" id="heatLegend" hidden>
+          <span><i style="background:#7ec8bd"></i>walked once</span>
+          <span><i style="background:#e0b64a"></i>twice</span>
+          <span><i style="background:#d4674a"></i>three or more</span>
         </div>
 
         <div class="hud">
@@ -730,6 +775,10 @@
     const C_GOLD     = "#e3c25c";
     const C_BOT      = "#f7d968";
     const C_START    = "#8b98ad";
+
+    // heatmap tiers: walked once, twice, three or more
+    const C_HEAT   = ["#7ec8bd", "#e0b64a", "#d4674a"];
+    const C_HEAT_W = [0.10, 0.17, 0.24];
 
     // ---------------------------------------------------------------
     // maze model
@@ -1193,9 +1242,19 @@
 
     // Replays frame 0..n to rebuild what the player is allowed to see. Cheap
     // enough at these sizes that scrubbing backwards needs no extra bookkeeping.
+    function dirFromTo(a, b) {
+        const dx = cx(b) - cx(a), dy = cy(b) - cy(a);
+        if (dy === -1 && dx === 0) return 0;
+        if (dx === 1 && dy === 0) return 1;
+        if (dy === 1 && dx === 0) return 2;
+        if (dx === -1 && dy === 0) return 3;
+        return -1;
+    }
+
     function viewAt(frames, n) {
         const visits = new Uint16Array(W * H);
         const seen = new Uint8Array(W * H);
+        const cross = new Uint16Array(W * H * 4);
         const hits = new Array(rules.length).fill(0);
         const path = [];
         let prev = -1;
@@ -1214,9 +1273,16 @@
             const f = frames[k];
             if (f.ri >= 0 && f.ri < hits.length) hits[f.ri]++;
             const c = idx(f.x, f.y);
-            if (c !== prev) { visits[c]++; reveal(c); path.push(c); prev = c; }
+            if (c !== prev) {
+                if (prev >= 0) {
+                    // consecutive path cells are always joined by an open way
+                    const d = dirFromTo(prev, c);
+                    if (d >= 0) { cross[prev * 4 + d]++; cross[c * 4 + OPP[d]]++; }
+                }
+                visits[c]++; reveal(c); path.push(c); prev = c;
+            }
         }
-        return { visits: visits, seen: seen, path: path, hits: hits };
+        return { visits: visits, seen: seen, cross: cross, path: path, hits: hits };
     }
 
     // ---------------------------------------------------------------
@@ -1298,13 +1364,38 @@
         const bx = a.x + (b.x - a.x) * t;
         const by = a.y + (b.y - a.y) * t;
 
+        // Heatmap: how often each way was walked, which is the bot's own
+        // memory made visible. Replaces the thread, since the two would only
+        // fight each other for the same pixels.
+        if (heatmap) {
+            ctx.lineCap = "round";
+            for (let i = 0; i < W * H; i++) {
+                const a = centreOf(i);
+                // east and south only, or every way gets drawn twice
+                for (let d = 1; d <= 2; d++) {
+                    const n = view.cross[i * 4 + d];
+                    if (!n) continue;
+                    const nx = cx(i) + DX[d], ny = cy(i) + DY[d];
+                    if (!inBounds(nx, ny)) continue;
+                    const b2 = centreOf(idx(nx, ny));
+                    const tier = Math.min(n, 3) - 1;
+                    ctx.strokeStyle = C_HEAT[tier];
+                    ctx.lineWidth = Math.max(2, CS * C_HEAT_W[tier]);
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b2.x, b2.y);
+                    ctx.stroke();
+                }
+            }
+        }
+
         // the thread, laid down to wherever the bot has got to. Two passes:
         // a soft halo, then a bright core on top of it.
         const pts = [];
         for (let k = 0; k < view.path.length - 1; k++) pts.push(centreOf(view.path[k]));
         pts.push({ x: bx, y: by });
 
-        if (pts.length > 1) {
+        if (!heatmap && pts.length > 1) {
             const layThread = function () {
                 ctx.beginPath();
                 ctx.moveTo(pts[0].x, pts[0].y);
@@ -1422,6 +1513,7 @@
     let playhead = 0;
     let playing = false;
     let timer = null;
+    let heatmap = false;
 
     const el = {
         levelSelect: document.getElementById("levelSelect"),
@@ -1431,6 +1523,8 @@
         step: document.getElementById("stepBtn"),
         reset: document.getElementById("resetBtn"),
         gauntlet: document.getElementById("gauntletBtn"),
+        heat: document.getElementById("heatBtn"),
+        heatLegend: document.getElementById("heatLegend"),
         speed: document.getElementById("speedRange"),
         hudStep: document.getElementById("hudStep"),
         hudFacing: document.getElementById("hudFacing"),
@@ -1789,18 +1883,41 @@
     // ---------------------------------------------------------------
     // gauntlet - the same program against five mazes it has never seen
     // ---------------------------------------------------------------
+    const GAUNTLET_N = 5;
+
+    // UTC so that everyone, everywhere, faces the same five mazes on the same
+    // day - which is the whole point of a daily. Same seed all day too, so you
+    // can keep sharpening a program against the same set.
+    function dailyStamp() {
+        const d = new Date();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        return d.getUTCFullYear() + "-" + mm + "-" + dd;
+    }
+
+    function dailySeeds() {
+        const d = new Date();
+        const base = (d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate()) | 0;
+        const out = [];
+        for (let k = 0; k < GAUNTLET_N; k++) out.push((Math.imul(base, 131) + k * 7919) | 0);
+        return out;
+    }
+
+    let lastGauntlet = null;
+
     function runGauntlet() {
         stop();
         const keepSeed = mazeSeed;
+        const seeds = dailySeeds();
         let solved = 0, total = 0;
-        const marks = [];
+        const squares = [];
 
-        for (let k = 0; k < 5; k++) {
-            mazeSeed = ((Date.now() % 100000) + k * 7919) | 0;
+        for (let k = 0; k < GAUNTLET_N; k++) {
+            mazeSeed = seeds[k];
             buildMaze();
             const r = simulate(rules);
-            if (r.outcome === "solved") { solved++; total += r.steps; marks.push(String(r.steps)); }
-            else { total += STEP_CAP; marks.push("dnf"); }
+            if (r.outcome === "solved") { solved++; total += r.steps; squares.push("\u{1F7E9}"); }
+            else { total += STEP_CAP; squares.push("\u{2B1B}"); }
         }
 
         mazeSeed = keepSeed;
@@ -1809,10 +1926,43 @@
         ensureSim();
         render();
 
-        el.verdict.className = "verdict show " + (solved === 5 ? "win" : "fail");
-        el.verdict.innerHTML = "<b>Gauntlet: " + solved + " / 5 solved</b> on fresh mazes - " +
-            marks.join(", ") + ". Total " + total + " steps" +
-            (solved === 5 ? "." : " (unsolved mazes score " + STEP_CAP + ").");
+        const n = rules.filter(function (r) { return r.on; }).length;
+        lastGauntlet = {
+            stamp: dailyStamp(),
+            level: LEVELS[levelIdx].name,
+            squares: squares.join(""),
+            solved: solved, total: total, rules: n
+        };
+
+        el.verdict.className = "verdict show " + (solved === GAUNTLET_N ? "win" : "fail");
+        el.verdict.innerHTML =
+            "<b>Daily gauntlet, " + lastGauntlet.stamp + "</b> on " + lastGauntlet.level +
+            '<div class="gauntlet-squares">' + lastGauntlet.squares + "</div>" +
+            solved + " of " + GAUNTLET_N + " solved in " + total + " steps, with " + n +
+            " rule" + (n === 1 ? "" : "s") + "." +
+            (solved === GAUNTLET_N ? "" : " Unsolved mazes score " + STEP_CAP + " each.") +
+            '<div><button type="button" class="thread-btn" id="gauntletShare">Copy result</button></div>';
+
+        const shareBtn = document.getElementById("gauntletShare");
+        if (shareBtn) shareBtn.addEventListener("click", copyGauntlet);
+    }
+
+    function copyGauntlet() {
+        if (!lastGauntlet) return;
+        const text = "Thread - daily gauntlet " + lastGauntlet.stamp + "\n" +
+            lastGauntlet.level + "  " + lastGauntlet.squares + "\n" +
+            lastGauntlet.solved + "/" + GAUNTLET_N + " solved, " + lastGauntlet.total +
+            " steps, " + lastGauntlet.rules + " rules\n" +
+            "https://www.jamesapplewhite.com/thread";
+        const done = function () {
+            const b = document.getElementById("gauntletShare");
+            if (b) { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy result"; }, 1400); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { prompt("Copy your result:", text); });
+        } else {
+            prompt("Copy your result:", text);
+        }
     }
 
     // ---------------------------------------------------------------
@@ -1925,6 +2075,13 @@
     });
 
     el.gauntlet.addEventListener("click", runGauntlet);
+
+    el.heat.addEventListener("click", function () {
+        heatmap = !heatmap;
+        el.heat.setAttribute("aria-pressed", heatmap ? "true" : "false");
+        el.heatLegend.hidden = !heatmap;
+        needsPaint = true;
+    });
 
     el.speed.addEventListener("input", function () {
         if (playing) { clearInterval(timer); timer = setInterval(tick, SPEEDS[parseInt(el.speed.value, 10)]); }
