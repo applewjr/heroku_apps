@@ -426,7 +426,7 @@
 <div class="thread-page">
   <div class="container">
     <h1>Thread</h1>
-    <p class="thread-tagline">You never see the maze. You only write the rules that find its heart.</p>
+    <p class="thread-tagline">You never see the maze. You only write the rules that walk it.</p>
 
     <div class="instructions" id="instructions">
       <div class="instructions-header" id="instructions-toggle">
@@ -450,10 +450,9 @@
           <p>Only three things: the walls of the square it is standing on, its own memory of where it
           has already walked, and its flags. It has no map. Directions are relative to the way it
           faces, so <b>right</b> means the bot's right, not east.</p>
-          <p>Memory comes in two kinds, and the difference matters more than it looks. A
-          <b>way</b> is the gap between two squares, and the bot counts how many times it has walked
-          through each one. A <b>square</b> is a place, and it counts how often it has stood there.
-          Marking the ways you have walked is the older idea, and the stronger one.</p>
+          <p>Memory comes in two kinds. A <b>way</b> is the gap between two squares, and the bot
+          counts how many times it has walked through each one. A <b>square</b> is a place, and it
+          counts how often it has stood there. Which of the two you lean on is up to you.</p>
         </div>
 
         <div class="instructions-section">
@@ -513,7 +512,7 @@
         <div class="preset-bar">
           <button class="thread-btn preset" data-preset="right">Right-hand rule</button>
           <button class="thread-btn preset" data-preset="left">Left-hand rule</button>
-          <button class="thread-btn preset" data-preset="breadcrumbs" title="Solves every level - open it only if you want the answer">Breadcrumbs (spoiler)</button>
+          <button class="thread-btn preset" data-preset="breadcrumbs" title="Loads a program that solves every level">Reveal a solution</button>
           <button class="thread-btn preset" data-preset="clear">Clear</button>
         </div>
 
@@ -664,22 +663,14 @@
     // levels
     // ---------------------------------------------------------------
     const LEVELS = [
-        {
-            id: "warmup", name: "1. Warm Up", w: 9, h: 9, braid: 0, island: false,
-            desc: "A plain maze with the exit on the far corner. The right-hand rule handles this one on its own - run it and watch what it does."
-        },
-        {
-            id: "long", name: "2. The Long Way", w: 15, h: 15, braid: 0, island: false,
-            desc: "Same maze, more of it. Wall-following still solves it, but now the step count starts to sting. Can you cut it down?"
-        },
-        {
-            id: "island", name: "3. The Island", w: 13, h: 13, braid: 0, island: true,
-            desc: "The exit sits in a chamber whose walls touch nothing else. A hand on the wall will circle past it forever. Your bot needs memory."
-        },
-        {
-            id: "tangle", name: "4. Tangle", w: 15, h: 15, braid: 0.6, island: true,
-            desc: "Loops everywhere, and the exit is still an island. Preferring fresh ground is no longer enough - you have to notice the moment you close a loop."
-        }
+        // Names and blurbs stay deliberately empty of content. A level called
+        // "The Island" tells you the shape of a maze you are not supposed to
+        // be able to see, and a blurb saying "your bot needs memory" is just
+        // the answer written down.
+        { id: "warmup", name: "1 - Threshold",  w: 9,  h: 9,  braid: 0,   island: false },
+        { id: "long",   name: "2 - Descent",    w: 15, h: 15, braid: 0,   island: false },
+        { id: "island", name: "3 - Deeper",     w: 13, h: 13, braid: 0,   island: true },
+        { id: "tangle", name: "4 - Farthest In", w: 15, h: 15, braid: 0.6, island: true }
     ];
 
     const CANON_SEED = 1;      // the maze a level's Best score is measured on
@@ -918,7 +909,6 @@
         st.visits[startIdx] = 1;
 
         const frames = [{ x: st.x, y: st.y, f: st.facing, ri: -1, act: "", fl: 0 }];
-        const hits = new Array(prog.length).fill(0);
         const stall = Math.max(300, W * H * 2);
 
         let lastNew = 0;
@@ -931,7 +921,6 @@
             }
             if (!chosen) { outcome = "norule"; break; }
 
-            hits[chosen.i]++;
             const before = idx(st.x, st.y);
             applyAction(chosen.r.act, st);
             const after = idx(st.x, st.y);
@@ -943,7 +932,7 @@
             if (step - lastNew >= stall) { outcome = "stuck"; break; }
         }
 
-        return { frames: frames, hits: hits, outcome: outcome, steps: frames.length - 1 };
+        return { frames: frames, outcome: outcome, steps: frames.length - 1 };
     }
 
     // Replays frame 0..n to rebuild what the player is allowed to see. Cheap
@@ -951,6 +940,7 @@
     function viewAt(frames, n) {
         const visits = new Uint16Array(W * H);
         const seen = new Uint8Array(W * H);
+        const hits = new Array(rules.length).fill(0);
         const path = [];
         let prev = -1;
 
@@ -965,10 +955,12 @@
         }
 
         for (let k = 0; k <= n && k < frames.length; k++) {
-            const c = idx(frames[k].x, frames[k].y);
+            const f = frames[k];
+            if (f.ri >= 0 && f.ri < hits.length) hits[f.ri]++;
+            const c = idx(f.x, f.y);
             if (c !== prev) { visits[c]++; reveal(c); path.push(c); prev = c; }
         }
-        return { visits: visits, seen: seen, path: path };
+        return { visits: visits, seen: seen, path: path, hits: hits };
     }
 
     // ---------------------------------------------------------------
@@ -1129,7 +1121,9 @@
         const frame = sim.frames[playhead];
         draw(view, frame);
 
-        el.hudStep.textContent = playhead + " / " + sim.steps;
+        // Never show the run length. The denominator would hand the player the
+        // outcome before they ever pressed Run.
+        el.hudStep.textContent = playhead;
         el.hudFacing.textContent = FACE_NAME[frame.f];
         el.hudHere.textContent = "x" + view.visits[idx(frame.x, frame.y)];
         let seenCount = 0;
@@ -1138,7 +1132,7 @@
 
         updateFlagLeds(frame.fl);
         renderTrace();
-        highlightRule(playhead > 0 ? frame.ri : -1);
+        updateRows(playhead > 0 ? frame.ri : -1, view.hits);
         renderVerdict();
     }
 
@@ -1240,9 +1234,14 @@
         });
     }
 
-    function highlightRule(ri) {
+    // Counts belong to the playhead, not to the finished simulation - showing
+    // the final tallies up front would tell the player which rules carry the
+    // run before the bot has moved.
+    function updateRows(firingIndex, hits) {
         el.ruleList.querySelectorAll(".rule-row").forEach(function (row, i) {
-            row.classList.toggle("firing", i === ri);
+            row.classList.toggle("firing", i === firingIndex);
+            const cell = row.querySelector(".rule-hits");
+            if (cell) cell.textContent = (hits && hits[i]) ? hits[i] : "";
         });
     }
 
@@ -1289,7 +1288,6 @@
 
     function renderRules() {
         const cg = condGroups(), ag = actionGroups();
-        const hits = sim && !dirty ? sim.hits : null;
 
         el.ruleList.innerHTML = rules.map(function (r, i) {
             return '<div class="rule-row' + (r.on ? "" : " off") + '" data-i="' + i + '">' +
@@ -1304,7 +1302,7 @@
                 '<button class="icon-btn up" title="Move up"' + (i === 0 ? " disabled" : "") + ">&#9650;</button>" +
                 '<button class="icon-btn down" title="Move down"' + (i === rules.length - 1 ? " disabled" : "") + ">&#9660;</button>" +
                 '<button class="icon-btn del" title="Delete rule">&times;</button>' +
-                '<span class="rule-hits">' + (hits ? (hits[i] || "") : "") + "</span>" +
+                '<span class="rule-hits"></span>' +
                 "</div>";
         }).join("");
 
@@ -1435,7 +1433,9 @@
         stop();
         levelIdx = i;
         el.levelSelect.value = String(i);
-        el.levelDesc.textContent = LEVELS[i].desc;
+        const L = LEVELS[i];
+        el.levelDesc.textContent = L.w + " by " + L.h + ". " + (L.w * L.h) +
+            " squares, one exit, and no map.";
         buildMaze();
         sizeCanvas();
         dirty = true;
@@ -1501,6 +1501,8 @@
 
     document.querySelectorAll(".preset").forEach(function (b) {
         b.addEventListener("click", function () {
+            if (b.dataset.preset === "breadcrumbs" &&
+                !confirm("This loads a program that solves every level in the game. Sure?")) return;
             rules = clone(PRESETS[b.dataset.preset]);
             changed();
             playhead = 0;
