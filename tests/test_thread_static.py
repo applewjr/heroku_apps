@@ -164,8 +164,15 @@ def test_every_here_predicate_is_evaluated():
 
 def test_preset_codes_all_exist():
     conds, acts = _vocabulary()
-    found = re.findall(r'c1: "([^"]*)", c2: "([^"]*)", act: "([^"]*)"', _preset_block())
-    assert found, "no preset rules parsed - has the preset format changed?"
+    block = _preset_block()
+    found = re.findall(r'c1: "([^"]*)", c2: "([^"]*)", act: "([^"]*)"', block)
+    # Without this, reformatting one preset would silently drop it from the
+    # check while the others kept the test green.
+    assert len(found) == block.count("{ on: true"), (
+        f"parsed {len(found)} preset rules but the block declares "
+        f"{block.count('{ on: true')} - the preset format changed and this "
+        f"check is no longer seeing all of them"
+    )
     for c1, c2, act in found:
         assert c1 in conds, f"preset uses unknown condition {c1!r}"
         assert c2 in conds, f"preset uses unknown condition {c2!r}"

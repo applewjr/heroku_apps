@@ -390,11 +390,63 @@
 
     .shared-note[hidden] { display: none; }
 
+    /* Folded shut, and below the rules rather than above them. A row of
+       ready-made programs sitting at the top of the panel is the first thing
+       the eye lands on, and it quietly tells the player the game is already
+       solved before they have written anything. */
+    .presets {
+        margin-top: 18px;
+        padding-top: 13px;
+        border-top: 1px solid #eef0f3;
+    }
+
+    /* Quiet, but unmistakably a button. Grey text with a chevron reads as a
+       caption, and nobody clicks a caption. */
+    .presets summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        padding: 5px 11px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .presets summary:hover {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+        color: #374151;
+    }
+
+    .presets summary:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: 2px;
+    }
+
+    .presets summary::-webkit-details-marker { display: none; }
+
+    .presets summary::after {
+        content: "\25BE";
+        font-size: 9px;
+        transition: transform 0.2s ease;
+    }
+
+    .presets[open] summary::after { transform: rotate(180deg); }
+    .presets summary:hover { color: #6b7280; }
+
     .preset-bar {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-top: 11px;
         align-items: center;
     }
 
@@ -749,13 +801,6 @@
 
         <div class="panel-label">Program</div>
 
-        <div class="preset-bar">
-          <button class="thread-btn preset" data-preset="right">Right-hand rule</button>
-          <button class="thread-btn preset" data-preset="left">Left-hand rule</button>
-          <button class="thread-btn preset" data-preset="breadcrumbs" title="Loads a program that solves every level">Reveal a solution</button>
-          <button class="thread-btn preset" data-preset="clear">Clear</button>
-        </div>
-
         <div class="rule-list" id="ruleList"></div>
 
         <div class="editor-foot">
@@ -763,6 +808,16 @@
           <button id="shareBtn" class="thread-btn">Copy link</button>
           <span class="rule-count" id="ruleCount"></span>
         </div>
+
+        <details class="presets">
+          <summary>Starting points</summary>
+          <div class="preset-bar">
+            <button class="thread-btn preset" data-preset="right">Right-hand rule</button>
+            <button class="thread-btn preset" data-preset="left">Left-hand rule</button>
+            <button class="thread-btn preset" data-preset="breadcrumbs" title="Loads a program that solves every level">Reveal a solution</button>
+            <button class="thread-btn preset" data-preset="clear">Clear</button>
+          </div>
+        </details>
 
         <div class="panel-label flags-label">Flags
           <span class="panel-hint">- the bot's memory switches. Rename one and it appears in the IF and action menus.</span>
@@ -1157,7 +1212,10 @@
 
     function clone(rules) { return rules.map(function (r) { return Object.assign({}, r); }); }
 
-    let rules = clone(PRESETS.right);
+    // Deliberately inert. A working program preloaded into the editor means a
+    // new player's first Run solves the level with something they did not
+    // write. One rule that walks into a wall teaches the tick loop better.
+    let rules = clone(PRESETS.clear);
     let startLevel = 0;         // a shared link can say which level it is for
     let sharedLink = false;     // this page is showing somebody else's program
     let levelPar = null;        // what the shipped solution scores on this maze
@@ -1285,12 +1343,22 @@
             if (!chosen) { outcome = "norule"; break; }
 
             const before = idx(st.x, st.y);
+            const facingBefore = st.facing;
+            const flagsBefore = flagBits(st.flags);
+
             applyAction(chosen.r.act, st);
             // The rider rides along free. It is flags only, so a tick still
             // holds at most one move and the step count stays honest.
             if (chosen.r.act2) applyAction(chosen.r.act2, st);
             const after = idx(st.x, st.y);
             if (keyIdx >= 0 && after === keyIdx) st.key = true;
+
+            // Nothing about the bot changed, so next tick it will pick the same
+            // rule and do the same nothing. That is a fixed point, and waiting
+            // out the step budget to discover it helps no one.
+            const frozen = after === before
+                && st.facing === facingBefore
+                && flagBits(st.flags) === flagsBefore;
 
             frames.push({
                 x: st.x, y: st.y, f: st.facing, ri: chosen.i,
@@ -1300,6 +1368,7 @@
 
             if (after !== before && st.visits[after] === 1) lastNew = step;
             if (after === exitIdx && (keyIdx < 0 || st.key)) { outcome = "solved"; break; }
+            if (frozen) { outcome = "frozen"; break; }
             if (step - lastNew >= stall) { outcome = "stuck"; break; }
         }
 
@@ -1695,6 +1764,12 @@
         } else if (sim.outcome === "stuck") {
             cls = "fail";
             msg = "<b>Stuck.</b> The bot went " + sim.steps + " steps and stopped finding new ground - it is retracing a circuit it has already walked.";
+        } else if (sim.outcome === "frozen") {
+            cls = "fail";
+            msg = "<b>Nothing is changing.</b> At step " + sim.steps + " the bot ended exactly " +
+                "where it began, facing the same way, so the same rule will fire again forever. " +
+                "Walking into a wall costs a step and gets you nowhere - try pairing the move " +
+                "with a condition that checks the way is open first.";
         } else if (sim.outcome === "norule") {
             cls = "fail";
             msg = "<b>No rule matched</b> at step " + sim.steps + ". Nothing changed, so nothing ever will. Add a catch-all <em>always</em> rule at the bottom.";

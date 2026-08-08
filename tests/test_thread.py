@@ -280,7 +280,7 @@ def apply_action(code, st, m):
 
 
 def simulate(m, prog):
-    """Returns (outcome, steps). Outcomes: solved, stuck, norule, cap."""
+    """Returns (outcome, steps). Outcomes: solved, frozen, stuck, norule, cap."""
     active = [r for r in prog if r.get("on", True)]
     st = St()
     st.x, st.y = m.cx(m.start), m.cy(m.start)
@@ -304,6 +304,9 @@ def simulate(m, prog):
             return "norule", step
 
         before = m.idx(st.x, st.y)
+        facing_before = st.facing
+        flags_before = dict(st.flags)
+
         apply_action(chosen["act"], st, m)
         if chosen.get("act2"):
             apply_action(chosen["act2"], st, m)   # the rider costs no tick
@@ -311,10 +314,16 @@ def simulate(m, prog):
         if m.key >= 0 and after == m.key:
             st.key = True
 
+        # nothing changed, so the same rule fires next tick and forever after
+        frozen = (after == before and st.facing == facing_before
+                  and st.flags == flags_before)
+
         if after != before and st.visits[after] == 1:
             last_new = step
         if after == m.exit and (m.key < 0 or st.key):
             return "solved", step
+        if frozen:
+            return "frozen", step
         if step - last_new >= stall:
             return "stuck", step
     return "cap", STEP_CAP
@@ -583,4 +592,25 @@ def test_a_program_with_no_catch_all_halts_rather_than_hanging():
     """Running out of matching rules must be reported, not spun on."""
     m = build_maze(LEVELS[0], 1)
     outcome, _ = simulate(m, [R("here.junction", "move.ahead")])
-    assert outcome in ("norule", "stuck")
+    assert outcome in ("norule", "stuck", "frozen")
+
+
+def test_a_bot_that_cannot_change_anything_halts_at_once():
+    """The program a new player is handed is a single rule that walks into a
+    wall. Discovering that by burning the whole step budget would be a terrible
+    first run, so a fixed point has to be caught the moment it happens."""
+    m = build_maze(LEVELS[0], 1)
+    outcome, steps = simulate(m, [R("always", "move.ahead")])
+    assert outcome == "frozen"
+    assert steps < 20, f"took {steps} steps to notice it was stuck against a wall"
+
+
+def test_the_shipped_presets_never_freeze():
+    """Every preset ends in a catch-all that turns the bot around, so none of
+    them can wedge against a wall."""
+    for name, prog in (("right", WALL_RIGHT), ("left", WALL_LEFT),
+                       ("solution", BREADCRUMBS), ("out and back", OUT_AND_BACK)):
+        for level_i in range(len(LEVELS)):
+            for seed in SEEDS[:4]:
+                outcome, _ = simulate(build_maze(LEVELS[level_i], seed), prog)
+                assert outcome != "frozen", f"{name} froze on level {level_i + 1}"
