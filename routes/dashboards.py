@@ -1,6 +1,7 @@
 """Data dashboards: YouTube trending, ETL status, MTG prices."""
 
 import io
+import threading
 from datetime import datetime
 
 import pandas as pd
@@ -24,6 +25,15 @@ MTG_CACHE_KEY = "mtg_prices"
 # Backstop only: the last good render survives an extended upstream outage this
 # long. Normal freshness comes from the data-date check + conditional GET below.
 MTG_CACHE_TIMEOUT = 60 * 60 * 48
+
+# Serializes the rebuild so a burst of concurrent misses produces one render, not
+# one per thread. Gunicorn runs a single worker with 8 threads, and a rebuild is
+# expensive in memory: ~3.7MB of CSV parsed into ~16.8k rows, then boxed into an
+# object-dtype frame, a list of dicts, a JSON string and a ~4.8MB page. Eight of
+# those at once is what took the dyno to 612MB (R14) on 2026-09-05, when the daily
+# Bluesky post drew ~16 link-preview crawlers to /mtg within seconds of the
+# upstream file republishing - i.e. exactly when the cache was cold.
+_mtg_rebuild_lock = threading.Lock()
 
 
 # Stable cache key holding the most recent successfully-rendered dashboard. It's
@@ -210,31 +220,42 @@ def mtg_prices():
     if cached and cached["data_date"] == today:
         return cached["html"]
 
-    # We're holding yesterday's data (the pre-refresh window) or nothing yet. Ask
-    # the CDN whether the file changed since we last pulled it: a conditional GET
-    # returns a bodyless 304 when nothing's new, so polling stays cheap no matter
-    # how long upstream takes to publish. Any upstream error falls back to the
-    # last good render, so the page keeps serving through transient blips.
-    headers = {}
-    if cached and cached.get("etag"):
-        headers["If-None-Match"] = cached["etag"]
-
-    try:
-        resp = requests.get(config.MTG_PATH, headers=headers, timeout=10)
-        if resp.status_code == 304 and cached:
-            cache.set(MTG_CACHE_KEY, cached, timeout=MTG_CACHE_TIMEOUT)  # re-arm TTL
+    # Past here we may rebuild, so only one thread at a time gets through. The
+    # rest queue, and the re-check below usually hands them the render the winner
+    # just finished instead of starting another one.
+    with _mtg_rebuild_lock:
+        # Re-read under the lock: whoever held it may have landed today's data
+        # while we were queued, which is the whole point of the lock.
+        cached = cache.get(MTG_CACHE_KEY)
+        if cached and cached["data_date"] == today:
             return cached["html"]
-        resp.raise_for_status()
-        # Decode from bytes so a missing charset header can't corrupt accented
-        # card names (requests would otherwise fall back to ISO-8859-1 for .text).
-        rendered, data_date = _render_mtg(io.BytesIO(resp.content))
-        cache.set(MTG_CACHE_KEY, {
-            "data_date": data_date,
-            "etag": resp.headers.get("ETag"),
-            "html": rendered,
-        }, timeout=MTG_CACHE_TIMEOUT)
-        return rendered
-    except Exception:
-        if cached:
-            return cached["html"]  # ride out the blip on the last good copy
-        raise                      # cold cache + upstream down: nothing to serve
+
+        # We're holding yesterday's data (the pre-refresh window) or nothing yet.
+        # Ask the CDN whether the file changed since we last pulled it: a
+        # conditional GET returns a bodyless 304 when nothing's new, so polling
+        # stays cheap no matter how long upstream takes to publish. Any upstream
+        # error falls back to the last good render, so the page keeps serving
+        # through transient blips.
+        headers = {}
+        if cached and cached.get("etag"):
+            headers["If-None-Match"] = cached["etag"]
+
+        try:
+            resp = requests.get(config.MTG_PATH, headers=headers, timeout=10)
+            if resp.status_code == 304 and cached:
+                cache.set(MTG_CACHE_KEY, cached, timeout=MTG_CACHE_TIMEOUT)  # re-arm TTL
+                return cached["html"]
+            resp.raise_for_status()
+            # Decode from bytes so a missing charset header can't corrupt accented
+            # card names (requests would otherwise fall back to ISO-8859-1 for .text).
+            rendered, data_date = _render_mtg(io.BytesIO(resp.content))
+            cache.set(MTG_CACHE_KEY, {
+                "data_date": data_date,
+                "etag": resp.headers.get("ETag"),
+                "html": rendered,
+            }, timeout=MTG_CACHE_TIMEOUT)
+            return rendered
+        except Exception:
+            if cached:
+                return cached["html"]  # ride out the blip on the last good copy
+            raise                      # cold cache + upstream down: nothing to serve

@@ -7,6 +7,7 @@ These tests drive that logic with a fake ``requests.get`` so they touch no netwo
 and exercise the route end to end so cache state is set up the way the app sets it.
 """
 
+import threading
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -141,3 +142,61 @@ def test_cold_cache_plus_upstream_down_returns_500(client, monkeypatch):
 
     monkeypatch.setattr(dashboards.requests, "get", _boom)
     assert client.get("/mtg").status_code == 500
+
+
+def test_failed_rebuild_releases_the_lock(client, monkeypatch):
+    """A rebuild that raises must not strand the lock and wedge every later request."""
+    def _boom(url, headers=None, timeout=None):
+        raise ConnectionError("CloudFront unreachable")
+
+    monkeypatch.setattr(dashboards.requests, "get", _boom)
+    client.get("/mtg")
+
+    assert not dashboards._mtg_rebuild_lock.locked()
+
+
+def test_concurrent_misses_rebuild_only_once(flask_app, monkeypatch):
+    """The R14 fix: a burst of cold-cache requests must produce ONE rebuild.
+
+    Reproduces 2026-09-05, where ~16 link-preview crawlers hit /mtg within seconds
+    of the upstream file republishing and every one of them rendered the full page
+    concurrently. The winner is held inside ``requests.get`` until all the losers
+    have queued on the lock, so the overlap is deterministic rather than timing luck.
+    """
+    entered = threading.Event()   # winner has reached the upstream call
+    release = threading.Event()   # main thread lets the winner finish
+    calls = []
+    calls_lock = threading.Lock()
+
+    def _get(url, headers=None, timeout=None):
+        with calls_lock:
+            calls.append(url)
+        entered.set()
+        release.wait(timeout=10)
+        return FakeResponse(200, _csv_bytes(_today()), etag='"v1"')
+
+    monkeypatch.setattr(dashboards.requests, "get", _get)
+
+    results = []
+    results_lock = threading.Lock()
+
+    def _fetch():
+        c = flask_app.test_client()
+        c.environ_base["HTTP_X_FORWARDED_PROTO"] = "https"
+        resp = c.get("/mtg")
+        with results_lock:
+            results.append(resp.status_code)
+
+    threads = [threading.Thread(target=_fetch) for _ in range(8)]
+    for t in threads:
+        t.start()
+
+    # Only unblock the winner once the other seven are parked on the lock.
+    assert entered.wait(timeout=10), "no thread reached the upstream fetch"
+    release.set()
+    for t in threads:
+        t.join(timeout=20)
+
+    assert not any(t.is_alive() for t in threads), "a thread never finished"
+    assert results == [200] * 8
+    assert len(calls) == 1, f"expected a single rebuild, got {len(calls)}"
