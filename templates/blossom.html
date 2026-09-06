@@ -1108,6 +1108,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeBlossomApp() {
+  // Every interactive control on this page is wired through an inline handler
+  // (oninput, onclick), which resolves against window. Export them first: these
+  // are hoisted function declarations, so the values are identical here and at
+  // the bottom, but anything that throws during init below can no longer leave
+  // the petals unclickable with no other way to submit the form.
+  window.handleCenterInput = handleCenterInput;
+  window.handlePetalInput = handlePetalInput;
+  window.handleKeyDown = handleKeyDown;
+  window.handleBackspace = handleBackspace;
+  window.selectPetal = selectPetal;
+  window.showResetConfirmation = showResetConfirmation;
+  window.cancelReset = cancelReset;
+  window.confirmReset = confirmReset;
+  window.showLoadingOverlay = showLoadingOverlay;
+
   const loadingPhrases = [
     'Scanning the garden…',
     'Pollinating the word list…',
@@ -1127,8 +1142,6 @@ function initializeBlossomApp() {
     label.textContent = loadingPhrases[Math.floor(Math.random() * loadingPhrases.length)];
     overlay.classList.add('active');
   }
-
-  window.showLoadingOverlay = showLoadingOverlay;
 
   // Simple, lightweight tracking only for essential functionality
   let centerLetter = '';
@@ -1558,7 +1571,11 @@ function initializeBlossomApp() {
 
   function confirmReset() {
     // Clear helper mode state including revealed letters
-    sessionStorage.removeItem('blossomHelperMode');
+    try {
+      sessionStorage.removeItem('blossomHelperMode');
+    } catch (e) {
+      // Storage blocked - nothing was ever stored to clear.
+    }
     revealedLetters = {};
     
     window.location.href = '/blossom/reset';
@@ -1568,21 +1585,33 @@ function initializeBlossomApp() {
   let isHelperMode = false;
   let revealedLetters = {}; // Track how many letters are revealed for each word
 
-  // Store helper mode in sessionStorage to persist across table updates
+  // sessionStorage throws rather than returning null when a browser blocks site
+  // data (iOS "Block All Cookies", a per-site cookie block, enterprise policy),
+  // and a truncated write leaves JSON that won't parse. Helper mode is optional,
+  // so degrade it to off instead of letting it take the whole solver down.
   function saveHelperModeState() {
-      sessionStorage.setItem('blossomHelperMode', JSON.stringify({
-          isHelperMode: isHelperMode,
-          revealedLetters: revealedLetters
-      }));
+      try {
+          sessionStorage.setItem('blossomHelperMode', JSON.stringify({
+              isHelperMode: isHelperMode,
+              revealedLetters: revealedLetters
+          }));
+      } catch (e) {
+          // Storage blocked or full - state just won't survive the next submit.
+      }
   }
 
   // Load helper mode state
   function loadHelperModeState() {
-      const saved = sessionStorage.getItem('blossomHelperMode');
-      if (saved) {
-          const state = JSON.parse(saved);
-          isHelperMode = state.isHelperMode;
-          revealedLetters = state.revealedLetters || {};
+      try {
+          const saved = sessionStorage.getItem('blossomHelperMode');
+          if (saved) {
+              const state = JSON.parse(saved);
+              isHelperMode = state.isHelperMode;
+              revealedLetters = state.revealedLetters || {};
+          }
+      } catch (e) {
+          isHelperMode = false;
+          revealedLetters = {};
       }
   }
 
@@ -1910,18 +1939,9 @@ function initializeBlossomApp() {
     document.getElementById('center-input').focus();
   }
 
-  // Initialize helper mode
+  // Initialize helper mode (handlers are already exported at the top, so a
+  // throw in here can no longer take the rest of the page down with it).
   initializeHelperMode();
-
-  // Make functions available globally for inline event handlers
-  window.handleCenterInput = handleCenterInput;
-  window.handlePetalInput = handlePetalInput;
-  window.handleKeyDown = handleKeyDown;
-  window.handleBackspace = handleBackspace;
-  window.selectPetal = selectPetal;
-  window.showResetConfirmation = showResetConfirmation;
-  window.cancelReset = cancelReset;
-  window.confirmReset = confirmReset;
 }
 </script>
 

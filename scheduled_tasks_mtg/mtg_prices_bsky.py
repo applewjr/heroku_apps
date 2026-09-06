@@ -148,6 +148,20 @@ if data_date == actual_today:
 
     mtg_url = 'https://www.jamesapplewhite.com/mtg'
 
+    # Warm the web dyno's cache before announcing the link. Each post draws a burst
+    # of link-preview crawlers within seconds, and /mtg is only expensive to serve
+    # while its cache still holds yesterday's data - which is exactly the state it's
+    # in right now, since we just confirmed today's file landed upstream. Paying for
+    # one rebuild here means the crawlers all arrive to a warm cache and take the
+    # fast path. Best-effort: the route serializes concurrent rebuilds on its own,
+    # so a failure here costs latency, not correctness, and must not block the post.
+    try:
+        warm = httpx.get(mtg_url, timeout=60.0, follow_redirects=True)
+        warm.raise_for_status()
+        warm_result = f'OK ({len(warm.content):,} bytes)'
+    except Exception as e:
+        warm_result = f'FAILED (non-fatal): {type(e).__name__}: {e}'
+
     post_results = {}
     post_error = None
 
@@ -184,6 +198,7 @@ if data_date == actual_today:
     gmail_message = '\n'.join([
         status_header,
         '',
+        f'Cache warm-up: {warm_result}',
         f'Decreases post: {post_results["decreases"]}',
         f'Increases post: {post_results["increases"]}',
         '',
