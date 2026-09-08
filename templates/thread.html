@@ -3,7 +3,7 @@
 {% block title %}Thread - Program a Bot Through a Maze You Cannot See{% endblock %}
 
 {% block meta %}
-    <meta name="description" content="Thread is a programming puzzle. You never see the maze - you write a priority list of IF/THEN rules and watch your bot feel its way through the dark. Solve every maze in as few steps, with as few rules, as you can.">
+    <meta name="description" content="Thread is a programming puzzle about maze-solving algorithms. You never see the maze - you write a priority list of IF/THEN rules and watch your bot feel its way through the dark. Solve every maze in as few steps, with as few rules, as you can.">
     <link rel="canonical" href="https://www.jamesapplewhite.com/thread">
     <meta property="og:title" content="Thread - Program a Bot Through a Maze You Cannot See">
     <meta property="og:description" content="You never see the maze. Write the rules, and let your bot find its way through the dark.">
@@ -186,6 +186,56 @@
         font-style: italic;
         color: #6d6a60 !important;
     }
+
+    .why-thread + .why-thread { margin-top: 22px; }
+
+    /* The strategy talk is a spoiler, and this game does not hand those out -
+       the level names and blurbs are kept empty of content for the same reason.
+       Folded shut, with the summary saying what is behind it, so opening it
+       stays the player's decision rather than the page's. Collapsed text is
+       still in the markup, so it is read by anyone who searches for it. */
+    .why-thread details {
+        margin-top: 18px;
+        padding-top: 15px;
+        border-top: 1px solid #ece7db;
+    }
+
+    .why-thread summary {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        font-size: 14.5px;
+        font-weight: 600;
+        color: #8a7433;
+    }
+
+    .why-thread summary::-webkit-details-marker { display: none; }
+
+    .why-thread summary::after {
+        content: "\25BE";
+        font-size: 9px;
+        transition: transform 0.2s ease;
+    }
+
+    .why-thread details[open] summary::after { transform: rotate(180deg); }
+
+    .why-thread summary:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: 3px;
+        border-radius: 3px;
+    }
+
+    .spoiler-flag {
+        font-size: 11px;
+        font-weight: 400;
+        font-style: italic;
+        color: #a89b7a;
+    }
+
+    .why-thread details > p:first-of-type { margin-top: 14px; }
 
     @media (max-width: 620px) {
         .why-thread { padding: 20px 18px 22px; margin-top: 36px; }
@@ -890,6 +940,52 @@
       <p class="why-thread-coda">Leaving a trail behind you turns out to be more than a story. Done
       properly it is provably enough to escape any maze that exists, however tangled, without ever
       seeing it. Working out what "properly" means is the game.</p>
+    </section>
+
+    <section class="why-thread">
+      <h2>The problem has a name</h2>
+
+      <p>A machine that has to cross a maze it has never seen, carrying nothing but a few sensors
+      and whatever it can remember, is not a situation somebody invented for a browser game. It is a
+      standing problem in robotics, and it has a competition of its own. In <em>micromouse</em>, a
+      small robot is set down in a maze it knows nothing about and left to find the centre on wall
+      sensors and memory alone. Your bot has the same senses and the same handicap. It just wears a
+      rule list instead of wheels.</p>
+
+      <p>The algorithms people bring to that problem have names too. The right-hand rule sitting in
+      your presets is a <em>wall follower</em>: put one hand on the wall, keep it there, and walk. It
+      is the oldest maze-solving method there is, it fits in four rules, and for a great many mazes
+      it is simply correct. Which leaves the only interesting question, and the one this game is
+      built on. When is it not?</p>
+
+      <details>
+        <summary>When a wall follower fails, and what fixes it
+          <span class="spoiler-flag">answers inside</span></summary>
+
+        <p>A wall follower is really tracing the outline of one connected piece of wall. Every wall
+        it will ever touch belongs to that piece, because it never lets go. So it finds any exit
+        attached to the wall it set out on, and it is blind - permanently, and by construction - to
+        an exit standing on a piece of wall that touches nothing else. Wall a square in on three
+        sides and leave the fourth open, and those three segments join nothing. An island. The bot
+        can pass within a square of the doorway and walk on, because its hand is on a different wall
+        entirely.</p>
+
+        <p>The fix is not better sensing. It is memory, and the classic form of it is
+        <em>Trémaux's algorithm</em>, named for a nineteenth-century French engineer and written
+        down by Édouard Lucas in 1882. Mark every passage as you walk it. Prefer a passage you have
+        never walked; take one you have walked once only when nothing unmarked is left; never take
+        one you have walked twice. And when you arrive at a square you already knew, by way of a
+        passage you had never walked, you have just closed a loop, so turn straight around. That
+        last rule is the one doing the real work, and it is rule one of the program behind Reveal a
+        solution.</p>
+
+        <p>Trémaux's guarantee is the strong one. It walks each passage at most twice, so on any
+        maze with a reachable exit it will find it, however tangled. That is the <em>properly</em>
+        the paragraph above is being coy about. It is also why some of these mazes have loops cut
+        into them. A maze without loops lets almost anything through, since there are no wrong
+        turnings to circle in. Put the loops back and the naive strategies start going round for
+        ever, which is the moment memory stops being optional.</p>
+      </details>
     </section>
   </div>
 </div>
