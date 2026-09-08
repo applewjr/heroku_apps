@@ -305,6 +305,34 @@ def test_menu_labels_are_escaped():
         assert raw not in body, f"unescaped interpolation in buildSelect: {raw}"
 
 
+def test_dismissing_the_stash_actually_discards_it():
+    """The banner is the only route back to the stashed program. A dismiss that
+    hid the banner and left the key in place would strand that program in
+    storage - still saved, and permanently out of reach - so the button has to
+    remove the key, and has to ask first because nothing can undo it."""
+    body = re.search(r'el\.discardMine\.addEventListener\("click", function \(\) \{(.*?)\n    \}\);',
+                     JS, re.S)
+    assert body, "the shared-note banner has no discard handler"
+    code = body.group(1)
+    assert 'removeItem("thread.program.mine")' in code, (
+        "discard hides the banner without removing the stash, which orphans it"
+    )
+    assert "confirm(" in code, "discard throws away a program with no confirmation"
+    assert "updateSharedNote()" in code, "the banner is not refreshed after discarding"
+
+
+def test_the_storage_keys_are_spelled_the_same_everywhere():
+    """Every one of these keys is retyped by hand at each site that touches it,
+    and the live slot and the stash are one character apart. A typo in either
+    does not error - it saves the player's program under a name nothing ever
+    reads back."""
+    # "thread.best." is a prefix, completed with the level id at both sites
+    known = {"thread.program", "thread.program.mine", "thread.layout", "thread.best."}
+    used = set(re.findall(r'"(thread\.[a-z.]*)"', JS))
+    assert used - known == set(), f"unrecognised storage key: {used - known}"
+    assert known - used == set(), f"storage key no longer used anywhere: {known - used}"
+
+
 def test_rule_row_markup_has_every_control_its_handlers_bind():
     row = re.search(r"el\.ruleList\.innerHTML = rules\.map\((.*?)\}\)\.join\(\"\"\);",
                     JS, re.S).group(1)

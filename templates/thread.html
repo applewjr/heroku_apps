@@ -398,6 +398,21 @@
 
     .shared-note[hidden] { display: none; }
 
+    /* The destructive half of the pair. Restore is the action the banner is
+       there to offer, so discard is dressed down to match its rank rather than
+       sitting next to it as an equal. */
+    .shared-note .note-discard {
+        background: none;
+        border-color: #ddd3b8;
+        color: #8a7d5c;
+    }
+
+    .shared-note .note-discard:hover:not(:disabled) {
+        background: #ece6d5;
+        border-color: #cbbf9d;
+        color: #6f6544;
+    }
+
     /* Folded shut, and below the rules rather than above them. A row of
        ready-made programs sitting at the top of the panel is the first thing
        the eye lands on, and it quietly tells the player the game is already
@@ -819,6 +834,7 @@
         <div class="shared-note" id="sharedNote" hidden>
           <span id="sharedNoteText"></span>
           <button type="button" class="thread-btn" id="restoreMine">Restore mine</button>
+          <button type="button" class="thread-btn note-discard" id="discardMine">Discard mine</button>
         </div>
 
         <div class="panel-label">Program</div>
@@ -1722,6 +1738,7 @@
         sharedNote: document.getElementById("sharedNote"),
         sharedNoteText: document.getElementById("sharedNoteText"),
         restoreMine: document.getElementById("restoreMine"),
+        discardMine: document.getElementById("discardMine"),
         levelDesc: document.getElementById("levelDesc"),
         newMaze: document.getElementById("newMazeBtn"),
         run: document.getElementById("runBtn"),
@@ -2540,6 +2557,17 @@
         updateSharedNote();
         buildFlags();
         changed();          // writes the restored program back to the live slot
+    });
+
+    // The banner is the only route back to the stash, so a dismiss that merely
+    // hid it would strand that program in storage with nothing on the page able
+    // to reach it - saved forever and gone for good at the same time. Dismissing
+    // therefore has to mean discarding, and has to say so before it does.
+    el.discardMine.addEventListener("click", function () {
+        if (!confirm("This throws away the program you had saved before opening a shared link. " +
+            "It cannot be brought back. Sure?")) return;
+        try { localStorage.removeItem("thread.program.mine"); } catch (e) { /* storage off */ }
+        updateSharedNote();
     });
 
     document.querySelectorAll(".preset").forEach(function (b) {
