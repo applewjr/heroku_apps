@@ -43,6 +43,11 @@ def kintsugi_game():
     return render_template("kintsugi.html")
 
 
+@bp.route("/thread")
+def thread_game():
+    return render_template("thread.html")
+
+
 @bp.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
@@ -89,6 +94,7 @@ def sitemap():
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/smush', '/ribbit', '/any_word', '/feedback', '/privacy-policy',
         '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4', '/kintsugi',
+        '/thread',
     ]
     xml = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']

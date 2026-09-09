@@ -1,0 +1,2793 @@
+{% extends "base.html" %}
+
+{% block title %}Thread - Program a Bot Through a Maze You Cannot See{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Thread is a programming puzzle about maze-solving algorithms. You never see the maze - you write a priority list of IF/THEN rules and watch your bot feel its way through the dark. Solve every maze in as few steps, with as few rules, as you can.">
+    <link rel="canonical" href="https://www.jamesapplewhite.com/thread">
+    <meta property="og:title" content="Thread - Program a Bot Through a Maze You Cannot See">
+    <meta property="og:description" content="You never see the maze. Write the rules, and let your bot find its way through the dark.">
+    <meta property="og:url" content="https://jamesapplewhite.com/thread">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="JJ Apps">
+{% endblock %}
+
+{% block head %}
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .thread-page {
+        padding: 20px;
+        min-height: 100vh;
+    }
+
+    .thread-page .container {
+        max-width: 1600px;
+    }
+
+    .thread-page h1 {
+        text-align: center;
+        font-size: clamp(1.5rem, 4vw, 2.5rem);
+        line-height: 1.2;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .thread-tagline {
+        text-align: center;
+        margin: 0 auto 26px;
+        max-width: 560px;
+        font-style: italic;
+        font-size: 14px;
+        letter-spacing: 0.2px;
+        color: #8a7f63;
+    }
+
+    /* ---- instructions ---- */
+
+    .instructions {
+        background-color: #f9fafb;
+        border-radius: 8px;
+        margin: 0 auto 24px auto;
+        max-width: 760px;
+        font-size: 14px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+
+    .instructions-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 20px;
+        cursor: pointer;
+        user-select: none;
+        color: #374151;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .instructions-header:hover { background-color: #f3f4f6; }
+
+    /* It carries role="button", so it has to show focus like one */
+    .instructions-header:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: -2px;
+    }
+
+    .instructions-chevron {
+        font-size: 10px;
+        transition: transform 0.2s ease;
+    }
+
+    .instructions.open .instructions-chevron { transform: rotate(180deg); }
+
+    .instructions-body {
+        display: none;
+        padding: 0 20px 18px;
+        color: #4b5563;
+        line-height: 1.55;
+    }
+
+    .instructions.open .instructions-body { display: block; }
+
+    .instructions-body p { margin: 0 0 10px; }
+    .instructions-section { margin-top: 12px; }
+    .instructions-section strong {
+        display: block;
+        color: #374151;
+        margin-bottom: 3px;
+    }
+
+    /* ---- layout ---- */
+
+    .thread-layout {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: flex-start;
+        justify-content: center;
+    }
+
+    /* Layout is chosen explicitly, never inferred from content. The old
+       `flex: 1 1 auto` took its basis from the column's own content width, so
+       a long verdict sentence could widen the column and bounce the page into
+       stacked mode on its own. Both modes below use definite sizes. */
+
+    .thread-left  { flex: 1 1 100%; min-width: 0; max-width: 700px; margin: 0 auto; }
+    .thread-right { flex: 1 1 100%; min-width: 0; }
+
+    /* nowrap: content can never trigger a reflow into the other mode */
+    .thread-layout.mode-side { flex-wrap: nowrap; }
+    .thread-layout.mode-side .thread-left  { flex: 1 1 0; min-width: 0; max-width: 900px; margin: 0; }
+    .thread-layout.mode-side .thread-right { flex: 0 0 820px; min-width: 0; }
+
+    .thread-layout.mode-stack { flex-wrap: wrap; }
+
+    .layout-bar {
+        display: flex;
+        justify-content: flex-end;
+        margin: 0 auto 10px;
+    }
+
+    /* ---- the name ---- */
+
+    .why-thread {
+        max-width: 680px;
+        margin: 54px auto 8px;
+        padding: 26px 30px 30px;
+        background: #fbfaf7;
+        border: 1px solid #ece7db;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* a thread laid along the top edge */
+    .why-thread::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg,
+            rgba(217,181,69,0) 0%,
+            rgba(217,181,69,0.9) 22%,
+            rgba(217,181,69,0.9) 78%,
+            rgba(217,181,69,0) 100%);
+    }
+
+    .why-thread h2 {
+        font-size: 17px;
+        font-weight: 600;
+        color: #3a3a33;
+        margin: 0 0 14px;
+        letter-spacing: 0.01em;
+    }
+
+    .why-thread p {
+        margin: 0 0 13px;
+        font-size: 14.5px;
+        line-height: 1.72;
+        color: #55524a;
+    }
+
+    .why-thread em { color: #8a7433; font-style: italic; }
+
+    .why-thread-coda {
+        margin-top: 18px !important;
+        margin-bottom: 0 !important;
+        padding-top: 15px;
+        border-top: 1px solid #ece7db;
+        font-style: italic;
+        color: #6d6a60 !important;
+    }
+
+    .why-thread + .why-thread { margin-top: 22px; }
+
+    /* The strategy talk is a spoiler, and this game does not hand those out -
+       the level names and blurbs are kept empty of content for the same reason.
+       Folded shut, with the summary saying what is behind it, so opening it
+       stays the player's decision rather than the page's. Collapsed text is
+       still in the markup, so it is read by anyone who searches for it. */
+    .why-thread details {
+        margin-top: 18px;
+        padding-top: 15px;
+        border-top: 1px solid #ece7db;
+    }
+
+    .why-thread summary {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        font-size: 14.5px;
+        font-weight: 600;
+        color: #8a7433;
+    }
+
+    .why-thread summary::-webkit-details-marker { display: none; }
+
+    .why-thread summary::after {
+        content: "\25BE";
+        font-size: 9px;
+        transition: transform 0.2s ease;
+    }
+
+    .why-thread details[open] summary::after { transform: rotate(180deg); }
+
+    .why-thread summary:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: 3px;
+        border-radius: 3px;
+    }
+
+    .spoiler-flag {
+        font-size: 11px;
+        font-weight: 400;
+        font-style: italic;
+        color: #a89b7a;
+    }
+
+    .why-thread details > p:first-of-type { margin-top: 14px; }
+
+    @media (max-width: 620px) {
+        .why-thread { padding: 20px 18px 22px; margin-top: 36px; }
+    }
+
+    .panel-label {
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        font-weight: 600;
+        margin-bottom: 7px;
+    }
+
+    /* ---- level bar ---- */
+
+    .level-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .level-bar select { flex: 1 1 auto; }
+
+    .level-desc {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.5;
+        margin: 0 0 8px;
+        min-height: 40px;
+    }
+
+    .practice-badge {
+        display: inline-block;
+        margin-bottom: 10px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: #f4f1e8;
+        border: 1px solid #e4dcc6;
+        color: #8a7433;
+        font-size: 11px;
+    }
+
+    .practice-badge[hidden] { display: none; }
+
+    /* ---- canvas ---- */
+
+    #mazeCanvas {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
+        border-radius: 10px;
+        background: #161b26;
+        box-shadow: 0 12px 30px rgba(22, 27, 38, 0.30), 0 2px 6px rgba(22, 27, 38, 0.20);
+        touch-action: manipulation;
+    }
+
+    /* ---- buttons ---- */
+
+    .thread-btn {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 13px;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        color: #374151;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .thread-btn:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+    .thread-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .thread-btn-primary {
+        background: #17726b;
+        border-color: #17726b;
+        color: #fff;
+    }
+
+    .thread-btn-primary:hover:not(:disabled) { background: #125d57; border-color: #125d57; }
+
+    .transport {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 12px;
+    }
+
+    .speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .speed-wrap input { width: 90px; }
+
+    /* ---- hud ---- */
+
+    .heat-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: #6b7280;
+        align-items: center;
+    }
+
+    /* Any author `display` beats the browser's own [hidden] rule, so setting
+       the hidden attribute in script does nothing without this. */
+    .heat-legend[hidden] { display: none; }
+
+    .heat-legend span { display: flex; align-items: center; gap: 6px; }
+
+    .heat-legend i {
+        width: 16px;
+        height: 4px;
+        border-radius: 2px;
+        display: inline-block;
+    }
+
+    .thread-btn[aria-pressed="true"] {
+        background: #17726b;
+        border-color: #17726b;
+        color: #fff;
+    }
+
+    .hud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .hud-item {
+        flex: 1 1 auto;
+        text-align: center;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 12px;
+        color: #6b7280;
+        min-width: 74px;
+    }
+
+    .hud-item b {
+        display: block;
+        font-size: 15px;
+        color: #1f2937;
+        font-weight: 600;
+        margin-top: 2px;
+    }
+
+    .verdict {
+        margin-top: 12px;
+        padding: 11px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.5;
+        display: none;
+    }
+
+    .verdict.show { display: block; }
+    .verdict-actions:not(:empty) { margin-top: 10px; }
+
+    .verdict-aside {
+        margin-top: 7px;
+        font-size: 12.5px;
+        font-style: italic;
+        opacity: 0.8;
+    }
+
+    .gauntlet-squares {
+        font-size: 22px;
+        letter-spacing: 3px;
+        margin: 8px 0 6px;
+        line-height: 1.1;
+    }
+
+    .verdict .thread-btn { margin-top: 9px; }
+
+    .verdict.win  { background: #e7f4f1; border: 1px solid #9fcfc7; color: #14554f; }
+    .verdict.fail { background: #fdf0ec; border: 1px solid #e8bda9; color: #8a4526; }
+
+    /* ---- rule editor ---- */
+
+    .shared-note {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: #f4f1e8;
+        border: 1px solid #e4dcc6;
+        color: #6f6544;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .shared-note[hidden] { display: none; }
+
+    /* The destructive half of the pair. Restore is the action the banner is
+       there to offer, so discard is dressed down to match its rank rather than
+       sitting next to it as an equal. */
+    .shared-note .note-discard {
+        background: none;
+        border-color: #ddd3b8;
+        color: #8a7d5c;
+    }
+
+    .shared-note .note-discard:hover:not(:disabled) {
+        background: #ece6d5;
+        border-color: #cbbf9d;
+        color: #6f6544;
+    }
+
+    /* Folded shut, and below the rules rather than above them. A row of
+       ready-made programs sitting at the top of the panel is the first thing
+       the eye lands on, and it quietly tells the player the game is already
+       solved before they have written anything. */
+    .presets {
+        margin-top: 18px;
+        padding-top: 13px;
+        border-top: 1px solid #eef0f3;
+    }
+
+    /* Quiet, but unmistakably a button. Grey text with a chevron reads as a
+       caption, and nobody clicks a caption. */
+    .presets summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        padding: 5px 11px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .presets summary:hover {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+        color: #374151;
+    }
+
+    .presets summary:focus-visible {
+        outline: 2px solid #17726b;
+        outline-offset: 2px;
+    }
+
+    .presets summary::-webkit-details-marker { display: none; }
+
+    .presets summary::after {
+        content: "\25BE";
+        font-size: 9px;
+        transition: transform 0.2s ease;
+    }
+
+    .presets[open] summary::after { transform: rotate(180deg); }
+    .presets summary:hover { color: #6b7280; }
+
+    .preset-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 11px;
+        align-items: center;
+    }
+
+    .rule-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .rule-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 7px;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+
+    .rule-row.firing {
+        border-color: #d4af37;
+        background: #fdf9ec;
+        box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.22);
+    }
+
+    .rule-row.off { opacity: 0.42; }
+
+    .rule-num {
+        width: 17px;
+        text-align: right;
+        color: #9ca3af;
+        font-size: 11px;
+        flex: 0 0 auto;
+    }
+
+    .rule-row select {
+        font-family: inherit;
+        font-size: 12px;
+        padding: 4px 5px;
+        border: 1px solid #d1d5db;
+        border-radius: 5px;
+        background: #fff;
+        color: #374151;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .rule-row .sel-cond { flex: 1 1 158px; }
+    .rule-row .sel-act  { flex: 1 1 140px; }
+    .rule-row .sel-act2 { flex: 1 1 110px; color: #7b8794; }
+
+    .rule-op {
+        flex: 0 0 auto;
+        font-family: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        min-width: 34px;
+        padding: 3px 4px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: #f9fafb;
+        color: #6b7280;
+        cursor: pointer;
+    }
+
+    .rule-op:hover { background: #eef2f7; color: #374151; border-color: #cbd5e1; }
+
+    /* OR is the unusual choice, so it is the one that gets to stand out */
+    .rule-op:not(.idle) { border-color: #cbd5e1; }
+    .rule-op.is-or { background: #fdf6e3; border-color: #dcc98a; color: #8a7433; }
+    .rule-op.idle { opacity: 0.4; }
+
+    .rule-kw {
+        color: #9ca3af;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        flex: 0 0 auto;
+    }
+
+    .rule-arrow { color: #17726b; flex: 0 0 auto; font-weight: 600; }
+
+    .rule-hits {
+        flex: 0 0 auto;
+        min-width: 26px;
+        text-align: right;
+        font-size: 11px;
+        color: #9ca3af;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .icon-btn {
+        flex: 0 0 auto;
+        width: 21px;
+        height: 21px;
+        line-height: 1;
+        padding: 0;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: #fff;
+        color: #6b7280;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .icon-btn:hover:not(:disabled) { background: #f3f4f6; color: #374151; }
+    .icon-btn:disabled { opacity: 0.3; cursor: default; }
+    .icon-btn.del:hover { background: #fdf0ec; color: #b4441e; border-color: #e8bda9; }
+
+    .rule-grip {
+        flex: 0 0 auto;
+        width: 15px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: #cbd2da;
+        font-size: 13px;
+        line-height: 22px;
+        cursor: grab;
+    }
+
+    .rule-grip:hover { color: #6b7280; }
+    .rule-grip:active { cursor: grabbing; }
+    .rule-grip:focus-visible { outline: 2px solid #17726b; outline-offset: 1px; border-radius: 3px; }
+
+    .rule-row.dragging { opacity: 0.35; }
+    .rule-row.drop-above { box-shadow: inset 0 3px 0 -1px #17726b; }
+    .rule-row.drop-below { box-shadow: inset 0 -3px 0 -1px #17726b; }
+
+    /* Dragging covers the desktop. The arrows stay as the fallback for touch,
+       where the drag-and-drop API does not fire at all.
+
+       Keyed on the pointer, not on the width. A tablet in landscape is wide
+       enough to miss a max-width rule and still has no drag events, which left
+       it with no way to reorder a rule at all. */
+    .rule-row .up,
+    .rule-row .down { display: none; }
+
+    @media (max-width: 760px), (hover: none), (pointer: coarse) {
+        .rule-row .up,
+        .rule-row .down { display: inline-block; }
+    }
+
+    .rule-row input[type="checkbox"] { flex: 0 0 auto; margin: 0; cursor: pointer; }
+
+    .editor-foot {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .rule-count { font-size: 12px; color: #9ca3af; margin-left: auto; }
+
+    /* ---- flags ---- */
+
+    .flags-label { margin-top: 18px; }
+
+    .panel-hint {
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 400;
+        color: #b0b6bf;
+    }
+
+    .flags-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .flag-chip {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 4px 7px;
+        background: #f9fafb;
+    }
+
+    .flag-chip input {
+        font-family: inherit;
+        font-size: 12px;
+        width: 72px;
+        border: none;
+        background: transparent;
+        color: #374151;
+        padding: 1px 2px;
+        border-bottom: 1px dashed #d1d5db;
+    }
+
+    .flag-chip input:focus { outline: none; border-bottom-color: #17726b; }
+
+    .flag-led {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d1d5db;
+        flex: 0 0 auto;
+    }
+
+    .flag-led.on { background: #d4af37; box-shadow: 0 0 4px rgba(212, 175, 55, 0.8); }
+
+    /* ---- trace ---- */
+
+    .trace {
+        margin-top: 14px;
+        background: #161b26;
+        border-radius: 7px;
+        padding: 9px 11px;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.65;
+        color: #9fb2c4;
+        height: 116px;
+        overflow-y: auto;
+    }
+
+    .trace .t-step { color: #5f7285; }
+    .trace .t-rule { color: #d4af37; }
+    .trace .t-act  { color: #cfd8e3; }
+    .trace .t-halt { color: #e8a27f; }
+
+    /* Below this the two columns cannot both be comfortable, and a squeezed
+       program panel clips its own labels. Stack instead. */
+    /* Narrower than this a rule cannot hold its widest label on one line, so
+       let it break onto two rather than clip. */
+    @media (max-width: 760px) {
+        .rule-row { flex-wrap: wrap; }
+        .rule-row .sel-cond,
+        .rule-row .sel-act { flex: 1 1 145px; }
+    }
+
+    @media (max-width: 620px) {
+        .thread-page { padding: 12px; }
+        .thread-left { max-width: 100%; }
+        .thread-right { min-width: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="thread-page">
+  <div class="container">
+    <h1>Thread</h1>
+    <p class="thread-tagline">You never see the maze. You only write the rules that walk it.</p>
+
+    <div class="instructions" id="instructions">
+      <!-- A div that behaves like a button has to say so and be reachable by
+           tab, or the only way into the rules is a mouse. -->
+      <div class="instructions-header" id="instructions-toggle" role="button" tabindex="0"
+           aria-expanded="false" aria-controls="instructions-body">
+        <span>How to play</span>
+        <span class="instructions-chevron">&#9660;</span>
+      </div>
+      <div class="instructions-body" id="instructions-body">
+        <p>You do not solve the maze. You write a program that solves the maze, then watch it run in
+        the dark. The maze is only revealed where your bot has been.</p>
+
+        <div class="instructions-section">
+          <strong>The rules</strong>
+          <p>Your program is an ordered list. Every tick, the bot reads the list from the top and
+          runs the <em>first</em> rule whose conditions are all true. That is the whole language -
+          order is your only control flow, so a rule near the bottom only fires when everything
+          above it fails.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>What the bot can sense</strong>
+          <p>Only three things: the walls of the square it is standing on, its own memory of where it
+          has already walked, and its flags. It has no map. Directions are relative to the way it
+          faces, so <b>right</b> means the bot's right, not east.</p>
+
+          <p>It can also see through a doorway, but no further. Every condition that reads a
+          square - <b>is the exit</b>, <b>is the key</b>, <b>unvisited</b> - only ever becomes true
+          for a square the bot has an open way into, which is the same moment that square stops
+          being dark on the board. It cannot read anything through a wall, or from across the
+          maze.</p>
+          <p>Memory comes in two kinds. A <b>way</b> is the gap between two squares, and the bot
+          counts how many times it has walked through each one. A <b>square</b> is a place, and it
+          counts how often it has stood there. In the menus, any condition with the word
+          <b>way</b> in it reads the passage; every other one reads the square. Which of the two
+          you lean on is up to you.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>Ticks</strong>
+          <p>One rule fires per tick and every tick costs a step, including turns and flag changes.
+          Moving into a wall turns the bot to face that way but gets it nowhere - and still costs a
+          step. The run ends when the bot reaches the exit, when no rule matches, when it stops
+          finding new ground, or when it runs out of steps.</p>
+        </div>
+
+        <div class="instructions-section">
+          <strong>Scoring</strong>
+          <p>Two numbers: steps taken and rules used. Solving is the floor. Solving in fewer steps,
+          with fewer rules, is the game. <b>Gauntlet</b> runs your program against five freshly
+          generated mazes it has never seen, which is the real test of whether you wrote a strategy
+          or just got lucky.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout-bar">
+      <button id="layoutBtn" class="thread-btn" type="button"></button>
+    </div>
+
+    <div class="thread-layout" id="threadLayout">
+
+      <div class="thread-left">
+        <div class="level-bar">
+          <select id="levelSelect" class="thread-btn" style="padding:7px 9px;"></select>
+          <button id="newMazeBtn" class="thread-btn">New maze</button>
+        </div>
+        <p class="level-desc" id="levelDesc"></p>
+        <div class="practice-badge" id="practiceBadge" hidden>Practice maze. Only a level's own maze counts towards Best.</div>
+
+        <canvas id="mazeCanvas" width="520" height="520" role="img"
+                aria-label="The maze. Only ground the bot has walked is drawn. Its position and progress are reported in the counters below, and the result of each run is announced when it ends."></canvas>
+
+        <div class="transport">
+          <button id="runBtn" class="thread-btn thread-btn-primary">Run</button>
+          <button id="stepBtn" class="thread-btn">Step</button>
+          <button id="resetBtn" class="thread-btn">Reset</button>
+          <button id="heatBtn" class="thread-btn" aria-pressed="false" title="Shade every way by how often the bot walked it">Heatmap</button>
+          <button id="gauntletBtn" class="thread-btn">Gauntlet</button>
+          <div class="speed-wrap">
+            <span>Speed</span>
+            <input type="range" id="speedRange" min="0" max="6" step="1" value="3">
+          </div>
+        </div>
+
+        <div class="heat-legend" id="heatLegend" hidden>
+          <span><i style="background:#7ec8bd"></i>walked once</span>
+          <span><i style="background:#e0b64a"></i>twice</span>
+          <span><i style="background:#d4674a"></i>three or more</span>
+        </div>
+
+        <div class="hud">
+          <div class="hud-item">Step<b id="hudStep">0</b></div>
+          <div class="hud-item">Facing<b id="hudFacing">-</b></div>
+          <div class="hud-item">Here<b id="hudHere">-</b></div>
+          <div class="hud-item">Seen<b id="hudSeen">0</b></div>
+          <div class="hud-item" title="What the shipped solution scores on this maze">Par<b id="hudPar">-</b></div>
+          <div class="hud-item" title="Your own fewest steps on this level's own maze">Best<b id="hudBest">-</b></div>
+        </div>
+
+        <!-- role="status" carries an implicit polite, atomic live region, so the
+             whole verdict is announced as one message once a run ends. Buttons
+             live in the sibling below rather than inside it - controls in a live
+             region get read out as prose. -->
+        <div class="verdict" id="verdict" role="status"></div>
+        <div class="verdict-actions" id="verdictActions"></div>
+      </div>
+
+      <div class="thread-right">
+        <div class="shared-note" id="sharedNote" hidden>
+          <span id="sharedNoteText"></span>
+          <button type="button" class="thread-btn" id="restoreMine">Restore mine</button>
+          <button type="button" class="thread-btn note-discard" id="discardMine">Discard mine</button>
+        </div>
+
+        <div class="panel-label">Program</div>
+
+        <div class="rule-list" id="ruleList"></div>
+
+        <div class="editor-foot">
+          <button id="addRuleBtn" class="thread-btn">+ Add rule</button>
+          <button id="undoBtn" class="thread-btn" disabled title="Undo the last change to the program (Ctrl+Z)">Undo</button>
+          <button id="shareBtn" class="thread-btn">Copy link</button>
+          <span class="rule-count" id="ruleCount"></span>
+        </div>
+
+        <details class="presets">
+          <summary>Starting points</summary>
+          <div class="preset-bar">
+            <button class="thread-btn preset" data-preset="right">Right-hand rule</button>
+            <button class="thread-btn preset" data-preset="left">Left-hand rule</button>
+            <button class="thread-btn preset" data-preset="breadcrumbs" title="Loads a program that solves every level">Reveal a solution</button>
+            <button class="thread-btn preset" data-preset="clear">Clear</button>
+          </div>
+        </details>
+
+        <div class="panel-label flags-label">Flags
+          <span class="panel-hint">- the bot's memory switches. Rename one and it appears in the IF and action menus.</span>
+        </div>
+        <div class="flags-bar" id="flagsBar"></div>
+
+        <div class="trace" id="trace"></div>
+      </div>
+
+    </div>
+
+    <section class="why-thread">
+      <h2>Why it is called Thread</h2>
+
+      <p>Theseus went into the Labyrinth to kill the Minotaur, and the monster was never the hard
+      part. Getting back out was. So Ariadne gave him a ball of thread to unwind behind him as he
+      walked, and that thin unwinding line became the only thing in the whole maze that knew where
+      he had been.</p>
+
+      <p>Your bot is in the same position. It has no map and no view of the walls ahead, only a
+      record of the ground it has already covered, laid down one step at a time behind it. The gold
+      line drawn across the board is that thread, and every condition in your rules that asks about
+      a way already trodden is your bot reading it.</p>
+
+      <p>There is a small piece of etymology tangled up in this. The ball of thread had its own
+      name in older English: a <em>clew</em>. When the word drifted from meaning a literal ball of
+      yarn to meaning anything at all that guides you out of a confusion, the spelling drifted with
+      it, and we ended up with <em>clue</em>. Every clue ever followed is a thread being wound back
+      in.</p>
+
+      <p class="why-thread-coda">Leaving a trail behind you turns out to be more than a story. Done
+      properly it is provably enough to escape any maze that exists, however tangled, without ever
+      seeing it. Working out what "properly" means is the game.</p>
+    </section>
+
+    <section class="why-thread">
+      <h2>The problem has a name</h2>
+
+      <p>A machine that has to cross a maze it has never seen, carrying nothing but a few sensors
+      and whatever it can remember, is not a situation somebody invented for a browser game. It is a
+      standing problem in robotics, and it has a competition of its own. In <em>micromouse</em>, a
+      small robot is set down in a maze it knows nothing about and left to find the centre on wall
+      sensors and memory alone. Your bot has the same senses and the same handicap. It just wears a
+      rule list instead of wheels.</p>
+
+      <p>The algorithms people bring to that problem have names too. The right-hand rule sitting in
+      your presets is a <em>wall follower</em>: put one hand on the wall, keep it there, and walk. It
+      is the oldest maze-solving method there is, it fits in four rules, and for a great many mazes
+      it is simply correct. Which leaves the only interesting question, and the one this game is
+      built on. When is it not?</p>
+
+      <details>
+        <summary>When a wall follower fails, and what fixes it
+          <span class="spoiler-flag">answers inside</span></summary>
+
+        <p>A wall follower is really tracing the outline of one connected piece of wall. Every wall
+        it will ever touch belongs to that piece, because it never lets go. So it finds any exit
+        attached to the wall it set out on, and it is blind - permanently, and by construction - to
+        an exit standing on a piece of wall that touches nothing else. Wall a square in on three
+        sides and leave the fourth open, and those three segments join nothing. An island. The bot
+        can pass within a square of the doorway and walk on, because its hand is on a different wall
+        entirely.</p>
+
+        <p>The fix is not better sensing. It is memory, and the classic form of it is
+        <em>Trémaux's algorithm</em>, named for a nineteenth-century French engineer and written
+        down by Édouard Lucas in 1882. Mark every passage as you walk it. Prefer a passage you have
+        never walked; take one you have walked once only when nothing unmarked is left; never take
+        one you have walked twice. And when you arrive at a square you already knew, by way of a
+        passage you had never walked, you have just closed a loop, so turn straight around. That
+        last rule is the one doing the real work, and it is rule one of the program behind Reveal a
+        solution.</p>
+
+        <p>Trémaux's guarantee is the strong one. It walks each passage at most twice, so on any
+        maze with a reachable exit it will find it, however tangled. That is the <em>properly</em>
+        the paragraph above is being coy about. It is also why some of these mazes have loops cut
+        into them. A maze without loops lets almost anything through, since there are no wrong
+        turnings to circle in. Put the loops back and the naive strategies start going round for
+        ever, which is the moment memory stops being optional.</p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    // ---------------------------------------------------------------
+    // palette
+    // ---------------------------------------------------------------
+    const C_FOG      = "#161b26";   // ground the bot has never sensed
+    const C_KNOWN    = "#93a2bb";   // sensed through an opening, never stood on
+    const C_VISIT    = ["#e2f0ec", "#c1e0d9", "#9fcbc3"];  // 1, 2, 3+ visits
+    // Walls sit between lit floor and unlit fog, so they need to read against
+    // both. A mid slate does; anything near the fog colour disappears.
+    const C_WALL     = "#6d7c94";
+    const C_INK      = "#141821";   // outlines on top of the gold bot
+    const C_THREAD      = "#d9b545";
+    const C_THREAD_GLOW = "rgba(217,181,69,0.22)";
+    const C_GOLD     = "#e3c25c";
+    const C_BOT      = "#f7d968";
+    const C_START    = "#8b98ad";
+
+    // heatmap tiers: walked once, twice, three or more
+    const C_HEAT   = ["#7ec8bd", "#e0b64a", "#d4674a"];
+    const C_HEAT_W = [0.10, 0.17, 0.24];
+
+    // ---------------------------------------------------------------
+    // maze model
+    //   Walls live in a per-cell bitmask: bit d set means "wall on side d".
+    //   Carving clears the bit on both sides, so the two views never drift.
+    // ---------------------------------------------------------------
+    const DX = [0, 1, 0, -1];          // N, E, S, W
+    const DY = [-1, 0, 1, 0];
+    const OPP = [2, 3, 0, 1];
+    const FACE_NAME = ["North", "East", "South", "West"];
+
+    const STEP_CAP = 2000;
+
+    let W = 9, H = 9;
+    let cells = null;                  // Uint8Array wall bitmasks
+    let startIdx = 0, exitIdx = 0, keyIdx = -1;
+
+    function idx(x, y) { return y * W + x; }
+    function cx(i) { return i % W; }
+    function cy(i) { return (i / W) | 0; }
+    function inBounds(x, y) { return x >= 0 && y >= 0 && x < W && y < H; }
+    function isOpen(i, d) { return (cells[i] & (1 << d)) === 0; }
+
+    function carve(x, y, d) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (!inBounds(nx, ny)) return;
+        cells[idx(x, y)] &= ~(1 << d);
+        cells[idx(nx, ny)] &= ~(1 << OPP[d]);
+    }
+
+    function wallUp(x, y, d) {
+        const nx = x + DX[d], ny = y + DY[d];
+        cells[idx(x, y)] |= (1 << d);
+        if (inBounds(nx, ny)) cells[idx(nx, ny)] |= (1 << OPP[d]);
+    }
+
+    function openCount(i) {
+        let n = 0;
+        for (let d = 0; d < 4; d++) if (isOpen(i, d)) n++;
+        return n;
+    }
+
+    // mulberry32 - small seeded PRNG so a maze can be replayed and shared
+    function mulberry32(a) {
+        return function () {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    function genPerfect(rand) {
+        cells = new Uint8Array(W * H).fill(0b1111);
+        const seen = new Uint8Array(W * H);
+        const stack = [0];
+        seen[0] = 1;
+        while (stack.length) {
+            const i = stack[stack.length - 1];
+            const x = cx(i), y = cy(i);
+            const options = [];
+            for (let d = 0; d < 4; d++) {
+                const nx = x + DX[d], ny = y + DY[d];
+                if (inBounds(nx, ny) && !seen[idx(nx, ny)]) options.push(d);
+            }
+            if (!options.length) { stack.pop(); continue; }
+            const d = options[(rand() * options.length) | 0];
+            carve(x, y, d);
+            const ni = idx(x + DX[d], y + DY[d]);
+            seen[ni] = 1;
+            stack.push(ni);
+        }
+    }
+
+    // Braiding removes dead ends, which is what puts loops in the maze -
+    // and loops are what let a wall-follower cycle forever.
+    function braid(rand, p) {
+        for (let i = 0; i < W * H; i++) {
+            if (openCount(i) !== 1 || rand() > p) continue;
+            const x = cx(i), y = cy(i);
+            const options = [];
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d) && inBounds(x + DX[d], y + DY[d])) options.push(d);
+            }
+            if (options.length) carve(x, y, options[(rand() * options.length) | 0]);
+        }
+    }
+
+    // The island: open the 3x3 block around the exit completely, then wall the
+    // exit back in on three sides. Those three wall segments now touch nothing
+    // else, so they are a wall component disconnected from the outer wall - and
+    // a hand-on-wall follower can never cross onto them.
+    function makeIsland(gx, gy, rand) {
+        for (let y = gy - 1; y <= gy + 1; y++) {
+            for (let x = gx - 1; x <= gx + 1; x++) {
+                for (let d = 0; d < 4; d++) {
+                    const nx = x + DX[d], ny = y + DY[d];
+                    if (nx >= gx - 1 && nx <= gx + 1 && ny >= gy - 1 && ny <= gy + 1) carve(x, y, d);
+                }
+            }
+        }
+        const keep = (rand() * 4) | 0;
+        for (let d = 0; d < 4; d++) if (d !== keep) wallUp(gx, gy, d);
+    }
+
+    // ---------------------------------------------------------------
+    // levels
+    // ---------------------------------------------------------------
+    const LEVELS = [
+        // Names and blurbs stay deliberately empty of content. A level called
+        // "The Island" tells you the shape of a maze you are not supposed to
+        // be able to see, and a blurb saying "your bot needs memory" is just
+        // the answer written down.
+        { id: "warmup", name: "1 - Threshold",  w: 9,  h: 9,  braid: 0,   island: false },
+        { id: "long",   name: "2 - Descent",    w: 15, h: 15, braid: 0,   island: false },
+        { id: "island", name: "3 - Deeper",     w: 13, h: 13, braid: 0,   island: true },
+        { id: "tangle", name: "4 - Farthest In", w: 15, h: 15, braid: 0.6, island: true },
+        { id: "key",    name: "5 - And Back Again", w: 15, h: 15, braid: 0.3, island: true, key: true },
+        // Loops, no island. Everything reaches the exit here, so the only
+        // question left is how well - which is the one question the earlier
+        // levels cannot ask, because on a maze with no loops every working
+        // program walks the very same route.
+        { id: "short",  name: "6 - The Short Way", w: 15, h: 15, braid: 0.4, island: false, group: "speed" }
+    ];
+
+    const CANON_SEED = 1;      // the maze a level's Best score is measured on
+    let levelIdx = 0;
+    let mazeSeed = CANON_SEED;
+
+    function buildMaze() {
+        const L = LEVELS[levelIdx];
+        W = L.w; H = L.h;
+        const rand = mulberry32(mazeSeed);
+        genPerfect(rand);
+        if (L.braid > 0) braid(rand, L.braid);
+        startIdx = idx(0, 0);
+        keyIdx = -1;
+
+        let islandCell = -1;
+        if (L.island) {
+            // On a key level the island holds the key rather than the door, so
+            // it sits out in a far corner: walled off AND a long walk away.
+            const gx = L.key ? W - 3 : (W / 2) | 0;
+            const gy = L.key ? H - 3 : (H / 2) | 0;
+            makeIsland(gx, gy, rand);
+            islandCell = idx(gx, gy);
+        }
+
+        if (L.key) {
+            // Out and back. The key goes somewhere a hand on the wall can never
+            // reach, so getting it is the whole first half of the problem, and
+            // the door is the square the bot started on.
+            keyIdx = (islandCell >= 0) ? islandCell : farthestFrom(startIdx);
+            exitIdx = startIdx;
+        } else if (islandCell >= 0) {
+            exitIdx = islandCell;
+        } else {
+            exitIdx = idx(W - 1, H - 1);
+        }
+    }
+
+    function bfsFrom(src) {
+        const dist = new Int32Array(W * H).fill(-1);
+        const queue = [src];
+        dist[src] = 0;
+        for (let head = 0; head < queue.length; head++) {
+            const i = queue[head];
+            const x = cx(i), y = cy(i);
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d)) continue;
+                const nx = x + DX[d], ny = y + DY[d];
+                if (!inBounds(nx, ny)) continue;
+                const j = idx(nx, ny);
+                if (dist[j] < 0) { dist[j] = dist[i] + 1; queue.push(j); }
+            }
+        }
+        return dist;
+    }
+
+    function farthestFrom(from) {
+        const dist = bfsFrom(from);
+        let best = from;
+        for (let i = 0; i < W * H; i++) if (dist[i] > dist[best]) best = i;
+        return best;
+    }
+
+    // What a bot that could see the whole maze would walk. Unreachable for a
+    // bot that cannot, which is the point - it is context, never a target.
+    function shortestRoute() {
+        const dist = bfsFrom(startIdx);
+        if (keyIdx >= 0) return dist[keyIdx] < 0 ? null : dist[keyIdx] * 2;
+        return dist[exitIdx] < 0 ? null : dist[exitIdx];
+    }
+
+    // ---------------------------------------------------------------
+    // vocabulary
+    // ---------------------------------------------------------------
+    const REL = { ahead: 0, right: 1, back: 2, left: 3 };
+
+    const DIR_SUBJECTS = [["ahead", "Ahead"], ["right", "Right"], ["left", "Left"], ["back", "Back"]];
+
+    // "way" predicates read the passage itself - how many times the bot has
+    // walked through that gap. "square" reads the cell on the other side.
+    // Marking passages rather than cells is what makes the loops solvable.
+    // Native selects clip rather than ellipsize, so these have to stay short.
+    // "way" marks the passage predicates; anything without it reads the square.
+    const DIR_PREDS = [
+        ["open", "is open"],
+        ["wall", "is a wall"],
+        ["untrodden", "way untrodden"],
+        ["trodden1", "way trodden 1x"],
+        ["trodden2", "way trodden 2+"],
+        ["unvisited", "unvisited"],
+        ["exit", "is the exit"],
+        ["key", "is the key"]
+    ];
+    const HERE_PREDS = [
+        ["deadend", "is a dead end"],
+        ["junction", "is a junction"],
+        ["corridor", "is a corridor"],
+        ["first", "first visit"],
+        ["visited2", "visited 2+"],
+        ["visited3", "visited 3+"],
+        ["key", "is the key"]
+    ];
+
+    let flagNames = ["A", "B", "C"];
+
+    function condGroups() {
+        const groups = [];
+        for (const [sub, label] of DIR_SUBJECTS) {
+            groups.push({
+                label: label,
+                items: DIR_PREDS.map(function (p) {
+                    return [sub + "." + p[0], label + " " + p[1]];
+                })
+            });
+        }
+        groups.push({
+            label: "Here",
+            items: HERE_PREDS.map(function (p) { return ["here." + p[0], "Here " + p[1]]; })
+        });
+        const state = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            state.push(["flag." + f + ".on", flagNames[n] + " is on"]);
+            state.push(["flag." + f + ".off", flagNames[n] + " is off"]);
+        });
+        state.push(["always", "always"]);
+        groups.push({ label: "State", items: state });
+        return groups;
+    }
+
+    function actionGroups() {
+        const flags = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            flags.push(["flag." + f + ".on", "SET " + flagNames[n] + " on"]);
+            flags.push(["flag." + f + ".off", "SET " + flagNames[n] + " off"]);
+            flags.push(["flag." + f + ".toggle", "TOGGLE " + flagNames[n]]);
+        });
+        return [
+            {
+                label: "Move", items: [
+                    ["move.ahead", "MOVE ahead"], ["move.right", "MOVE right"],
+                    ["move.left", "MOVE left"], ["move.back", "MOVE back"]
+                ]
+            },
+            {
+                label: "Turn", items: [
+                    ["turn.right", "TURN right"], ["turn.left", "TURN left"],
+                    ["turn.around", "TURN around"]
+                ]
+            },
+            { label: "Flags", items: flags }
+        ];
+    }
+
+    // The rider slot on a rule. Flags only, deliberately: a second movement
+    // would just halve everyone's step count for free.
+    function riderGroups() {
+        const items = [];
+        ["A", "B", "C"].forEach(function (f, n) {
+            items.push(["flag." + f + ".on", flagNames[n] + " on"]);
+            items.push(["flag." + f + ".off", flagNames[n] + " off"]);
+            items.push(["flag." + f + ".toggle", flagNames[n] + " flip"]);
+        });
+        return [{ label: "Also set a flag", items: items }];
+    }
+
+    function labelFor(groups, value) {
+        for (const g of groups) for (const it of g.items) if (it[0] === value) return it[1];
+        return value;
+    }
+
+    // Exactly the codes the menus can produce, as sets rather than plain
+    // objects so that a key like "constructor" cannot pass on a prototype.
+    // A shared link is arbitrary text from a stranger, and a code from outside
+    // these sets reaches the evaluator as a NaN direction and every label as
+    // itself. Both are handled downstream now, but the fix belongs at the door.
+    function riderCodes() {
+        const out = [""];
+        for (const f of ["A", "B", "C"]) {
+            for (const op of ["on", "off", "toggle"]) out.push("flag." + f + "." + op);
+        }
+        return new Set(out);
+    }
+
+    function condCodes() {
+        const out = ["", "always"];
+        for (const s of DIR_SUBJECTS) for (const p of DIR_PREDS) out.push(s[0] + "." + p[0]);
+        for (const p of HERE_PREDS) out.push("here." + p[0]);
+        for (const f of ["A", "B", "C"]) {
+            out.push("flag." + f + ".on");
+            out.push("flag." + f + ".off");
+        }
+        return new Set(out);
+    }
+
+    function actCodes() {
+        const out = [];
+        for (const d of ["ahead", "right", "left", "back"]) out.push("move." + d);
+        for (const t of ["right", "left", "around"]) out.push("turn." + t);
+        for (const c of riderCodes()) if (c) out.push(c);
+        return new Set(out);
+    }
+
+    // Every label the editor prints goes through here. The flag names in them
+    // are player text, and on a shared link they are a stranger's text.
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // ---------------------------------------------------------------
+    // program
+    // ---------------------------------------------------------------
+    const MAX_RULES = 24;
+
+    const PRESETS = {
+        right: [
+            { on: true, c1: "right.open", c2: "", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "", act: "move.left" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        left: [
+            { on: true, c1: "left.open", c2: "", act: "move.left" },
+            { on: true, c1: "ahead.open", c2: "", act: "move.ahead" },
+            { on: true, c1: "right.open", c2: "", act: "move.right" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        // Tremaux, and the spoiler for levels 3 and 4. Rule 1 is the whole
+        // trick: re-entering ground you already knew, by a passage you had
+        // never walked, means you closed a loop - so turn straight back.
+        // Without it the bot circles the loops forever.
+        breadcrumbs: [
+            { on: true, c1: "here.visited2", c2: "back.trodden1", act: "move.back" },
+            { on: true, c1: "right.open", c2: "right.untrodden", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "ahead.untrodden", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "left.untrodden", act: "move.left" },
+            { on: true, c1: "back.open", c2: "back.untrodden", act: "move.back" },
+            { on: true, c1: "right.open", c2: "right.trodden1", act: "move.right" },
+            { on: true, c1: "ahead.open", c2: "ahead.trodden1", act: "move.ahead" },
+            { on: true, c1: "left.open", c2: "left.trodden1", act: "move.left" },
+            { on: true, c1: "back.open", c2: "back.trodden1", act: "move.back" },
+            { on: true, c1: "always", c2: "", act: "move.back" }
+        ],
+        clear: [
+            { on: true, c1: "always", c2: "", act: "move.ahead" }
+        ]
+    };
+
+    function clone(rules) { return rules.map(function (r) { return Object.assign({}, r); }); }
+
+    // Deliberately inert. A working program preloaded into the editor means a
+    // new player's first Run solves the level with something they did not
+    // write. One rule that walks into a wall teaches the tick loop better.
+    let rules = clone(PRESETS.clear);
+    let startLevel = 0;         // a shared link can say which level it is for
+    let sharedLink = false;     // this page is showing somebody else's program
+    let levelPar = null;        // what the shipped solution scores on this maze
+    let levelShortest = null;   // what a bot that could see the maze would walk
+
+    // ---------------------------------------------------------------
+    // simulation
+    //   Runs headless to completion, recording one frame per tick. Playback
+    //   then just walks the frame list, which makes stepping, scrubbing and
+    //   speed changes free and keeps the renderer completely dumb.
+    // ---------------------------------------------------------------
+    function evalCond(code, st) {
+        if (!code || code === "always") return true;
+        const p = code.split(".");
+
+        if (p[0] === "flag") return st.flags[p[1]] === (p[2] === "on");
+
+        const here = idx(st.x, st.y);
+
+        if (p[0] === "here") {
+            const open = openCount(here);
+            switch (p[1]) {
+                case "deadend":  return open === 1;
+                case "junction": return open >= 3;
+                case "corridor": return open === 2;
+                case "first":    return st.visits[here] === 1;
+                case "visited2": return st.visits[here] >= 2;
+                case "visited3": return st.visits[here] >= 3;
+                // Standing on the key is a passing signal, not a lasting one.
+                // Walk away and the bot has no way to know it ever held it,
+                // unless it wrote that down in a flag.
+                case "key":      return keyIdx >= 0 && here === keyIdx;
+            }
+            return false;
+        }
+
+        const d = (st.facing + REL[p[0]]) % 4;
+        const nx = st.x + DX[d], ny = st.y + DY[d];
+        const ok = inBounds(nx, ny);
+        const trod = st.cross[here * 4 + d];
+        switch (p[1]) {
+            case "open":      return isOpen(here, d);
+            case "wall":      return !isOpen(here, d);
+            case "untrodden": return trod === 0;
+            case "trodden1":  return trod === 1;
+            case "trodden2":  return trod >= 2;
+            // Every predicate that reads the square beyond needs an open way to
+            // read it through. Without that the bot senses through solid wall,
+            // and a rule like "IF ahead is the exit THEN move ahead" bumps that
+            // wall forever, since the condition never stops being true.
+            // "unvisited" is the same promise: a walled-off square is not a
+            // square you can be told about, however untouched it is.
+            case "unvisited": return ok && isOpen(here, d) && st.visits[idx(nx, ny)] === 0;
+            case "exit":      return ok && isOpen(here, d) && idx(nx, ny) === exitIdx;
+            case "key":       return ok && isOpen(here, d) && keyIdx >= 0 && idx(nx, ny) === keyIdx;
+        }
+        return false;
+    }
+
+    // AND is the connective that earns its keep - a priority list cannot express
+    // conjunction any other way. OR is pure convenience: the same rule with OR
+    // is always two adjacent rows sharing an action.
+    function ruleMatches(r, st) {
+        const first = evalCond(r.c1, st);
+        if (!r.c2) return first;
+        return r.op === "or" ? (first || evalCond(r.c2, st)) : (first && evalCond(r.c2, st));
+    }
+
+    function applyAction(code, st) {
+        const p = code.split(".");
+
+        if (p[0] === "flag") {
+            if (p[2] === "toggle") st.flags[p[1]] = !st.flags[p[1]];
+            else st.flags[p[1]] = (p[2] === "on");
+            return false;
+        }
+
+        if (p[0] === "turn") {
+            const turn = { right: 1, around: 2, left: 3 }[p[1]];
+            st.facing = (st.facing + turn) % 4;
+            return false;
+        }
+
+        const d = (st.facing + REL[p[1]]) % 4;
+        st.facing = d;                                  // a bump still reorients
+        const here = idx(st.x, st.y);
+        if (!isOpen(here, d)) return false;
+        st.x += DX[d];
+        st.y += DY[d];
+        const there = idx(st.x, st.y);
+        // one passage, marked from both ends, so the count reads the same
+        // whichever side the bot is standing on
+        if (st.cross[here * 4 + d] < 250) {
+            st.cross[here * 4 + d]++;
+            st.cross[there * 4 + OPP[d]]++;
+        }
+        st.visits[there]++;
+        return true;
+    }
+
+    function flagBits(f) { return (f.A ? 1 : 0) | (f.B ? 2 : 0) | (f.C ? 4 : 0); }
+
+    function simulate(prog) {
+        const active = [];
+        prog.forEach(function (r, i) { if (r.on) active.push({ r: r, i: i }); });
+
+        const st = {
+            x: cx(startIdx), y: cy(startIdx), facing: 1,
+            flags: { A: false, B: false, C: false },
+            visits: new Uint16Array(W * H),
+            cross: new Uint8Array(W * H * 4)
+        };
+        st.visits[startIdx] = 1;
+        st.key = (keyIdx >= 0 && startIdx === keyIdx);
+
+        const frames = [{ x: st.x, y: st.y, f: st.facing, ri: -1, act: "", fl: 0, k: st.key ? 1 : 0 }];
+        const stall = Math.max(300, W * H * 2);
+
+        let lastNew = 0;
+        let outcome = "cap";
+
+        for (let step = 1; step <= STEP_CAP; step++) {
+            let chosen = null;
+            for (const a of active) {
+                if (ruleMatches(a.r, st)) { chosen = a; break; }
+            }
+            if (!chosen) { outcome = "norule"; break; }
+
+            const before = idx(st.x, st.y);
+            const facingBefore = st.facing;
+            const flagsBefore = flagBits(st.flags);
+
+            applyAction(chosen.r.act, st);
+            // The rider rides along free. It is flags only, so a tick still
+            // holds at most one move and the step count stays honest.
+            if (chosen.r.act2) applyAction(chosen.r.act2, st);
+            const after = idx(st.x, st.y);
+            if (keyIdx >= 0 && after === keyIdx) st.key = true;
+
+            // Nothing about the bot changed, so next tick it will pick the same
+            // rule and do the same nothing. That is a fixed point, and waiting
+            // out the step budget to discover it helps no one.
+            const frozen = after === before
+                && st.facing === facingBefore
+                && flagBits(st.flags) === flagsBefore;
+
+            frames.push({
+                x: st.x, y: st.y, f: st.facing, ri: chosen.i,
+                act: chosen.r.act, act2: chosen.r.act2 || "",
+                fl: flagBits(st.flags), k: st.key ? 1 : 0
+            });
+
+            if (after !== before && st.visits[after] === 1) lastNew = step;
+            if (after === exitIdx && (keyIdx < 0 || st.key)) { outcome = "solved"; break; }
+            if (frozen) { outcome = "frozen"; break; }
+            if (step - lastNew >= stall) { outcome = "stuck"; break; }
+        }
+
+        return { frames: frames, outcome: outcome, steps: frames.length - 1 };
+    }
+
+    // Replays frame 0..n to rebuild what the player is allowed to see. Cheap
+    // enough at these sizes that scrubbing backwards needs no extra bookkeeping.
+    function dirFromTo(a, b) {
+        const dx = cx(b) - cx(a), dy = cy(b) - cy(a);
+        if (dy === -1 && dx === 0) return 0;
+        if (dx === 1 && dy === 0) return 1;
+        if (dy === 1 && dx === 0) return 2;
+        if (dx === -1 && dy === 0) return 3;
+        return -1;
+    }
+
+    function viewAt(frames, n) {
+        const visits = new Uint16Array(W * H);
+        const seen = new Uint8Array(W * H);
+        const cross = new Uint16Array(W * H * 4);
+        const hits = new Array(rules.length).fill(0);
+        const path = [];
+        let prev = -1;
+
+        function reveal(i) {
+            seen[i] = 1;
+            const x = cx(i), y = cy(i);
+            for (let d = 0; d < 4; d++) {
+                if (!isOpen(i, d)) continue;
+                const nx = x + DX[d], ny = y + DY[d];
+                if (inBounds(nx, ny) && !seen[idx(nx, ny)]) seen[idx(nx, ny)] = 1;
+            }
+        }
+
+        for (let k = 0; k <= n && k < frames.length; k++) {
+            const f = frames[k];
+            if (f.ri >= 0 && f.ri < hits.length) hits[f.ri]++;
+            const c = idx(f.x, f.y);
+            if (c !== prev) {
+                if (prev >= 0) {
+                    // consecutive path cells are always joined by an open way
+                    const d = dirFromTo(prev, c);
+                    if (d >= 0) { cross[prev * 4 + d]++; cross[c * 4 + OPP[d]]++; }
+                }
+                visits[c]++; reveal(c); path.push(c); prev = c;
+            }
+        }
+        return { visits: visits, seen: seen, cross: cross, path: path, hits: hits };
+    }
+
+    // ---------------------------------------------------------------
+    // rendering
+    // ---------------------------------------------------------------
+    const canvas = document.getElementById("mazeCanvas");
+    const ctx = canvas.getContext("2d");
+    let CS = 34, PAD = 10;
+
+    // Measure the space actually on offer rather than assuming a fixed board,
+    // and lay the grid out at whole pixels so nothing has to be scaled after
+    // the fact. A wider window - or a shorter maze - gets a bigger board.
+    function sizeCanvas() {
+        const avail = (canvas.parentElement && canvas.parentElement.clientWidth) || 520;
+        // A short window trims the board so the controls stay in reach, but
+        // only down to a floor - scrolling a little beats a postage stamp.
+        const byHeight = Math.max(480, window.innerHeight - 170);
+        const box = Math.max(260, Math.min(avail, byHeight, 900));
+
+        CS = Math.max(10, Math.floor((box - PAD * 2) / Math.max(W, H)));
+        const px = PAD * 2 + CS * W;
+        const py = PAD * 2 + CS * H;
+        const dpr = window.devicePixelRatio || 1;
+
+        canvas.width = Math.round(px * dpr);
+        canvas.height = Math.round(py * dpr);
+        // Width only. CSS height:auto then derives the height from the bitmap's
+        // own ratio, so if max-width ever clamps this it scales instead of
+        // squashing.
+        canvas.style.width = px + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function cellRect(i) {
+        return { x: PAD + cx(i) * CS, y: PAD + cy(i) * CS };
+    }
+
+    const FACE_ANGLE = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
+
+    function centreOf(i) { return { x: PAD + cx(i) * CS + CS / 2, y: PAD + cy(i) * CS + CS / 2 }; }
+
+    // `t` slides the bot from the previous frame to the current one so motion
+    // reads as walking rather than teleporting. `pulse` runs 0..1 while a run
+    // is playing and sits at 1 once it stops, so an idle board holds still.
+    function draw(view, frame, prev, t, pulse) {
+        const w = PAD * 2 + CS * W, h = PAD * 2 + CS * H;
+
+        ctx.fillStyle = C_FOG;
+        ctx.fillRect(0, 0, w, h);
+
+        // floor
+        for (let i = 0; i < W * H; i++) {
+            if (!view.seen[i]) continue;
+            const v = view.visits[i];
+            ctx.fillStyle = v === 0 ? C_KNOWN : C_VISIT[Math.min(v, 3) - 1];
+            const r = cellRect(i);
+            ctx.fillRect(r.x, r.y, CS, CS);
+        }
+
+        // walls, but only of squares the bot has actually stood on - it cannot
+        // report walls it never touched
+        ctx.strokeStyle = C_WALL;
+        ctx.lineWidth = Math.max(2, CS * 0.075);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        for (let i = 0; i < W * H; i++) {
+            if (view.visits[i] === 0) continue;
+            const r = cellRect(i);
+            if (!isOpen(i, 0)) { ctx.moveTo(r.x, r.y); ctx.lineTo(r.x + CS, r.y); }
+            if (!isOpen(i, 1)) { ctx.moveTo(r.x + CS, r.y); ctx.lineTo(r.x + CS, r.y + CS); }
+            if (!isOpen(i, 2)) { ctx.moveTo(r.x, r.y + CS); ctx.lineTo(r.x + CS, r.y + CS); }
+            if (!isOpen(i, 3)) { ctx.moveTo(r.x, r.y); ctx.lineTo(r.x, r.y + CS); }
+        }
+        ctx.stroke();
+
+        // where the bot actually is this instant
+        const a = centreOf(idx(prev.x, prev.y));
+        const b = centreOf(idx(frame.x, frame.y));
+        const bx = a.x + (b.x - a.x) * t;
+        const by = a.y + (b.y - a.y) * t;
+
+        // Heatmap: how often each way was walked, which is the bot's own
+        // memory made visible. Replaces the thread, since the two would only
+        // fight each other for the same pixels.
+        if (heatmap) {
+            ctx.lineCap = "round";
+            for (let i = 0; i < W * H; i++) {
+                const a = centreOf(i);
+                // east and south only, or every way gets drawn twice
+                for (let d = 1; d <= 2; d++) {
+                    const n = view.cross[i * 4 + d];
+                    if (!n) continue;
+                    const nx = cx(i) + DX[d], ny = cy(i) + DY[d];
+                    if (!inBounds(nx, ny)) continue;
+                    const b2 = centreOf(idx(nx, ny));
+                    const tier = Math.min(n, 3) - 1;
+                    ctx.strokeStyle = C_HEAT[tier];
+                    ctx.lineWidth = Math.max(2, CS * C_HEAT_W[tier]);
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b2.x, b2.y);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // the thread, laid down to wherever the bot has got to. Two passes:
+        // a soft halo, then a bright core on top of it.
+        const pts = [];
+        for (let k = 0; k < view.path.length - 1; k++) pts.push(centreOf(view.path[k]));
+        pts.push({ x: bx, y: by });
+
+        if (!heatmap && pts.length > 1) {
+            const layThread = function () {
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+                ctx.stroke();
+            };
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.strokeStyle = C_THREAD_GLOW;
+            ctx.lineWidth = Math.max(5, CS * 0.40);
+            layThread();
+            ctx.strokeStyle = C_THREAD;
+            ctx.lineWidth = Math.max(2, CS * 0.13);
+            layThread();
+        }
+
+        // where the bot set out from
+        const s = centreOf(startIdx);
+        ctx.strokeStyle = C_START;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, CS * 0.2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Lantern: everything dims with distance from the bot, so the eye goes
+        // where the action is and the far corners keep some of their dark.
+        const lantern = ctx.createRadialGradient(bx, by, CS * 1.4, bx, by, CS * 7.5);
+        lantern.addColorStop(0, "rgba(16,20,29,0)");
+        lantern.addColorStop(1, "rgba(16,20,29,0.55)");
+        ctx.fillStyle = lantern;
+        ctx.fillRect(0, 0, w, h);
+
+        // the key, while it is still lying there waiting to be picked up
+        if (keyIdx >= 0 && !frame.k && view.seen[keyIdx]) {
+            const k = centreOf(keyIdx);
+            const kh = ctx.createRadialGradient(k.x, k.y, 0, k.x, k.y, CS * (0.7 + 0.22 * pulse));
+            kh.addColorStop(0, "rgba(227,194,92," + (0.38 + 0.2 * pulse).toFixed(3) + ")");
+            kh.addColorStop(1, "rgba(227,194,92,0)");
+            ctx.fillStyle = kh;
+            ctx.fillRect(k.x - CS, k.y - CS, CS * 2, CS * 2);
+
+            ctx.strokeStyle = C_GOLD;
+            ctx.lineWidth = Math.max(2, CS * 0.09);
+            ctx.beginPath();
+            ctx.arc(k.x, k.y - CS * 0.1, CS * 0.15, 0, Math.PI * 2);
+            ctx.moveTo(k.x, k.y + CS * 0.05);
+            ctx.lineTo(k.x, k.y + CS * 0.3);
+            ctx.moveTo(k.x, k.y + CS * 0.24);
+            ctx.lineTo(k.x + CS * 0.12, k.y + CS * 0.24);
+            ctx.stroke();
+        }
+
+        // exit, once it has been sensed - drawn over the lantern so that
+        // finding it always reads, however far off it is. On a key level the
+        // door only shows once the bot is actually carrying the key.
+        if (view.seen[exitIdx] && (keyIdx < 0 || frame.k)) {
+            const e = centreOf(exitIdx);
+            const rad = CS * 0.28;
+
+            const halo = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, CS * (0.75 + 0.25 * pulse));
+            halo.addColorStop(0, "rgba(227,194,92," + (0.42 + 0.22 * pulse).toFixed(3) + ")");
+            halo.addColorStop(1, "rgba(227,194,92,0)");
+            ctx.fillStyle = halo;
+            ctx.fillRect(e.x - CS, e.y - CS, CS * 2, CS * 2);
+
+            ctx.fillStyle = C_GOLD;
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y - rad);
+            ctx.lineTo(e.x + rad, e.y);
+            ctx.lineTo(e.x, e.y + rad);
+            ctx.lineTo(e.x - rad, e.y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // bot, with its own little pool of light
+        const glow = ctx.createRadialGradient(bx, by, 0, bx, by, CS * 0.95);
+        glow.addColorStop(0, "rgba(247,217,104,0.34)");
+        glow.addColorStop(1, "rgba(247,217,104,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(bx - CS, by - CS, CS * 2, CS * 2);
+
+        let da = FACE_ANGLE[frame.f] - FACE_ANGLE[prev.f];
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+
+        const size = CS * 0.3;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(FACE_ANGLE[prev.f] + da * t);
+        ctx.beginPath();
+        ctx.moveTo(size, 0);
+        ctx.lineTo(-size * 0.75, -size * 0.8);
+        ctx.lineTo(-size * 0.35, 0);
+        ctx.lineTo(-size * 0.75, size * 0.8);
+        ctx.closePath();
+        ctx.fillStyle = C_BOT;
+        ctx.fill();
+        ctx.strokeStyle = C_INK;
+        ctx.lineWidth = 1.4;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // ---------------------------------------------------------------
+    // playback
+    // ---------------------------------------------------------------
+    const SPEEDS = [600, 320, 170, 90, 45, 20, 6];   // ms per tick
+
+    let sim = null;
+    let dirty = true;
+    let playhead = 0;
+    let playing = false;
+    let timer = null;
+    let heatmap = false;
+
+    const el = {
+        levelSelect: document.getElementById("levelSelect"),
+        practiceBadge: document.getElementById("practiceBadge"),
+        sharedNote: document.getElementById("sharedNote"),
+        sharedNoteText: document.getElementById("sharedNoteText"),
+        restoreMine: document.getElementById("restoreMine"),
+        discardMine: document.getElementById("discardMine"),
+        levelDesc: document.getElementById("levelDesc"),
+        newMaze: document.getElementById("newMazeBtn"),
+        run: document.getElementById("runBtn"),
+        step: document.getElementById("stepBtn"),
+        reset: document.getElementById("resetBtn"),
+        gauntlet: document.getElementById("gauntletBtn"),
+        heat: document.getElementById("heatBtn"),
+        heatLegend: document.getElementById("heatLegend"),
+        speed: document.getElementById("speedRange"),
+        hudStep: document.getElementById("hudStep"),
+        hudFacing: document.getElementById("hudFacing"),
+        hudHere: document.getElementById("hudHere"),
+        hudSeen: document.getElementById("hudSeen"),
+        hudPar: document.getElementById("hudPar"),
+        hudBest: document.getElementById("hudBest"),
+        verdict: document.getElementById("verdict"),
+        ruleList: document.getElementById("ruleList"),
+        ruleCount: document.getElementById("ruleCount"),
+        addRule: document.getElementById("addRuleBtn"),
+        undo: document.getElementById("undoBtn"),
+        share: document.getElementById("shareBtn"),
+        verdictActions: document.getElementById("verdictActions"),
+        flagsBar: document.getElementById("flagsBar"),
+        trace: document.getElementById("trace")
+    };
+
+    function ensureSim() {
+        if (!dirty && sim) return;
+        sim = simulate(rules);
+        dirty = false;
+        playhead = 0;
+        renderRules();
+    }
+
+    // The canvas is painted by an animation loop rather than by render(), so
+    // the bot can glide between ticks and the exit can pulse while paused.
+    let paintView = null, paintFrame = null, paintPrev = null;
+    let tickAt = 0, tickDur = 1, needsPaint = false;
+
+    function paint() {
+        requestAnimationFrame(paint);
+        if (!paintView) return;
+        const now = performance.now();
+        const t = tickDur > 0 ? Math.min(1, (now - tickAt) / tickDur) : 1;
+
+        // Only the glide and the exit pulse actually move, and the pulse only
+        // beats while a run is playing. Letting it breathe forever redrew the
+        // canvas sixty times a second on a page where nothing was happening -
+        // and since every solved run ends with the exit on screen, that was
+        // the resting state, not an edge case.
+        const beating = playing && paintView.seen[exitIdx];
+        if (!needsPaint && t >= 1 && !beating) return;
+        needsPaint = false;
+
+        draw(paintView, paintFrame, paintPrev, t, beating ? 0.5 + 0.5 * Math.sin(now / 470) : 1);
+    }
+
+    function render() {
+        const view = viewAt(sim.frames, playhead);
+        const frame = sim.frames[playhead];
+
+        paintView = view;
+        paintFrame = frame;
+        paintPrev = sim.frames[Math.max(0, playhead - 1)];
+        tickAt = performance.now();
+        tickDur = playing ? SPEEDS[parseInt(el.speed.value, 10)] : 170;
+        needsPaint = true;
+
+        // Never show the run length. The denominator would hand the player the
+        // outcome before they ever pressed Run.
+        el.hudStep.textContent = playhead;
+        el.hudFacing.textContent = FACE_NAME[frame.f];
+        el.hudHere.textContent = "x" + view.visits[idx(frame.x, frame.y)];
+        let seenCount = 0;
+        for (let i = 0; i < view.seen.length; i++) if (view.seen[i]) seenCount++;
+        el.hudSeen.textContent = seenCount + " / " + (W * H);
+
+        updateFlagLeds(frame.fl);
+        renderTrace();
+        updateRows(playhead > 0 ? frame.ri : -1, view.hits);
+        renderVerdict();
+    }
+
+    function hideVerdict() {
+        el.verdict.className = "verdict";
+        el.verdictActions.innerHTML = "";
+    }
+
+    function renderVerdict() {
+        const done = playhead >= sim.frames.length - 1;
+        if (!done) { hideVerdict(); return; }
+
+        const n = rules.filter(function (r) { return r.on; }).length;
+        let cls, msg;
+        if (sim.outcome === "solved") {
+            cls = "win";
+            msg = "<b>Solved</b> in " + sim.steps + " steps with " + n + " rule" + (n === 1 ? "" : "s") + ".";
+            // Only the level's own maze scores. Otherwise "best" just records
+            // whoever rolled the shortest random maze, which is not a score.
+            if (mazeSeed === CANON_SEED) {
+                const prev = bestGet();
+                if (prev === null || sim.steps < prev) {
+                    bestSet(sim.steps);
+                    renderLevelOptions();
+                    msg += " New best.";
+                }
+            }
+
+            const asides = [];
+            if (levelPar !== null) {
+                if (sim.steps < levelPar) asides.push("That is " + (levelPar - sim.steps) + " under par.");
+                else if (sim.steps === levelPar) asides.push("Exactly par.");
+                else asides.push("Par is " + levelPar + ".");
+            }
+            if (levelShortest !== null) {
+                asides.push("The shortest way through was " + levelShortest +
+                    " steps, though nothing that cannot see the maze will ever find it.");
+            }
+            if (asides.length) msg += '<div class="verdict-aside">' + asides.join(" ") + "</div>";
+        } else if (sim.outcome === "stuck") {
+            cls = "fail";
+            msg = "<b>Stuck.</b> The bot went " + sim.steps + " steps and stopped finding new ground - it is retracing a circuit it has already walked.";
+        } else if (sim.outcome === "frozen") {
+            cls = "fail";
+            msg = "<b>Nothing is changing.</b> At step " + sim.steps + " the bot ended exactly " +
+                "where it began, facing the same way, so the same rule will fire again forever. " +
+                "Walking into a wall costs a step and gets you nowhere - try pairing the move " +
+                "with a condition that checks the way is open first.";
+        } else if (sim.outcome === "norule") {
+            cls = "fail";
+            msg = "<b>No rule matched</b> at step " + sim.steps + ". Nothing changed, so nothing ever will. Add a catch-all <em>always</em> rule at the bottom.";
+        } else {
+            cls = "fail";
+            msg = "<b>Out of steps</b> after " + STEP_CAP + " ticks without reaching the exit.";
+        }
+        el.verdictActions.innerHTML = "";
+        el.verdict.className = "verdict show " + cls;
+        el.verdict.innerHTML = msg;
+        updateBest();
+    }
+
+    // Par is what the shipped solution scores on the maze in front of you,
+    // simulated headlessly. A reachable target, unlike the shortest route, and
+    // computed rather than hardcoded so retuning a level cannot make it a lie.
+    function computePar() {
+        const r = simulate(PRESETS.breadcrumbs);
+        return r.outcome === "solved" ? r.steps : null;
+    }
+
+    function bestFor(id) {
+        try {
+            const v = localStorage.getItem("thread.best." + id);
+            return v === null ? null : parseInt(v, 10);
+        } catch (e) { return null; }
+    }
+
+    function bestGet() { return bestFor(LEVELS[levelIdx].id); }
+
+    function bestSet(steps) {
+        try {
+            localStorage.setItem("thread.best." + LEVELS[levelIdx].id, String(steps));
+        } catch (e) { /* storage off */ }
+    }
+
+    function updateBest() {
+        const v = bestGet();
+        el.hudBest.textContent = v === null ? "-" : v;
+    }
+
+    // A level only has a best once it has been solved on its own maze, so show
+    // the score itself rather than a tick. A number explains what it means; a
+    // tick just asserts something and leaves the player to guess what.
+    // Two groups, because the ladder now has two axes. Levels 1 to 5 ask
+    // whether you can reach the exit at all; level 6 is beatable by the very
+    // first preset and asks only how quickly. Listing them as one run of
+    // rising numbers claims a difficulty order that is not true.
+    const LEVEL_GROUPS = { way: "Find the way", speed: "Find it faster" };
+
+    function renderLevelOptions() {
+        const keep = el.levelSelect.value;
+        let html = "";
+        let open = null;
+        LEVELS.forEach(function (L, i) {
+            const group = L.group || "way";
+            if (group !== open) {
+                if (open !== null) html += "</optgroup>";
+                html += '<optgroup label="' + LEVEL_GROUPS[group] + '">';
+                open = group;
+            }
+            const best = bestFor(L.id);
+            html += '<option value="' + i + '">' + L.name +
+                (best === null ? "" : " (best " + best + ")") + "</option>";
+        });
+        if (open !== null) html += "</optgroup>";
+        el.levelSelect.innerHTML = html;
+        if (keep !== "") el.levelSelect.value = keep;
+    }
+
+    function traceEl(tag, cls, text) {
+        const node = document.createElement(tag);
+        node.className = cls;
+        node.textContent = text;
+        return node;
+    }
+
+    // Built as nodes, not as a string of HTML. An action label is only a label
+    // when the code behind it is one the menus know; anything else falls
+    // through labelFor() as itself, and a link could put arbitrary text there.
+    // Assigned as text it is inert whatever it says.
+    function renderTrace() {
+        const ag = actionGroups();
+        const from = Math.max(1, playhead - 9);
+        const frag = document.createDocumentFragment();
+
+        for (let k = from; k <= playhead; k++) {
+            const f = sim.frames[k];
+            const row = document.createElement("div");
+            row.appendChild(traceEl("span", "t-step", String(k).padStart(4, " ")));
+            row.appendChild(document.createTextNode(" "));
+            row.appendChild(traceEl("span", "t-rule", "r" + (f.ri + 1)));
+            row.appendChild(document.createTextNode(" "));
+            row.appendChild(traceEl("span", "t-act", labelFor(ag, f.act)));
+            frag.appendChild(row);
+        }
+
+        if (playhead >= sim.frames.length - 1) {
+            frag.appendChild(sim.outcome === "solved"
+                ? traceEl("div", "t-rule", "exit reached")
+                : traceEl("div", "t-halt", "halted: " + sim.outcome));
+        }
+        if (!frag.childNodes.length) frag.appendChild(traceEl("div", "t-step", "ready"));
+
+        el.trace.textContent = "";
+        el.trace.appendChild(frag);
+        el.trace.scrollTop = el.trace.scrollHeight;
+    }
+
+    // Built once. Playback only flips the LEDs, so a rename in progress is not
+    // ripped out from under the cursor sixty times a second.
+    function buildFlags() {
+        el.flagsBar.innerHTML = ["A", "B", "C"].map(function (f, n) {
+            return '<span class="flag-chip" title="Flag ' + ["A", "B", "C"][n] +
+                ' - lit when on. Rename it to whatever it means in your program.">' +
+                '<span class="flag-led" data-led="' + n + '"></span>' +
+                '<input type="text" data-flag="' + n + '" value="' + esc(flagNames[n]) +
+                '" maxlength="8" aria-label="Name for flag ' + ["A", "B", "C"][n] + '"></span>';
+        }).join("");
+        el.flagsBar.querySelectorAll("input[data-flag]").forEach(function (inp) {
+            inp.addEventListener("change", function () {
+                const n = parseInt(inp.dataset.flag, 10);
+                flagNames[n] = (inp.value || "").trim().slice(0, 8) || ["A", "B", "C"][n];
+                inp.value = flagNames[n];
+                changed();      // renaming a flag is an edit, so it is undoable
+            });
+        });
+    }
+
+    function updateFlagLeds(bits) {
+        el.flagsBar.querySelectorAll(".flag-led").forEach(function (led, n) {
+            led.classList.toggle("on", (bits & (1 << n)) !== 0);
+        });
+    }
+
+    // Counts belong to the playhead, not to the finished simulation - showing
+    // the final tallies up front would tell the player which rules carry the
+    // run before the bot has moved.
+    function updateRows(firingIndex, hits) {
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (row, i) {
+            row.classList.toggle("firing", i === firingIndex);
+            const cell = row.querySelector(".rule-hits");
+            if (cell) cell.textContent = (hits && hits[i]) ? hits[i] : "";
+        });
+    }
+
+    function stop() {
+        playing = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        el.run.textContent = "Run";
+    }
+
+    function tick() {
+        if (playhead >= sim.frames.length - 1) { stop(); render(); return; }
+        playhead++;
+        render();
+        if (playhead >= sim.frames.length - 1) stop();
+    }
+
+    function play() {
+        ensureSim();
+        if (playhead >= sim.frames.length - 1) playhead = 0;
+        playing = true;
+        el.run.textContent = "Pause";
+        if (timer) clearInterval(timer);
+        timer = setInterval(tick, SPEEDS[parseInt(el.speed.value, 10)]);
+        render();
+    }
+
+    // ---------------------------------------------------------------
+    // rule editor
+    // ---------------------------------------------------------------
+    function buildSelect(cls, groups, value, emptyLabel) {
+        let h = '<select class="' + cls + '">';
+        if (emptyLabel !== undefined) {
+            h += '<option value=""' + (value === "" ? " selected" : "") + ">" + esc(emptyLabel) + "</option>";
+        }
+        for (const g of groups) {
+            h += '<optgroup label="' + esc(g.label) + '">';
+            for (const it of g.items) {
+                h += '<option value="' + esc(it[0]) + '"' + (it[0] === value ? " selected" : "") +
+                    ">" + esc(it[1]) + "</option>";
+            }
+            h += "</optgroup>";
+        }
+        return h + "</select>";
+    }
+
+    function renderRules() {
+        const cg = condGroups(), ag = actionGroups(), rg = riderGroups();
+
+        el.ruleList.innerHTML = rules.map(function (r, i) {
+            return '<div class="rule-row' + (r.on ? "" : " off") + '" data-i="' + i + '">' +
+                '<button type="button" class="rule-grip" aria-label="Reorder rule ' + (i + 1) +
+                '" title="Drag to reorder. Or focus this and use the up and down arrow keys.">' +
+                "&#10303;</button>" +
+                '<span class="rule-num">' + (i + 1) + "</span>" +
+                '<input type="checkbox" class="chk-on"' + (r.on ? " checked" : "") + ' title="Enable rule">' +
+                '<span class="rule-kw">IF</span>' +
+                buildSelect("sel-cond c1", cg, r.c1) +
+                '<button type="button" class="rule-op op' + (r.c2 ? "" : " idle") +
+                (r.op === "or" ? " is-or" : "") +
+                '" title="Switch to ' + (r.op === "or" ? "AND" : "OR") + '">' +
+                (r.op === "or" ? "OR" : "AND") + "</button>" +
+                buildSelect("sel-cond c2", cg, r.c2, "(nothing)") +
+                '<span class="rule-arrow">&rarr;</span>' +
+                buildSelect("sel-act act", ag, r.act) +
+                buildSelect("sel-act2 act2", rg, r.act2 || "", "no flag") +
+                '<button class="icon-btn up" title="Move up"' + (i === 0 ? " disabled" : "") + ">&#9650;</button>" +
+                '<button class="icon-btn down" title="Move down"' + (i === rules.length - 1 ? " disabled" : "") + ">&#9660;</button>" +
+                '<button class="icon-btn dup" title="Duplicate this rule">&#10697;</button>' +
+                '<button class="icon-btn del" title="Delete rule">&times;</button>' +
+                '<span class="rule-hits"></span>' +
+                "</div>";
+        }).join("");
+
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (row) {
+            const i = parseInt(row.dataset.i, 10);
+            row.querySelector(".chk-on").addEventListener("change", function (e) {
+                rules[i].on = e.target.checked; changed();
+            });
+            row.querySelector(".c1").addEventListener("change", function (e) {
+                rules[i].c1 = e.target.value; changed();
+            });
+            row.querySelector(".c2").addEventListener("change", function (e) {
+                rules[i].c2 = e.target.value; changed();
+            });
+            row.querySelector(".act").addEventListener("change", function (e) {
+                rules[i].act = e.target.value; changed();
+            });
+            row.querySelector(".act2").addEventListener("change", function (e) {
+                rules[i].act2 = e.target.value; changed();
+            });
+            row.querySelector(".op").addEventListener("click", function () {
+                rules[i].op = (rules[i].op === "or") ? "and" : "or"; changed();
+            });
+            row.querySelector(".up").addEventListener("click", function () { moveRule(i, i - 1); });
+            row.querySelector(".down").addEventListener("click", function () { moveRule(i, i + 2); });
+            row.querySelector(".dup").addEventListener("click", function () {
+                if (rules.length >= MAX_RULES) return;
+                rules.splice(i + 1, 0, Object.assign({}, rules[i]));
+                changed();
+            });
+            row.querySelector(".del").addEventListener("click", function () {
+                if (rules.length > 1) { rules.splice(i, 1); changed(); }
+            });
+
+            // ---- reordering ----
+            const grip = row.querySelector(".rule-grip");
+
+            // The row is only made draggable while the grip is held, so a drag
+            // can never start from inside one of the dropdowns.
+            grip.addEventListener("mousedown", function () { row.setAttribute("draggable", "true"); });
+            grip.addEventListener("keydown", function (e) {
+                if (e.key === "ArrowUp") { e.preventDefault(); moveRule(i, i - 1); focusGrip(i - 1); }
+                else if (e.key === "ArrowDown") { e.preventDefault(); moveRule(i, i + 2); focusGrip(i + 1); }
+            });
+
+            row.addEventListener("dragstart", function (e) {
+                dragFrom = i;
+                row.classList.add("dragging");
+                e.dataTransfer.effectAllowed = "move";
+                try { e.dataTransfer.setData("text/plain", String(i)); } catch (err) { /* IE-ish */ }
+            });
+
+            row.addEventListener("dragend", function () {
+                row.removeAttribute("draggable");
+                dragFrom = -1;
+                clearDropMarks();
+            });
+
+            row.addEventListener("dragover", function (e) {
+                if (dragFrom < 0 || dragFrom === i) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                clearDropMarks();
+                row.classList.add(dropsBelow(e, row) ? "drop-below" : "drop-above");
+            });
+
+            row.addEventListener("drop", function (e) {
+                e.preventDefault();
+                const from = dragFrom;
+                dragFrom = -1;
+                clearDropMarks();
+                if (from < 0) return;
+                moveRule(from, i + (dropsBelow(e, row) ? 1 : 0));
+            });
+        });
+
+        const n = rules.filter(function (r) { return r.on; }).length;
+        el.ruleCount.textContent = n + " active / " + rules.length + " rule" + (rules.length === 1 ? "" : "s");
+    }
+
+    let dragFrom = -1;
+
+    function dropsBelow(e, row) {
+        const box = row.getBoundingClientRect();
+        return (e.clientY - box.top) > box.height / 2;
+    }
+
+    function clearDropMarks() {
+        el.ruleList.querySelectorAll(".rule-row").forEach(function (r) {
+            r.classList.remove("drop-above", "drop-below", "dragging");
+        });
+    }
+
+    // `to` is the slot the rule should land in, counted before the move.
+    function moveRule(from, to) {
+        if (from < 0 || from >= rules.length) return;
+        let target = Math.max(0, Math.min(rules.length, to));
+        if (target === from || target === from + 1) return;   // stayed put
+        const rule = rules.splice(from, 1)[0];
+        if (target > from) target--;                          // the splice shifted everything after
+        rules.splice(target, 0, rule);
+        changed();
+    }
+
+    function focusGrip(i) {
+        const rows = el.ruleList.querySelectorAll(".rule-row");
+        if (rows[i]) {
+            const grip = rows[i].querySelector(".rule-grip");
+            if (grip) grip.focus();
+        }
+    }
+
+    // Every edit already funnels through changed(), so undo hangs off that one
+    // point rather than off each of the dozen controls that can mutate a rule.
+    const UNDO_DEPTH = 40;
+    let undoStack = [];
+    let settled = null;          // the program as it stood after the last edit
+
+    function programState() {
+        return JSON.stringify({ r: rules, f: flagNames });
+    }
+
+    function updateUndoButton() {
+        el.undo.disabled = undoStack.length === 0;
+    }
+
+    function markSettled() {
+        settled = programState();
+        updateUndoButton();
+    }
+
+    function undo() {
+        if (!undoStack.length) return;
+        const prev = undoStack.pop();
+        try {
+            const obj = JSON.parse(prev);
+            adoptProgram({ r: obj.r, f: obj.f });
+        } catch (e) { return; }
+
+        settled = programState();   // restoring is not itself an undo point
+        updateUndoButton();
+        stop();
+        dirty = true;
+        saveLocal();
+        buildFlags();
+        ensureSim();
+        render();
+    }
+
+    function changed() {
+        const now = programState();
+        if (settled !== null && now !== settled) {
+            undoStack.push(settled);
+            if (undoStack.length > UNDO_DEPTH) undoStack.shift();
+        }
+        settled = now;
+        updateUndoButton();
+
+        stop();
+        dirty = true;
+        saveLocal();
+        ensureSim();
+        render();
+    }
+
+    // ---------------------------------------------------------------
+    // gauntlet - the same program against five mazes it has never seen
+    // ---------------------------------------------------------------
+    const GAUNTLET_N = 5;
+
+    // UTC so that everyone, everywhere, faces the same five mazes on the same
+    // day - which is the whole point of a daily. Same seed all day too, so you
+    // can keep sharpening a program against the same set.
+    function dailyStamp() {
+        const d = new Date();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        return d.getUTCFullYear() + "-" + mm + "-" + dd;
+    }
+
+    function dailySeeds() {
+        const d = new Date();
+        const base = (d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate()) | 0;
+        const out = [];
+        for (let k = 0; k < GAUNTLET_N; k++) out.push((Math.imul(base, 131) + k * 7919) | 0);
+        return out;
+    }
+
+    let lastGauntlet = null;
+
+    function runGauntlet() {
+        stop();
+        const keepSeed = mazeSeed;
+        const seeds = dailySeeds();
+        let solved = 0, total = 0;
+        const squares = [];
+
+        for (let k = 0; k < GAUNTLET_N; k++) {
+            mazeSeed = seeds[k];
+            buildMaze();
+            const r = simulate(rules);
+            if (r.outcome === "solved") { solved++; total += r.steps; squares.push("\u{1F7E9}"); }
+            else { total += STEP_CAP; squares.push("\u{2B1B}"); }
+        }
+
+        mazeSeed = keepSeed;
+        buildMaze();
+        dirty = true;
+        ensureSim();
+        render();
+
+        const n = rules.filter(function (r) { return r.on; }).length;
+        lastGauntlet = {
+            stamp: dailyStamp(),
+            level: LEVELS[levelIdx].name,
+            squares: squares.join(""),
+            solved: solved, total: total, rules: n
+        };
+
+        el.verdict.className = "verdict show " + (solved === GAUNTLET_N ? "win" : "fail");
+        el.verdict.innerHTML =
+            "<b>Daily gauntlet, " + lastGauntlet.stamp + "</b> on " + lastGauntlet.level +
+            // hidden from screen readers: five emoji would be read out one name
+            // at a time, ahead of the sentence that actually says the result
+            '<div class="gauntlet-squares" aria-hidden="true">' + lastGauntlet.squares + "</div>" +
+            solved + " of " + GAUNTLET_N + " solved in " + total + " steps, with " + n +
+            " rule" + (n === 1 ? "" : "s") + "." +
+            (solved === GAUNTLET_N ? "" : " Unsolved mazes score " + STEP_CAP + " each.");
+
+        el.verdictActions.innerHTML =
+            '<button type="button" class="thread-btn" id="gauntletShare">Copy result</button>';
+        const shareBtn = document.getElementById("gauntletShare");
+        if (shareBtn) shareBtn.addEventListener("click", copyGauntlet);
+    }
+
+    function copyGauntlet() {
+        if (!lastGauntlet) return;
+        const text = "Thread - daily gauntlet " + lastGauntlet.stamp + "\n" +
+            lastGauntlet.level + "  " + lastGauntlet.squares + "\n" +
+            lastGauntlet.solved + "/" + GAUNTLET_N + " solved, " + lastGauntlet.total +
+            " steps, " + lastGauntlet.rules + " rules\n" +
+            "https://www.jamesapplewhite.com/thread";
+        const done = function () {
+            const b = document.getElementById("gauntletShare");
+            if (b) { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy result"; }, 1400); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { prompt("Copy your result:", text); });
+        } else {
+            prompt("Copy your result:", text);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // persistence and sharing
+    // ---------------------------------------------------------------
+    function saveLocal() {
+        try {
+            localStorage.setItem("thread.program", JSON.stringify({ rules: rules, flags: flagNames }));
+        } catch (e) { /* storage disabled - the page still works, just forgets */ }
+    }
+
+    // `l` carries the level, so a bot tuned for the key maze does not open on
+    // level 1 and look broken to whoever you sent it to.
+    //
+    // v2 packs each rule as a positional array. Spelling out six field names on
+    // every rule cost about a third of the URL, which is what pushed a full
+    // program past the length some chat clients will carry intact. v1 links are
+    // still read, so anything already shared keeps working.
+    const LINK_VERSION = 2;
+
+    function encodeProgram() {
+        const packed = rules.map(function (r) {
+            return [r.on ? 1 : 0, r.c1, r.c2 || "", r.op === "or" ? 1 : 0, r.act, r.act2 || ""];
+        });
+        const json = JSON.stringify({ v: LINK_VERSION, r: packed, f: flagNames, l: levelIdx });
+        return btoa(unescape(encodeURIComponent(json)));
+    }
+
+    function decodeProgram(s) {
+        const obj = JSON.parse(decodeURIComponent(escape(atob(s))));
+        if (!obj || !Array.isArray(obj.r) || !obj.r.length) throw new Error("bad program");
+        return obj;
+    }
+
+    function adoptProgram(obj) {
+        // A shared link is a stranger's text. Nothing from it reaches the
+        // evaluator, the editor or the trace unless the menus could have
+        // produced it: the rider stays a flag op so it cannot smuggle in a
+        // second move per tick, and the rest is checked the same way rather
+        // than trusted for being a string. An empty c1 mattered too - it reads
+        // as "always" in the evaluator while the dropdown shows a condition.
+        const okCond = condCodes(), okAct = actCodes(), okRider = riderCodes();
+        rules = obj.r.slice(0, MAX_RULES).map(function (raw) {
+            // v2 packs a rule as an array; v1 links and local saves use objects
+            const r = Array.isArray(raw)
+                ? { on: raw[0] !== 0, c1: raw[1], c2: raw[2], op: raw[3] ? "or" : "and",
+                    act: raw[4], act2: raw[5] }
+                : raw;
+            return {
+                on: r.on !== false,
+                c1: okCond.has(r.c1) && r.c1 !== "" ? r.c1 : "always",
+                c2: okCond.has(r.c2) ? r.c2 : "",
+                op: r.op === "or" ? "or" : "and",
+                act: okAct.has(r.act) ? r.act : "move.ahead",
+                act2: okRider.has(r.act2) ? r.act2 : ""
+            };
+        });
+        if (Array.isArray(obj.f) && obj.f.length === 3) {
+            flagNames = obj.f.map(function (n, i) {
+                return (typeof n === "string" && n.trim()) ? n.trim().slice(0, 8) : ["A", "B", "C"][i];
+            });
+        }
+        if (typeof obj.l === "number" && obj.l >= 0 && obj.l < LEVELS.length) {
+            startLevel = obj.l | 0;
+        }
+    }
+
+    function loadStored() {
+        if (location.hash.length > 2) {
+            try {
+                const incoming = decodeProgram(location.hash.slice(1));
+                // Put whatever was already saved somewhere safe before the link
+                // takes over. Both share one slot, so without this the
+                // visitor's first edit writes the shared program straight over
+                // a program they may have spent an hour on.
+                //
+                // Only ever stash once. After that first edit the live slot
+                // holds the shared program, so stashing again on the next link
+                // would file a stranger's program as "mine" and drop the real
+                // one for good - the one failure here that cannot be undone.
+                try {
+                    const mine = localStorage.getItem("thread.program");
+                    if (mine && localStorage.getItem("thread.program.mine") === null) {
+                        localStorage.setItem("thread.program.mine", mine);
+                    }
+                } catch (e) { /* storage off */ }
+                adoptProgram(incoming);
+                sharedLink = true;
+                return;
+            } catch (e) { /* malformed link - fall through to local storage */ }
+        }
+        try {
+            const raw = localStorage.getItem("thread.program");
+            if (raw) {
+                const obj = JSON.parse(raw);
+                if (obj && Array.isArray(obj.rules)) adoptProgram({ r: obj.rules, f: obj.flags });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // ---------------------------------------------------------------
+    // wiring
+    // ---------------------------------------------------------------
+    renderLevelOptions();
+
+    function loadLevel(i) {
+        stop();
+        levelIdx = i;
+        el.levelSelect.value = String(i);
+        const L = LEVELS[i];
+        // Goal and scoring, never strategy. The player has to be told when the
+        // rules of the level change.
+        const size = L.w + " by " + L.h + ". ";
+        if (L.key) {
+            el.levelDesc.textContent = size + "Find the key, then carry it back to the square you started on.";
+        } else if (L.id === "short") {
+            el.levelDesc.textContent = size + "This one is scored on steps, not on whether you finish.";
+        } else {
+            el.levelDesc.textContent = size + (L.w * L.h) + " squares, one exit, and no map.";
+        }
+        el.practiceBadge.hidden = (mazeSeed === CANON_SEED);
+        buildMaze();
+        // after buildMaze, or these would score the maze we just left
+        levelPar = computePar();
+        levelShortest = shortestRoute();
+        el.hudPar.textContent = levelPar === null ? "-" : levelPar;
+        sizeCanvas();
+        dirty = true;
+        ensureSim();
+        updateBest();
+        hideVerdict();
+        render();
+    }
+
+    el.levelSelect.addEventListener("change", function (e) {
+        mazeSeed = CANON_SEED;
+        loadLevel(parseInt(e.target.value, 10));
+    });
+
+    el.newMaze.addEventListener("click", function () {
+        mazeSeed = (Math.random() * 1e9) | 0;
+        loadLevel(levelIdx);
+    });
+
+    el.run.addEventListener("click", function () {
+        if (playing) stop(); else play();
+    });
+
+    el.step.addEventListener("click", function () {
+        stop();
+        ensureSim();
+        if (playhead >= sim.frames.length - 1) playhead = 0; else playhead++;
+        render();
+    });
+
+    el.reset.addEventListener("click", function () {
+        stop();
+        ensureSim();
+        playhead = 0;
+        hideVerdict();
+        render();
+    });
+
+    el.gauntlet.addEventListener("click", runGauntlet);
+
+    el.heat.addEventListener("click", function () {
+        heatmap = !heatmap;
+        el.heat.setAttribute("aria-pressed", heatmap ? "true" : "false");
+        el.heatLegend.hidden = !heatmap;
+        needsPaint = true;
+    });
+
+    el.speed.addEventListener("input", function () {
+        if (playing) { clearInterval(timer); timer = setInterval(tick, SPEEDS[parseInt(el.speed.value, 10)]); }
+    });
+
+    el.addRule.addEventListener("click", function () {
+        if (rules.length >= MAX_RULES) return;
+        rules.push({ on: true, c1: "always", c2: "", op: "and", act: "move.ahead", act2: "" });
+        changed();
+    });
+
+    el.share.addEventListener("click", function () {
+        const url = location.origin + location.pathname + "#" + encodeProgram();
+        const done = function () {
+            el.share.textContent = "Copied";
+            setTimeout(function () { el.share.textContent = "Copy link"; }, 1400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done, function () { prompt("Copy this link:", url); });
+        } else {
+            prompt("Copy this link:", url);
+        }
+    });
+
+    function stashedProgram() {
+        try { return localStorage.getItem("thread.program.mine"); } catch (e) { return null; }
+    }
+
+    // Tied to the stash, not to the hash. Editing while a link is open writes
+    // that program into the live slot, so on the next visit - no hash, no
+    // banner under the old rule - the program on screen still is not theirs and
+    // the way back had quietly disappeared.
+    function updateSharedNote() {
+        const stashed = stashedProgram();
+        el.sharedNote.hidden = !stashed;
+        el.sharedNoteText.textContent = sharedLink
+            ? "You are looking at a program someone shared. Your own is saved and safe."
+            : "A program you had before opening a shared link is still saved.";
+    }
+
+    el.restoreMine.addEventListener("click", function () {
+        const raw = stashedProgram();
+        if (!raw) return;
+        try {
+            const obj = JSON.parse(raw);
+            if (!obj || !Array.isArray(obj.rules)) return;
+            adoptProgram({ r: obj.rules, f: obj.flags });
+        } catch (e) { return; }
+
+        sharedLink = false;
+        try { localStorage.removeItem("thread.program.mine"); } catch (e) { /* storage off */ }
+        if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+        updateSharedNote();
+        buildFlags();
+        changed();          // writes the restored program back to the live slot
+    });
+
+    // The banner is the only route back to the stash, so a dismiss that merely
+    // hid it would strand that program in storage with nothing on the page able
+    // to reach it - saved forever and gone for good at the same time. Dismissing
+    // therefore has to mean discarding, and has to say so before it does.
+    el.discardMine.addEventListener("click", function () {
+        if (!confirm("This throws away the program you had saved before opening a shared link. " +
+            "It cannot be brought back. Sure?")) return;
+        try { localStorage.removeItem("thread.program.mine"); } catch (e) { /* storage off */ }
+        updateSharedNote();
+    });
+
+    document.querySelectorAll(".preset").forEach(function (b) {
+        b.addEventListener("click", function () {
+            if (b.dataset.preset === "breadcrumbs" &&
+                !confirm("This loads a program that solves every level in the game. Sure?")) return;
+            rules = clone(PRESETS[b.dataset.preset]);
+            changed();
+            playhead = 0;
+            hideVerdict();
+            render();
+        });
+    });
+
+    const instr = document.getElementById("instructions");
+    const instrToggle = document.getElementById("instructions-toggle");
+
+    function toggleInstructions() {
+        instrToggle.setAttribute("aria-expanded", instr.classList.toggle("open") ? "true" : "false");
+    }
+
+    instrToggle.addEventListener("click", toggleInstructions);
+
+    // role="button" is a claim the element has to make good on itself. A real
+    // button answers Enter and Space; a div answers nothing until told to.
+    instrToggle.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleInstructions(); }
+    });
+
+    // Nothing is preloaded into the editor any more, so a first-time visitor
+    // arrives with an inert program and no visible explanation. Open the
+    // instructions for them once; after that the collapsed state is the norm.
+    function isFirstVisit() {
+        try { return localStorage.getItem("thread.program") === null; }
+        catch (e) { return true; }
+    }
+
+    if (isFirstVisit()) toggleInstructions();
+
+    // ---------------------------------------------------------------
+    // layout mode - chosen once, then held. Resizing only ever changes how
+    // big the board is drawn, never which arrangement the page is in.
+    // ---------------------------------------------------------------
+    const SIDE_MIN = 1320;      // below this, side by side leaves no board worth looking at
+    const layoutEl = document.getElementById("threadLayout");
+    const layoutBtn = document.getElementById("layoutBtn");
+    let layoutPref = "stack";
+
+    function applyLayout() {
+        const roomForSide = window.innerWidth >= SIDE_MIN;
+        const mode = (layoutPref === "side" && roomForSide) ? "side" : "stack";
+
+        layoutEl.classList.toggle("mode-side", mode === "side");
+        layoutEl.classList.toggle("mode-stack", mode === "stack");
+
+        layoutBtn.disabled = !roomForSide;
+        layoutBtn.textContent = "Layout: " + (mode === "side" ? "side by side" : "stacked");
+        layoutBtn.title = roomForSide
+            ? "Switch to " + (mode === "side" ? "stacked" : "side by side")
+            : "Window is too narrow for side by side";
+
+        sizeCanvas();
+        if (sim) render();
+    }
+
+    function setLayout(pref) {
+        layoutPref = (pref === "side") ? "side" : "stack";
+        try { localStorage.setItem("thread.layout", layoutPref); } catch (e) { /* storage off */ }
+        applyLayout();
+    }
+
+    function storedLayout() {
+        try {
+            const v = localStorage.getItem("thread.layout");
+            if (v === "side" || v === "stack") return v;
+        } catch (e) { /* storage off */ }
+        return window.innerWidth >= SIDE_MIN ? "side" : "stack";   // first visit only
+    }
+
+    layoutBtn.addEventListener("click", function () {
+        setLayout(layoutPref === "side" ? "stack" : "side");
+    });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(applyLayout, 120);
+    });
+
+    el.undo.addEventListener("click", undo);
+
+    window.addEventListener("keydown", function (e) {
+        const active = document.activeElement || {};
+        const tag = active.tagName || "";
+
+        if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "z") {
+            // inside a text field, let the field undo its own typing
+            if (tag === "INPUT" || tag === "TEXTAREA") return;
+            e.preventDefault();
+            undo();
+            return;
+        }
+
+        // Anything that answers keys itself keeps them. Space used to be taken
+        // from the whole page, and since preventDefault on keydown is what
+        // suppresses a button's own activation, tabbing to Reset and pressing
+        // Space ran the program instead of resetting it. Every button on the
+        // page was dead to the keyboard.
+        if (/^(INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY|A)$/.test(tag)) return;
+        if (active.getAttribute && active.getAttribute("role") === "button") return;
+
+        if (e.key === " ") { e.preventDefault(); if (playing) stop(); else play(); }
+        else if (e.key === "ArrowRight") { e.preventDefault(); el.step.click(); }
+    });
+
+    loadStored();
+    updateSharedNote();
+    buildFlags();
+    renderRules();
+    markSettled();
+    setLayout(storedLayout());
+    loadLevel(startLevel);
+    requestAnimationFrame(paint);
+})();
+</script>
+
+{% endblock %}

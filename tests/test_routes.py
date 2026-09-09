@@ -23,6 +23,7 @@ GET_OK = [
     "/umbra",
     "/tiltconnect4",
     "/kintsugi",
+    "/thread",
     "/dogs",
     "/privacy-policy",
     "/feedback",

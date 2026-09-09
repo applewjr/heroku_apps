@@ -2,3 +2,8 @@
 # Install locally with:  pip install -r requirements-dev.txt
 pytest==8.3.4
 pytest-cov==7.1.0
+# Parses the inline JS in templates/thread.html - there is no JS toolchain here,
+# so tests/test_thread_static.py stands in for a linter. Those tests skip if it
+# is missing. Note it only understands up to ES2017, so no ?. or ?? in code it
+# is pointed at.
+esprima==4.0.1
