@@ -1,11 +1,10 @@
 """Tests for the alerting and health-check machinery.
 
-Nothing here may touch real MySQL, Redis or SMTP. The write-behind drain
-thread is kept from starting by patching _ensure_drain, so queued rows can be
-inspected directly instead of being written somewhere.
+Nothing here may touch real MySQL, Redis or SMTP. conftest's autouse
+no_write_behind fixture keeps the drain thread from starting, so queued rows
+can be inspected directly instead of being written somewhere.
 """
 
-import queue
 from contextlib import contextmanager
 
 import pytest
@@ -230,10 +229,13 @@ class _RecordingConn:
 
 
 @pytest.fixture
-def quiet_queue(monkeypatch):
-    """Keep the drain thread from starting, and hand back an empty queue."""
-    monkeypatch.setattr(extensions, "_ensure_drain", lambda: None)
-    monkeypatch.setattr(extensions, "_log_queue", queue.Queue(maxsize=extensions._LOG_QUEUE_MAX))
+def quiet_queue():
+    """The empty queue conftest's autouse no_write_behind fixture installed.
+
+    That fixture is what actually keeps the drain thread from starting, for
+    every test in the suite. This is just a readable handle on the queue for
+    the tests that assert on what was enqueued.
+    """
     return extensions._log_queue
 
 
@@ -407,3 +409,149 @@ def test_unreferred_404_is_not_logged(client, quiet_queue):
     # a 1 GB database with nothing pruning it.
     assert client.get("/no-such-page").status_code == 404
     assert quiet_queue.qsize() == 0
+
+
+##### failure reporting must never become the failure #####
+
+def test_enqueue_never_raises_when_the_thread_cannot_start(quiet_queue, monkeypatch, capsys):
+    # app.py's 500 handler calls this. Thread.start() raises when the process
+    # cannot create a thread, which is exactly when a 500 is being served.
+    def boom():
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(extensions, "_ensure_drain", boom)
+    alerts.reset_throttle()
+    extensions.enqueue_write("INSERT INTO t VALUES (%s)", ("a",))
+    assert "JJ_ALERT check=log_enqueue_failed" in capsys.readouterr().out
+
+
+def test_500_page_still_renders_when_reporting_fails(flask_app, monkeypatch):
+    # The visitor must get the branded error page even if logging the 500 and
+    # alerting on it both fall over.
+    import app as app_module
+
+    def explode(*a, **k):
+        raise RuntimeError("reporting is broken too")
+
+    monkeypatch.setattr(app_module, "log_page_visit", explode)
+    with flask_app.test_request_context("/boom"):
+        body, status = app_module.handle_exception(RuntimeError("original failure"))
+    assert status == 500
+    assert "500 - Error" in body
+
+
+def test_flush_gives_up_at_the_deadline_before_draining(quiet_queue, monkeypatch):
+    # _drain_batch can block on connect(), so an expired budget has to be
+    # noticed before the batch, not only after it - a dyno restart waits here.
+    def explode(batch):
+        raise AssertionError("must not start a batch past the deadline")
+
+    monkeypatch.setattr(extensions, "_drain_batch", explode)
+    quiet_queue.put_nowait(("INSERT A", (1,)))
+    assert extensions.flush_log_queue(timeout=-1) is False
+    # ...and the row it declined to write is still queued, not swallowed.
+    assert quiet_queue.qsize() == 1
+
+
+def test_empty_queue_flushes_clean_even_past_the_deadline(quiet_queue):
+    assert extensions.flush_log_queue(timeout=-1) is True
+
+
+##### the connection pool #####
+
+def test_failed_pool_build_is_not_retried_on_every_request(monkeypatch):
+    # Retries serialise on one lock, so without a cooldown eight threads each
+    # wait their turn at a 5s connect and the last one blows past Heroku's
+    # 30s router limit.
+    attempts = []
+
+    def boom(**kwargs):
+        attempts.append(1)
+        raise RuntimeError("JawsDB unreachable")
+
+    monkeypatch.setattr(extensions.mysql.connector.pooling,
+                        "MySQLConnectionPool", boom)
+    monkeypatch.setattr(extensions.config, "MYSQL_POOL_CONFIG", {}, raising=False)
+    monkeypatch.setattr(extensions, "_cnxpool", None)
+    monkeypatch.setattr(extensions, "_cnxpool_failed_at", None)
+    alerts.reset_throttle()
+
+    with pytest.raises(RuntimeError):
+        extensions._get_pool()
+    for _ in range(5):
+        with pytest.raises(extensions.mysql.connector.PoolError):
+            extensions._get_pool()
+
+    assert attempts == [1]
+
+
+def test_pool_retries_once_the_cooldown_has_passed(monkeypatch):
+    # A blip has to self-heal; the cooldown delays the retry, it does not
+    # cancel it.
+    attempts = []
+
+    def boom(**kwargs):
+        attempts.append(1)
+        raise RuntimeError("JawsDB unreachable")
+
+    monkeypatch.setattr(extensions.mysql.connector.pooling,
+                        "MySQLConnectionPool", boom)
+    monkeypatch.setattr(extensions.config, "MYSQL_POOL_CONFIG", {}, raising=False)
+    monkeypatch.setattr(extensions, "_cnxpool", None)
+    monkeypatch.setattr(extensions, "_cnxpool_failed_at", None)
+    monkeypatch.setattr(extensions, "_POOL_RETRY_SECONDS", 0)
+    alerts.reset_throttle()
+
+    for _ in range(3):
+        with pytest.raises(RuntimeError):
+            extensions._get_pool()
+
+    assert len(attempts) == 3
+
+
+##### one bad check must not silence the rest #####
+
+class _StubCursor:
+    def execute(self, sql, *a, **k):
+        pass
+
+    def fetchone(self):
+        return (1,)
+
+    def fetchall(self):
+        return []
+
+    def close(self):
+        pass
+
+
+class _StubConn:
+    def cursor(self):
+        return _StubCursor()
+
+    def close(self):
+        pass
+
+
+def test_a_malformed_check_costs_one_check_not_the_run(capsys):
+    # spec['sql'] / spec['threshold'] read outside the per-check try would let
+    # a KeyError escape the loop, and every later check would never run.
+    import monitoring.run_checks as rc
+
+    original = rc.mysql.connector.connect
+    rc.mysql.connector.connect = lambda **kw: _StubConn()
+    try:
+        results = rc.Results()
+        rc.run_sql_checks(results, {
+            'no_sql_key': {'threshold': 1},
+            'healthy': {'sql': 'SELECT 1', 'threshold': 0},
+            'no_threshold_key': {'sql': 'SELECT 1'},
+        }, 12)
+    finally:
+        rc.mysql.connector.connect = original
+
+    assert results.passed == 1
+    assert results.failed == 2
+    out = capsys.readouterr().out
+    assert "check=no_sql_key" in out
+    assert "check=no_threshold_key" in out

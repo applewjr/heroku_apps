@@ -135,39 +135,46 @@ def run_sql_checks(results, checks, hour_pst):
                              note='size checks may report cached values')
 
             for name, spec in checks.items():
-                if not in_active_window(spec, hour_pst):
-                    results.skip(name, 'outside PST window {}'.format(spec['only_between_pst']))
-                    continue
-                sql = spec['sql'].strip()
-                if not sql.upper().startswith('SELECT'):
-                    # Structural, not a matter of care: a monitoring run must
-                    # never be able to modify the database it is inspecting,
-                    # whatever a future edit to the YAML says.
-                    results.fail(name, sev='crit', note='check SQL must be a SELECT')
-                    continue
+                # One malformed entry must cost one check, not the whole run.
+                # Reading spec['sql'] or spec['threshold'] outside this try
+                # would let a KeyError escape the loop, and every check after
+                # it in the file would silently never run.
                 try:
+                    if not in_active_window(spec, hour_pst):
+                        results.skip(name, 'outside PST window {}'.format(
+                            spec['only_between_pst']))
+                        continue
+                    sql = spec['sql'].strip()
+                    if not sql.upper().startswith('SELECT'):
+                        # Structural, not a matter of care: a monitoring run
+                        # must never be able to modify the database it is
+                        # inspecting, whatever a future edit to the YAML says.
+                        results.fail(name, sev='crit',
+                                     note='check SQL must be a SELECT')
+                        continue
+
                     cursor.execute(sql)
                     row = cursor.fetchone()
                     # Drain anything left over, or the next execute is illegal.
                     cursor.fetchall()
+
+                    value = row[0] if row else None
+                    passed, reason = evaluate(spec, value)
+                    if passed:
+                        results.ok(name)
+                    else:
+                        results.fail(
+                            name,
+                            sev=spec.get('sev', 'warn'),
+                            actual=value,
+                            compare=spec.get('compare', '>='),
+                            threshold=spec['threshold'],
+                            note=spec.get('description') or reason,
+                        )
                 except Exception as e:
                     results.fail(name, sev='crit', exc=type(e).__name__, msg=e,
-                                 note='check query failed')
+                                 note='check failed')
                     continue
-
-                value = row[0] if row else None
-                passed, reason = evaluate(spec, value)
-                if passed:
-                    results.ok(name)
-                else:
-                    results.fail(
-                        name,
-                        sev=spec.get('sev', 'warn'),
-                        actual=value,
-                        compare=spec.get('compare', '>='),
-                        threshold=spec['threshold'],
-                        note=spec.get('description') or reason,
-                    )
         finally:
             cursor.close()
     finally:

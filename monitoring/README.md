@@ -94,6 +94,13 @@ staging dyno up automatically, which is why step 11 exists to put it back.
 | `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. |
 | `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. |
 
+Three alerts come out of the write-behind path itself, none of them in the
+YAML: `log_drain_failed` (a batch could not be written), `log_queue_full` (the
+database has been unreachable long enough to back up 2000 rows, so rows are
+being dropped) and `log_enqueue_failed` (the queue could not even be reached -
+in practice, the drain thread could not be started). All three are throttled
+to one every 15 minutes.
+
 `log_page_visit` had exactly one call site left (`routes/blossom.py`), so
 `vw_prod_errors` and `vw_prod_blossom_errors` matched zero rows - the "Blossom
 Errors" panel on `/etl_dash` was reading clean because nothing wrote to it.
@@ -115,6 +122,12 @@ existed already on `/blossom`:
   `MySQLConnectionPool`'s constructor eagerly opens connections, so building
   it at import meant a JawsDB outage during a dyno boot took the entire app
   down. `restart-dyno.yml` restarts twice daily, so that window was real.
+  A failed build is remembered for `_POOL_RETRY_SECONDS` (20). Without that,
+  every request during an outage retries the whole build, and because those
+  retries serialise on one lock the eighth waiting thread sits eight
+  `connection_timeout`s deep - past Heroku's 30s router limit. With it, a
+  database page fails in about five seconds instead of queueing, and a blip
+  still self-heals on the next window.
 
 **`extensions.py` also moves visit and click logging off the request path.**
 It used to be an INSERT, an explicit COMMIT, and a session reset - roughly

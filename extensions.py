@@ -75,19 +75,48 @@ def custom_error():
 _cnxpool = None
 _cnxpool_lock = threading.Lock()
 
+# How long a failed build suppresses the next attempt. Without it, every
+# request during an outage retries the whole build, and because the retries
+# serialise on the lock the eighth waiting thread is eight connection_timeouts
+# behind - past Heroku's 30s router limit. One attempt per window instead, so
+# a database page fails in ~5s rather than queueing, and a blip still
+# self-heals within the window.
+_POOL_RETRY_SECONDS = 20
+_cnxpool_failed_at = None
+
 
 def _get_pool():
-    global _cnxpool
+    """Return the connection pool, building it on first use.
+
+    Built here rather than at import because MySQLConnectionPool's constructor
+    eagerly opens pool_size connections: building it at import meant a JawsDB
+    outage during a dyno boot took the whole app down rather than just the
+    database-backed pages.
+    """
+    global _cnxpool, _cnxpool_failed_at
     pool = _cnxpool
     if pool is not None:
         return pool
+
+    # Checked before the lock as well as inside it, so during an outage the
+    # waiting threads fail fast instead of each taking a turn at a 5s connect.
+    failed_at = _cnxpool_failed_at
+    if failed_at is not None and (time.monotonic() - failed_at) < _POOL_RETRY_SECONDS:
+        raise mysql.connector.PoolError("connection pool unavailable; retry pending")
+
     with _cnxpool_lock:
-        if _cnxpool is None:
-            try:
-                _cnxpool = mysql.connector.pooling.MySQLConnectionPool(**config.MYSQL_POOL_CONFIG)
-            except Exception as e:
-                alerts.alert_throttled('db_pool_init', sev='crit', exc=type(e).__name__, msg=e)
-                raise
+        if _cnxpool is not None:
+            return _cnxpool
+        if (_cnxpool_failed_at is not None
+                and (time.monotonic() - _cnxpool_failed_at) < _POOL_RETRY_SECONDS):
+            raise mysql.connector.PoolError("connection pool unavailable; retry pending")
+        try:
+            _cnxpool = mysql.connector.pooling.MySQLConnectionPool(**config.MYSQL_POOL_CONFIG)
+        except Exception as e:
+            _cnxpool_failed_at = time.monotonic()
+            alerts.alert_throttled('db_pool_init', sev='crit', exc=type(e).__name__, msg=e)
+            raise
+        _cnxpool_failed_at = None
         return _cnxpool
 
 
@@ -181,8 +210,13 @@ def _drain_batch(batch):
                     except Exception:
                         pass
                 if written == 0:
-                    raise  # not one bad row: the connection or table is gone
-        conn.commit()
+                    # not one bad row: the connection or table is gone
+                    raise
+            # Committed per group rather than once at the end. The Heroku pool
+            # sets autocommit, so a later group raising costs nothing there -
+            # but the local config does not, and losing an already-written
+            # group to an unrelated statement failure would be surprising.
+            conn.commit()
 
 
 def _drain_loop():
@@ -219,15 +253,22 @@ def _ensure_drain():
 
 
 def enqueue_write(sql, params):
-    """Queue one best-effort row. Never blocks, never raises."""
-    _ensure_drain()
+    """Queue one best-effort row. Never blocks, never raises.
+
+    Callers include app.py's 500 handler, so this has to hold even when the
+    process is in trouble: Thread.start() raises if no thread can be created,
+    and that is exactly the moment a 500 is being served.
+    """
     try:
+        _ensure_drain()
         _log_queue.put_nowait((sql, params))
     except queue.Full:
         # The database has been unreachable long enough to back up 2000 rows.
         # Dropping is the right call, but say so - silent data loss is worse
         # than loud data loss.
         alerts.alert_throttled('log_queue_full', queued=_LOG_QUEUE_MAX)
+    except Exception as e:
+        alerts.alert_throttled('log_enqueue_failed', exc=type(e).__name__, msg=e)
 
 
 def flush_log_queue(timeout=3.0):
@@ -238,6 +279,14 @@ def flush_log_queue(timeout=3.0):
     """
     deadline = time.monotonic() + timeout
     while True:
+        # Checked before pulling a batch, not after writing one. _drain_batch
+        # can block on connect() for connection_timeout seconds, so testing
+        # only afterwards lets a shutdown overshoot the budget by a whole
+        # attempt - and Heroku allows 30s after SIGTERM, with restart-dyno.yml
+        # firing twice a day. Checking first also means a batch is never
+        # pulled off the queue and then abandoned unwritten.
+        if time.monotonic() >= deadline:
+            return _log_queue.empty()
         batch = []
         while len(batch) < _LOG_BATCH_MAX:
             try:
@@ -250,8 +299,6 @@ def flush_log_queue(timeout=3.0):
             _drain_batch(batch)
         except Exception:
             return False
-        if time.monotonic() >= deadline:
-            return _log_queue.empty()
 
 
 # A dyno restart (twice daily via restart-dyno.yml, plus Heroku's own cycling)

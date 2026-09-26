@@ -15,9 +15,12 @@ if IS_HEROKU:
         "host": os.environ.get('jawsdb_host'),
         # Fail fast rather than hang. Without this, a JawsDB outage that drops
         # packets (as opposed to refusing connections) blocks on TCP connect
-        # for the OS default of ~2 minutes. With 8 gunicorn threads all stuck
-        # there and --timeout 60, the worker is killed and the whole site stops
-        # serving - including pages that need no database at all.
+        # for the OS default of ~2 minutes. With only 8 gunicorn threads, every
+        # one of them parked there means requests queue behind a pool that is
+        # never going to answer, and they age out at Heroku's 30s router limit
+        # as H12s - including pages that need no database at all.
+        # extensions._POOL_RETRY_SECONDS is the other half of this: it stops
+        # each request paying the 5s again once the pool is known to be down.
         "connection_timeout": 5,
         "pool_name": "mypool",
         # 5 covers the 8-thread worker's realistic concurrency while keeping

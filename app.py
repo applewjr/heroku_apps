@@ -104,13 +104,19 @@ def handle_exception(e):
     if isinstance(e, HTTPException):
         return render_template('error.html', return_type=f'{e.code} - {e.name}'), e.code
     app.logger.exception("Unhandled exception: %s", e)
-    log_page_visit(f'error.html (500: {e})')
-    # Papertrail's existing rule needs five 500s in ten minutes; this reports
-    # the first one. Throttled so a scanner walking a broken route sends one
-    # email rather than a hundred.
-    alerts.alert_throttled(
-        'http_500', sev='crit', path=request.path, exc=type(e).__name__, msg=e
-    )
+    # Reporting the 500 must never cost the visitor the branded error page.
+    # This handler runs when things are already going wrong, which is exactly
+    # when starting the drain thread or reaching Papertrail might also fail.
+    try:
+        log_page_visit(f'error.html (500: {e})')
+        # Papertrail's existing rule needs five 500s in ten minutes; this
+        # reports the first one. Throttled so a scanner walking a broken route
+        # sends one email rather than a hundred.
+        alerts.alert_throttled(
+            'http_500', sev='crit', path=request.path, exc=type(e).__name__, msg=e
+        )
+    except Exception:
+        app.logger.exception("Failed to report a 500")
     return render_template('error.html', return_type='500 - Error'), 500
 
 
