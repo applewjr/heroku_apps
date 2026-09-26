@@ -254,28 +254,77 @@ failure in its second half still produces the first.
 Re-point each command through the wrapper; the scripts themselves are
 untouched.
 
-| Before | After |
+Every entry already carries a `timeout 600` prefix. **Keep it, but change the
+signal to `INT` and add a `-k` kill-after** - see below for why. The edit to
+each job is: insert `-s INT -k 60` after `timeout`, and `-m monitoring.run_job`
+after `python`.
+
+Commands are entered unquoted in the Scheduler UI - it takes the whole field
+as the command, so there is no flag-parsing ambiguity to protect against. (The
+`heroku run` CLI is different; quote the command there.)
+
+| Job | Command |
 |---|---|
-| `python scheduled_tasks_youtube/youtube_trending_v2.py` | `python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_v2.py` |
-| `python scheduled_tasks_youtube/youtube_trending_revamp_v3.py` | `python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_revamp_v3.py` |
-| `python scheduled_tasks_youtube/youtube_backup_v2.py` | `python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_v2.py` |
-| `python scheduled_tasks_youtube/youtube_backup_revamp_v3.py` | `python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_revamp_v3.py` |
-| `python scheduled_tasks_redis/redis_wordle.py` | `python -m monitoring.run_job scheduled_tasks_redis/redis_wordle.py` |
-| `python scheduled_tasks_espresso/espresso_data_import.py` | `python -m monitoring.run_job scheduled_tasks_espresso/espresso_data_import.py` |
-| `python scheduled_tasks_mtg/mtg_prices_bsky.py` | `python -m monitoring.run_job scheduled_tasks_mtg/mtg_prices_bsky.py` |
+| youtube_trending_v2 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_v2.py` |
+| youtube_trending_revamp_v3 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_revamp_v3.py` |
+| youtube_backup_v2 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_v2.py` |
+| youtube_backup_revamp_v3 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_revamp_v3.py` |
+| redis_wordle | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_redis/redis_wordle.py` |
+| espresso_data_import | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_espresso/espresso_data_import.py` |
+| mtg_prices_bsky | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_mtg/mtg_prices_bsky.py` |
 
 `mtg_prices.py` is deliberately absent - it is the Twitter-era predecessor of
 `mtg_prices_bsky.py`. Wrap it too if it is still scheduled.
+
+#### Why `-s INT` and not plain `timeout`
+
+Plain `timeout` sends **SIGTERM**, which Python does not turn into an
+exception - the interpreter dies where it stands. `run_job` never reaches its
+handler, so a job that hangs is killed *silently*, which is precisely the
+failure mode the wrapper exists to eliminate. You would trade a hung dyno for
+an invisible one.
+
+`-s INT` sends **SIGINT**, which arrives as `KeyboardInterrupt`. `run_job`
+catches `BaseException` specifically so that counts as a failure, so you get a
+`sev=crit` alert naming the job and a traceback, then exit 1.
+
+#### Why `-k 60` as well
+
+`SIGINT` is not guaranteed to land. `youtube_trending_v2.py` and
+`youtube_trending_revamp_v3.py` each contain **seven bare `except:` clauses**,
+and a bare `except:` catches `BaseException` - `KeyboardInterrupt` included.
+A SIGINT arriving inside one of those blocks is swallowed and the script
+carries on, past the timeout, holding its database connection.
+
+`-k 60` follows up with an unblockable `SIGKILL` sixty seconds later. So the
+ordering is: SIGINT first, giving `run_job` a chance to report what happened;
+SIGKILL as the guarantee that the dyno actually ends.
+
+#### Why the timeout matters more than it looks
+
+The cost of a hung job is not just dyno-seconds. Every one of these scripts
+opens a JawsDB connection, and a process killed mid-query never runs its
+`finally`. The plan caps you at **15 concurrent connections**, shared with the
+web dynos' pool of 5. Enough stacked hangs and the *website* stops being able
+to reach the database. Bounding the job bounds the blast radius.
+
+600s is comfortable for these: they are daily, so even a full-length timeout
+cannot overlap the next run.
 
 ### 3. Heroku Scheduler - add the health check
 
 | Command | Frequency |
 |---|---|
-| `python -m monitoring.run_checks` | Hourly |
+| `timeout 600 python -m monitoring.run_checks` | Hourly |
 
-Cost: a lean run is ~10s of work plus ~10s of dyno provisioning, so about
-4 dyno-hours a month (720 runs x 20s). Pennies on Basic; free out of the Eco
-pool.
+Plain `timeout` is right here, unlike the wrapped jobs above: there is no
+`run_job` to report the kill, and none is needed. A timed-out run simply never
+emits its `JJ_PULSE`, and the 90-minute inactivity alert picks that up on its
+own. The guard degrades into an alarm you have already built.
+
+Cost, measured on 2026-09-26: **157 ms of work, 1.4 s of dyno lifecycle**
+start to finish. The earlier "~20 s per run" estimate here was about 15x
+conservative; at 720 runs a month this is well under an hour of dyno time.
 
 This is the only job to schedule.
 
@@ -286,8 +335,12 @@ entry you may sit for up to 60 minutes with no pulse and no way to tell "not
 yet" from "broken." Force one instead:
 
 ```bash
-heroku run python -m monitoring.run_checks -a apple-apps
+heroku run "timeout 600 python -m monitoring.run_checks" -a apple-apps
 ```
+
+Quote the command here. Unlike the Scheduler UI, the CLI has to decide for
+itself whether `-m` belongs to it or to the command, and `-a` genuinely is
+its own flag. Quoting removes the guesswork.
 
 That prints the same `ok`/`skip` lines and closing `JJ_PULSE` a scheduled run
 would, through the same log drain, so it satisfies step 7 in seconds. It is
@@ -296,9 +349,12 @@ touches Redis only through `ping()` and `xlen()` - so it is safe to run
 against prod as often as you like.
 
 Expect `12 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
-outside its 09:00 PST window. `blossom_errors_today` and `smush_idle` will
-pass trivially at first - nothing has written those rows yet - and only become
-meaningful once traffic accumulates.
+outside its 09:00 PST window.
+
+Two caveats about what a green run does *not* prove. `blossom_errors_today`
+passes trivially until error rows accumulate, and `smush_idle` returns a
+passing `0` because its busy-hour gate never opens - it is not monitoring
+anything. See the measured notes in `datasets/health_checks.yaml`.
 
 #### What actually gets checked
 
