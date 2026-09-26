@@ -25,40 +25,50 @@ monitored dying. Everything else can only report problems it is alive to see.
 Tick list. Row numbers are the order to work in; the linked section numbers
 are just labels and do not match. Deploying alone changes nothing you can see:
 the app starts emitting alert lines at step 3, but nothing reaches your inbox
-until step 4, and no checks run until step 5.
+until step 5, and no checks run until step 6.
 
 | # | Step | Where | Detail |
 |---|---|---|---|
 | 1 | Review and merge the branch | git | - |
-| 2 | Deploy to **staging**, smoke test | Actions -> Deploy -> `staging` | [1. Deploy](#1-deploy) |
-| 3 | Deploy to **prod**, verify | Actions -> Deploy -> `prod` | [1. Deploy](#1-deploy) |
-| 4 | Create the **`JJ_ALERT`** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
-| 5 | Add **`run_checks`** hourly | Heroku Scheduler | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
-| 6 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
-| 7 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
-| 8 | Re-point the 7 existing jobs through `run_job` | Heroku Scheduler | [2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
-| 9 | Update the dashboard views | Workbench | [7. Dashboard views](#7-dashboard-views) |
-| 10 | Test the dead-man's switch | Heroku Scheduler | [8. Test the dead-man's switch](#8-test-the-dead-mans-switch) |
-| 11 | Scale staging back to 0 | Actions -> Stop staging | - |
+| 2 | Deploy to **staging**, run the smoke test | Actions -> Deploy -> `staging` | [1. Deploy](#1-deploy) |
+| 3 | Deploy to **prod**, run the same smoke test | Actions -> Deploy -> `prod` | [1. Deploy](#1-deploy) |
+| 4 | Scale staging back to 0 | Actions -> Stop staging | [1. Deploy](#1-deploy) |
+| 5 | Create the **`JJ_ALERT`** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
+| 6 | Add **`run_checks`** hourly | Heroku Scheduler | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
+| 7 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
+| 8 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
+| 9 | Re-point the existing jobs through `run_job` | Heroku Scheduler | [2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
+| 10 | Update the dashboard views | Workbench | [7. Dashboard views](#7-dashboard-views) |
+| 11 | Test the dead-man's switch | Heroku Scheduler | [8. Test the dead-man's switch](#8-test-the-dead-mans-switch) |
 
 ### Why that order
 
-**Steps 4 to 7 are the one sequence that matters.** Create the `JJ_ALERT`
+**Steps 5 to 8 are the one sequence that matters.** Create the `JJ_ALERT`
 alert early - from step 3 the app is already emitting `http_500` and
 `feedback_new` alerts, so you want something listening. But
-create the **`JJ_PULSE` inactivity alert last**, and only after step 6
+create the **`JJ_PULSE` inactivity alert last**, and only after step 7
 confirms pulses are actually flowing. It fires when no pulse has been seen for
 90 minutes, so setting it up before anything emits one means it fires
 immediately, on a healthy system.
 
-**Step 8 can trail.** Wrapping the scheduled jobs is independent of everything
+**Step 9 can trail.** Wrapping the scheduled jobs is independent of everything
 else, and the jobs keep working unwrapped - just silently, as they do today.
-You can wrap one, watch it overnight, then do the rest.
+Wrap one, watch it overnight, then do the rest - the table in
+[2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) is a menu,
+not a single action.
 
 **Two things about staging** (step 2): it shares the JawsDB with prod, so a
 smoke test writes real rows to `app_visits` and `blossom_solver_clicks` -
 harmless log rows, but they are real. And the deploy workflow scales the
-staging dyno up automatically, which is why step 11 exists to put it back.
+staging dyno up automatically, which is why step 4 exists to put it back.
+
+**Take staging down at step 4, not at the end.** Its only job is the step-2
+smoke test, and step 9 explicitly invites you to spread the remaining work
+over days. Left running, a second app holds a second connection pool against
+the 15-connection JawsDB cap, burns dyno hours, and - if staging drains to the
+same Papertrail - mixes its alerts into yours during the exact window you are
+learning what normal traffic looks like. `stop-staging.yml` is a standalone
+manual dispatch, so it can run the moment prod is verified.
 
 ### Not on the list, deliberately
 
@@ -184,6 +194,51 @@ required - every new setting has a default. After deploying, the app is
 already safer (the hardening above) and already emitting `http_500` and
 `feedback_new` alerts, but nothing is listening yet.
 
+#### The smoke test - run it on staging, then again on prod
+
+Worth doing properly rather than glancing at the homepage. The test suite
+mocks the database, so **no code in this branch has ever written a row to real
+MySQL.** This is what proves the write-behind path works, and it is the one
+thing that cannot be checked any earlier.
+
+Staging shares prod's JawsDB, so the staging run is a genuine test - and its
+rows are real rows.
+
+Load `/blossom` (GET), type into the solver once (POST), then load `/smush`.
+Wait about five seconds for the drain, then:
+
+```sql
+SELECT submit_time, page_name, LEFT(referrer, 40)
+FROM app_visits ORDER BY id DESC LIMIT 10;
+
+SELECT click_time, must_have, may_have, list_len
+FROM blossom_solver_clicks ORDER BY id DESC LIMIT 5;
+```
+
+Four things to confirm, each a distinct failure mode:
+
+1. **Rows arrive at all.** Proves the drain thread starts and `executemany`
+   works against the real table. Nothing in CI covers this.
+2. **Timestamps are current PST wall-clock, not UTC.** This is the one that
+   would hurt. Logging moved from `CONVERT_TZ(NOW(), ...)` to Python-side
+   `pst_now_str()`; an off-by-seven-hours here silently corrupts
+   `vw_prod_blossom_hourly_average` and both idle checks, and nothing else
+   would tell you.
+3. **`page_name` shows `smush.html`.** Proves the new GET-branch logging in
+   `routes/wordgames.py` fires.
+4. **Referred 404s log and unreferred ones do not:**
+
+   ```bash
+   curl -sS -o /dev/null -H 'Referer: https://example.com/x' <host>/nope-not-a-page
+   curl -sS -o /dev/null                                     <host>/nope-not-a-page
+   ```
+
+   Exactly one new `error.html (404: nope-not-a-page)` row should appear.
+
+Then confirm the site itself is healthy - `/`, `/blossom`, `/wordle_revamp`
+and `/etl_dash` all render. A database-backed page failing while `/` still
+serves is the signature of a pool problem rather than a deploy problem.
+
 ### 2. Heroku Scheduler - wrap the existing jobs
 
 The four YouTube scripts and `espresso_data_import.py` send their success
@@ -223,6 +278,27 @@ Cost: a lean run is ~10s of work plus ~10s of dyno provisioning, so about
 pool.
 
 This is the only job to schedule.
+
+#### Do not wait an hour to confirm it works
+
+Heroku Scheduler picks its own offset within the hour, so after adding the
+entry you may sit for up to 60 minutes with no pulse and no way to tell "not
+yet" from "broken." Force one instead:
+
+```bash
+heroku run python -m monitoring.run_checks -a apple-apps
+```
+
+That prints the same `ok`/`skip` lines and closing `JJ_PULSE` a scheduled run
+would, through the same log drain, so it satisfies step 7 in seconds. It is
+read-only - the runner refuses any check SQL that is not a `SELECT`, and
+touches Redis only through `ping()` and `xlen()` - so it is safe to run
+against prod as often as you like.
+
+Expect `12 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
+outside its 09:00 PST window. `blossom_errors_today` and `smush_idle` will
+pass trivially at first - nothing has written those rows yet - and only become
+meaningful once traffic accumulates.
 
 #### What actually gets checked
 
@@ -484,8 +560,13 @@ Rows only start arriving after the prod deploy, so there is no hurry.
 
 ### 8. Test the dead-man's switch
 
-Disable the `run_checks` Scheduler entry for ~2 hours and confirm the
-inactivity alert emails you.
+Disable the `run_checks` Scheduler entry, wait for the email, then **re-enable
+it.** Budget about two hours: the alert fires at 90 minutes of silence.
+
+Re-enabling is the step to not forget - leaving it off leaves you with no
+monitoring at all. It is self-correcting if you do forget, because the
+inactivity alert keeps firing until pulses resume, but that is a worse way to
+find out.
 
 **Why that works:** `run_checks` prints `JJ_PULSE source=checks` at the end of
 every hourly run. Papertrail's alert fires when that search matches *nothing*
@@ -515,7 +596,7 @@ separately and neither of which is the code.
 |---|---|
 | All code | `git checkout` the branch. No schema changes, no new dependencies, no required config vars. |
 | The view edits | Re-run the previous `CREATE OR REPLACE VIEW` text. Views hold no data. |
-| The indexes (applied 2026-09-23) | The three `DROP INDEX` statements in step 6. |
+| The indexes (applied 2026-09-23) | The three `DROP INDEX` statements in [6. Indexes](#6-indexes---done-2026-09-23). |
 | Extra `app_visits` rows | `DELETE FROM app_visits WHERE page_name IN ('smush.html', 'quordle.html', ...)`. Additive data only. |
 | Scheduler changes | Point the commands back at the bare scripts. |
 | Papertrail alerts | Delete the saved searches. |
