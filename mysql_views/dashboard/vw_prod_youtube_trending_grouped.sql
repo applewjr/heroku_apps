@@ -6,6 +6,6 @@ SELECT
 ,count(1) cnt
 FROM youtube_trending_revamp
 GROUP BY collected_date
-ORDER BY collected_dt DESC
+ORDER BY collected_date DESC
 LIMIT 10
 ;

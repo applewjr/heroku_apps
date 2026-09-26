@@ -1,0 +1,208 @@
+# Health checks, run hourly from a one-off dyno by monitoring/run_checks.py.
+#
+# Each entry runs its SQL, takes the first column of the first row as the
+# measured value, and compares it against `threshold` using `compare`. A breach
+# prints one JJ_ALERT line, which Papertrail turns into an email.
+#
+# SQL lives here rather than in mysql_views/ on purpose: a check then deploys
+# atomically with the code, with no manual DDL step to forget. The dashboard
+# views are different - humans run those in Workbench too.
+#
+# Keys:
+#   sql               required. Returns one row; the first column is the value.
+#   threshold         required. Compared against that value.
+#   compare           one of ">=", "<=", ">", "<", "==", "!=" (default ">=")
+#   sev               crit, warn or info (default warn)
+#   only_between_pst  [start, end] inclusive PST hours; skipped outside them
+#   description       why the check exists; included in the alert
+
+
+##### daily ETL loads #####
+
+# The scheduler runs these at 12am PST. Checking from 2am leaves the job time
+# to land, and re-checking every hour after that means a late failure is still
+# caught rather than missed by a single daily probe.
+
+youtube_trending_today:
+    sev: crit
+    description: "Daily youtube_trending load, scheduler 12am PST"
+    compare: ">="
+    threshold: 45
+    only_between_pst: [2, 23]
+    sql: |
+        SELECT COUNT(*)
+        FROM youtube_trending
+        WHERE collected_date = DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));
+
+youtube_grouped_today:
+    sev: crit
+    description: "Daily youtube_trending_revamp load, scheduler 12am PST"
+    compare: ">="
+    threshold: 125
+    only_between_pst: [2, 23]
+    sql: |
+        SELECT COUNT(*)
+        FROM youtube_trending_revamp
+        WHERE collected_date = DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));
+
+
+##### traffic gone quiet #####
+
+# Hour-of-day aware. A fixed "no usage in N hours" threshold would either cry
+# wolf at 4am or sleep through a lunchtime outage, and an alert that fires
+# overnight for normal reasons is one you learn to ignore.
+#
+# Each returns 0 - a pass - when the current hour is not normally busy, so the
+# check only speaks up when silence is genuinely surprising. That also means it
+# stays inert until 28 days of history exist, then switches itself on.
+#
+# The synthetic probe (must_have 'a', may_have 'qwerty') is excluded the same
+# way vw_prod_blossom.sql excludes it: counting it would let a robot mask a
+# real outage.
+#
+# Indexed as of 2026-09-24: app_visits on (submit_time) and on
+# (page_name, submit_time), blossom_solver_clicks on (click_time). The 28-day
+# baselines below use those.
+#
+# smush_idle finds its newest row with MAX() through the composite index - a
+# single seek, instant even while no smush rows exist yet. blossom_idle
+# instead walks the primary key backwards, because its probe exclusion filters
+# on must_have/may_have, which no index covers; MAX(click_time) there would
+# have to scan and check each row against that filter.
+
+blossom_idle:
+    sev: warn
+    description: "Blossom solver silent during a normally-busy hour"
+    compare: "<="
+    threshold: 60
+    sql: |
+        SELECT CASE
+                 WHEN COALESCE(hourly_avg, 0) < 5 THEN 0
+                 ELSE COALESCE(mins_since, 99999)
+               END AS idle_minutes
+        FROM (
+            SELECT
+                (SELECT COUNT(*) / 28
+                   FROM blossom_solver_clicks
+                  WHERE HOUR(click_time) = HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
+                    AND click_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 28 DAY
+                    AND NOT (must_have = 'a' AND may_have = 'qwerty')) AS hourly_avg,
+                TIMESTAMPDIFF(MINUTE,
+                    (SELECT click_time
+                       FROM blossom_solver_clicks
+                      WHERE NOT (must_have = 'a' AND may_have = 'qwerty')
+                      ORDER BY id DESC LIMIT 1),
+                    CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS mins_since
+        ) AS m;
+
+smush_idle:
+    sev: warn
+    description: "Smush page silent during a normally-busy hour"
+    compare: "<="
+    threshold: 180
+    sql: |
+        SELECT CASE
+                 WHEN COALESCE(hourly_avg, 0) < 3 THEN 0
+                 ELSE COALESCE(mins_since, 99999)
+               END AS idle_minutes
+        FROM (
+            SELECT
+                (SELECT COUNT(*) / 28
+                   FROM app_visits
+                  WHERE page_name = 'smush.html'
+                    AND HOUR(submit_time) = HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
+                    AND submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 28 DAY) AS hourly_avg,
+                TIMESTAMPDIFF(MINUTE,
+                    (SELECT MAX(submit_time)
+                       FROM app_visits
+                      WHERE page_name = 'smush.html'),
+                    CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS mins_since
+        ) AS m;
+
+
+##### errors #####
+
+# This reads real data again now that 500s are logged by app.py's exception
+# handler and referred 404s by the catch-all in routes/misc.py. Before that it
+# counted rows nothing wrote.
+#
+# There is deliberately no daily 500 counter here. app.py emits http_500 the
+# moment an exception is handled, throttled to once per 15 minutes, which is
+# both faster and quieter than an hourly count would be - an hourly check that
+# breached at 9am would email every hour until midnight.
+
+blossom_errors_today:
+    sev: warn
+    description: "Error pages served to blossom visitors today"
+    compare: "<="
+    threshold: 10
+    sql: |
+        SELECT COUNT(*)
+        FROM app_visits
+        WHERE page_name LIKE '%error%'
+          AND referrer LIKE '%blossom%'
+          AND submit_time >= DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));
+
+
+##### JawsDB capacity #####
+
+# Leopard Shared meters exactly two things: 1 GB of storage and 15 concurrent
+# connections. Queries and I/O are unmetered, so these are the only two
+# resources that can actually run out.
+
+db_size_mb:
+    sev: warn
+    description: "JawsDB Leopard Shared storage, 1 GB limit"
+    compare: "<="
+    threshold: 800
+    # Checked once a day, not hourly. Storage moves at ~20 MB a month, so a
+    # breach takes months to resolve - and the Papertrail rule emails on any
+    # JJ_ALERT within 10 minutes, so an hourly check would send an email every
+    # hour for weeks and bury the alerts that need same-day attention.
+    # A one-hour window means the 09:00 PST run evaluates it and no other.
+    #
+    # 800 leaves 224 MB free, which is more than the largest table (~133 MB)
+    # needs for a DELETE + OPTIMIZE rebuild, so every remediation stays
+    # available. At ~260 MB/year that is roughly 10 months of notice.
+    only_between_pst: [9, 9]
+    sql: |
+        SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024)
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE();
+
+db_connections:
+    sev: warn
+    description: "JawsDB Leopard Shared connections, 15 limit"
+    compare: "<="
+    threshold: 13
+    sql: SELECT COUNT(*) FROM information_schema.processlist;
+
+
+##### the Redis to MySQL drain #####
+
+# redis_wordle.py moves wordle and antiwordle logging out of Redis nightly and
+# deletes the stream only when the row counts reconcile. If it stops, rows stop
+# arriving here. Thresholds are generous on purpose: these tables also go quiet
+# when nobody happens to play, so tighten only after watching real numbers.
+
+wordle_drain_fresh:
+    sev: warn
+    description: "Hours since redis_wordle.py last landed a wordle row"
+    compare: "<="
+    threshold: 48
+    sql: |
+        SELECT COALESCE(
+                 TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
+                 99999)
+        FROM wordle_revamp_clicks;
+
+antiwordle_drain_fresh:
+    sev: warn
+    description: "Hours since redis_wordle.py last landed an antiwordle row"
+    compare: "<="
+    threshold: 72
+    sql: |
+        SELECT COALESCE(
+                 TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
+                 99999)
+        FROM antiwordle_revamp_clicks;
