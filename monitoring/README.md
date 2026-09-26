@@ -315,12 +315,35 @@ cannot overlap the next run.
 
 | Command | Frequency |
 |---|---|
-| `timeout 600 python -m monitoring.run_checks` | Hourly |
+| `timeout -s INT -k 60 600 python -m monitoring.run_checks` | Hourly |
 
-Plain `timeout` is right here, unlike the wrapped jobs above: there is no
-`run_job` to report the kill, and none is needed. A timed-out run simply never
-emits its `JJ_PULSE`, and the 90-minute inactivity alert picks that up on its
-own. The guard degrades into an alarm you have already built.
+Same signal flags as the wrapped jobs, for slightly different reasons. There is
+no `run_job` here to turn the interrupt into an alert, and none is needed -
+**detection is identical either way.** `main()` wraps `run_sql_checks` in
+`except Exception`, which does not catch `KeyboardInterrupt`, so an interrupt
+propagates straight out and the closing `alerts.pulse()` is never reached.
+No pulse, and the 90-minute inactivity alert picks it up. The guard degrades
+into an alarm you already built.
+
+What `-s INT` buys on top of that is **diagnosis and cleanup**:
+
+* **A traceback instead of silence.** SIGTERM is not delivered to Python as an
+  exception - the interpreter dies where it stands and prints nothing. SIGINT
+  arrives as `KeyboardInterrupt`, so the unhandled traceback lands in the log
+  drain and tells you *which* check was hung. With SIGTERM you would know only
+  that the pulse stopped.
+* **`finally` blocks run.** `run_sql_checks` closes its cursor and connection
+  in a `finally`; under SIGTERM that never executes and the JawsDB connection
+  is left for the server to reap. Given that connection pressure is the reason
+  for bounding these jobs at all, unwinding properly is the point.
+
+`-k 60` is cheaper insurance here than it is for the YouTube scripts - nothing
+in `run_checks` uses a bare `except:`, every handler is `except Exception`,
+and `KeyboardInterrupt` is not an `Exception` subclass, so SIGINT always
+lands. It guards only against a third-party library (mysql-connector, redis,
+requests) swallowing the interrupt internally. It costs nothing and keeps one
+convention across all eight Scheduler entries, which is worth more than the
+40 seconds of worst-case runtime it adds.
 
 Cost, measured on 2026-09-26: **157 ms of work, 1.4 s of dyno lifecycle**
 start to finish. The earlier "~20 s per run" estimate here was about 15x
@@ -335,7 +358,7 @@ entry you may sit for up to 60 minutes with no pulse and no way to tell "not
 yet" from "broken." Force one instead:
 
 ```bash
-heroku run "timeout 600 python -m monitoring.run_checks" -a apple-apps
+heroku run "timeout -s INT -k 60 600 python -m monitoring.run_checks" -a apple-apps
 ```
 
 Quote the command here. Unlike the Scheduler UI, the CLI has to decide for
