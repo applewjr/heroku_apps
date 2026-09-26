@@ -48,13 +48,27 @@ youtube_grouped_today:
 
 ##### traffic gone quiet #####
 
-# Hour-of-day aware. A fixed "no usage in N hours" threshold would either cry
-# wolf at 4am or sleep through a lunchtime outage, and an alert that fires
-# overnight for normal reasons is one you learn to ignore.
+# Hour-of-day aware in shape: each returns 0 - a pass - when the current hour
+# is not normally busy, so it only speaks up when silence is surprising.
 #
-# Each returns 0 - a pass - when the current hour is not normally busy, so the
-# check only speaks up when silence is genuinely surprising. That also means it
-# stays inert until 28 days of history exist, then switches itself on.
+# Measured 2026-09-26, and the gate does NOT currently do that job on either
+# check. Know this before trusting either one:
+#
+# * blossom_idle's gate never closes. Every hour of the day averages at least
+#   5 non-probe clicks over 28 days (quietest is 8pm at 5.6, busiest 5am at
+#   37.5), so the `< 5` test always fails and the check is a plain "no usage
+#   in N minutes" rule running 24/7 - exactly what hour-awareness was meant to
+#   avoid. Traffic here is broadly uniform, which is what an internationally
+#   visited solver looks like; there is no 4am lull to protect against. The
+#   threshold below is therefore set from the measured gap distribution, not
+#   from the gate.
+#
+# * smush_idle's gate never opens, so it provides NO coverage at all. Reaching
+#   an average of 3 needs 84 hits in a single hour-of-day across 28 days;
+#   smush currently runs ~13 visits a day spread over 24 hours. It will not
+#   "switch itself on" after 28 days as previously documented here - it needs
+#   roughly 6x more traffic. Recalibrate it against real history (same
+#   replay method as blossom_idle below) rather than waiting.
 #
 # The synthetic probe (must_have 'a', may_have 'qwerty') is excluded the same
 # way vw_prod_blossom.sql excludes it: counting it would let a robot mask a
@@ -74,7 +88,28 @@ blossom_idle:
     sev: warn
     description: "Blossom solver silent during a normally-busy hour"
     compare: "<="
-    threshold: 60
+    # 240 measured, not guessed. Replaying this check hourly over the 11,900
+    # non-probe clicks in the trailing 28 days (2026-09-26):
+    #
+    #     threshold   alerts/28d   per week
+    #      60 (was)       70         17.5     <- 10.4% of all runs
+    #      90             28          7.0
+    #     120              7          1.8
+    #     180              1          0.2
+    #     240              0          0
+    #
+    # The longest genuine quiet stretches were 185, 177, 148 and 143 minutes -
+    # ordinary overnight-and-weekend variation, not outages. At 60 this fired
+    # roughly 2.5 times a day, which is how an alert inbox stops being read.
+    #
+    # Four hours is acceptable because this is a backstop, not a front line:
+    # web_up catches a dead dyno within the hour, and http_500 and
+    # log_drain_failed catch the specific mechanisms. This only exists for the
+    # case where everything looks healthy but nobody is actually solving.
+    #
+    # Re-measure before tightening. The simulation is cheap: pull 28 days of
+    # click_time, replay at hourly points, count breaches per candidate.
+    threshold: 240
     sql: |
         SELECT CASE
                  WHEN COALESCE(hourly_avg, 0) < 5 THEN 0
