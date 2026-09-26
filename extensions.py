@@ -263,9 +263,14 @@ def enqueue_write(sql, params):
         _ensure_drain()
         _log_queue.put_nowait((sql, params))
     except queue.Full:
-        # The database has been unreachable long enough to back up 2000 rows.
-        # Dropping is the right call, but say so - silent data loss is worse
-        # than loud data loss.
+        # Rarer than it looks, and not the usual outage signal. During a
+        # database outage the drain keeps pulling batches and discarding them
+        # on failure, so rows are dropped as they arrive and the queue never
+        # fills - you get log_drain_failed instead. This fires only when rows
+        # are enqueued faster than the drain can write them.
+        #
+        # Dropping is the right call either way, but say so: silent data loss
+        # is worse than loud data loss.
         alerts.alert_throttled('log_queue_full', queued=_LOG_QUEUE_MAX)
     except Exception as e:
         alerts.alert_throttled('log_enqueue_failed', exc=type(e).__name__, msg=e)

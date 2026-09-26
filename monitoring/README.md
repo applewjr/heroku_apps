@@ -37,14 +37,14 @@ until step 4, and no checks run until step 5.
 | 6 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
 | 7 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
 | 8 | Re-point the 7 existing jobs through `run_job` | Heroku Scheduler | [2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
-| 9 | Update the dashboard views | Workbench | [8. Dashboard views](#8-dashboard-views) |
-| 10 | Test the dead-man's switch | Heroku Scheduler | [9. Test the dead-man's switch](#9-test-the-dead-mans-switch) |
+| 9 | Update the dashboard views | Workbench | [7. Dashboard views](#7-dashboard-views) |
+| 10 | Test the dead-man's switch | Heroku Scheduler | [8. Test the dead-man's switch](#8-test-the-dead-mans-switch) |
 | 11 | Scale staging back to 0 | Actions -> Stop staging | - |
 
 ### Why that order
 
 **Steps 4 to 7 are the one sequence that matters.** Create the `JJ_ALERT`
-alert early - from step 3 the app is already emitting `http_500`,
+alert early - from step 3 the app is already emitting `http_500` and
 `feedback_new` alerts, so you want something listening. But
 create the **`JJ_PULSE` inactivity alert last**, and only after step 6
 confirms pulses are actually flowing. It fires when no pulse has been seen for
@@ -62,8 +62,6 @@ staging dyno up automatically, which is why step 11 exists to put it back.
 
 ### Not on the list, deliberately
 
-- **`prune.py`** - written, tested, and left unscheduled. Completing every
-  step above leaves it dormant. See [7. The retention job](#7-the-retention-job---parked-not-in-use).
 - **Indexes** - already applied by hand on 2026-09-23.
   See [6. Indexes](#6-indexes---done-2026-09-23).
 - **Richer `log_page_visit` columns** - parked for a later pass.
@@ -88,18 +86,26 @@ staging dyno up automatically, which is why step 11 exists to put it back.
 
 | Where | Change |
 |---|---|
-| `monitoring/` | New package. Alert emission, the job wrapper, the hourly checks, the retention job. |
+| `monitoring/` | New package. Alert emission, the job wrapper, and the hourly checks. |
 | `datasets/health_checks.yaml` | The checks themselves. SQL inline rather than in views, so a check deploys atomically with the code and needs no manual DDL step. |
 | `app.py` | The 500 handler calls `log_page_visit` and emits a throttled `http_500` alert. The 404 handler deliberately does not log - see `routes/misc.py`. |
 | `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. |
 | `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. |
 
 Three alerts come out of the write-behind path itself, none of them in the
-YAML: `log_drain_failed` (a batch could not be written), `log_queue_full` (the
-database has been unreachable long enough to back up 2000 rows, so rows are
-being dropped) and `log_enqueue_failed` (the queue could not even be reached -
-in practice, the drain thread could not be started). All three are throttled
-to one every 15 minutes.
+YAML: `log_drain_failed` (a batch could not be written), `log_queue_full`
+(rows arriving faster than the drain can write them, so rows are being
+dropped) and `log_enqueue_failed` (the queue could not even be reached - in
+practice, the drain thread could not be started). All three are throttled to
+one every 15 minutes.
+
+**A database outage shows up as `log_drain_failed`, not `log_queue_full`.**
+The 2000-row queue is a burst buffer, not an outage buffer: while the database
+is down the drain keeps pulling batches and discarding them on failure - the
+pool raises `PoolError` instantly inside the 20s `_POOL_RETRY_SECONDS` window -
+so rows are dropped as they arrive rather than accumulating. Losing
+best-effort analytics during an outage is the intended trade; just do not read
+a quiet `log_queue_full` as evidence that nothing was lost.
 
 `log_page_visit` had exactly one call site left (`routes/blossom.py`), so
 `vw_prod_errors` and `vw_prod_blossom_errors` matched zero rows - the "Blossom
@@ -163,7 +169,6 @@ idle checks depend on.
 | `alerts.py` | `alert()`, `pulse()`, `alert_throttled()`. Scrubbing and rate limiting. No import side effects. |
 | `run_job.py` | Runs an existing scheduled script under `runpy`, adding a failure alert. No edits to the script. |
 | `run_checks.py` | Hourly checks against JawsDB, Redis and the live site. Refuses any check SQL that is not a SELECT. |
-| `prune.py` | Retention pass. **Parked - nothing schedules it**; see step 7. |
 | `../datasets/health_checks.yaml` | The checks: SQL, threshold, severity, active window. |
 
 ---
@@ -217,8 +222,7 @@ Cost: a lean run is ~10s of work plus ~10s of dyno provisioning, so about
 4 dyno-hours a month (720 runs x 20s). Pennies on Basic; free out of the Eco
 pool.
 
-This is the only job to schedule. `monitoring/prune.py` also exists but is
-**deliberately not scheduled** - see step 7.
+This is the only job to schedule.
 
 #### What actually gets checked
 
@@ -278,6 +282,26 @@ quota to 32%. Three cleanups got it there:
 | `antiwordle_revamp_clicks` older than 365 days, then `OPTIMIZE TABLE` | 21.0 MB | 472.2 -> 451.2 |
 | `antiwordle_revamp_clicks` older than 180 days, by copy-and-swap | 121.1 MB | 451.2 -> 330.1 |
 
+#### Safe retention windows, if you purge again
+
+Nothing prunes automatically - there is no retention job, by choice. These are
+the windows a purge can use without breaking a dashboard, worked out on
+2026-09-24 by checking how far back each view actually reads:
+
+| Table | Keep | Why that is safe |
+|---|---|---|
+| `app_visits` | 90 days | Deepest view lookback is 28 days (`vw_prod_blossom_search_source`) |
+| `blossom_solver_clicks` | 180 days | Views look back 28-29 days; the margin preserves trend comparisons |
+| `wordle_revamp_clicks` | 180 days | No view reads this today |
+| `antiwordle_revamp_clicks` | 180 days | No view reads this today |
+
+`youtube_trending` and `youtube_trending_revamp` are deliberately absent: they
+are the actual analytics dataset, `functions/youtube_stats.py` does 30-day
+lookbacks over them, and at ~150 rows a day they are not what fills a gigabyte.
+
+Count before you delete, and prefer copy-and-swap over `DELETE` - see
+[Maintenance patterns](#maintenance-patterns-best-first) below.
+
 #### Reading sizes correctly
 
 Two traps, both hit during the cleanup above:
@@ -330,9 +354,9 @@ window just has to reach into the period where the rows are large. Do not
 judge a retention window by a longer one's result.
 
 At current traffic this table adds roughly 130 MB per six months. Nothing
-prunes it automatically (step 7), so that growth is unbounded until either
-`prune.py` is scheduled or the `data_dict` payload shrinks. With a 180-day
-window it would instead settle around 130-140 MB.
+prunes it automatically, so that growth is unbounded until the `data_dict`
+payload shrinks or you repeat the manual purge. With a 180-day window it would
+instead settle around 130-140 MB.
 
 Measure in **bytes, not rows**, before any future purge. Row counts mislead
 badly here because row size varies ~6x across the table:
@@ -417,9 +441,10 @@ CREATE INDEX idx_blossom_solver_clicks_click_time
     ON blossom_solver_clicks (click_time);
 ```
 
-They serve the 28-day baseline queries, the dashboard views, and above all
-`prune.py`: a chunked `DELETE ... LIMIT 10000` re-scans from the start on
-every chunk without one, so 50 chunks would mean 50 full table scans.
+They serve the 28-day baseline queries in `health_checks.yaml` and the
+dashboard views. They also matter for any future manual purge: a chunked
+`DELETE ... LIMIT 10000` re-scans from the start on every chunk without one,
+so 50 chunks would mean 50 full table scans.
 
 This is the only **schema change** in the whole piece. To reverse it:
 
@@ -429,52 +454,35 @@ DROP INDEX idx_app_visits_page_name_submit_time ON app_visits;
 DROP INDEX idx_blossom_solver_clicks_click_time ON blossom_solver_clicks;
 ```
 
-### 7. The retention job - parked, not in use
+### 7. Dashboard views
 
-`monitoring/prune.py` is written and tested but **nothing runs it, and nothing
-should for now.** Storage was brought from 574.4 MB to 330.1 MB by hand
-(step 5), which is comfortable enough that automated deletion is not worth the
-risk yet.
+`vw_prod_word_solver_page_visits` reports only `blossom.html`, so six of the
+seven newly-logged pages stay invisible on `/etl_dash` until this is done.
 
-Confirmed on 2026-09-24 that it is inert:
+The repo copy at `mysql_views/dashboard/vw_prod_word_solver_page_visits.sql`
+has been rewritten to cover all seven. Paste it into Workbench as-is.
 
-- No module imports it. It imports `db_config` from `run_checks`, never the
-  reverse, so the hourly health check has no knowledge of it.
-- It is not in the `Procfile`, which has only the `web:` line.
-- No GitHub Actions workflow invokes it.
-- The test suite does not exercise it - coverage reports `prune.py` at 0%.
-- It runs only when a Heroku Scheduler entry names it explicitly, and no such
-  entry exists.
+**Do not try to fix the old version by uncommenting.** It carried the extra
+page names as commented-out lines, and uncommenting them produced a syntax
+error twice over: the live `... AS blossom` line has no trailing comma, and
+the last commented line, `... AS quordle_mobile`, has none either. Enabling a
+middle subset left both a missing comma and a trailing one. That is why the
+file now holds finished text rather than a menu.
 
-So completing every other step in this document leaves it dormant. Deploying
-the code does not arm it; only adding `python -m monitoring.prune` to Heroku
-Scheduler does.
+Each page needs **two** entries, which is the other half of what made the old
+instruction wrong: a `SUM(CASE WHEN ...)` column *and* a name in the
+`WHERE page_name IN (...)` list. A column without the `WHERE` entry reads zero
+forever.
 
-If that changes later, start with `python -m monitoring.prune --dry-run`,
-which counts and deletes nothing. Current windows are 90 days for `app_visits`
-and 180 for the three click tables.
+Dropped on purpose: `blossom_bee.html`, `wordle.html`, `wordle_example.html`,
+`antiwordle.html` and `quordle_mobile.html`. Nothing logs them, so they would
+be five columns of zeroes. Their historical rows stay in `app_visits` either
+way - this only changes what the view surfaces.
 
-### 8. Dashboard views
+Rows only start arriving after the prod deploy, so there is no hurry.
+`CREATE OR REPLACE VIEW` is instant and independent of everything else.
 
-`vw_prod_word_solver_page_visits` has commented-out columns for
-**`wordle_revamp.html`, `antiwordle_revamp.html` and `quordle.html`** - exactly
-the names the new `log_page_visit` calls use. Uncomment those three and that
-panel lights up with no other work.
-
-Uncomment only those three. The same block also carries `blossom_bee.html`,
-`wordle.html`, `wordle_example.html`, `antiwordle.html` and
-`quordle_mobile.html`, which nothing logs - enabling them adds five columns
-that will read zero forever.
-
-`smush.html`, `ribbit.html` and `wordiply.html` are newer pages, absent from
-that view's `WHERE page_name IN (...)` list entirely, so add them too.
-
-Rows only start arriving after the prod deploy, so there is no hurry - but
-until this is done, six of the seven newly-logged pages stay invisible on
-`/etl_dash`. `CREATE OR REPLACE VIEW` is instant and independent of
-everything else.
-
-### 9. Test the dead-man's switch
+### 8. Test the dead-man's switch
 
 Disable the `run_checks` Scheduler entry for ~2 hours and confirm the
 inactivity alert emails you.
@@ -511,13 +519,11 @@ separately and neither of which is the code.
 | Extra `app_visits` rows | `DELETE FROM app_visits WHERE page_name IN ('smush.html', 'quordle.html', ...)`. Additive data only. |
 | Scheduler changes | Point the commands back at the bare scripts. |
 | Papertrail alerts | Delete the saved searches. |
-| **Pruned rows** | **Not reversible.** Restore from backup. |
 | **Dropped archived tables** | **Not reversible.** Restore from the mysqldump. `spotify_playlists` was dropped 2026-09-23. |
 
-The monitoring code itself only ever reads: `run_checks.py` refuses any check
-SQL that is not a `SELECT`, and it touches Redis only through `ping()` and
-`xlen()`. `prune.py` is the sole component that writes, and it does nothing
-until you schedule it.
+Nothing in `monitoring/` writes. `run_checks.py` refuses any check SQL that is
+not a `SELECT`, and it touches Redis only through `ping()` and `xlen()`. There
+is no delete path anywhere in the package.
 
 ## Tuning
 
@@ -665,8 +671,9 @@ chunks the transaction, or `SET SQL_SAFE_UPDATES = 0;` for the session. The
 error text tells you to change Preferences and reconnect; the session variable
 works immediately and needs neither.
 
-This is a client-side guard only. `prune.py` would not hit it - every chunk
-carries a `LIMIT`, and mysql-connector does not enable safe update mode.
+This is a client-side guard only. mysql-connector does not enable safe update
+mode, so it never applies to anything the app itself runs - only to statements
+you type into Workbench.
 
 ## Future: richer page-visit logging (not implemented)
 
@@ -808,7 +815,7 @@ Worth doing if `smush_idle` proves noisy or too quiet in practice.
 Once enough rows carry `status_code`, the error views can move from the
 fragile `page_name LIKE '%error%'` matching to `status_code >= 400`. The other
 view work is not future - it applies to the current deploy, and lives in
-[8. Dashboard views](#8-dashboard-views).
+[7. Dashboard views](#7-dashboard-views).
 
 ## What this does not catch
 
