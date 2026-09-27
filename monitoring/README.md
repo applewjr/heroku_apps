@@ -3,70 +3,68 @@
 Everything needed to run this app unattended: what changed, what to set up,
 and how to undo it.
 
-The point: **stop checking, start being told.** Alerts are log lines, not
-emails. Anything wrong prints one token line to stdout, Heroku's drain carries
-it to Papertrail, and Papertrail decides who gets notified. That keeps the
-notification channel a UI setting rather than a deploy, and it means the
-alerting path has no SMTP failure mode of its own.
+**Stop checking, start being told.** Alerts are log lines, not emails.
+Anything wrong prints one token line to stdout, Heroku's drain carries it to
+Papertrail, and Papertrail decides who gets notified. The notification channel
+stays a UI setting rather than a deploy, and the alerting path has no SMTP
+failure mode of its own.
 
 ```
 JJ_ALERT check=youtube_trending_today sev=crit actual=0 compare=">=" threshold=45 note="Daily youtube_trending load, scheduler 12am PST"
 JJ_PULSE source=checks ok=11 alert=0 skip=0 hour_pst=14 ms=940
 ```
 
-`JJ_PULSE` is the important half. It feeds Papertrail's *inactivity* alert,
-which fires when logs **stop** - the only check that survives the thing being
-monitored dying. Everything else can only report problems it is alive to see.
+`JJ_PULSE` feeds Papertrail's *inactivity* alert, which fires when logs
+**stop**. It is the only check that survives the thing being monitored dying;
+everything else can only report problems it is alive to see.
 
 ---
 
 ## Do this, in this order
 
-Tick list. Row numbers are the order to work in; the linked section numbers
-are just labels and do not match. Deploying alone changes nothing you can see:
-the app starts emitting alert lines at step 3, but nothing reaches your inbox
-until step 5, and no checks run until step 6.
+Deploying alone changes nothing visible: the app starts emitting alert lines at
+step 3, nothing reaches your inbox until step 5, and no checks run until
+step 6.
 
 | # | Step | Where | Detail |
 |---|---|---|---|
 | 1 | Review and merge the branch | git | - |
-| 2 | Deploy to **staging**, run the smoke test | Actions -> Deploy -> `staging` | [1. Deploy](#1-deploy) |
-| 3 | Deploy to **prod**, run the same smoke test | Actions -> Deploy -> `prod` | [1. Deploy](#1-deploy) |
-| 4 | Scale staging back to 0 | Actions -> Stop staging | [1. Deploy](#1-deploy) |
-| 5 | Create the **`JJ_ALERT`** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
-| 6 | Add **`run_checks`** hourly | Heroku Scheduler | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
-| 7 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [3. Health check](#3-heroku-scheduler---add-the-health-check) |
-| 8 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [4. Papertrail](#4-papertrail---two-alerts) |
-| 9 | Re-point the existing jobs through `run_job` | Heroku Scheduler | [2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
-| 10 | Update the dashboard views | Workbench | [7. Dashboard views](#7-dashboard-views) |
-| 11 | Test the dead-man's switch | Heroku Scheduler | [8. Test the dead-man's switch](#8-test-the-dead-mans-switch) |
+| 2 | Deploy to **staging**, run the smoke test | Actions -> Deploy -> `staging` | [Deploy](#1-deploy) |
+| 3 | Deploy to **prod**, run the same smoke test | Actions -> Deploy -> `prod` | [Deploy](#1-deploy) |
+| 4 | Scale staging back to 0 | Actions -> Stop staging | [Deploy](#1-deploy) |
+| 5 | Create the **`JJ_ALERT`** alert | Papertrail | [Papertrail](#4-papertrail---two-alerts) |
+| 6 | Add **`run_checks`** hourly | Heroku Scheduler | [Health check](#3-heroku-scheduler---add-the-health-check) |
+| 7 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [Health check](#3-heroku-scheduler---add-the-health-check) |
+| 8 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [Papertrail](#4-papertrail---two-alerts) |
+| 9 | Re-point the existing jobs through `run_job` | Heroku Scheduler | [Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
+| 10 | Update the dashboard views | Workbench | [Dashboard views](#7-dashboard-views) |
+| 11 | Test the dead-man's switch | Heroku Scheduler | [Dead-man's switch](#8-test-the-dead-mans-switch) |
 
 ### Why that order
 
 **Steps 5 to 8 are the one sequence that matters.** Create the `JJ_ALERT`
-alert early - from step 3 the app is already emitting `http_500` and
-`feedback_new` alerts, so you want something listening. But
-create the **`JJ_PULSE` inactivity alert last**, and only after step 7
-confirms pulses are actually flowing. It fires when no pulse has been seen for
-90 minutes, so setting it up before anything emits one means it fires
-immediately, on a healthy system.
+alert early: from step 3 the app is already emitting `http_500` and
+`feedback_new` alerts, so something should be listening. Create the
+**`JJ_PULSE` inactivity alert last**, and only after step 7 confirms pulses are
+flowing. It fires when no pulse has been seen for 90 minutes, so setting it up
+before anything emits one means it fires immediately, on a healthy system.
 
 **Step 9 can trail.** Wrapping the scheduled jobs is independent of everything
 else, and the jobs keep working unwrapped - just silently, as they do today.
-Wrap one, watch it overnight, then do the rest - the table in
-[2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) is a menu,
-not a single action.
+Wrap one, watch it overnight, then do the rest; the table in
+[2. Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) is a menu, not
+a single action.
 
-**Two things about staging** (step 2): it shares the JawsDB with prod, so a
-smoke test writes real rows to `app_visits` and `blossom_solver_clicks` -
-harmless log rows, but they are real. And the deploy workflow scales the
-staging dyno up automatically, which is why step 4 exists to put it back.
+**Staging shares the JawsDB with prod** (step 2), so a smoke test writes real
+rows to `app_visits` and `blossom_solver_clicks` - harmless log rows, but real
+ones. The deploy workflow also scales the staging dyno up automatically, which
+is what step 4 undoes.
 
 **Take staging down at step 4, not at the end.** Its only job is the step-2
-smoke test, and step 9 explicitly invites you to spread the remaining work
-over days. Left running, a second app holds a second connection pool against
-the 15-connection JawsDB cap, burns dyno hours, and - if staging drains to the
-same Papertrail - mixes its alerts into yours during the exact window you are
+smoke test, and step 9 explicitly invites spreading the remaining work over
+days. Left running, a second app holds a second connection pool against the
+15-connection JawsDB cap, burns dyno hours, and - if staging drains to the same
+Papertrail - mixes its alerts into yours during the exact window you are
 learning what normal traffic looks like. `stop-staging.yml` is a standalone
 manual dispatch, so it can run the moment prod is verified.
 
@@ -114,11 +112,11 @@ The 2000-row queue is a burst buffer, not an outage buffer: while the database
 is down the drain keeps pulling batches and discarding them on failure - the
 pool raises `PoolError` instantly inside the 20s `_POOL_RETRY_SECONDS` window -
 so rows are dropped as they arrive rather than accumulating. Losing
-best-effort analytics during an outage is the intended trade; just do not read
-a quiet `log_queue_full` as evidence that nothing was lost.
+best-effort analytics during an outage is the intended trade, but a quiet
+`log_queue_full` is not evidence that nothing was lost.
 
 `log_page_visit` had exactly one call site left (`routes/blossom.py`), so
-`vw_prod_errors` and `vw_prod_blossom_errors` matched zero rows - the "Blossom
+`vw_prod_errors` and `vw_prod_blossom_errors` matched zero rows: the "Blossom
 Errors" panel on `/etl_dash` was reading clean because nothing wrote to it.
 Those are real again. Smush had no usage logging of any kind, which is why
 `smush_idle` needed instrumentation before it could exist.
@@ -133,21 +131,21 @@ existed already on `/blossom`:
   outage that drops packets rather than refusing connections blocks on TCP
   connect for the OS default of ~2 minutes. With 8 gunicorn threads stuck
   there and `--timeout 60`, the worker is killed and the whole site stops
-  serving - including pages that need no database.
+  serving, including pages that need no database.
 - **`extensions.py`** builds the connection pool lazily.
   `MySQLConnectionPool`'s constructor eagerly opens connections, so building
   it at import meant a JawsDB outage during a dyno boot took the entire app
-  down. `restart-dyno.yml` restarts twice daily, so that window was real.
-  A failed build is remembered for `_POOL_RETRY_SECONDS` (20). Without that,
-  every request during an outage retries the whole build, and because those
-  retries serialise on one lock the eighth waiting thread sits eight
-  `connection_timeout`s deep - past Heroku's 30s router limit. With it, a
+  down, and `restart-dyno.yml` restarts twice daily. A failed build is now
+  remembered for `_POOL_RETRY_SECONDS` (20). Without that, every request
+  during an outage retries the whole build, and because those retries
+  serialise on one lock the eighth waiting thread sits eight
+  `connection_timeout`s deep, past Heroku's 30s router limit. With it, a
   database page fails in about five seconds instead of queueing, and a blip
   still self-heals on the next window.
 
 **`extensions.py` also moves visit and click logging off the request path.**
 It used to be an INSERT, an explicit COMMIT, and a session reset - roughly
-three round trips to JawsDB in front of the response. On `/blossom`, which
+three round trips to JawsDB in front of the response, and on `/blossom`, which
 POSTs per keystroke, that sat between the user typing and the solver
 answering. Rows now go onto a bounded queue that one drain thread batches, so
 `/blossom` is **faster than before**, not slower. Timestamps are stamped in
@@ -165,10 +163,9 @@ idle checks depend on.
 - **`vw_prod_blossom_errors.sql`** hardcoded the schema name
   `ndsvta8po4bdiw50`, the only view that did; it would break on any rename.
 - **`vw_prod_youtube_trending_grouped.sql`** ordered by a column not in its
-  `GROUP BY`. **This was not actually broken** - your `sql_mode` is
-  `NO_ENGINE_SUBSTITUTION` only, with no `ONLY_FULL_GROUP_BY`, so the view
-  works today. The change is correctness and future-proofing, not a fix.
-  Revert it freely.
+  `GROUP BY`. This was **not** broken: `sql_mode` is `NO_ENGINE_SUBSTITUTION`
+  only, with no `ONLY_FULL_GROUP_BY`, so the view works today. The change is
+  correctness and future-proofing. Revert it freely.
 
 ---
 
@@ -196,13 +193,10 @@ already safer (the hardening above) and already emitting `http_500` and
 
 #### The smoke test - run it on staging, then again on prod
 
-Worth doing properly rather than glancing at the homepage. The test suite
-mocks the database, so **no code in this branch has ever written a row to real
-MySQL.** This is what proves the write-behind path works, and it is the one
-thing that cannot be checked any earlier.
-
-Staging shares prod's JawsDB, so the staging run is a genuine test - and its
-rows are real rows.
+The test suite mocks the database, so **no code in this branch has ever
+written a row to real MySQL.** The smoke test is what proves the write-behind
+path works, and it cannot be checked any earlier. Staging shares prod's
+JawsDB, so the staging run is a genuine test and its rows are real rows.
 
 Load `/blossom` (GET), type into the solver once (POST), then load `/smush`.
 Wait about five seconds for the drain, then:
@@ -219,9 +213,9 @@ Four things to confirm, each a distinct failure mode:
 
 1. **Rows arrive at all.** Proves the drain thread starts and `executemany`
    works against the real table. Nothing in CI covers this.
-2. **Timestamps are current PST wall-clock, not UTC.** This is the one that
-   would hurt. Logging moved from `CONVERT_TZ(NOW(), ...)` to Python-side
-   `pst_now_str()`; an off-by-seven-hours here silently corrupts
+2. **Timestamps are current PST wall-clock, not UTC.** Logging moved from
+   `CONVERT_TZ(NOW(), ...)` to Python-side `pst_now_str()`; an
+   off-by-seven-hours here silently corrupts
    `vw_prod_blossom_hourly_average` and both idle checks, and nothing else
    would tell you.
 3. **`page_name` shows `smush.html`.** Proves the new GET-branch logging in
@@ -235,7 +229,7 @@ Four things to confirm, each a distinct failure mode:
 
    Exactly one new `error.html (404: nope-not-a-page)` row should appear.
 
-Then confirm the site itself is healthy - `/`, `/blossom`, `/wordle_revamp`
+Then confirm the site itself is healthy: `/`, `/blossom`, `/wordle_revamp`
 and `/etl_dash` all render. A database-backed page failing while `/` still
 serves is the signature of a pool problem rather than a deploy problem.
 
@@ -243,8 +237,8 @@ serves is the signature of a pool problem rather than a deploy problem.
 
 The four YouTube scripts and `espresso_data_import.py` send their success
 email as the last unguarded statement in the file, so any exception before it
-kills the job with **no email at all** - the signal is an email that never
-arrives, which you have to notice.
+kills the job with **no email at all** - a signal whose absence you have to
+notice.
 
 Two are already better and are wrapped for consistency rather than rescue:
 `mtg_prices_bsky.py` sends its own `FAILED:`/`WARNING:` emails and re-raises,
@@ -252,12 +246,8 @@ and `redis_wordle.py` sends two emails with `try`/`except` between them, so a
 failure in its second half still produces the first.
 
 Re-point each command through the wrapper; the scripts themselves are
-untouched.
-
-Every entry already carries a `timeout 600` prefix. **Keep it, but change the
-signal to `INT` and add a `-k` kill-after** - see below for why. The edit to
-each job is: insert `-s INT -k 60` after `timeout`, and `-m monitoring.run_job`
-after `python`.
+untouched. Every entry already carries a `timeout 600` prefix: keep it, insert
+`-s INT -k 60` after `timeout`, and `-m monitoring.run_job` after `python`.
 
 Commands are entered unquoted in the Scheduler UI - it takes the whole field
 as the command, so there is no flag-parsing ambiguity to protect against. (The
@@ -276,37 +266,29 @@ as the command, so there is no flag-parsing ambiguity to protect against. (The
 `mtg_prices.py` is deliberately absent - it is the Twitter-era predecessor of
 `mtg_prices_bsky.py`. Wrap it too if it is still scheduled.
 
-#### Why `-s INT` and not plain `timeout`
+#### Why `-s INT -k 60`
 
-Plain `timeout` sends **SIGTERM**, which Python does not turn into an
-exception - the interpreter dies where it stands. `run_job` never reaches its
-handler, so a job that hangs is killed *silently*, which is precisely the
-failure mode the wrapper exists to eliminate. You would trade a hung dyno for
-an invisible one.
+Plain `timeout` sends SIGTERM, which Python does not raise as an exception, so
+`run_job` never reaches its handler and a hung job dies silently - the failure
+mode the wrapper exists to eliminate. `-s INT` sends SIGINT, which arrives as
+`KeyboardInterrupt`; `run_job` catches `BaseException`, so a hang produces a
+`sev=crit` alert naming the job, a traceback, and exit 1.
 
-`-s INT` sends **SIGINT**, which arrives as `KeyboardInterrupt`. `run_job`
-catches `BaseException` specifically so that counts as a failure, so you get a
-`sev=crit` alert naming the job and a traceback, then exit 1.
+`-k 60` follows up with an unblockable SIGKILL sixty seconds later, because
+SIGINT is not guaranteed to land: `youtube_trending_v2.py` and
+`youtube_trending_revamp_v3.py` each contain **seven bare `except:`
+clauses**, and a bare `except:` catches `BaseException`, `KeyboardInterrupt`
+included. A SIGINT arriving inside one of those blocks is swallowed and the
+script carries on, past the timeout, holding its database connection. Order:
+SIGINT first so `run_job` can report, SIGKILL as the guarantee the dyno ends.
 
-#### Why `-k 60` as well
+#### Why the timeout matters
 
-`SIGINT` is not guaranteed to land. `youtube_trending_v2.py` and
-`youtube_trending_revamp_v3.py` each contain **seven bare `except:` clauses**,
-and a bare `except:` catches `BaseException` - `KeyboardInterrupt` included.
-A SIGINT arriving inside one of those blocks is swallowed and the script
-carries on, past the timeout, holding its database connection.
-
-`-k 60` follows up with an unblockable `SIGKILL` sixty seconds later. So the
-ordering is: SIGINT first, giving `run_job` a chance to report what happened;
-SIGKILL as the guarantee that the dyno actually ends.
-
-#### Why the timeout matters more than it looks
-
-The cost of a hung job is not just dyno-seconds. Every one of these scripts
-opens a JawsDB connection, and a process killed mid-query never runs its
-`finally`. The plan caps you at **15 concurrent connections**, shared with the
-web dynos' pool of 5. Enough stacked hangs and the *website* stops being able
-to reach the database. Bounding the job bounds the blast radius.
+Every one of these scripts opens a JawsDB connection, and a process killed
+mid-query never runs its `finally`. The plan caps you at **15 concurrent
+connections**, shared with the web dynos' pool of 5, so enough stacked hangs
+and the *website* stops being able to reach the database. Bounding the job
+bounds the blast radius.
 
 600s is comfortable for these: they are daily, so even a full-length timeout
 cannot overlap the next run.
@@ -317,53 +299,49 @@ cannot overlap the next run.
 |---|---|
 | `timeout -s INT -k 60 600 python -m monitoring.run_checks` | Hourly |
 
-Same signal flags as the wrapped jobs, for slightly different reasons. There is
-no `run_job` here to turn the interrupt into an alert, and none is needed -
-**detection is identical either way.** `main()` wraps `run_sql_checks` in
-`except Exception`, which does not catch `KeyboardInterrupt`, so an interrupt
-propagates straight out and the closing `alerts.pulse()` is never reached.
-No pulse, and the 90-minute inactivity alert picks it up. The guard degrades
-into an alarm you already built.
+Same signal flags as the wrapped jobs, for slightly different reasons.
+**Detection is identical either way.** There is no `run_job` here and none is
+needed: `main()` wraps `run_sql_checks` in `except Exception`, which does not
+catch `KeyboardInterrupt`, so an interrupt propagates straight out, the
+closing `alerts.pulse()` is never reached, and the 90-minute inactivity alert
+picks it up.
 
-What `-s INT` buys on top of that is **diagnosis and cleanup**:
+What `-s INT` buys on top of that is diagnosis and cleanup:
 
-* **A traceback instead of silence.** SIGTERM is not delivered to Python as an
-  exception - the interpreter dies where it stands and prints nothing. SIGINT
-  arrives as `KeyboardInterrupt`, so the unhandled traceback lands in the log
-  drain and tells you *which* check was hung. With SIGTERM you would know only
-  that the pulse stopped.
+* **A traceback instead of silence.** SIGTERM prints nothing; a
+  `KeyboardInterrupt` traceback lands in the log drain and names *which* check
+  was hung.
 * **`finally` blocks run.** `run_sql_checks` closes its cursor and connection
   in a `finally`; under SIGTERM that never executes and the JawsDB connection
-  is left for the server to reap. Given that connection pressure is the reason
-  for bounding these jobs at all, unwinding properly is the point.
+  is left for the server to reap. Connection pressure is the reason for
+  bounding these jobs at all.
 
-`-k 60` is cheaper insurance here than it is for the YouTube scripts - nothing
+`-k 60` is cheaper insurance here than it is for the YouTube scripts: nothing
 in `run_checks` uses a bare `except:`, every handler is `except Exception`,
 and `KeyboardInterrupt` is not an `Exception` subclass, so SIGINT always
 lands. It guards only against a third-party library (mysql-connector, redis,
-requests) swallowing the interrupt internally. It costs nothing and keeps one
-convention across all eight Scheduler entries, which is worth more than the
-40 seconds of worst-case runtime it adds.
+requests) swallowing the interrupt internally, and it keeps one convention
+across all eight Scheduler entries for 40 seconds of worst-case runtime.
 
 Cost, measured on 2026-09-26: **157 ms of work, 1.4 s of dyno lifecycle**
-start to finish. The earlier "~20 s per run" estimate here was about 15x
-conservative; at 720 runs a month this is well under an hour of dyno time.
+start to finish (an earlier ~20 s-per-run estimate here was about 15x
+conservative). At 720 runs a month this is well under an hour of dyno time.
 
 This is the only job to schedule.
 
 #### Do not wait an hour to confirm it works
 
-Heroku Scheduler picks its own offset within the hour, so after adding the
-entry you may sit for up to 60 minutes with no pulse and no way to tell "not
-yet" from "broken." Force one instead:
+Heroku Scheduler picks its own offset within the hour, so a new entry can sit
+for up to 60 minutes with no pulse and no way to tell "not yet" from "broken."
+Force one instead:
 
 ```bash
 heroku run "timeout -s INT -k 60 600 python -m monitoring.run_checks" -a apple-apps
 ```
 
 Quote the command here. Unlike the Scheduler UI, the CLI has to decide for
-itself whether `-m` belongs to it or to the command, and `-a` genuinely is
-its own flag. Quoting removes the guesswork.
+itself whether `-m` belongs to it or to the command, and `-a` is its own
+flag.
 
 That prints the same `ok`/`skip` lines and closing `JJ_PULSE` a scheduled run
 would, through the same log drain, so it satisfies step 7 in seconds. It is
@@ -374,12 +352,12 @@ against prod as often as you like.
 Expect `12 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
 outside its 09:00 PST window.
 
-Two caveats about what a green run does *not* prove. `blossom_errors_today`
+A green run does not prove two of the checks work. `blossom_errors_today`
 passes trivially until error rows accumulate, and `smush_idle` returns a
-passing `0` because its busy-hour gate never opens - it is not monitoring
-anything. See the measured notes in `datasets/health_checks.yaml`.
+passing `0` because its busy-hour gate never opens, so it is not monitoring
+anything yet. See the measured notes in `datasets/health_checks.yaml`.
 
-#### What actually gets checked
+#### What gets checked
 
 Nine checks come from `datasets/health_checks.yaml`: `youtube_trending_today`,
 `youtube_grouped_today`, `blossom_idle`, `smush_idle`, `blossom_errors_today`,
@@ -394,9 +372,9 @@ easy to miss when reading the YAML:
 | `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` stopped reconciling and is no longer draining. |
 | `web_up` | `HEALTH_WEB_URL` returns 200. The only check that proves the web dyno is serving, which no database query can tell you. |
 
-Note the SELECT-only guard on YAML checks is a literal prefix test, not a
-parser: a check written to start with a comment or a `WITH` CTE would be
-rejected as non-SELECT.
+The SELECT-only guard on YAML checks is a literal prefix test, not a parser: a
+check written to start with a comment or a `WITH` CTE would be rejected as
+non-SELECT.
 
 ### 4. Papertrail - two alerts
 
@@ -422,9 +400,9 @@ and two already exist. If you hit a cap:
 - If still capped, retire the "5 x 500 in 10 minutes" rule. The new
   `check=http_500` emitter supersedes it and reports the *first* 500.
 
-Free-tier facts worth knowing: search retention is 2 days (archives keep 7),
-and the volume cap is 10 MB/day. Exceeding the cap stops ingestion, which
-trips the inactivity alert - loud, but worth recognising for what it is.
+Free-tier limits: search retention is 2 days (archives keep 7), and the volume
+cap is 10 MB/day. Exceeding the cap stops ingestion, which trips the
+inactivity alert - loud, but recognise it for what it is.
 
 ### 5. Storage - the numbers as of 2026-09-23
 
@@ -441,7 +419,7 @@ quota to 32%. Three cleanups got it there:
 
 Nothing prunes automatically - there is no retention job, by choice. These are
 the windows a purge can use without breaking a dashboard, worked out on
-2026-09-24 by checking how far back each view actually reads:
+2026-09-24 from how far back each view actually reads:
 
 | Table | Keep | Why that is safe |
 |---|---|---|
@@ -459,18 +437,11 @@ Count before you delete, and prefer copy-and-swap over `DELETE` - see
 
 #### Reading sizes correctly
 
-Two traps, both hit during the cleanup above:
-
-- **`information_schema` caches statistics for 24 hours** on MySQL 8
-  (`information_schema_stats_expiry`). After the OPTIMIZE the size looked
-  completely unchanged, because the cached value was being served. Always run
-  `SET SESSION information_schema_stats_expiry = 0;` first. A `DROP TABLE`
-  appears to update instantly only because the row leaves the result set
-  entirely - there is no cached statistic left to be stale.
-- **`table_rows` is an estimate**, sampled from index pages, and a bad one
-  here: it read 24,616 against a true 42,127 before the delete, and 14,146
-  against a true 28,292 after. Use `SELECT COUNT(*)`. The size columns
-  (`data_length`, `index_length`, `data_free`) are trustworthy.
+`information_schema` caches table statistics for 24 hours on MySQL 8, so a
+size query run after an `OPTIMIZE` reads the stale value unless the expiry is
+reset first. `table_rows` is a sampled estimate and not usable here; use
+`SELECT COUNT(*)`. Measured error rates and the third trap:
+[Reading sizes without being misled](#reading-sizes-without-being-misled).
 
 `information_schema.innodb_tablespaces` would give the real file size, but it
 needs the `PROCESS` privilege, which a JawsDB shared plan does not grant.
@@ -490,7 +461,7 @@ ORDER BY (data_length + index_length) DESC;
 #### antiwordle_revamp_clicks: the bloat is recent, not old
 
 Still the largest table at roughly **132.6 MB, 40% of the database**, but no
-longer dominant. Purging it in two passes mapped where the weight actually sits:
+longer dominant. Purging it in two passes mapped where the weight sits:
 
 | Age band | Size |
 |---|---|
@@ -498,15 +469,11 @@ longer dominant. Purging it in two passes mapped where the weight actually sits:
 | 180 to 365 days | 121.1 MB |
 | Under 180 days (kept) | ~132.6 MB |
 
-The payload grew sharply somewhere around late 2025 - rows older than a year
+The payload grew sharply somewhere around late 2025: rows older than a year
 average ~1.6 KB, recent ones ~9.4 KB. Two years of history cost 21 MB; the six
-months before the cutoff cost 121 MB.
-
-**Correction worth recording:** after the 365-day pass freed only 21 MB, the
-conclusion here was that age-based retention is a weak lever for this table.
-The 180-day pass freed 121 MB and disproved that. Retention works fine; the
-window just has to reach into the period where the rows are large. Do not
-judge a retention window by a longer one's result.
+months before the cutoff cost 121 MB. Age-based retention works on this table
+as long as the window reaches into the period where the rows are large - do not
+judge a window by a longer one's result.
 
 At current traffic this table adds roughly 130 MB per six months. Nothing
 prunes it automatically, so that growth is unbounded until the `data_dict`
@@ -526,12 +493,6 @@ FROM antiwordle_revamp_clicks
 GROUP BY DATE_FORMAT(click_time, '%Y-%m')
 ORDER BY month DESC;
 ```
-
-Still open: ~9.4 KB per antiwordle click is a lot, and `wordle_revamp_clicks`
-- written by the same job - is only 36.6 MB, so whatever grew grew only on the
-antiwordle side. Shrinking what
-`scheduled_tasks_redis/redis_wordle.py` serialises into `data_dict` would cap
-the problem at source rather than managing it with retention forever.
 
 `blossom_solver_clicks` is 26.5 MB (~650k rows by `table_rows`, so treat the
 count as approximate); pruning it saves nothing.
@@ -566,7 +527,11 @@ or triggers - neither exists on this table. Run it outside
 **not reversible**, so dump first:
 
 ```
-mysqldump -h HOST -u USER -p DB \n  spotify_tracks spotify_artists \n  lol_summoner lol_champion lol_match \n  lol_participants_info lol_participants_challenges \n  > archived_tables.sql
+mysqldump -h HOST -u USER -p DB \
+  spotify_tracks spotify_artists \
+  lol_summoner lol_champion lol_match \
+  lol_participants_info lol_participants_challenges \
+  > archived_tables.sql
 ```
 
 **`vw_prod_spotify` is an invalid view** - it selects from the dropped
@@ -620,14 +585,13 @@ has been rewritten to cover all seven. Paste it into Workbench as-is.
 **Do not try to fix the old version by uncommenting.** It carried the extra
 page names as commented-out lines, and uncommenting them produced a syntax
 error twice over: the live `... AS blossom` line has no trailing comma, and
-the last commented line, `... AS quordle_mobile`, has none either. Enabling a
-middle subset left both a missing comma and a trailing one. That is why the
-file now holds finished text rather than a menu.
+the last commented line, `... AS quordle_mobile`, has none either, so enabling
+a middle subset left both a missing comma and a trailing one. The file now
+holds finished text rather than a menu.
 
-Each page needs **two** entries, which is the other half of what made the old
-instruction wrong: a `SUM(CASE WHEN ...)` column *and* a name in the
-`WHERE page_name IN (...)` list. A column without the `WHERE` entry reads zero
-forever.
+Each page needs **two** entries: a `SUM(CASE WHEN ...)` column *and* a name in
+the `WHERE page_name IN (...)` list. A column without the `WHERE` entry reads
+zero forever.
 
 Dropped on purpose: `blossom_bee.html`, `wordle.html`, `wordle_example.html`,
 `antiwordle.html` and `quordle_mobile.html`. Nothing logs them, so they would
@@ -641,28 +605,22 @@ Rows only start arriving after the prod deploy, so there is no hurry.
 
 Disable the `run_checks` Scheduler entry, wait for the email, then **re-enable
 it.** Budget about two hours: the alert fires at 90 minutes of silence.
+`run_checks` prints `JJ_PULSE source=checks` at the end of every hourly run and
+Papertrail evaluates the no-new-events search on its own servers, so stopping
+the job is what produces the email.
 
-Re-enabling is the step to not forget - leaving it off leaves you with no
-monitoring at all. It is self-correcting if you do forget, because the
-inactivity alert keeps firing until pulses resume, but that is a worse way to
-find out.
+Re-enabling is the step to not forget: leaving it off leaves you with no
+monitoring at all. It is self-correcting only in that the inactivity alert
+keeps firing until pulses resume.
 
-**Why that works:** `run_checks` prints `JJ_PULSE source=checks` at the end of
-every hourly run. Papertrail's alert fires when that search matches *nothing*
-for 90 minutes, and Papertrail evaluates it on its own servers. Stop the job
-and the pulses stop; 90 minutes later Papertrail sees silence and emails.
-
-**Why it is the one test worth doing deliberately:** it is the only alert that
+This is the one test to run deliberately, because it is the only alert that
 proves an absence. Every other alert needs the app alive enough to report its
-own problem. A dead dyno, an unreachable database, a failed boot, a broken log
-drain - none of those can emit a `JJ_ALERT`. Only something outside Heroku
-notices the quiet.
-
-It is also the alert most likely to be silently misconfigured: a bare
-`JJ_PULSE` search instead of the quoted phrase, "at least 1 event" instead of
-"no new events match", or a notification never attached. Every one of those
-looks fine in the UI and fails only when you need it. An untested dead-man's
-switch is worse than none, because you believe you are covered.
+own problem: a dead dyno, an unreachable database, a failed boot or a broken
+log drain cannot emit a `JJ_ALERT`, and only something outside Heroku notices
+the quiet. It is also the alert most likely to be silently misconfigured - a
+bare `JJ_PULSE` search instead of the quoted phrase, "at least 1 event"
+instead of "no new events match", or a notification never attached. Every one
+of those looks fine in the UI and fails only when you need it.
 
 ---
 
@@ -694,7 +652,7 @@ one is a deploy.** Only two settings are `heroku config:set`-tunable:
 
 **`smush_idle` stays inert until 28 days of history exist.** It compares the
 current hour against that hour's 28-day average and passes whenever the hour
-is not normally busy - and `smush.html` rows only start arriving with this
+is not normally busy, and `smush.html` rows only start arriving with this
 deploy, so it switches itself on about a month later.
 
 `blossom_idle` uses the same rule but is **live from the first run**:
@@ -719,14 +677,13 @@ emails on any `JJ_ALERT` inside 10 minutes, so an hourly check that breaches
 emails every hour until it is fixed. That is right for something you fix today
 and wrong for something that takes months, so `db_size_mb` carries
 `only_between_pst: [9, 9]` - a one-hour window, meaning the 09:00 PST run
-evaluates it and no other. One email a day instead of twenty-four.
-
-Worth knowing this applies to any slow-moving check you add later.
+evaluates it and no other. One email a day instead of twenty-four. The same
+applies to any slow-moving check added later.
 
 ## JawsDB reference
 
 What the plan allows, how the server is configured, and which maintenance
-patterns actually work. All verified 2026-09-23 against the live database.
+patterns work. All verified 2026-09-23 against the live database.
 
 ### Plan limits
 
@@ -761,10 +718,10 @@ Two consequences of the loose `sql_mode`:
 
 - **No `ONLY_FULL_GROUP_BY`**, so a view can `ORDER BY` a column outside its
   `GROUP BY` and still run. `vw_prod_youtube_trending_grouped` did that for a
-  long time without anyone noticing, because it was never actually a fault.
+  long time without anyone noticing; it was never a fault.
 - **No `STRICT_TRANS_TABLES`**, so an over-long value is *silently truncated*
   rather than rejected. The write-behind drain's per-row retry will therefore
-  rarely fire for width violations - but an over-long referrer loses its tail
+  rarely fire for width violations, and an over-long referrer loses its tail
   without complaint.
 
 ### Privileges
@@ -776,7 +733,7 @@ Two consequences of the loose `sql_mode`:
 | `SET SESSION information_schema_stats_expiry` | |
 
 Not holding `PROCESS` is the reason `processlist` shows only your own
-connections - which is precisely what makes the `db_connections` check
+connections - which is what makes the `db_connections` check
 meaningful instead of noise from other tenants.
 
 ### Reading sizes without being misled
@@ -812,9 +769,9 @@ quiet a day too long.
 the space back, and it does so here only because `innodb_file_per_table = 1`.
 
 `OPTIMIZE TABLE` on InnoDB prints **"Table does not support optimize, doing
-recreate + analyze instead"**. That is success, not an instruction - *doing*
-means it has already substituted a table rebuild. The `status OK` row beneath
-it is the outcome. The manual equivalent is `ALTER TABLE ... FORCE`.
+recreate + analyze instead"**. That is success, not an instruction: it has
+already substituted a table rebuild, and the `status OK` row beneath it is the
+outcome. The manual equivalent is `ALTER TABLE ... FORCE`.
 
 **Measure in bytes, not rows.** `SUM(LENGTH(col))` grouped by month tells you
 what a purge will really recover; row counts do not, wherever row size varies.
@@ -835,12 +792,24 @@ This is a client-side guard only. mysql-connector does not enable safe update
 mode, so it never applies to anything the app itself runs - only to statements
 you type into Workbench.
 
+## What this does not catch
+
+Anything wrong that produces neither a log line nor a measurable database
+symptom: wrong-but-plausible data (YouTube returning 50 rows of stale
+videos), visual or CSS breakage, a solver returning wrong answers, SEO
+decline. Those still need occasional eyes.
+
+`mtg_prices_bsky.py` already handles its own staleness and failure alerting
+and was left alone.
+
+---
+
 ## Future: richer page-visit logging (not implemented)
 
-Parked deliberately - the first deploy already carries enough change. This is
-the research, so it does not have to be redone.
+Parked deliberately - the first deploy already carries enough change. The
+research is recorded here so it does not have to be redone.
 
-### The three columns worth adding
+### The three columns to add
 
 `app_visits` is `id, submit_time, page_name, referrer, user_agent`, all three
 strings `varchar(255)`.
@@ -851,14 +820,14 @@ strings `varchar(255)`.
 | `is_bot` | `TINYINT(1) NULL` | Stops crawler traffic holding `smush_idle` quiet. See below - the reason is narrower than it first appears. |
 | `country` | `CHAR(2) NULL` | Cloudflare already sets `CF-IPCountry` on every proxied request and the app throws it away. No logic needed, no PII. An empty value is informative too: the request bypassed Cloudflare. |
 
-### What the bot rate actually justifies
+### What the bot rate justifies
 
 Measured 2026-09-25 against the 238k rows of `user_agent` already collected:
 **12.4% bots.**
 
-That number alone is a weak argument. Inflating an hourly baseline by 12%
+That number alone is a weak argument: inflating an hourly baseline by 12%
 barely changes when a check fires. The real risk is the **recency** half of
-the idle checks: they alert on minutes-since-last-hit, so one polite crawler
+the idle checks. They alert on minutes-since-last-hit, so one polite crawler
 on a 15-minute cycle holds the check quiet through a total collapse in human
 traffic. What matters is bot *regularity*, not bot *share*.
 
@@ -923,10 +892,10 @@ ALTER TABLE app_visits
 
 Three details that make it safe:
 
-- **`ALGORITHM=INSTANT`** is metadata-only, milliseconds on 238k rows. Stating
-  it explicitly makes MySQL *error* rather than silently falling back to a
-  full rebuild. Adding at the end of the table is what qualifies; positioning
-  with `AFTER` would force the rebuild.
+- **`ALGORITHM=INSTANT`** is metadata-only, milliseconds on 238k rows, and
+  stating it explicitly makes MySQL *error* rather than silently falling back
+  to a full rebuild. Adding at the end of the table is what qualifies;
+  positioning with `AFTER` would force the rebuild.
 - **`NULL`, not `DEFAULT 0`.** NULL honestly means "not recorded yet";
   `is_bot = 0` would claim every historical row was verified human.
 - **Nothing reads `app_visits` with `SELECT *`** - all four views name their
@@ -934,8 +903,8 @@ Three details that make it safe:
   view changes shape.
 
 Prod and staging share one JawsDB, so the ALTER hits both. That is fine
-precisely because it is additive: old and new code both work against the
-altered table, in either direction.
+because it is additive: old and new code both work against the altered table,
+in either direction.
 
 ### Known limitation of status_code
 
@@ -959,17 +928,6 @@ derived and therefore touch all four views. Bigger job, deliberately separate.
 - **Session ID.** Would turn page views into sessions, but carries privacy
   complexity and answers no question currently being asked.
 
-### A better fix for smush than is_bot
-
-`blossom_idle` is the stronger check because it watches a *user action*
-rather than a page load. Logging the POST branch of `/smush` under its own
-`page_name` and keying `smush_idle` on that needs no bot filtering at all -
-crawlers do not submit boards - and would catch soft failures too. A GET-based
-idle check cannot see `/smush` rendering fine while the solver returns
-garbage.
-
-Worth doing if `smush_idle` proves noisy or too quiet in practice.
-
 ### View updates that would come with it
 
 Once enough rows carry `status_code`, the error views can move from the
@@ -977,12 +935,28 @@ fragile `page_name LIKE '%error%'` matching to `status_code >= 400`. The other
 view work is not future - it applies to the current deploy, and lives in
 [7. Dashboard views](#7-dashboard-views).
 
-## What this does not catch
+---
 
-Anything wrong that produces neither a log line nor a measurable database
-symptom: wrong-but-plausible data (YouTube returning 50 rows of stale
-videos), visual or CSS breakage, a solver returning wrong answers, SEO
-decline. Those still need occasional eyes.
+## Ideas, not planned
 
-`mtg_prices_bsky.py` already handles its own staleness and failure alerting
-and was left alone.
+Nothing here is scheduled or required. Recorded so the reasoning does not have
+to be redone.
+
+- **Shrink what `scheduled_tasks_redis/redis_wordle.py` serialises into
+  `data_dict`.** ~9.4 KB per antiwordle click is a lot, and
+  `wordle_revamp_clicks` - written by the same job - is only 36.6 MB, so
+  whatever grew grew only on the antiwordle side. Capping it at source would
+  end the growth in `antiwordle_revamp_clicks` rather than managing it with
+  retention forever.
+- **Key `smush_idle` on a POST rather than a GET.** `blossom_idle` is the
+  stronger check because it watches a *user action* rather than a page load.
+  Logging the POST branch of `/smush` under its own `page_name` and keying
+  `smush_idle` on that needs no bot filtering at all - crawlers do not submit
+  boards - and would catch soft failures too: a GET-based idle check cannot
+  see `/smush` rendering fine while the solver returns garbage. Worth doing if
+  `smush_idle` proves noisy or too quiet in practice.
+- **Correction recorded.** After the 365-day pass on
+  `antiwordle_revamp_clicks` freed only 21 MB, the conclusion written here was
+  that age-based retention is a weak lever for that table. The 180-day pass
+  freed 121 MB and disproved it. Retention works fine; the window just has to
+  reach into the period where the rows are large.
