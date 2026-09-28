@@ -113,6 +113,48 @@
     transform: scale(1.03) !important;
   }
 
+  /* Word count + Show more, directly under the results table */
+  .word-count-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin: 16px auto 0 auto;
+  }
+
+  .word-count-text {
+    margin: 0;
+    font-size: 14px;
+    color: #555;
+  }
+
+  .show-more-btn {
+    background-color: #ffffff;
+    border: 1px solid #02484d;
+    color: #02484d;
+    padding: 10px 24px;
+    border-radius: 12px 18px 12px 18px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    display: inline-block;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .show-more-btn:hover {
+    background-color: #e8f4f5;
+    transform: scale(1.02);
+  }
+
+  @media (max-width: 480px) {
+    .show-more-btn {
+      width: 100%;
+      max-width: 320px;
+    }
+  }
+
   input::-webkit-input-placeholder {
       color: lightgrey;
   }
@@ -904,28 +946,29 @@ td.show-letter-cell {
   </button>
   </div>
   
-  <!-- Buttons row: Reset + Show more -->
+  <!-- Buttons row: Reset -->
   <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: -40px; position: relative; z-index: 10;">
     <a href="#" class="reset-letters-btn" style="margin-top: 0;" onclick="showResetConfirmation(event);">Reset Letters</a>
-    {% if show_load_more %}
-    <form method="POST" action="/blossom" style="display: inline; margin: 0;">
-      <input type="hidden" name="must_have" value="{{must_have_val}}">
-      <input type="hidden" name="may_have" value="{{may_have_val}}">
-      <input type="hidden" name="petal_letter" value="{{petal_letter}}">
-      <input type="hidden" name="current_count" value="{{current_count}}">
-      <button type="submit" name="load_more" value="true" class="reset-letters-btn" style="margin-top: 0;" onclick="showLoadingOverlay()">+ Show 25 more</button>
-    </form>
-    {% endif %}
   </div>
   <br>
   <br>
 
   <!-- Wrap dynamic content to prevent layout shifts -->
-  <div class="results-section">
+  <div class="results-section" id="words">
     <div class="word-results-container">
       {{blossom_table|safe}}
     </div>
-    {{valid_word_count}}
+    <div class="word-count-row">
+      <p class="word-count-text">{{valid_word_count}}</p>
+      {% if show_load_more %}
+      <!-- Submits the enclosing form1, which already carries must_have / may_have /
+           petal_letter / current_count. Do not wrap this button in its own form
+           element: form1 spans this section, and the HTML parser drops a nested
+           form start tag while letting its closing tag end form1 early. -->
+      <button type="submit" name="load_more" value="true" class="show-more-btn"
+              formaction="/blossom#words" onclick="showLoadingOverlay()">Show 25 more words</button>
+      {% endif %}
+    </div>
   </div>
 
   <br>
