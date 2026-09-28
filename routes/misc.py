@@ -1,9 +1,9 @@
 """Front page, static games, feedback, SEO files, redirects, and catch-all."""
 
-import mysql.connector
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
-from extensions import NOT_FOUND_LIMITS, db_cursor, limiter
+from extensions import NOT_FOUND_LIMITS, db_cursor, limiter, log_page_visit
+from monitoring import alerts
 
 bp = Blueprint('misc', __name__)
 
@@ -61,7 +61,9 @@ def feedback():
         feedback_body = request.form['feedback_body']
         referrer = request.form['referrer']
 
-        # log inputs
+        # log inputs. Written inline rather than through the write-behind
+        # queue: feedback arrives every week or two and matters, so it is
+        # worth waiting on the confirmation that a page-visit row is not.
         try:
             with db_cursor() as (conn, cursor):
                 query = """
@@ -70,8 +72,20 @@ def feedback():
                 """
                 cursor.execute(query, (referrer, feedback_header, feedback_body))
                 conn.commit()
-        except mysql.connector.Error as err:
+        except Exception as err:
+            # Deliberately broad. mysql.connector.Error covers the pool and
+            # connection failures, but the visitor is told their feedback was
+            # received either way, so nothing here may turn into a 500.
             print("Error:", err)
+            # The row is gone, so the alert has to carry the content itself or
+            # the feedback is lost - the visitor is told it was received.
+            alerts.alert('feedback_write_failed', sev='crit',
+                         header=feedback_header, body=feedback_body, msg=err)
+        else:
+            # Notify on write rather than by polling the table: instant, and
+            # with no "which rows have I already seen" bookkeeping to get wrong.
+            alerts.alert('feedback_new', sev='info',
+                         header=feedback_header, referrer=referrer)
 
         return render_template("feedback_received.html")
     else:
@@ -145,4 +159,15 @@ def wordle_og_redirect():
 @bp.route('/<path:path>')
 @limiter.limit(NOT_FOUND_LIMITS)
 def catch_all(path):
+    # This, not app.py's errorhandler(404), is where essentially every 404
+    # lands: returning the status code never invokes the handler.
+    #
+    # Only referred 404s are logged. Unreferred ones are scanner traffic, and
+    # NOT_FOUND_LIMITS permits 600/hour per rate-limit key - at ~196 bytes a
+    # row that is most of a gigabyte a year into a 1 GB database, with nothing
+    # pruning it. A referrer means a real link led somewhere broken, which is
+    # the only version of this worth keeping; vw_prod_blossom_errors filters
+    # on referrer anyway, so unreferred rows could never satisfy it.
+    if request.headers.get('Referer'):
+        log_page_visit(f'error.html (404: {path})')
     return render_template('error.html', return_type='404 - Page Not Found'), 404

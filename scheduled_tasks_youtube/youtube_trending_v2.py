@@ -97,7 +97,11 @@ def get_trending_videos(YOUTUBE_API):
         try:
             channel_views = channel_response['items'][0]['statistics']['viewCount']
         except:
-            channel_videos = -1
+            # Was `channel_videos = -1`: a missing viewCount left channel_views
+            # undefined, so the row build below raised NameError and killed the
+            # run before it could send any email. youtube_trending_revamp_v3.py
+            # has always had this right.
+            channel_views = -1
         try:
             channel_videos = channel_response['items'][0]['statistics']['videoCount']
         except:

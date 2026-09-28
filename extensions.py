@@ -3,7 +3,10 @@
 cache and limiter use the init_app pattern; app.py binds them to the Flask app.
 """
 
+import atexit
 import json
+import queue
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -20,6 +23,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 import config
+from monitoring import alerts
 
 ##### cache / rate limiter #####
 
@@ -62,12 +66,63 @@ def custom_error():
 
 ##### MySQL #####
 
-if config.IS_HEROKU:
-    # Creating a connection pool
-    cnxpool = mysql.connector.pooling.MySQLConnectionPool(**config.MYSQL_POOL_CONFIG)
+# The pool is built on first use, not at import. MySQLConnectionPool's
+# constructor eagerly opens pool_size connections, so building it at import
+# meant a JawsDB outage during a dyno boot took the entire app down rather
+# than just the database-backed pages - and restart-dyno.yml restarts the web
+# dyno twice a day, so that window is real. Lazily, a failed build leaves
+# _cnxpool None and the next request retries, so a blip self-heals.
+_cnxpool = None
+_cnxpool_lock = threading.Lock()
 
+# How long a failed build suppresses the next attempt. Without it, every
+# request during an outage retries the whole build, and because the retries
+# serialise on the lock the eighth waiting thread is eight connection_timeouts
+# behind - past Heroku's 30s router limit. One attempt per window instead, so
+# a database page fails in ~5s rather than queueing, and a blip still
+# self-heals within the window.
+_POOL_RETRY_SECONDS = 20
+_cnxpool_failed_at = None
+
+
+def _get_pool():
+    """Return the connection pool, building it on first use.
+
+    Built here rather than at import because MySQLConnectionPool's constructor
+    eagerly opens pool_size connections: building it at import meant a JawsDB
+    outage during a dyno boot took the whole app down rather than just the
+    database-backed pages.
+    """
+    global _cnxpool, _cnxpool_failed_at
+    pool = _cnxpool
+    if pool is not None:
+        return pool
+
+    # Checked before the lock as well as inside it, so during an outage the
+    # waiting threads fail fast instead of each taking a turn at a 5s connect.
+    failed_at = _cnxpool_failed_at
+    if failed_at is not None and (time.monotonic() - failed_at) < _POOL_RETRY_SECONDS:
+        raise mysql.connector.PoolError("connection pool unavailable; retry pending")
+
+    with _cnxpool_lock:
+        if _cnxpool is not None:
+            return _cnxpool
+        if (_cnxpool_failed_at is not None
+                and (time.monotonic() - _cnxpool_failed_at) < _POOL_RETRY_SECONDS):
+            raise mysql.connector.PoolError("connection pool unavailable; retry pending")
+        try:
+            _cnxpool = mysql.connector.pooling.MySQLConnectionPool(**config.MYSQL_POOL_CONFIG)
+        except Exception as e:
+            _cnxpool_failed_at = time.monotonic()
+            alerts.alert_throttled('db_pool_init', sev='crit', exc=type(e).__name__, msg=e)
+            raise
+        _cnxpool_failed_at = None
+        return _cnxpool
+
+
+if config.IS_HEROKU:
     def get_db_connection():
-        return cnxpool.get_connection()
+        return _get_pool().get_connection()
 else:
     def get_db_connection():
         try:
@@ -96,25 +151,180 @@ def db_cursor():
         if conn is not None and conn.is_connected():
             conn.close()
 
+##### write-behind logging #####
+
+# Visit and click logging used to run inline: an INSERT, an explicit COMMIT
+# (mysql-connector sends one even under autocommit), and a session reset when
+# the pooled connection is returned - roughly three round trips to JawsDB in
+# front of the response. On /blossom, which POSTs per keystroke, that sat
+# between the user typing and the solver answering.
+#
+# Rows now go onto a bounded queue that one drain thread batches, so the
+# request path never waits on the database to log anything, and a database
+# outage can no longer slow down pages that merely log a visit.
+
+_LOG_QUEUE_MAX = 2000
+_LOG_BATCH_MAX = 50
+_LOG_BATCH_SECONDS = 2.0
+
+_log_queue = queue.Queue(maxsize=_LOG_QUEUE_MAX)
+_drain_thread = None
+_drain_lock = threading.Lock()
+
+APP_VISITS_SQL = """
+INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
+VALUES (%s, %s, %s, %s);
+"""
+
+
+def pst_now_str():
+    """PST timestamp in the format MySQL DATETIME expects.
+
+    Callers stamp rows at enqueue time rather than letting the INSERT use
+    CONVERT_TZ(NOW(), ...). If the drain backs up behind a slow database,
+    server-side NOW() would stamp a burst of queued rows with the flush time -
+    distorting vw_prod_blossom_hourly_average and potentially masking the very
+    outage that caused the backup.
+    """
+    return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _drain_batch(batch):
+    """Write one batch, grouped by statement so each becomes one executemany."""
+    by_sql = {}
+    for sql, params in batch:
+        by_sql.setdefault(sql, []).append(params)
+    with db_cursor() as (conn, cursor):
+        for sql, rows in by_sql.items():
+            try:
+                cursor.executemany(sql, rows)
+            except Exception:
+                # Batching means one unwritable row - an over-long referrer,
+                # say - would otherwise take the other 49 down with it. Retry
+                # individually and drop only what genuinely cannot be written.
+                written = 0
+                for row in rows:
+                    try:
+                        cursor.execute(sql, row)
+                        written += 1
+                    except Exception:
+                        pass
+                if written == 0:
+                    # not one bad row: the connection or table is gone
+                    raise
+            # Committed per group rather than once at the end. The Heroku pool
+            # sets autocommit, so a later group raising costs nothing there -
+            # but the local config does not, and losing an already-written
+            # group to an unrelated statement failure would be surprising.
+            conn.commit()
+
+
+def _drain_loop():
+    while True:
+        batch = [_log_queue.get()]
+        deadline = time.monotonic() + _LOG_BATCH_SECONDS
+        while len(batch) < _LOG_BATCH_MAX:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                batch.append(_log_queue.get(timeout=remaining))
+            except queue.Empty:
+                break
+        try:
+            _drain_batch(batch)
+        except Exception as e:
+            # Losing best-effort analytics must never kill this thread. If it
+            # died the queue would fill in silence and every later row would
+            # be dropped, so swallow, report, and keep draining.
+            alerts.alert_throttled('log_drain_failed', exc=type(e).__name__, msg=e, rows=len(batch))
+
+
+def _ensure_drain():
+    """Start the drain thread on first use, and restart it if it ever died."""
+    global _drain_thread
+    thread = _drain_thread
+    if thread is not None and thread.is_alive():
+        return
+    with _drain_lock:
+        if _drain_thread is None or not _drain_thread.is_alive():
+            _drain_thread = threading.Thread(target=_drain_loop, name='db-log-drain', daemon=True)
+            _drain_thread.start()
+
+
+def enqueue_write(sql, params):
+    """Queue one best-effort row. Never blocks, never raises.
+
+    Callers include app.py's 500 handler, so this has to hold even when the
+    process is in trouble: Thread.start() raises if no thread can be created,
+    and that is exactly the moment a 500 is being served.
+    """
+    try:
+        _ensure_drain()
+        _log_queue.put_nowait((sql, params))
+    except queue.Full:
+        # Rarer than it looks, and not the usual outage signal. During a
+        # database outage the drain keeps pulling batches and discarding them
+        # on failure, so rows are dropped as they arrive and the queue never
+        # fills - you get log_drain_failed instead. This fires only when rows
+        # are enqueued faster than the drain can write them.
+        #
+        # Dropping is the right call either way, but say so: silent data loss
+        # is worse than loud data loss.
+        alerts.alert_throttled('log_queue_full', queued=_LOG_QUEUE_MAX)
+    except Exception as e:
+        alerts.alert_throttled('log_enqueue_failed', exc=type(e).__name__, msg=e)
+
+
+def flush_log_queue(timeout=3.0):
+    """Drain whatever is queued now. For atexit and for tests.
+
+    Bounded, because a dyno shutdown must not wait on a slow database. Returns
+    True if the queue was emptied.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        # Checked before pulling a batch, not after writing one. _drain_batch
+        # can block on connect() for connection_timeout seconds, so testing
+        # only afterwards lets a shutdown overshoot the budget by a whole
+        # attempt - and Heroku allows 30s after SIGTERM, with restart-dyno.yml
+        # firing twice a day. Checking first also means a batch is never
+        # pulled off the queue and then abandoned unwritten.
+        if time.monotonic() >= deadline:
+            return _log_queue.empty()
+        batch = []
+        while len(batch) < _LOG_BATCH_MAX:
+            try:
+                batch.append(_log_queue.get_nowait())
+            except queue.Empty:
+                break
+        if not batch:
+            return True
+        try:
+            _drain_batch(batch)
+        except Exception:
+            return False
+
+
+# A dyno restart (twice daily via restart-dyno.yml, plus Heroku's own cycling)
+# would otherwise discard whatever the daemon thread still held.
+atexit.register(flush_log_queue)
+
+
 def log_page_visit(page_name):
+    """Record a page view. Best-effort and off the request path.
+
+    The request context is read here, on the request thread: the drain thread
+    runs outside the request and has no context to read it from.
+    """
     referrer = request.headers.get('Referer', 'No referrer')
     user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
-
-    try:
-        with db_cursor() as (conn, cursor):
-            query = """
-            INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-            VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s);
-            """
-            cursor.execute(query, (page_name, referrer, user_agent))
-            conn.commit()
-    except mysql.connector.PoolError:
-        # Pool exhausted - just skip logging, don't break the app
-        print("Skipping page visit log - connection pool busy")
-    except mysql.connector.Error as err:
-        print("MySQL Error:", err)
-    except Exception as e:
-        print("Unexpected Error:", e)
+    # Truncate before queueing. Callers now pass formatted exception text, and
+    # referrers and user agents are attacker-controlled; an over-long value
+    # would be rejected by the column and cost a retry pass in the drain.
+    enqueue_write(APP_VISITS_SQL, (
+        pst_now_str(), str(page_name)[:200], referrer[:250], user_agent[:250],
+    ))
 
 ##### redis #####
 

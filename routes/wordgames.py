@@ -6,7 +6,8 @@ import time
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, db_cursor, limiter
+from extensions import (INTERACTIVE_LIMITS, add_data_to_stream, db_cursor, limiter,
+                        log_page_visit)
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 
@@ -75,6 +76,7 @@ def run_wordle_revamp():
         )
 
         # Pass the results to JavaScript on page load
+        log_page_visit('wordle_revamp.html')
         return render_template("wordle_revamp.html",
                             initial_out1=final_out1,
                             initial_out2=final_out2,
@@ -125,6 +127,7 @@ def run_antiwordle_revamp():
         empty_data = []
         final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, empty_data)
 
+        log_page_visit('antiwordle_revamp.html')
         return render_template("antiwordle_revamp.html",
                              initial_out1=final_out1,
                              initial_out2=final_out2,
@@ -176,6 +179,7 @@ def run_quordle_revamp():
         initial_context = {key.replace('final', 'initial', 1): value
                            for key, value in zip(QUORDLE_RESULT_KEYS, results)}
 
+        log_page_visit('quordle.html')
         return render_template("quordle.html", schema_data=schema_data, **initial_context)
 
 
@@ -405,6 +409,7 @@ def run_smush():
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
     else:
+        log_page_visit('smush.html')
         return render_template("smush.html", schema_data=schema_data)
 
 
@@ -493,6 +498,7 @@ def run_ribbit():
 
         return jsonify(results=results, total_playable=total_playable)
     else:
+        log_page_visit('ribbit.html')
         return render_template("ribbit.html", schema_data=schema_data)
 
 
@@ -519,4 +525,5 @@ def run_wordiply():
 
         return jsonify(results=results)
     else:
+        log_page_visit('wordiply.html')
         return render_template("wordiply.html", schema_data=schema_data)

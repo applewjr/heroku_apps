@@ -4,7 +4,26 @@ Living at the repo root so the app's top-level modules (``app``, ``data``,
 ``functions`` ...) are importable from the test files.
 """
 
+import queue
+
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_write_behind(monkeypatch):
+    """Keep the write-behind drain off, for every test in the suite.
+
+    ``secret_pass.py`` points at the production JawsDB, so a drain thread
+    started during a test writes real rows to the live ``app_visits`` - and
+    the routes that call ``log_page_visit`` are exactly the ones the smoke
+    tests GET. Swapping the queue as well as stubbing the starter means each
+    test also sees an empty queue it can assert against.
+    """
+    import extensions
+
+    monkeypatch.setattr(extensions, "_ensure_drain", lambda: None)
+    monkeypatch.setattr(extensions, "_log_queue",
+                        queue.Queue(maxsize=extensions._LOG_QUEUE_MAX))
 
 
 @pytest.fixture(scope="session")

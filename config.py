@@ -13,6 +13,15 @@ if IS_HEROKU:
         "user": os.environ.get('jawsdb_user'),
         "password": os.environ.get('jawsdb_pass'),
         "host": os.environ.get('jawsdb_host'),
+        # Fail fast rather than hang. Without this, a JawsDB outage that drops
+        # packets (as opposed to refusing connections) blocks on TCP connect
+        # for the OS default of ~2 minutes. With only 8 gunicorn threads, every
+        # one of them parked there means requests queue behind a pool that is
+        # never going to answer, and they age out at Heroku's 30s router limit
+        # as H12s - including pages that need no database at all.
+        # extensions._POOL_RETRY_SECONDS is the other half of this: it stops
+        # each request paying the 5s again once the pool is known to be down.
+        "connection_timeout": 5,
         "pool_name": "mypool",
         # 5 covers the 8-thread worker's realistic concurrency while keeping
         # prod + staging + Workbench under the 15-connection JawsDB cap.
@@ -53,6 +62,7 @@ else:
         "user": _secret('mysql_user'),
         "password": _secret('mysql_pass'),
         "host": _secret('mysql_host'),
+        "connection_timeout": 5,
     }
     GOOGLE_SHEETS_JSON = _secret('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = _secret('GOOGLE_SHEETS_URL_ESPRESSO')
@@ -71,6 +81,15 @@ else:
 
 GMAIL_SENDER_EMAIL = 'james.r.applewhite@gmail.com'
 GMAIL_RECEIVER_EMAIL = 'james.r.applewhite@gmail.com'
+
+##### monitoring #####
+
+# Check thresholds themselves live in datasets/health_checks.yaml, not here -
+# changing one is a deploy, not a `heroku config:set`.
+#
+# Checked by the health runner from a one-off dyno, so it exercises the real
+# routing path (Cloudflare included) rather than localhost.
+HEALTH_WEB_URL = os.environ.get('HEALTH_WEB_URL', 'https://www.jamesapplewhite.com/')
 
 if not SESSION_KEY:
     if IS_HEROKU:

@@ -4,17 +4,24 @@ import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
 
-import mysql.connector
 import pytz
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
 import config
 from data import words_blossom
-from extensions import INTERACTIVE_LIMITS, auth, cache, db_cursor, limiter, log_page_visit
+from extensions import (INTERACTIVE_LIMITS, auth, cache, db_cursor, enqueue_write,
+                        limiter, log_page_visit, pst_now_str)
 from functions import all_words
 from helpers import ValidationError, make_schema_data, parse_int, parse_letters
 
 bp = Blueprint('blossom', __name__)
+
+# Written per keystroke, so it goes through the write-behind queue rather than
+# inline. Timestamp is stamped in Python at enqueue time; see pst_now_str.
+BLOSSOM_CLICKS_SQL = """
+INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len)
+VALUES (%s, %s, %s, %s, %s);
+"""
 
 
 @bp.route("/blossom", methods=["POST", "GET"])
@@ -86,20 +93,17 @@ def blossom_solver():
             # Make session permanent (4 hours)
             session.permanent = True
 
-            # log clicks and inputs - use actual displayed count
-            try:
-                with db_cursor() as (conn, cursor):
-                    query = """
-                    INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter, list_len)
-                    VALUES (CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), %s, %s, %s, %s);
-                    """
-                    cursor.execute(query, (must_have, may_have, petal_letter, min(current_count, total_valid_words)))
-                    conn.commit()
-            except mysql.connector.PoolError:
-                # Pool exhausted - just skip logging, don't break the app
-                print("Skipping blossom click log - connection pool busy")
-            except mysql.connector.Error as err:
-                print("Error:", err)
+            # log clicks and inputs - use actual displayed count. Queued
+            # rather than written inline: this POST fires on every keystroke,
+            # so an INSERT here would sit between the user typing and the
+            # solver answering. enqueue_write never blocks and never raises.
+            enqueue_write(BLOSSOM_CLICKS_SQL, (
+                pst_now_str(),
+                must_have,
+                may_have,
+                petal_letter,
+                min(current_count, total_valid_words),
+            ))
 
             return render_template("blossom.html",
                                 blossom_table=blossom_table,
@@ -277,7 +281,10 @@ def blossom_feedback():
                 cursor.execute(query, (referrer, report_type, feedback_body))
                 conn.commit()
                 feedback_id = cursor.lastrowid  # Get the ID of the inserted record
-        except mysql.connector.Error as err:
+        except Exception as err:
+            # Broad on purpose: feedback_id stays None and the notification
+            # email below still goes out, so a database problem costs the row
+            # but never the report - and never a 500 for the reporter.
             print("Error:", err)
 
         # Send email notification
