@@ -3,7 +3,12 @@
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
 from extensions import NOT_FOUND_LIMITS, db_cursor, limiter, log_page_visit
+from helpers import MIN_SUBMIT_SECONDS, issue_form_token, submitted_too_fast
 from monitoring import alerts
+
+# Namespaces the signature, so a token minted for this form cannot be replayed
+# into another form that later uses the same mechanism.
+FEEDBACK_TOKEN_SALT = 'feedback-form'
 
 bp = Blueprint('misc', __name__)
 
@@ -74,6 +79,14 @@ def feedback():
         # front of you within a day - it just cannot flood the inbox.
         looks_automated = bool(request.form.get('feedback_extra', '').strip())
 
+        # Second, independent signal, on the same never-reject terms. The
+        # honeypot catches anything that fills every field it finds; this
+        # catches anything that reads the form first and skips hidden inputs,
+        # because it still cannot spend two seconds pretending to type. A
+        # missing or unverifiable token counts as no signal, never suspicion.
+        too_fast = submitted_too_fast(request.form.get('feedback_token'),
+                                      salt=FEEDBACK_TOKEN_SALT)
+
         # log inputs. Written inline rather than through the write-behind
         # queue: feedback arrives every week or two and matters, so it is
         # worth waiting on the confirmation that a page-visit row is not.
@@ -97,10 +110,13 @@ def feedback():
         else:
             # Notify on write rather than by polling the table: instant, and
             # with no "which rows have I already seen" bookkeeping to get wrong.
-            if looks_automated:
+            if looks_automated or too_fast:
                 # Plain line, no token: a flood of these is precisely what the
                 # honeypot exists to keep out of the inbox.
-                print("feedback suppressed: honeypot filled", flush=True)
+                print("feedback suppressed: {}".format(
+                    'honeypot filled' if looks_automated
+                    else 'submitted in under {}s'.format(MIN_SUBMIT_SECONDS)),
+                    flush=True)
             elif not alerts.alert_throttled('feedback_new', sev='info',
                                             header=feedback_header,
                                             referrer=referrer):
@@ -113,7 +129,8 @@ def feedback():
 
         return render_template("feedback_received.html")
     else:
-        return render_template("feedback.html")
+        return render_template("feedback.html",
+                               feedback_token=issue_form_token(FEEDBACK_TOKEN_SALT))
 
 
 @bp.route("/feedback_received", methods=["GET"])

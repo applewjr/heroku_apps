@@ -1031,6 +1031,39 @@ This is a client-side guard only. mysql-connector does not enable safe update
 mode, so it never applies to anything the app itself runs - only to statements
 you type into Workbench.
 
+## Reading an http_500 from scanner junk
+
+**A 500 caused by junk input is a validation bug, not an attack.** Worth
+internalising, because the alert looks alarming and the fix is mundane.
+
+On 2026-09-29 a scanner walked `/feedback` and `/espresso/baseline` with sqlmap's
+standard payload set - `1'`, `1"`, `1)`, `98766`, `1,")).'(abcd`. It produced
+eight `http_500` alerts and eight rows in `vw_prod_errors`, all pointing at
+`/espresso/baseline`, all `KeyError`.
+
+None of it was a database problem. `roast` went straight into
+`espresso_points['roast_variable'][roast]` with no validation, so any
+unrecognised value was a `KeyError`, and an uncaught `KeyError` is a 500. The
+payloads were incidental - `roast=banana` would have done the same thing.
+
+The tell is in the alert itself:
+
+| `exc=` in the alert | Usually means |
+|---|---|
+| `KeyError`, `ValueError`, `IndexError`, `TypeError` | A route is taking a value from the form and using it as a dict key, a column name, or a number without checking it first. Fix with `parse_choice` / `parse_int` / `parse_float` / `parse_letters` from `helpers.py`, which raise `ValidationError` and become a clean 400. |
+| `DatabaseError`, `PoolError`, `OperationalError` | An actual infrastructure problem. |
+
+The distinction matters operationally: the first kind fires on *every* scanner
+sweep and will train you to ignore `http_500`, which is the one alert that
+reports a real fault the moment it happens. Every route that reads a value from
+a fixed set should validate against that set, so a sweep produces 400s that
+nobody is paged for.
+
+`log_page_visit(f'error.html (500: {e})')` puts the exception message in
+`vw_prod_errors`, which is how the cause was identified from the dashboard
+alone - `error.html (500: '98766')` is a `KeyError` naming the exact rejected
+value.
+
 ## What this does not catch
 
 Anything wrong that produces neither a log line, a measurable database

@@ -11,7 +11,7 @@ import config
 from data import espresso_points
 from extensions import cache
 from functions import espresso
-from helpers import ValidationError, parse_float, parse_int
+from helpers import ValidationError, parse_choice, parse_float, parse_int
 
 bp = Blueprint('espresso', __name__)
 
@@ -118,11 +118,21 @@ def espresso_plot():
     # Validate-only, before the Sheets pull (see espresso_recommendation).
     parse_int(request.form.get('shots_pred_scatter', '2'), 'shots_pred_scatter', default=2)
 
+    # These three are DataFrame *column names*: espresso_dynamic_scatter does
+    # df_analyze[espresso_z_col] directly, so an unrecognised one is a KeyError
+    # -> 500, the same bug /espresso/baseline had with roast. get_scatter_col_labels
+    # is a hardcoded dict and costs nothing, so this validates before the Sheets
+    # pull rather than after - junk never reaches the network.
+    scatter_cols = espresso.get_scatter_col_labels()
+    espresso_x_col = parse_choice(request.form.get('espresso_x_col'), 'espresso_x_col',
+                                  scatter_cols, default='flow_time_seconds')
+    espresso_y_col = parse_choice(request.form.get('espresso_y_col'), 'espresso_y_col',
+                                  scatter_cols, default='final_score')
+    espresso_z_col = parse_choice(request.form.get('espresso_z_col'), 'espresso_z_col',
+                                  scatter_cols, default='final_score')
+
     espresso_data = get_espresso_data()
 
-    espresso_x_col = request.form.get('espresso_x_col', 'flow_time_seconds')
-    espresso_y_col = request.form.get('espresso_y_col', 'final_score')
-    espresso_z_col = request.form.get('espresso_z_col', 'final_score')
     user_pred_scatter = request.form.get('user_pred_scatter', 'James')
     roast_pred_scatter = request.form.get('roast_pred_scatter', 'Medium')
     shots_pred_scatter = request.form.get('shots_pred_scatter', '2')
@@ -220,11 +230,20 @@ def espresso_baseline():
     roast_options = ["Light", "Medium", "Medium Dark", "Dark"]
     dose_options = ["1", "2", "3"]
 
-    roast = request.form.get('roast', 'Medium')
-    dose = request.form.get('dose', '2')
-    # Validate-only (template compares dose_val against the string options):
-    # junk dose 400s here instead of 500ing on int() in get_naive_espresso_points.
-    parse_int(dose, 'dose', default=2)
+    # Both are <select> values, and get_naive_espresso_points uses roast as a
+    # dict key: espresso_points['roast_variable'][roast]. An unrecognised roast
+    # was therefore a KeyError -> 500 until 2026-09-29, which is how a scanner
+    # posting roast=98766 turned into eight http_500 alerts and eight rows in
+    # vw_prod_errors. dose was already guarded against non-numeric junk but not
+    # against numbers outside the three the form offers.
+    #
+    # Validating against the same lists the template renders keeps the route
+    # and the form honest about each other - a new option has to be added in
+    # one place, not two.
+    roast = parse_choice(request.form.get('roast'), 'roast',
+                         roast_options, default='Medium')
+    dose = parse_choice(request.form.get('dose'), 'dose',
+                        dose_options, default='2')
 
     naive_espresso_info = espresso.get_naive_espresso_points(roast, dose, espresso_points)
 

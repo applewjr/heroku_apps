@@ -96,6 +96,18 @@
         <form name="form1" action="#" method="post">
             <input type="hidden" name="referrer" id="referrer" value="">
             {#
+              Signed render timestamp. The POST handler flags submissions that
+              arrive within a couple of seconds of this being minted - a bot
+              that reads the form and skips the honeypot below still cannot
+              spend two seconds pretending to type.
+
+              Like the honeypot, it never rejects: it only suppresses the
+              notification. And a missing or unverifiable token counts as no
+              signal at all, so an older cached copy of this page, a rotated
+              secret, or a tab left open overnight all submit normally.
+            #}
+            <input type="hidden" name="feedback_token" value="{{ feedback_token }}">
+            {#
               Honeypot. Hidden from people, so only a form-filling bot fills it.
               Never a rejection: a tripped honeypot still saves the feedback and
               only declines to send the notification, because nothing here may
