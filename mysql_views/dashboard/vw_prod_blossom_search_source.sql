@@ -15,6 +15,10 @@ WITH counts AS (
         AND referrer not like '%127.0.0.1:5000%'
         AND referrer not like '%jamesapplewhite%'
         AND referrer not like '%apple-apps-staging%'
+        -- The hourly health probe fetches /blossom with no Referer, so it
+        -- lands here as 'No referrer' and would otherwise appear as a traffic
+        -- source worth 24 visits a day.
+        AND user_agent <> 'jj-healthcheck'
     GROUP BY referrer
     HAVING cnt_28 >= 1 OR cnt_21 >= 1 OR cnt_14 >= 1 OR cnt_7 >= 1 OR cnt_1 >= 10
     )

@@ -21,6 +21,10 @@ SELECT
 FROM app_visits
 WHERE page_name IN ('blossom.html', 'wordle_revamp.html', 'antiwordle_revamp.html', 'quordle.html', 'smush.html', 'ribbit.html', 'wordiply.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'
+    -- run_checks fetches /blossom, /smush and /wordle every hour, and those
+    -- GETs write app_visits rows like any other. Counting them would add 24 a
+    -- day to three of these columns and quietly overstate real usage.
+    AND user_agent <> 'jj-healthcheck'
 GROUP BY date
 ORDER BY date DESC
 LIMIT 14

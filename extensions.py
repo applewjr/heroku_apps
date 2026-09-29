@@ -133,6 +133,23 @@ else:
             print(f"Error connecting to MySQL: {e}")
             return None
 
+# Ceiling on any single SELECT issued through db_cursor. The danger is not the
+# slow page, it is what a slow page does to every other one: with a single
+# gunicorn worker, a query that never returns parks one of eight threads until
+# gunicorn's --timeout 60 kills the *worker*, taking every in-flight request
+# with it and turning one bad query into a site-wide run of H12s. Ten seconds
+# is far longer than any real page needs and far shorter than that.
+#
+# Set per checkout rather than once on the pool: pool_reset_session is True, so
+# a session variable is cleared when the connection goes back. Costs one extra
+# round-trip on the minority of requests that touch MySQL at all - the solver
+# pages do not on GET.
+#
+# MySQL applies max_execution_time to read-only SELECTs only, so the write-
+# behind drain's INSERTs below are unaffected.
+QUERY_TIMEOUT_MS = 10000
+
+
 @contextmanager
 def db_cursor():
     """Yield (conn, cursor), guaranteeing both are closed afterwards.
@@ -144,6 +161,14 @@ def db_cursor():
     cursor = None
     try:
         cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SET SESSION max_execution_time = {}".format(QUERY_TIMEOUT_MS))
+        except Exception as e:
+            # Never fatal. An unbounded query is how this behaved before, so a
+            # server that rejects the setting costs the protection, not the page.
+            alerts.alert_throttled('db_query_timeout_unset',
+                                   exc=type(e).__name__, msg=e)
         yield conn, cursor
     finally:
         if cursor is not None:

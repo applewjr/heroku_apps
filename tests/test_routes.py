@@ -442,3 +442,121 @@ def test_wordiply_post_returns_matches(client):
     assert "results" in body
     assert body["results"]  # non-empty
     assert all("zz" in word for word in body["results"])
+
+
+##### feedback: bot handling that can never cost a human their message #####
+
+import contextlib
+
+from monitoring import alerts
+
+
+def _stub_feedback_db(monkeypatch):
+    """Capture the INSERT instead of writing to the live feedback table.
+
+    secret_pass.py points at production, and /feedback writes inline rather
+    than through the write-behind queue, so an unstubbed POST here would put
+    a real row in the real table.
+    """
+    import routes.misc as misc
+    written = []
+
+    class Cursor:
+        def execute(self, sql, params=None):
+            written.append(params)
+        def close(self):
+            pass
+
+    class Conn:
+        def commit(self):
+            pass
+
+    @contextlib.contextmanager
+    def fake_cursor():
+        yield Conn(), Cursor()
+
+    monkeypatch.setattr(misc, "db_cursor", fake_cursor)
+    return written
+
+
+def test_the_form_carries_a_hidden_honeypot(client):
+    html = client.get("/feedback").get_data(as_text=True)
+    assert 'name="feedback_extra"' in html
+    # Off-screen rather than display:none or type=hidden, both of which
+    # anything reading the DOM skips trivially.
+    assert 'tabindex="-1"' in html
+    assert 'aria-hidden="true"' in html
+    # A field a password manager would fill for a real visitor would flag a
+    # human as a bot, so the name has to stay semantically meaningless.
+    for autofillable in ('name="name"', 'name="email"', 'name="url"',
+                         'name="website"', 'name="phone"'):
+        assert autofillable not in html
+
+
+def test_feedback_notifies_on_a_real_submission(client, monkeypatch, capsys):
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "a topic", "feedback_body": "the body",
+        "referrer": "https://example.com/",
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_honeypot_saves_the_row_but_sends_no_alert(client, monkeypatch, capsys):
+    # The constraint the whole design serves: bot handling must never cost a
+    # person their feedback. A tripped honeypot still writes the row, and the
+    # daily digest lists every row from the last 24 hours, so a false positive
+    # is a delayed notification rather than a lost message.
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "buy cheap", "feedback_body": "spam",
+        "referrer": "", "feedback_extra": "http://spam.example",
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1                       # never rejected
+    out = capsys.readouterr().out
+    assert "feedback_new" not in out               # but no email
+    assert "honeypot filled" in out
+
+
+def test_an_empty_honeypot_is_not_a_bot(client, monkeypatch, capsys):
+    # A browser submits the field present and empty, which is the normal case
+    # and has to behave exactly as if it were not there.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+        "feedback_extra": "   ",
+    })
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_a_cached_form_without_the_honeypot_still_works(client, monkeypatch, capsys):
+    # Someone on an older cached copy of the page posts no feedback_extra at
+    # all. Reading it with [] rather than .get() would 400 them.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+    })
+    assert resp.status_code == 200
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_a_flood_cannot_fill_the_inbox(client, monkeypatch, capsys):
+    # A bound that does not depend on the honeypot working: even something
+    # that avoids it cannot turn one form into a hundred emails.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    for i in range(5):
+        client.post("/feedback", data={
+            "feedback_header": "flood %d" % i, "feedback_body": "b",
+            "referrer": "",
+        })
+    out = capsys.readouterr().out
+    assert out.count("JJ_ALERT check=feedback_new") == 1
+    assert out.count("feedback alert throttled") == 4

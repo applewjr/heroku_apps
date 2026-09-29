@@ -95,6 +95,27 @@
         <p class="feedback-intro">This site is a personal project, and I appreciate everyone who takes the time to use it. If you have any feedback, suggestions, feature requests, or constructive criticism, I'd be glad to hear it. Thank you.</p>
         <form name="form1" action="#" method="post">
             <input type="hidden" name="referrer" id="referrer" value="">
+            {#
+              Honeypot. Hidden from people, so only a form-filling bot fills it.
+              Never a rejection: a tripped honeypot still saves the feedback and
+              only declines to send the notification, because nothing here may
+              cost a real person their message. The daily digest lists every row
+              from the last 24 hours, so anything suppressed is still seen.
+
+              Positioned off-screen rather than display:none or type=hidden -
+              both are trivially skipped by anything that reads the DOM. The
+              name is deliberately meaningless: `website`, `url`, `email` or
+              `name` are exactly what a password manager would helpfully fill
+              in for a real visitor, which would flag a human as a bot.
+              aria-hidden and tabindex keep it away from screen readers and
+              keyboard navigation, so it is invisible to assistive tech too.
+            #}
+            <div aria-hidden="true"
+                 style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
+                <label for="feedback_extra">Leave this field empty</label>
+                <input type="text" id="feedback_extra" name="feedback_extra"
+                       tabindex="-1" autocomplete="off" value="">
+            </div>
             <div class="feedback-field">
                 <label for="feedback_header">Topic</label>
                 <input type="text" id="feedback_header" name="feedback_header" maxlength="255" required>

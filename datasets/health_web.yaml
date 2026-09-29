@@ -1,0 +1,64 @@
+# Web probes, run hourly from a one-off dyno by monitoring/run_checks.py.
+#
+# Each entry fetches HEALTH_WEB_URL + path and checks three things: the status
+# is 200, the body contains `expect`, and the response arrived inside max_ms.
+# A breach prints one JJ_ALERT line, exactly like the SQL checks.
+#
+# Separate from health_checks.yaml on purpose. Those entries are all
+# `sql` + `threshold` and the test suite enforces that contract; a web probe
+# has neither, so mixing them would mean loosening the test that keeps a
+# malformed check from shipping.
+#
+# Keys:
+#   path        required. Appended to HEALTH_WEB_URL.
+#   max_ms      required. Wall-clock ceiling for the response.
+#   expect      optional. Substring that must appear in the body.
+#   sev         crit, warn or info (default warn)
+#
+# `expect` is what makes this more than an uptime check. A 200 only proves the
+# dyno is serving; it says nothing about whether the page rendered. A solver
+# whose template loads but whose engine returns nothing still answers 200.
+#
+# THRESHOLDS ARE NOT BASELINED YET. There was no latency measurement anywhere
+# before this file existed, so these are deliberately generous starting points
+# chosen to not cry wolf. Every run now prints `ms=` for each probe, so after a
+# couple of weeks of history in Papertrail, tighten them to something measured -
+# the same way blossom_idle's 240 was set from a replay rather than a guess.
+#
+# A latency breach is measured twice before it alerts (see check_web). The
+# GitHub Action restarts the dyno at 3am and 3pm PST, and the first request
+# after a boot pays for data.py loading its CSVs, so a single slow sample is
+# not evidence of a slow site.
+
+
+home:
+    path: "/"
+    max_ms: 2500
+    expect: "JJ Apps"
+    sev: crit
+
+blossom:
+    path: "/blossom"
+    max_ms: 3000
+    expect: "Blossom Word Finder"
+    sev: crit
+
+smush:
+    path: "/smush"
+    max_ms: 3000
+    expect: "Smush Solver"
+    sev: crit
+
+wordle:
+    path: "/wordle"
+    max_ms: 3000
+    expect: "Wordle Solver"
+    sev: warn
+
+# The only public page that queries JawsDB on every load, so it is the one
+# probe that moves when the database slows down rather than the dyno.
+youtube_trending:
+    path: "/youtube_trending"
+    max_ms: 6000
+    expect: "YouTube Trending"
+    sev: warn

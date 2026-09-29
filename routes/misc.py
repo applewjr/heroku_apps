@@ -61,6 +61,19 @@ def feedback():
         feedback_body = request.form['feedback_body']
         referrer = request.form['referrer']
 
+        # Honeypot: a field hidden from people, so only something filling the
+        # form blind fills it. Read with .get() rather than [] on purpose - an
+        # older cached copy of the page has no such field, and a visitor on one
+        # must not get a 400 for it.
+        #
+        # This deliberately does NOT reject. Nothing here may ever cost a real
+        # person their feedback, and no detection is good enough to bet
+        # someone's message on, so a tripped honeypot still writes the row and
+        # only declines to send the notification. The daily digest lists every
+        # row from the last 24 hours, so a suppressed submission is still in
+        # front of you within a day - it just cannot flood the inbox.
+        looks_automated = bool(request.form.get('feedback_extra', '').strip())
+
         # log inputs. Written inline rather than through the write-behind
         # queue: feedback arrives every week or two and matters, so it is
         # worth waiting on the confirmation that a page-visit row is not.
@@ -84,8 +97,19 @@ def feedback():
         else:
             # Notify on write rather than by polling the table: instant, and
             # with no "which rows have I already seen" bookkeeping to get wrong.
-            alerts.alert('feedback_new', sev='info',
-                         header=feedback_header, referrer=referrer)
+            if looks_automated:
+                # Plain line, no token: a flood of these is precisely what the
+                # honeypot exists to keep out of the inbox.
+                print("feedback suppressed: honeypot filled", flush=True)
+            elif not alerts.alert_throttled('feedback_new', sev='info',
+                                            header=feedback_header,
+                                            referrer=referrer):
+                # A second bound that does not depend on detection working.
+                # Even a bot that avoids the honeypot cannot turn one form into
+                # an inbox full, and real feedback arrives every week or two,
+                # so two genuine submissions inside one throttle window is not
+                # a case worth optimising for - the digest carries both anyway.
+                print("feedback alert throttled", flush=True)
 
         return render_template("feedback_received.html")
     else:
