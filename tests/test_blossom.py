@@ -293,3 +293,38 @@ def test_session_storage_access_is_guarded(blossom_template):
         assert _enclosing_block_is_try(lines, i, col), (
             f"unguarded sessionStorage at line {i + 1}: {lines[i].strip()}"
         )
+
+
+def test_blossom_show_more_button_renders_below_word_list(blossom_client):
+    # A user reported being unable to find the "show more" control. It now sits
+    # directly under the results table next to the "Showing N of M" count,
+    # not above the flower.
+    resp = blossom_client.post(
+        "/blossom",
+        data={"must_have": "t", "may_have": "raine", "petal_letter": "s"},
+    )
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    assert "Show 25 more words" in html
+    table_pos = html.index('class="word-results-container"')
+    count_pos = html.index('class="word-count-text"')
+    button_pos = html.index("Show 25 more words")
+    assert table_pos < count_pos < button_pos
+
+    # The button must submit the enclosing form1, never its own nested <form>,
+    # which the HTML parser would drop while closing form1 early.
+    assert html.count("<form") == 1
+    assert 'formaction="/blossom#words"' in html
+
+
+def test_blossom_show_more_button_hidden_when_all_words_shown(blossom_client):
+    resp = blossom_client.post(
+        "/blossom",
+        data={
+            "must_have": "t", "may_have": "raine", "petal_letter": "s",
+            "current_count": "10000",
+        },
+    )
+    assert resp.status_code == 200
+    assert "Show 25 more words" not in resp.get_data(as_text=True)
