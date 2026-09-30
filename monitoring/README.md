@@ -542,12 +542,52 @@ the single largest gap left, and it needs no deploy:
 One search covers all of them, because Heroku formats them consistently:
 
 ```
-"error code=H" OR "Error R14" OR "Error R15"
+"error code=H" OR "Error R"
 ```
 
-Alert on at least 1 event in 10 minutes. If the saved-search cap bites, fold it
-into the `JJ_ALERT` search as shown above rather than dropping it - a site
-returning H12s is worse than any check in `health_checks.yaml` firing.
+`"Error R"` rather than naming R14 and R15: it also catches **R10** (boot
+timeout), **R12** (exit timeout), R13 and R17 at no extra cost. Every R-code is
+formatted `Error R<n> (description)`, so the prefix is the whole family.
+
+If the saved-search cap bites, fold it into the `JJ_ALERT` search rather than
+dropping it - a site returning H12s is worse than any check in
+`health_checks.yaml` firing.
+
+**Confirm the search actually matches before trusting it.** Papertrail indexes
+on token boundaries and treats `=` as a delimiter, so it is not obvious that
+`code=H` matches `code=H12` - the indexed token may be `H12`. A saved search
+that silently matches nothing is worse than no saved search, because it reads
+as coverage.
+
+Real platform errors are too rare to test against - a 1500-line pull on
+2026-09-29 covering two and a half hours contained **zero** `at=error` lines.
+So test the tokenizer with data that is already there instead. Every router
+line carries `status=200`:
+
+| Search | Expected |
+|---|---|
+| `"status=200"` | thousands of hits |
+| `"status=2"` | if this also hits, prefix matching works and `"error code=H"` is fine |
+| neither | use a wildcard: `code=H*` |
+
+#### Threshold: 1 in 10 minutes is right for H, wrong for R14
+
+The H-codes are **incident-shaped**: they fire, you fix the cause, they stop.
+One event in ten minutes is the correct trigger.
+
+`R14` is **condition-shaped**, like `db_size_mb`. Memory over quota emits R14
+continuously rather than once, so a 1-per-10-minutes rule sends 144 emails a
+day until it is fixed - the same alert-fatigue failure that `only_between_pst`
+exists to prevent. If R14 ever fires for real, throttle that alert rather than
+reading past it.
+
+**Watch for R12 from your own restarts.** `.github/workflows/restart-dyno.yml`
+cycles the web dyno twice a day. If gunicorn does not exit within 30s of
+SIGTERM, Heroku emits `Error R12 (Exit timeout)`, which `"Error R"` catches -
+twice a day, looking like an incident. Unverified either way: no web dyno
+restart appeared in the window pulled on 2026-09-29, which covered 22:00 UTC
+when the cron is set to fire. If R12 shows up at 3am and 3pm PST, that is the
+restart, not a fault.
 
 #### Three channels, and what each one survives
 
