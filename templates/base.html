@@ -288,11 +288,16 @@ li { margin-bottom: 10px; }
 .jj-menu-btn:hover { color: #111; }
 .jj-menu-btn:focus { outline: none; }
 #jjMenuLabel { display: inline-block; min-width: 2.9rem; text-align: left; }
+/* The hamburger/X toggle. Every variant ends on the same geometry (a
+   symmetric X), so only the path taken there differs; --jj-anim lets a variant
+   set its own pace for both the lines and the wrapper rotation. */
+.jj-menu-btn { --jj-anim: 0.28s; --jj-fade: 0.18s; }
 .jj-lines-wrap {
     width: 22px;
     height: 14px;
     position: relative;
     flex-shrink: 0;
+    transition: transform var(--jj-anim) cubic-bezier(0.4, 0, 0.2, 1);
 }
 .jj-line {
     position: absolute;
@@ -301,7 +306,7 @@ li { margin-bottom: 10px; }
     height: 2px;
     background: currentColor;
     border-radius: 1px;
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
+    transition: transform var(--jj-anim) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--jj-fade) ease;
 }
 .jj-line-1 { top: 0; }
 .jj-line-2 { top: 6px; }
@@ -309,6 +314,19 @@ li { margin-bottom: 10px; }
 .jj-menu-btn.open .jj-line-1 { transform: translateY(6px) rotate(45deg); }
 .jj-menu-btn.open .jj-line-2 { transform: translateX(-12px); opacity: 0; }
 .jj-menu-btn.open .jj-line-3 { transform: translateY(-6px) rotate(-45deg); }
+/* Variant: spin. A half turn on the way in; closing interpolates 180deg back
+   to 0, which is the same turn played backwards. The middle line collapses in
+   place rather than sliding out - a sideways slide inside a rotating frame
+   travels in whatever direction the frame currently points, which reads as the
+   bar flying in from offscreen. The fade runs the full duration so it can't
+   finish opaque while the line is still moving. */
+.jj-menu-btn[data-anim="spin"] { --jj-anim: 0.42s; --jj-fade: 0.42s; }
+.jj-menu-btn[data-anim="spin"].open .jj-lines-wrap { transform: rotate(180deg); }
+.jj-menu-btn[data-anim="spin"].open .jj-line-2 { transform: scaleX(0); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    .jj-lines-wrap, .jj-line { transition: none; }
+    .jj-menu-btn[data-anim="spin"].open .jj-lines-wrap { transform: none; }
+}
 .jj-overlay {
     position: fixed;
     inset: 0;
@@ -441,10 +459,22 @@ li { margin-bottom: 10px; }
     return Array.from(container.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])'))
       .filter(el => !el.disabled && el.offsetParent !== null);
   }
+  // Toggle animation styles, advanced once per open/close pair so a close
+  // always undoes its open in the same language. Each name matches a
+  // [data-anim="..."] rule in the stylesheet; add an entry to extend the cycle.
+  const JJ_MENU_ANIMS = ['cross', 'spin'];
+  let jjAnimIndex = 0;
   function jjToggleMenu() {
     const btn = document.getElementById('jjMenuBtn');
     const overlay = document.getElementById('jjMenuOverlay');
     const isOpen = btn.classList.toggle('open');
+    if (isOpen) {
+      btn.dataset.anim = JJ_MENU_ANIMS[jjAnimIndex];
+    } else {
+      // data-anim stays put so the close plays in the style its open used; the
+      // next open swaps it in while the lines sit at rest, so nothing jumps.
+      jjAnimIndex = (jjAnimIndex + 1) % JJ_MENU_ANIMS.length;
+    }
     overlay.classList.toggle('open', isOpen);
     overlay.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
     if (isOpen) { overlay.removeAttribute('inert'); } else { overlay.setAttribute('inert', ''); }
