@@ -37,8 +37,10 @@ step 6.
 | 7 | Confirm `JJ_PULSE` lines are arriving | Papertrail | [Health check](#3-heroku-scheduler---add-the-health-check) |
 | 8 | Create the **`JJ_PULSE` inactivity** alert | Papertrail | [Papertrail](#4-papertrail---two-alerts) |
 | 9 | Re-point the existing jobs through `run_job` | Heroku Scheduler | [Wrap the jobs](#2-heroku-scheduler---wrap-the-existing-jobs) |
-| 10 | Update the dashboard views | Workbench | [Dashboard views](#7-dashboard-views) |
+| 10 | Update the dashboard views, **including the two probe-traffic exclusions** | Workbench | [Dashboard views](#7-dashboard-views) |
 | 11 | Test the dead-man's switch | Heroku Scheduler | [Dead-man's switch](#8-test-the-dead-mans-switch) |
+| 12 | Add the **Heroku error code** alert | Papertrail | [Papertrail](#4-papertrail---two-alerts) |
+| 13 | Add **`daily_digest`** at 14:00 UTC | Heroku Scheduler | [The digest](#3b-the-daily-digest) |
 
 ### Why that order
 
@@ -176,7 +178,9 @@ idle checks depend on.
 | `alerts.py` | `alert()`, `pulse()`, `alert_throttled()`. Scrubbing and rate limiting. No import side effects. |
 | `run_job.py` | Runs an existing scheduled script under `runpy`, adding a failure alert. No edits to the script. |
 | `run_checks.py` | Hourly checks against JawsDB, Redis and the live site. Refuses any check SQL that is not a SELECT. |
-| `../datasets/health_checks.yaml` | The checks: SQL, threshold, severity, active window. |
+| `daily_digest.py` | Daily email: /etl_dash, every check value, latency, storage, feedback. A second notification channel that does not depend on Papertrail. |
+| `../datasets/health_checks.yaml` | The SQL checks: SQL, threshold, severity, active window. |
+| `../datasets/health_web.yaml` | The web probes: path, latency ceiling, expected content. |
 
 ---
 
@@ -293,11 +297,21 @@ bounds the blast radius.
 600s is comfortable for these: they are daily, so even a full-length timeout
 cannot overlap the next run.
 
-### 3. Heroku Scheduler - add the health check
+### 3. Heroku Scheduler - add the health check and the digest
 
 | Command | Frequency |
 |---|---|
 | `timeout -s INT -k 60 600 python -m monitoring.run_checks` | Hourly |
+| `timeout -s INT -k 60 600 python -m monitoring.daily_digest` | Daily, 14:00 UTC |
+
+14:00 UTC is 6am PST in winter and 7am PDT in summer. Heroku Scheduler only
+speaks UTC, so the digest drifts an hour with daylight saving. 13:00 UTC is the
+other reasonable choice if 6am year-round matters more than never arriving at
+5am. Cost measured 2026-09-28: **6.2 s of work, 24.5 KB of email.**
+
+The cost of `run_checks` grew with the web probes - five HTTP fetches rather
+than one - from 157 ms to roughly 3.6 s. Still trivial against the 1.4 s of
+dyno lifecycle it already paid, and still nowhere near the 600 s bound.
 
 Same signal flags as the wrapped jobs, for slightly different reasons.
 **Detection is identical either way.** There is no `run_job` here and none is
@@ -327,7 +341,83 @@ Cost, measured on 2026-09-26: **157 ms of work, 1.4 s of dyno lifecycle**
 start to finish (an earlier ~20 s-per-run estimate here was about 15x
 conservative). At 720 runs a month this is well under an hour of dyno time.
 
-This is the only job to schedule.
+### 3b. The daily digest
+
+`monitoring/daily_digest.py` emails the whole of `/etl_dash` once a day, plus
+every health check value, current page latency, storage against the plan, and
+the full text of any feedback from the last 24 hours. The summary is in the
+subject line - `JJ daily 2026-09-28 - 16 ok, 0 alerts, 330 MB` - because on
+most days the phone notification is the entire report.
+
+**Its second job is the one that matters.** Every alert in this system ends the
+same way: a log line, a Heroku drain, Papertrail, an email. That is a single
+path, and it fails *silently* - a Papertrail outage, or simply exhausting the
+free plan's log quota, takes the whole alerting system down without alerting
+anyone, because the thing that would report it is the thing that is down.
+
+The digest re-runs every check itself and sends over SMTP, touching nothing
+Papertrail owns. So:
+
+* the digest arriving proves the database, the scheduler and mail all work;
+* the digest not arriving is itself a signal, and it is the one signal the
+  alerting path cannot suppress;
+* a `JJ_ALERT check=digest_failed` says the digest broke while Papertrail is
+  fine.
+
+Neither channel can fail quietly on its own. That is the whole design.
+
+It deliberately does **not** alert on a breached check. `run_checks` already
+owns that decision hourly; a second process emitting the same `JJ_ALERT` lines
+would double every email.
+
+Two details worth knowing:
+
+* **A panel that fails is reported, not dropped.** `routes/dashboards.py`
+  swallows a broken panel with a `print` and renders the page without it, so a
+  broken panel looks exactly like a panel that was never there. The digest
+  prints `panel failed: <error>` instead, which surfaces a class of failure
+  that is currently invisible on the dashboard itself.
+* **Rows per panel are capped** at `MAX_ROWS_PER_PANEL` (40) and the digest
+  says when it truncated. Gmail clips a message past ~102 KB behind a "view
+  entire message" link, which would otherwise quietly hide the bottom of the
+  email as a panel grew.
+
+Preview it without sending, or send one on demand:
+
+```bash
+python -c "import monitoring.daily_digest as d, datetime, pytz; \
+  h,s = d.build(datetime.datetime.now(pytz.timezone('America/Los_Angeles'))); \
+  open('digest.html','w',encoding='utf-8').write(h); print(s)"
+
+heroku run "python -m monitoring.daily_digest" -a apple-apps
+```
+
+### Query timeouts
+
+Both `run_checks` and `db_cursor` set `max_execution_time` on their session, so
+a query that hangs cannot take anything else with it. This was unbounded until
+2026-09-28.
+
+| Where | Value | What it prevents |
+|---|---|---|
+| `run_checks.QUERY_TIMEOUT_MS` | 30 s | A hung check blocking the loop. Every later check silently never runs and the closing pulse never prints, so the only surviving signal is the inactivity alert - "nothing is reporting", which names nothing. With the bound, MySQL raises, the per-check `except` catches it, and the check names itself while the rest run. |
+| `extensions.QUERY_TIMEOUT_MS` | 10 s | A runaway query on a page taking the site down. With `--workers 1 --threads 8`, one query that never returns parks a thread until gunicorn's `--timeout 60` kills the *worker*, which takes every in-flight request with it and returns a run of H12s. |
+
+Verified 2026-09-28 against the live database: a genuinely expensive `SELECT`
+raises `DatabaseError` errno **3024** - *"Query execution was interrupted,
+maximum statement execution time exceeded"* - at the bound, rather than
+returning a partial result. That distinction is load-bearing: a check that
+silently got a wrong-but-plausible number would *pass* when it should alert.
+
+`SELECT SLEEP(n)` is a documented exception - MySQL interrupts it and `SLEEP`
+returns 1 rather than erroring - so do not use it to prove the mechanism works.
+
+Both are set **per checkout**, not once on the pool, because
+`pool_reset_session` is `True` and a session variable is cleared when the
+connection goes back. Cost is one extra round-trip on the minority of requests
+that touch MySQL at all; the solver pages do not on GET. MySQL applies
+`max_execution_time` to read-only `SELECT`s only, so the write-behind drain's
+`INSERT`s are unaffected.
 
 #### Do not wait an hour to confirm it works
 
@@ -349,19 +439,49 @@ read-only - the runner refuses any check SQL that is not a `SELECT`, and
 touches Redis only through `ping()` and `xlen()` - so it is safe to run
 against prod as often as you like.
 
-Expect `12 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
-outside its 09:00 PST window.
+Expect `16 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
+outside its 09:00-10:00 PST window.
 
-A green run does not prove two of the checks work. `blossom_errors_today`
-passes trivially until error rows accumulate, and `smush_idle` returns a
-passing `0` because its busy-hour gate never opens, so it is not monitoring
-anything yet. See the measured notes in `datasets/health_checks.yaml`.
+Every `ok` line now carries what was measured, not just the fact that the check
+ran:
+
+```
+ok    site_idle               actual=1 compare=<= threshold=180 ms=93
+ok    web:blossom             actual=234 compare=<= threshold=3000
+skip  db_size_mb              (outside PST window [9, 10])
+```
+
+That is deliberate. A bare `ok` proves a check ran and nothing else, so nothing
+could be seen drifting until it breached. Searching Papertrail for
+`ok db_size_mb` now gives the storage trend, and `ok web:blossom` gives the
+latency trend. These lines carry no `JJ_` token on purpose - they are state,
+not alerts, and must not match the search that sends email. `alerts.scrub()`
+guarantees it: a measured value containing `JJ_` is rewritten before printing.
+
+A green run still does not prove `blossom_errors_today` works - it passes
+trivially until error rows accumulate.
 
 #### What gets checked
 
 Nine checks come from `datasets/health_checks.yaml`: `youtube_trending_today`,
-`youtube_grouped_today`, `blossom_idle`, `smush_idle`, `blossom_errors_today`,
+`youtube_grouped_today`, `blossom_idle`, `site_idle`, `blossom_errors_today`,
 `db_size_mb`, `db_connections`, `wordle_drain_fresh`, `antiwordle_drain_fresh`.
+
+Five are web probes from `datasets/health_web.yaml`, reported as `web:<name>`:
+`home`, `blossom`, `smush`, `wordle`, `youtube_trending`. Each asserts three
+things - 200, the body contains an expected substring, and the response
+arrived inside `max_ms`:
+
+| Failure | What it means |
+|---|---|
+| unreachable or non-200 | The dyno is down or erroring. |
+| 200 but content missing | It served a page that did not render. A solver whose template loads while its engine returns nothing answers 200 all day. |
+| 200, correct, but slow | The only performance signal in the system. Nothing else measures how long anything takes, so a page that gets ten times slower is otherwise indistinguishable from a healthy one. |
+
+A latency breach is measured twice before it alerts. `restart-dyno.yml`
+restarts the dyno at 3am and 3pm PST and the first request after a boot pays
+for `data.py` loading its CSVs, so one slow sample is a cold start rather than
+evidence.
 
 Three more are Python rather than SQL, so they live in `run_checks.py` and are
 easy to miss when reading the YAML:
@@ -370,7 +490,7 @@ easy to miss when reading the YAML:
 |---|---|
 | `redis_up` | Redis answers `ping()`. Wordle and antiwordle logging goes through it, so silence there is silent data loss. |
 | `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` stopped reconciling and is no longer draining. |
-| `web_up` | `HEALTH_WEB_URL` returns 200. The only check that proves the web dyno is serving, which no database query can tell you. |
+| `checks_slow` | The whole run exceeded `RUN_BUDGET_MS` (30s) **while every other check passed**. Silent when anything else failed, since a probe timing out costs 15 seconds on its own and already explains the time. |
 
 The SELECT-only guard on YAML checks is a literal prefix test, not a parser: a
 check written to start with a comment or a `WITH` CTE would be rejected as
@@ -395,7 +515,7 @@ slow run without crying wolf, while still catching a single missed run.
 limit, but Papertrail's own free plan is reported to cap saved searches at 2,
 and two already exist. If you hit a cap:
 
-- Fold the existing platform-error alert into the first search:
+- Fold the platform-error alert into the first search:
   `"JJ_ALERT" OR "error code=H" OR "Error R"`, threshold 1 over 10 minutes.
 - If still capped, retire the "5 x 500 in 10 minutes" rule. The new
   `check=http_500` emitter supersedes it and reports the *first* 500.
@@ -403,6 +523,84 @@ and two already exist. If you hit a cap:
 Free-tier limits: search retention is 2 days (archives keep 7), and the volume
 cap is 10 MB/day. Exceeding the cap stops ingestion, which trips the
 inactivity alert - loud, but recognise it for what it is.
+
+The `ok` lines added on 2026-09-28 cost about **29 KB a day** (17 checks x 24
+runs at ~70 bytes), or 0.3% of the daily cap. Not a concern.
+
+#### Heroku's own error codes - nothing watches these
+
+Heroku emits these into the drain already, and no alert matches them. This is
+the single largest gap left, and it needs no deploy:
+
+| Code | Means | Why you care |
+|---|---|---|
+| `H12` | Request timed out at the router's 30s limit | The exact failure `extensions.QUERY_TIMEOUT_MS` now bounds. A run of these means one slow path is taking the single worker down. |
+| `H13` | Connection closed without a response | The worker died mid-request. |
+| `H10` | App crashed | Boot failure. The site is down and no check inside the app can say so. |
+| `R14` / `R15` | Memory quota exceeded / hard limit | The one that catches a genuine leak rather than a worker-count mistake. Worth watching given the `--workers 1` pin in the `Procfile`. |
+
+One search covers all of them, because Heroku formats them consistently:
+
+```
+"error code=H" OR "Error R"
+```
+
+`"Error R"` rather than naming R14 and R15: it also catches **R10** (boot
+timeout), **R12** (exit timeout), R13 and R17 at no extra cost. Every R-code is
+formatted `Error R<n> (description)`, so the prefix is the whole family.
+
+If the saved-search cap bites, fold it into the `JJ_ALERT` search rather than
+dropping it - a site returning H12s is worse than any check in
+`health_checks.yaml` firing.
+
+**Confirm the search actually matches before trusting it.** Papertrail indexes
+on token boundaries and treats `=` as a delimiter, so it is not obvious that
+`code=H` matches `code=H12` - the indexed token may be `H12`. A saved search
+that silently matches nothing is worse than no saved search, because it reads
+as coverage.
+
+Real platform errors are too rare to test against - a 1500-line pull on
+2026-09-29 covering two and a half hours contained **zero** `at=error` lines.
+So test the tokenizer with data that is already there instead. Every router
+line carries `status=200`:
+
+| Search | Expected |
+|---|---|
+| `"status=200"` | thousands of hits |
+| `"status=2"` | if this also hits, prefix matching works and `"error code=H"` is fine |
+| neither | use a wildcard: `code=H*` |
+
+#### Threshold: 1 in 10 minutes is right for H, wrong for R14
+
+The H-codes are **incident-shaped**: they fire, you fix the cause, they stop.
+One event in ten minutes is the correct trigger.
+
+`R14` is **condition-shaped**, like `db_size_mb`. Memory over quota emits R14
+continuously rather than once, so a 1-per-10-minutes rule sends 144 emails a
+day until it is fixed - the same alert-fatigue failure that `only_between_pst`
+exists to prevent. If R14 ever fires for real, throttle that alert rather than
+reading past it.
+
+**Watch for R12 from your own restarts.** `.github/workflows/restart-dyno.yml`
+cycles the web dyno twice a day. If gunicorn does not exit within 30s of
+SIGTERM, Heroku emits `Error R12 (Exit timeout)`, which `"Error R"` catches -
+twice a day, looking like an incident. Unverified either way: no web dyno
+restart appeared in the window pulled on 2026-09-29, which covered 22:00 UTC
+when the cron is set to fire. If R12 shows up at 3am and 3pm PST, that is the
+restart, not a fault.
+
+#### Three channels, and what each one survives
+
+Worth being explicit about, because each covers the others' blind spot:
+
+| Channel | Survives | Blind to |
+|---|---|---|
+| `JJ_ALERT` -> Papertrail | Anything the app is alive to see | The app being dead; Papertrail being dead or over quota |
+| `JJ_PULSE` inactivity | The app, the dyno or the scheduler dying | Papertrail being dead or over quota |
+| Daily digest -> SMTP | Papertrail being dead or over quota | Anything in the 24h between digests |
+
+The first two share a single point of failure - Papertrail - which is exactly
+what the digest was added to cover.
 
 ### 5. Storage - the numbers as of 2026-09-23
 
@@ -601,6 +799,31 @@ way - this only changes what the view surfaces.
 Rows only start arriving after the prod deploy, so there is no hurry.
 `CREATE OR REPLACE VIEW` is instant and independent of everything else.
 
+#### Two views must exclude probe traffic - 2026-09-28
+
+**Apply these with the deploy that adds the web probes, not after.**
+`run_checks` now fetches `/blossom`, `/smush` and `/wordle` every hour, and
+those GETs call `log_page_visit` like any other request. Two views count them
+and would silently overstate real usage from the first hour:
+
+| View | Effect if not updated |
+|---|---|
+| `vw_prod_word_solver_page_visits` | +24 a day on the blossom, smush and wordle columns - roughly a 29% overstatement against ~250 real visits a day |
+| `vw_prod_blossom_search_source` | The probe sends no `Referer`, so it appears as a `No referrer` traffic source worth 24 visits a day |
+
+Both repo copies already carry `AND user_agent <> 'jj-healthcheck'`. Paste them
+into Workbench as-is; `CREATE OR REPLACE VIEW` is instant.
+
+`vw_prod_errors` and `vw_prod_blossom_errors` need nothing - they filter on
+`page_name LIKE '%error%'` and the probe never 404s or 500s. `vw_prod_blossom`
+reads `blossom_solver_clicks`, which the probe does not write to, since it only
+GETs the page and never submits the solver.
+
+This is the same class of problem as the `must_have='a'` blossom probe
+exclusion and as `site_idle`'s: **anything that reasons about real usage has to
+exclude the thing that generates fake usage on a timer.** A new view reading
+`app_visits` should assume it needs the filter.
+
 ### 8. Test the dead-man's switch
 
 Disable the `run_checks` Scheduler entry, wait for the email, then **re-enable
@@ -645,40 +868,96 @@ is no delete path anywhere in the package.
 
 ## Tuning
 
-**Every check threshold lives in `datasets/health_checks.yaml`, so changing
-one is a deploy.** Only two settings are `heroku config:set`-tunable:
-`HEALTH_WEB_URL` and `REDIS_BACKLOG_MAX` (default 20000). Nothing else in
-`config.py` feeds a threshold.
+**Every threshold lives in a YAML file, so changing one is a deploy.** SQL
+check thresholds are in `datasets/health_checks.yaml`; web probe paths,
+latency ceilings and expected content are in `datasets/health_web.yaml`. Only
+two settings are `heroku config:set`-tunable: `HEALTH_WEB_URL` and
+`REDIS_BACKLOG_MAX` (default 20000). Nothing else in `config.py` feeds a
+threshold.
 
-**`smush_idle` stays inert until 28 days of history exist.** It compares the
-current hour against that hour's 28-day average and passes whenever the hour
-is not normally busy, and `smush.html` rows only start arriving with this
-deploy, so it switches itself on about a month later.
+**The latency ceilings in `health_web.yaml` are not baselined.** There was no
+latency measurement anywhere before 2026-09-28, so they were set generously to
+avoid crying wolf. First real samples, taken the day they shipped:
 
-`blossom_idle` uses the same rule but is **live from the first run**:
-`blossom_solver_clicks` already holds years of history, so its baseline is
-populated immediately.
+| Probe | Observed | Ceiling |
+|---|---|---|
+| `/` | 390-420 ms | 2500 |
+| `/blossom` | 234-405 ms | 3000 |
+| `/smush` | 156-485 ms | 3000 |
+| `/wordle` | 280-436 ms | 3000 |
+| `/youtube_trending` | 344-358 ms | 6000 |
 
-The hour-awareness is deliberate. A fixed "no usage in N hours" rule either
-cries wolf at 4am or sleeps through a lunchtime outage, and an alert that
-fires overnight for normal reasons is one you learn to ignore.
+That is 6-15x headroom, which is too loose to catch a page that merely doubled.
+Every run now prints `ms=` per probe, so after a couple of weeks of history in
+Papertrail these should be tightened to something measured - the same way
+`blossom_idle`'s 240 and `site_idle`'s 180 were set from a replay rather than a
+guess. Leave room for the cold start after the twice-daily dyno restart; the
+two-measurement retry absorbs it, but only if the ceiling is not absurdly
+tight.
+
+**`smush_idle` was deleted on 2026-09-28. It could never fire.** The claim that
+used to sit here - that it would switch itself on once 28 days of history
+existed - was wrong, and worth understanding because the mistake is easy to
+repeat. Its gate divided by a hard-coded 28, so the average did not grow as the
+table filled; it *converged* to the true per-hour rate and stopped there. 28
+days was when the number stopped moving, not when the check turned on. It
+converged below its own gate, so it returned a passing `0` forever while still
+counting as an `ok` in the tally - a green light wired to nothing.
+
+Two things replaced it, both stronger:
+
+- **`site_idle`**, a plain "minutes since anyone reached any logged page" rule,
+  measured over 90 days rather than guessed.
+- **`web:smush`** in `health_web.yaml`, which fetches the page and asserts it
+  rendered. A probe catches a broken smush within the hour no matter how much
+  traffic smush is getting, which no threshold on one page can do. Measured the
+  same day the check was deleted: smush went from 8 visits on 09-25 to 537 on
+  09-27, so any per-page threshold set then would have been calibrated against
+  a moving target.
+
+**Hour-of-day awareness turned out to be unnecessary, not just broken.** The
+idea was that a fixed "no usage in N hours" rule either cries wolf at 4am or
+sleeps through a lunchtime outage. Measured, this site has no 4am lull - traffic
+is broadly uniform, which is what an internationally visited solver looks like.
+`blossom_idle` still carries its gate, but the gate never closes, and its
+threshold was set from the measured gap distribution rather than from the gate,
+so the check is correctly calibrated for what it actually does.
+
+**`site_idle` is 180 minutes, measured.** Replaying it hourly over 90 days of
+`app_visits`, with the hourly probe and obvious bots excluded: 27 breaches at
+60 minutes, 3 at 90, and zero at 120 and above. The longest genuine quiet
+stretch in 90 days was 116 minutes against a baseline of ~205 non-bot visits a
+day, so 180 clears the worst real gap by half again.
+
+**Excluding probe traffic from `site_idle` is load-bearing.** `run_checks`
+fetches five pages every hour as `jj-healthcheck`, and the solver pages call
+`log_page_visit` on GET, so those probes write `app_visits` rows. A check that
+counted them would be held permanently quiet by its own prober. Bots are
+excluded for the same reason and it is not theoretical: dropping them moved the
+longest observed gap from 73 minutes to 116, so crawlers were genuinely filling
+real gaps.
 
 `db_connections` warns above 13 of the plan's 15. Prod and staging pools of 5
 each plus a Workbench session reaches 12 by design, so 13 warns without firing
 at the designed maximum. Observed steady state is 7.
 
-`db_size_mb` warns above 800 of the plan's 1024. That leaves 224 MB free -
-more than the largest table (~133 MB) needs for a `DELETE` + `OPTIMIZE`
-rebuild, so every remediation option stays open, and at ~260 MB/year it is
-about ten months of notice.
+`db_size_mb` warns above 700 of the plan's 1024. That leaves 324 MB free -
+comfortably more than the largest table (~133 MB) needs for a `DELETE` +
+`OPTIMIZE` rebuild, so every remediation option stays open, and at ~260 MB/year
+it is about fourteen months of notice. It was 800 until 2026-09-28.
 
 **`only_between_pst` doubles as a repeat-rate control.** The Papertrail rule
 emails on any `JJ_ALERT` inside 10 minutes, so an hourly check that breaches
 emails every hour until it is fixed. That is right for something you fix today
-and wrong for something that takes months, so `db_size_mb` carries
-`only_between_pst: [9, 9]` - a one-hour window, meaning the 09:00 PST run
-evaluates it and no other. One email a day instead of twenty-four. The same
-applies to any slow-moving check added later.
+and wrong for something that takes months, so `db_size_mb` is windowed rather
+than hourly. The same applies to any slow-moving check added later.
+
+**But a one-hour window is a single point of failure.** `[9, 9]` meant the
+09:00 PST run evaluated it and no other, so scheduler drift, a dyno that failed
+to start, or one run that died on an earlier check silently cost the whole day
+- and invisibly, because a skipped check looks exactly like a passing one in
+the tally. The window is now `[9, 10]`. That costs a second email a day while a
+breach is open and buys a free retry every day one is not.
 
 ## JawsDB reference
 
@@ -792,12 +1071,52 @@ This is a client-side guard only. mysql-connector does not enable safe update
 mode, so it never applies to anything the app itself runs - only to statements
 you type into Workbench.
 
+## Reading an http_500 from scanner junk
+
+**A 500 caused by junk input is a validation bug, not an attack.** Worth
+internalising, because the alert looks alarming and the fix is mundane.
+
+On 2026-09-29 a scanner walked `/feedback` and `/espresso/baseline` with sqlmap's
+standard payload set - `1'`, `1"`, `1)`, `98766`, `1,")).'(abcd`. It produced
+eight `http_500` alerts and eight rows in `vw_prod_errors`, all pointing at
+`/espresso/baseline`, all `KeyError`.
+
+None of it was a database problem. `roast` went straight into
+`espresso_points['roast_variable'][roast]` with no validation, so any
+unrecognised value was a `KeyError`, and an uncaught `KeyError` is a 500. The
+payloads were incidental - `roast=banana` would have done the same thing.
+
+The tell is in the alert itself:
+
+| `exc=` in the alert | Usually means |
+|---|---|
+| `KeyError`, `ValueError`, `IndexError`, `TypeError` | A route is taking a value from the form and using it as a dict key, a column name, or a number without checking it first. Fix with `parse_choice` / `parse_int` / `parse_float` / `parse_letters` from `helpers.py`, which raise `ValidationError` and become a clean 400. |
+| `DatabaseError`, `PoolError`, `OperationalError` | An actual infrastructure problem. |
+
+The distinction matters operationally: the first kind fires on *every* scanner
+sweep and will train you to ignore `http_500`, which is the one alert that
+reports a real fault the moment it happens. Every route that reads a value from
+a fixed set should validate against that set, so a sweep produces 400s that
+nobody is paged for.
+
+`log_page_visit(f'error.html (500: {e})')` puts the exception message in
+`vw_prod_errors`, which is how the cause was identified from the dashboard
+alone - `error.html (500: '98766')` is a `KeyError` naming the exact rejected
+value.
+
 ## What this does not catch
 
-Anything wrong that produces neither a log line nor a measurable database
-symptom: wrong-but-plausible data (YouTube returning 50 rows of stale
-videos), visual or CSS breakage, a solver returning wrong answers, SEO
+Anything wrong that produces neither a log line, a measurable database
+symptom, nor a difference in what a probe fetches: wrong-but-plausible data
+(YouTube returning 50 rows of stale videos), visual or CSS breakage, SEO
 decline. Those still need occasional eyes.
+
+Narrowed on 2026-09-28. "A solver returning wrong answers" used to be on this
+list and is now partly covered: each web probe asserts an expected substring,
+so a page that loads without rendering is caught within the hour. What is still
+missing is a page that renders correctly while the *engine behind it* returns
+garbage - a probe would have to POST a known input and check the answer. That
+is the next step for `health_web.yaml`.
 
 `mtg_prices_bsky.py` already handles its own staleness and failure alerting
 and was left alone.
@@ -817,13 +1136,13 @@ strings `varchar(255)`.
 | Column | Type | Why |
 |---|---|---|
 | `status_code` | `SMALLINT NULL` | The status is currently smuggled into `page_name` as `error.html (404: ...)`, which is why the views match on `LIKE '%error%'`. A real column turns `errors_500_today` into `WHERE status_code = 500` and gives per-page 4xx/5xx rates. |
-| `is_bot` | `TINYINT(1) NULL` | Stops crawler traffic holding `smush_idle` quiet. See below - the reason is narrower than it first appears. |
+| `is_bot` | `TINYINT(1) NULL` | Stops crawler traffic holding `site_idle` quiet. Already handled by a UA regex inline in the check, so this is a cleanup rather than a capability. See below. |
 | `country` | `CHAR(2) NULL` | Cloudflare already sets `CF-IPCountry` on every proxied request and the app throws it away. No logic needed, no PII. An empty value is informative too: the request bypassed Cloudflare. |
 
 ### What the bot rate justifies
 
 Measured 2026-09-25 against the 238k rows of `user_agent` already collected:
-**12.4% bots.**
+**12.4% bots.** Re-measured 2026-09-28 over the trailing 28 days: **17%.**
 
 That number alone is a weak argument: inflating an hourly baseline by 12%
 barely changes when a check fires. The real risk is the **recency** half of
@@ -831,17 +1150,28 @@ the idle checks. They alert on minutes-since-last-hit, so one polite crawler
 on a 15-minute cycle holds the check quiet through a total collapse in human
 traffic. What matters is bot *regularity*, not bot *share*.
 
+**This was measured on 2026-09-28 and the concern is real, not theoretical.**
+Replaying `site_idle` over 90 days, excluding obvious bots moved the longest
+observed quiet stretch from 73 minutes to 116. Crawlers were genuinely filling
+real gaps, which is exactly the masking described above.
+
 And it applies to only one check:
 
 - **`blossom_idle` needs nothing.** It reads `blossom_solver_clicks` - solver
   POSTs from someone typing into the form. Crawlers do not generate those.
-- **`smush_idle` is exposed.** It reads `app_visits` page GETs, which is
-  exactly what crawlers produce.
+- **`site_idle` is exposed.** It reads `app_visits` page GETs, which is exactly
+  what crawlers produce.
 
-So the filter belongs in `smush_idle`'s SQL only, as
-`AND COALESCE(is_bot, 0) = 0`. The `COALESCE` is load-bearing: rows written
-before the change are NULL, and a bare `= 0` would discard all of them and
-leave the check inert for its whole 28-day baseline window.
+`site_idle` already filters them, with the regex inline in its SQL rather than
+through a column. So the column is now a **simplification**, not a new
+capability: it would replace a regex over a day of rows with
+`AND COALESCE(is_bot, 0) = 0`. The `COALESCE` would be load-bearing - rows
+written before the change are NULL, and a bare `= 0` would discard all of them.
+
+Keep the regex until the column has been populated for longer than the check's
+lookback window, then swap. Whichever is in force, the exclusion of
+`user_agent <> 'jj-healthcheck'` must survive: the hourly probes write
+`app_visits` rows, and a check counting them is held quiet by its own prober.
 
 Re-measure before committing to a token list:
 
@@ -875,7 +1205,7 @@ unlisted columns simply take their default.
 | 1 | `ALTER TABLE` | - |
 | 2 | Confirm old code still writing | minutes to weeks |
 | 3 | Deploy code that populates the columns | - |
-| 4 | Update views and `smush_idle` | whenever |
+| 4 | Update views and `site_idle` | whenever |
 
 ```sql
 ALTER TABLE app_visits
@@ -948,13 +1278,12 @@ to be redone.
   whatever grew grew only on the antiwordle side. Capping it at source would
   end the growth in `antiwordle_revamp_clicks` rather than managing it with
   retention forever.
-- **Key `smush_idle` on a POST rather than a GET.** `blossom_idle` is the
-  stronger check because it watches a *user action* rather than a page load.
-  Logging the POST branch of `/smush` under its own `page_name` and keying
-  `smush_idle` on that needs no bot filtering at all - crawlers do not submit
-  boards - and would catch soft failures too: a GET-based idle check cannot
-  see `/smush` rendering fine while the solver returns garbage. Worth doing if
-  `smush_idle` proves noisy or too quiet in practice.
+- **Add POST probes to `health_web.yaml`.** The GET probes assert a page
+  rendered; they cannot see `/smush` rendering fine while the solver returns
+  garbage. A probe that POSTs a known board and asserts a known word comes back
+  closes that, and needs no bot filtering or traffic volume at all. This is the
+  natural next step for the probe file and would have caught the class of
+  failure `smush_idle` was reaching for.
 - **Correction recorded.** After the 365-day pass on
   `antiwordle_revamp_clicks` freed only 21 MB, the conclusion written here was
   that age-based retention is a weak lever for that table. The 180-day pass

@@ -5,12 +5,13 @@ no_write_behind fixture keeps the drain thread from starting, so queued rows
 can be inspected directly instead of being written somewhere.
 """
 
+import datetime
 from contextlib import contextmanager
 
 import pytest
 
 import extensions
-from monitoring import alerts, run_checks, run_job
+from monitoring import alerts, daily_digest, run_checks, run_job
 
 
 ##### alerts #####
@@ -353,10 +354,8 @@ def test_runner_refuses_non_select_sql(capsys):
     assert "must be a SELECT" in capsys.readouterr().out
 
 
-def test_runner_forces_fresh_information_schema_stats():
-    # MySQL 8 caches information_schema statistics for 24 hours by default, so
-    # without this the db_size_mb check could alert a day late - or stay quiet
-    # a day too long.
+def _executed_sql(checks):
+    """Run the SQL loop against a fake cursor, returning the SQL it issued."""
     executed = []
 
     class Cur:
@@ -379,11 +378,33 @@ def test_runner_forces_fresh_information_schema_stats():
     original = rc.mysql.connector.connect
     rc.mysql.connector.connect = lambda **kw: Conn()
     try:
-        rc.run_sql_checks(rc.Results(), {'x': {'sql': 'SELECT 1', 'threshold': 0}}, 12)
+        rc.run_sql_checks(rc.Results(), checks, 12)
     finally:
         rc.mysql.connector.connect = original
+    return executed
 
+
+def test_runner_forces_fresh_information_schema_stats():
+    # MySQL 8 caches information_schema statistics for 24 hours by default, so
+    # without this the db_size_mb check could alert a day late - or stay quiet
+    # a day too long.
+    executed = _executed_sql({'x': {'sql': 'SELECT 1', 'threshold': 0}})
     assert executed[0] == "SET SESSION information_schema_stats_expiry = 0"
+
+
+def test_runner_bounds_every_check_query():
+    # A hung query has to cost one check, not the whole run. Without this the
+    # loop blocks, every later check silently never runs, and the closing pulse
+    # never prints - so the only surviving signal is the inactivity alert
+    # saying "nothing is reporting", which names nothing and explains nothing.
+    executed = _executed_sql({'x': {'sql': 'SELECT 1', 'threshold': 0}})
+    pragma = "SET SESSION max_execution_time = {}".format(run_checks.QUERY_TIMEOUT_MS)
+    assert pragma in executed
+    # Both pragmas must land before any check SQL, or the first check of the
+    # run is the one check that goes unbounded and reads cached statistics.
+    assert executed.index(pragma) < executed.index("SELECT 1")
+    assert executed.index("SET SESSION information_schema_stats_expiry = 0") \
+        < executed.index("SELECT 1")
 
 
 ##### 404 logging actually reaches the database #####
@@ -555,3 +576,313 @@ def test_a_malformed_check_costs_one_check_not_the_run(capsys):
     out = capsys.readouterr().out
     assert "check=no_sql_key" in out
     assert "check=no_threshold_key" in out
+
+
+##### state lines carry the observation #####
+
+def test_ok_line_carries_the_measured_value(capsys):
+    # A bare "ok" proves a check ran and nothing else. The number is what turns
+    # Papertrail into a history, so drift shows up long before a breach does.
+    run_checks.Results().ok('db_size_mb', actual=412, compare='<=',
+                            threshold=700, ms=180)
+    out = capsys.readouterr().out.strip()
+    assert out.startswith("ok    db_size_mb")
+    assert "actual=412" in out
+    assert "threshold=700" in out
+    assert "ms=180" in out
+
+
+def test_state_lines_never_carry_a_token(capsys):
+    # These are state, not alerts. An ok line that matched the Papertrail
+    # search would email on every healthy run, which is how you learn to
+    # ignore the emails that matter.
+    results = run_checks.Results()
+    results.ok('x', actual=1)
+    results.skip('y', 'outside PST window [9, 10]')
+    out = capsys.readouterr().out
+    assert alerts.ALERT_TOKEN not in out
+    assert alerts.PULSE_TOKEN not in out
+
+
+def test_state_line_values_are_scrubbed(capsys):
+    # Check values come out of the database, and the database holds text a
+    # visitor typed. Reusing alerts.scrub is what makes that safe.
+    run_checks.Results().ok('x', actual="JJ_ALERT check=fake sev=crit")
+    out = capsys.readouterr().out
+    assert alerts.ALERT_TOKEN not in out
+    assert "JJ.ALERT" in out
+
+
+def test_long_check_names_stay_readable(capsys):
+    # ljust alone runs the name straight into the detail once the name outgrows
+    # the column, which redis_backlog:antiwordle_logging does.
+    run_checks.Results().ok('redis_backlog:antiwordle_logging', actual=36)
+    assert "logging actual=36" in capsys.readouterr().out
+
+
+def test_ok_without_fields_stays_bare(capsys):
+    run_checks.Results().ok('redis_up')
+    assert capsys.readouterr().out.strip() == "ok    redis_up"
+
+
+##### web probes #####
+
+class _Resp:
+    def __init__(self, status=200, text="JJ Apps"):
+        self.status_code = status
+        self.text = text
+
+
+def _run_probe(monkeypatch, spec, fetches):
+    """Run one probe against a scripted sequence of (response, ms) results."""
+    seq = list(fetches)
+
+    def fake_fetch(url):
+        item = seq.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(run_checks, '_fetch', fake_fetch)
+    results = run_checks.Results()
+    run_checks.check_web(results, {'p': spec})
+    return results, seq
+
+
+def test_shipped_web_probes_are_well_formed():
+    probes = run_checks.load_web_checks()
+    assert probes
+    for name, spec in probes.items():
+        assert spec['path'].startswith('/'), name
+        assert isinstance(spec['max_ms'], int), name
+        assert spec.get('sev', 'warn') in ('crit', 'warn', 'info'), name
+
+
+def test_web_probe_passes_when_fast_and_correct(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
+        [(_Resp(), 120)])
+    assert (results.passed, results.failed) == (1, 0)
+    assert "actual=120" in capsys.readouterr().out
+
+
+def test_web_probe_fails_on_missing_content(capsys, monkeypatch):
+    # The failure a status check cannot see: the page served, but the thing
+    # people actually come for did not render.
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/smush', 'max_ms': 1000, 'expect': 'Smush Solver'},
+        [(_Resp(text="<html>oops</html>"), 90)])
+    assert results.failed == 1
+    out = capsys.readouterr().out
+    assert alerts.ALERT_TOKEN in out
+    assert "expected content missing" in out
+
+
+def test_web_probe_retries_before_calling_a_page_slow(capsys, monkeypatch):
+    # restart-dyno.yml restarts the dyno twice a day, and the first request
+    # after a boot pays for data.py loading its CSVs. One slow sample is a cold
+    # start, not a slow site.
+    results, left = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
+        [(_Resp(), 4000), (_Resp(), 150)])
+    assert (results.passed, results.failed) == (1, 0)
+    assert left == []                      # it really did measure a second time
+    assert "actual=150" in capsys.readouterr().out
+
+
+def test_web_probe_alerts_when_slow_twice(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
+        [(_Resp(), 4000), (_Resp(), 3800)])
+    assert results.failed == 1
+    out = capsys.readouterr().out
+    assert "page is slow" in out
+    assert "actual=3800" in out
+
+
+def test_web_probe_alerts_on_non_200(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000}, [(_Resp(status=503), 80)])
+    assert results.failed == 1
+    assert "status=503" in capsys.readouterr().out
+
+
+def test_web_probe_alerts_when_unreachable(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000},
+        [RuntimeError("connection refused")])
+    assert results.failed == 1
+    assert "RuntimeError" in capsys.readouterr().out
+
+
+def test_one_broken_probe_costs_one_probe(monkeypatch):
+    # Same guarantee the SQL loop makes: a malformed entry must not silently
+    # cancel every probe after it in the file.
+    monkeypatch.setattr(run_checks, '_fetch', lambda url: (_Resp(), 50))
+    results = run_checks.Results()
+    run_checks.check_web(results, {
+        'broken': {'max_ms': 100},                 # no path
+        'fine': {'path': '/', 'max_ms': 100},
+    })
+    assert (results.passed, results.failed) == (1, 1)
+
+
+##### daily digest #####
+
+def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=()):
+    now = datetime.datetime(2026, 9, 28, 6, 0)
+    return daily_digest.render(now, list(health), list(latency), storage,
+                               feedback, list(panels))
+
+
+def test_digest_keeps_the_limit_column_of_a_less_than_check():
+    # Regression. An earlier version chose per cell with v.startswith('<'),
+    # so "<= 240" went out unescaped and the browser ate it as a tag - which
+    # silently removed the limit column from every <= check, and most of them
+    # are <=. The digest looked fine; it was just missing the numbers.
+    html, ok, bad, _mb = _render(health=[
+        ('blossom_idle', 'ok', 17, '<= 240', 63, ''),
+    ])
+    assert '&lt;= 240' in html
+    assert (ok, bad) == (1, 0)
+
+
+def test_digest_counts_failures_for_the_subject_line():
+    _html, ok, bad, _mb = _render(health=[
+        ('a', 'ok', 1, '<= 2', 5, ''),
+        ('b', 'FAIL', 9, '<= 2', 5, 'breached'),
+        ('c', 'skip', None, '<= 2', None, 'outside PST window [9, 10]'),
+    ])
+    assert (ok, bad) == (1, 1)          # a skip is neither
+
+
+def test_digest_escapes_content_from_the_database():
+    # Feedback bodies are whatever a visitor typed, and this is HTML going to
+    # an inbox.
+    html, _o, _b, _m = _render(feedback=(
+        ['submit_time', 'feedback_header', 'feedback_body', 'referrer'],
+        [('2026-09-28', '<script>alert(1)</script>', 'tea & toast', 'ref')],
+    ))
+    assert '<script>alert(1)</script>' not in html
+    assert '&lt;script&gt;' in html
+    assert 'tea &amp; toast' in html
+
+
+def test_a_failing_panel_is_reported_not_dropped():
+    # routes/dashboards.py swallows a broken panel with a print and renders
+    # the page without it, so a broken panel looks exactly like one that was
+    # never there. In an email nobody inspects the shape of, that is the
+    # difference between noticing and not.
+    html, _o, _b, _m = _render(panels=[
+        ('Blossom', 'clicks', [], [], 'ProgrammingError: table is gone'),
+    ])
+    assert 'panel failed' in html
+    assert 'table is gone' in html
+
+
+def test_digest_refuses_non_select_panel_sql():
+    # The digest reads the same operator-editable YAML the dashboard does, and
+    # must never be able to write through it.
+    class Cur:
+        def execute(self, *a, **k):
+            raise AssertionError("non-SELECT panel SQL must never execute")
+
+    import monitoring.daily_digest as dd
+    original = dd.load_dash_queries
+    dd.load_dash_queries = lambda: {'evil': {'query': 'DELETE FROM app_visits'}}
+    try:
+        panels = dd.gather_dashboard(Cur())
+    finally:
+        dd.load_dash_queries = original
+    assert len(panels) == 1
+    assert 'must be a SELECT' in panels[0][4]
+
+
+def test_shipped_dash_panels_are_read_only():
+    panels = daily_digest.load_dash_queries()
+    assert panels
+    for name, details in panels.items():
+        sql = (details.get('query') or '').strip()
+        assert sql.upper().startswith('SELECT'), name
+
+
+def test_digest_failure_reaches_the_other_channel(capsys):
+    # The one failure the digest cannot report to itself. The two channels
+    # cover each other: if the digest breaks Papertrail says so, and if
+    # Papertrail breaks the digest still arrives.
+    import monitoring.daily_digest as dd
+
+    def boom(now):
+        raise RuntimeError("JawsDB is unreachable")
+
+    original = dd.build
+    dd.build = boom
+    try:
+        assert dd.main() == 1
+    finally:
+        dd.build = original
+    out = capsys.readouterr().out
+    assert "JJ_ALERT check=digest_failed sev=crit" in out
+    assert "RuntimeError" in out
+    # No pulse on failure: a pulse would tell the inactivity alert the digest
+    # ran fine.
+    assert alerts.PULSE_TOKEN not in out
+
+
+class _FakeCheckCursor:
+    def __init__(self, value):
+        self.value = value
+    def execute(self, sql, *a, **k):
+        pass
+    def fetchone(self):
+        return (self.value,)
+    def fetchall(self):
+        return []
+
+
+def _gather_with(checks, value, hour_pst):
+    original = run_checks.load_checks
+    run_checks.load_checks = lambda: checks
+    try:
+        return daily_digest.gather_health(_FakeCheckCursor(value), hour_pst)
+    finally:
+        run_checks.load_checks = original
+
+
+def test_digest_evaluates_checks_outside_their_window():
+    # only_between_pst is a repeat-rate control for the alerting path. A report
+    # that sends once a day has no such problem, and obeying the window would
+    # mean the digest never showed db_size_mb at all - it runs at 6am and that
+    # check only opens at 9am.
+    rows = _gather_with({'db_size_mb': {
+        'sql': 'SELECT 1', 'threshold': 700, 'compare': '<=',
+        'only_between_pst': [9, 10]}}, 330, hour_pst=6)
+    assert len(rows) == 1
+    name, status, value = rows[0][0], rows[0][1], rows[0][2]
+    assert (name, status, value) == ('db_size_mb', 'ok', 330)
+
+
+def test_a_breach_outside_its_window_does_not_raise_an_alarm():
+    # Some windows mean "do not email so often", others mean "the answer is
+    # meaningless yet" - the ETL checks read a legitimate 0 before the midnight
+    # job lands. Nothing in the spec distinguishes them, so show the number
+    # without letting it drive the subject line.
+    rows = _gather_with({'youtube_trending_today': {
+        'sql': 'SELECT 1', 'threshold': 45, 'compare': '>=',
+        'only_between_pst': [2, 23]}}, 0, hour_pst=1)
+    status, value, note = rows[0][1], rows[0][2], rows[0][5]
+    assert status == 'info'
+    assert value == 0
+    assert 'outside its alerting window' in note
+
+    _html, ok, bad, _mb = _render(health=rows)
+    assert (ok, bad) == (0, 0)
+
+
+def test_a_breach_inside_its_window_does_raise_an_alarm():
+    rows = _gather_with({'youtube_trending_today': {
+        'sql': 'SELECT 1', 'threshold': 45, 'compare': '>=',
+        'only_between_pst': [2, 23]}}, 0, hour_pst=6)
+    assert rows[0][1] == 'FAIL'
+    _html, ok, bad, _mb = _render(health=rows)
+    assert (ok, bad) == (0, 1)

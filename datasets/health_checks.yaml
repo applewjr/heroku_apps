@@ -48,45 +48,64 @@ youtube_grouped_today:
 
 ##### traffic gone quiet #####
 
-# Hour-of-day aware in shape: each returns 0 - a pass - when the current hour
-# is not normally busy, so it only speaks up when silence is surprising.
+# Two checks asking different questions. site_idle asks "is anyone reaching the
+# site at all", which catches an outage that still answers 200 to a prober -
+# DNS, Cloudflare, a delisting. blossom_idle asks "is anyone actually solving",
+# which catches a site serving perfectly while the thing people come for is
+# broken.
 #
-# Measured 2026-09-26, and the gate does NOT currently do that job on either
-# check. Know this before trusting either one:
+# Both are plain "minutes since the last one" rules. Neither is hour-of-day
+# aware and the history says neither needs to be: traffic is broadly uniform,
+# which is what an internationally visited solver looks like. There is no 4am
+# lull to protect against.
 #
-# * blossom_idle's gate never closes. Every hour of the day averages at least
-#   5 non-probe clicks over 28 days (quietest is 8pm at 5.6, busiest 5am at
-#   37.5), so the `< 5` test always fails and the check is a plain "no usage
-#   in N minutes" rule running 24/7 - exactly what hour-awareness was meant to
-#   avoid. Traffic here is broadly uniform, which is what an internationally
-#   visited solver looks like; there is no 4am lull to protect against. The
-#   threshold below is therefore set from the measured gap distribution, not
-#   from the gate.
+# blossom_idle still carries an hour-of-day CASE that never fires. Measured
+# 2026-09-26: every hour averages at least 5 non-probe clicks over 28 days
+# (quietest 8pm at 5.6, busiest 5am at 37.5), so the `< 5` test always fails
+# and the gate never closes. Its threshold was set from the measured gap
+# distribution rather than from the gate, so the check is correctly calibrated
+# for what it actually does - the CASE is dead weight, not a bug. Left in place
+# because removing it would change behaviour precisely when blossom traffic
+# collapsed, which is the one moment you want this check unchanged.
 #
-# * smush_idle's gate never opens, so it provides NO coverage at all. Reaching
-#   an average of 3 needs 84 hits in a single hour-of-day across 28 days;
-#   smush currently runs ~13 visits a day spread over 24 hours. It will not
-#   "switch itself on" after 28 days as previously documented here - it needs
-#   roughly 6x more traffic. Recalibrate it against real history (same
-#   replay method as blossom_idle below) rather than waiting.
+# smush_idle was deleted 2026-09-28. Its gate had the opposite defect: it never
+# opened, so the check always returned 0, could never fail, and still counted
+# as a pass in the tally - a green light wired to nothing. Reaching its gate
+# needed 84 hits in one hour-of-day across 28 days. Two things replaced it,
+# both strictly better: site_idle below, and the web:smush probe in
+# health_web.yaml, which fetches the page and asserts it rendered. A probe
+# catches a broken smush within the hour no matter how much traffic smush
+# happens to be getting, which no threshold on one page can do. Measured the
+# same day: smush went from 8 visits on 09-25 to 537 on 09-27, so any
+# per-page threshold set now would be calibrated against a moving target.
 #
-# The synthetic probe (must_have 'a', may_have 'qwerty') is excluded the same
-# way vw_prod_blossom.sql excludes it: counting it would let a robot mask a
-# real outage.
+# Probe traffic is excluded everywhere, and this is load-bearing. run_checks
+# fetches several pages every hour as 'jj-healthcheck', and those GETs write
+# app_visits rows. A check counting them would be held quiet by its own prober
+# forever - the same failure the blossom must_have/may_have exclusion guards
+# against, which is why vw_prod_blossom.sql excludes that one too.
+#
+# Obvious bots are excluded from site_idle as well. Measured 2026-09-28 over 90
+# days, dropping them moves the longest observed quiet stretch from 73 minutes
+# to 116: crawlers were genuinely filling real gaps, so counting them would let
+# a polite 15-minute crawler hold the check quiet through a total collapse in
+# human traffic. Detection is a substring list, not a library - Werkzeug 3
+# dropped its UA parser - so it catches crawlers that announce themselves and
+# misses scrapers posing as Chrome. Treat it as "excludes the obvious".
 #
 # Indexed as of 2026-09-24: app_visits on (submit_time) and on
-# (page_name, submit_time), blossom_solver_clicks on (click_time). The 28-day
-# baselines below use those.
+# (page_name, submit_time), blossom_solver_clicks on (click_time).
 #
-# smush_idle finds its newest row with MAX() through the composite index - a
-# single seek, instant even while no smush rows exist yet. blossom_idle
-# instead walks the primary key backwards, because its probe exclusion filters
-# on must_have/may_have, which no index covers; MAX(click_time) there would
-# have to scan and check each row against that filter.
+# site_idle bounds itself to the last day so the regex only ever runs over a
+# few hundred rows through the (submit_time) index, not the whole table. That
+# bound also makes the COALESCE meaningful: no rows at all in 24 hours yields
+# NULL, which becomes 99999 and breaches, which is the correct answer.
+# blossom_idle instead walks the primary key backwards, because its probe
+# exclusion filters on must_have/may_have, which no index covers.
 
 blossom_idle:
     sev: warn
-    description: "Blossom solver silent during a normally-busy hour"
+    description: "Blossom solver has had no real clicks in hours"
     compare: "<="
     # 240 measured, not guessed. Replaying this check hourly over the 11,900
     # non-probe clicks in the trailing 28 days (2026-09-26):
@@ -103,7 +122,7 @@ blossom_idle:
     # roughly 2.5 times a day, which is how an alert inbox stops being read.
     #
     # Four hours is acceptable because this is a backstop, not a front line:
-    # web_up catches a dead dyno within the hour, and http_500 and
+    # the web:* probes catch a dead or slow dyno within the hour, and http_500 and
     # log_drain_failed catch the specific mechanisms. This only exists for the
     # case where everything looks healthy but nobody is actually solving.
     #
@@ -130,29 +149,38 @@ blossom_idle:
                     CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS mins_since
         ) AS m;
 
-smush_idle:
+site_idle:
     sev: warn
-    description: "Smush page silent during a normally-busy hour"
+    description: "Nobody has reached any logged page in hours"
     compare: "<="
+    # 180 measured, not guessed. Replaying this check hourly over 90 days of
+    # app_visits (2026-09-28), with the probe and obvious bots excluded:
+    #
+    #     threshold   breaches/90d   % of runs
+    #      60             27            1.3%
+    #      90              3            0.1%
+    #     120              0            0
+    #     180              0            0
+    #     240              0            0
+    #
+    # The longest genuine quiet stretch across 90 days was 116 minutes, against
+    # a baseline of ~205 non-bot visits a day. 180 clears the worst real gap by
+    # half again and has never fired on real history.
+    #
+    # Re-measure before tightening, and re-measure after any change to which
+    # routes call log_page_visit - only the solver pages do today, so this is
+    # "anyone on a solver page", not literally every request.
     threshold: 180
     sql: |
-        SELECT CASE
-                 WHEN COALESCE(hourly_avg, 0) < 3 THEN 0
-                 ELSE COALESCE(mins_since, 99999)
-               END AS idle_minutes
-        FROM (
-            SELECT
-                (SELECT COUNT(*) / 28
-                   FROM app_visits
-                  WHERE page_name = 'smush.html'
-                    AND HOUR(submit_time) = HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'))
-                    AND submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 28 DAY) AS hourly_avg,
-                TIMESTAMPDIFF(MINUTE,
-                    (SELECT MAX(submit_time)
-                       FROM app_visits
-                      WHERE page_name = 'smush.html'),
-                    CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')) AS mins_since
-        ) AS m;
+        SELECT COALESCE(
+                 TIMESTAMPDIFF(MINUTE,
+                     (SELECT MAX(submit_time)
+                        FROM app_visits
+                       WHERE submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 1 DAY
+                         AND user_agent <> 'jj-healthcheck'
+                         AND NOT (LOWER(user_agent) REGEXP 'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider')),
+                     CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
+                 99999) AS idle_minutes;
 
 
 ##### errors #####
@@ -189,17 +217,25 @@ db_size_mb:
     sev: warn
     description: "JawsDB Leopard Shared storage, 1 GB limit"
     compare: "<="
-    threshold: 800
-    # Checked once a day, not hourly. Storage moves at ~20 MB a month, so a
+    threshold: 700
+    # Checked twice a day, not hourly. Storage moves at ~20 MB a month, so a
     # breach takes months to resolve - and the Papertrail rule emails on any
     # JJ_ALERT within 10 minutes, so an hourly check would send an email every
     # hour for weeks and bury the alerts that need same-day attention.
-    # A one-hour window means the 09:00 PST run evaluates it and no other.
     #
-    # 800 leaves 224 MB free, which is more than the largest table (~133 MB)
+    # The window was [9, 9] - a single hour, so the 09:00 PST run evaluated it
+    # and no other. That is one point of failure away from no coverage at all:
+    # scheduler drift, a dyno that fails to start, or one run that dies on an
+    # earlier check, and the day is silently skipped. The failure is invisible,
+    # because a skipped check looks exactly like a passing one in the tally.
+    # Two hours costs a second email a day while a breach is open and buys a
+    # free retry every day it is not.
+    #
+    # 700 leaves 324 MB free, comfortably more than the largest table (~133 MB)
     # needs for a DELETE + OPTIMIZE rebuild, so every remediation stays
-    # available. At ~260 MB/year that is roughly 10 months of notice.
-    only_between_pst: [9, 9]
+    # available. At ~260 MB/year that is roughly 14 months of notice, about
+    # four months more than 800 gave.
+    only_between_pst: [9, 10]
     sql: |
         SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024)
         FROM information_schema.tables
@@ -220,24 +256,26 @@ db_connections:
 # arriving here. Thresholds are generous on purpose: these tables also go quiet
 # when nobody happens to play, so tighten only after watching real numbers.
 
-wordle_drain_fresh:
-    sev: warn
-    description: "Hours since redis_wordle.py last landed a wordle row"
-    compare: "<="
-    threshold: 48
-    sql: |
-        SELECT COALESCE(
-                 TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
-                 99999)
-        FROM wordle_revamp_clicks;
+# diasbled for now. they aren't don't have a usage pattern that makes them useful
 
-antiwordle_drain_fresh:
-    sev: warn
-    description: "Hours since redis_wordle.py last landed an antiwordle row"
-    compare: "<="
-    threshold: 72
-    sql: |
-        SELECT COALESCE(
-                 TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
-                 99999)
-        FROM antiwordle_revamp_clicks;
+# wordle_drain_fresh:
+#     sev: warn
+#     description: "Hours since redis_wordle.py last landed a wordle row"
+#     compare: "<="
+#     threshold: 48
+#     sql: |
+#         SELECT COALESCE(
+#                  TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
+#                  99999)
+#         FROM wordle_revamp_clicks;
+
+# antiwordle_drain_fresh:
+#     sev: warn
+#     description: "Hours since redis_wordle.py last landed an antiwordle row"
+#     compare: "<="
+#     threshold: 72
+#     sql: |
+#         SELECT COALESCE(
+#                  TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
+#                  99999)
+#         FROM antiwordle_revamp_clicks;

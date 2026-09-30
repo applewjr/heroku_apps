@@ -46,11 +46,15 @@ _last_emit = {}
 _last_emit_lock = threading.Lock()
 
 
-def _scrub(value):
-    """Make an arbitrary value safe to interpolate into an alert line.
+def scrub(value):
+    """Make an arbitrary value safe to interpolate into a log line.
 
     Values routinely carry user input: exception messages built from form
     data, feedback headers, referrers. Three things have to be neutralised.
+
+    Public because run_checks formats its own `ok` and `skip` state lines with
+    it. Those carry measured values straight out of the database and need the
+    same three guarantees; a second implementation would drift from this one.
     """
     text = str(value)
 
@@ -80,7 +84,7 @@ def _emit(token, **fields):
     TTY, which is exactly the case on a dyno. A process that crashes with
     buffered output loses the very alert explaining why it crashed.
     """
-    parts = " ".join("{}={}".format(k, _scrub(v)) for k, v in fields.items())
+    parts = " ".join("{}={}".format(k, scrub(v)) for k, v in fields.items())
     print("{} {}".format(token, parts), file=sys.stdout, flush=True)
 
 

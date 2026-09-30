@@ -442,3 +442,272 @@ def test_wordiply_post_returns_matches(client):
     assert "results" in body
     assert body["results"]  # non-empty
     assert all("zz" in word for word in body["results"])
+
+
+##### feedback: bot handling that can never cost a human their message #####
+
+import contextlib
+
+from monitoring import alerts
+
+
+def _stub_feedback_db(monkeypatch):
+    """Capture the INSERT instead of writing to the live feedback table.
+
+    secret_pass.py points at production, and /feedback writes inline rather
+    than through the write-behind queue, so an unstubbed POST here would put
+    a real row in the real table.
+    """
+    import routes.misc as misc
+    written = []
+
+    class Cursor:
+        def execute(self, sql, params=None):
+            written.append(params)
+        def close(self):
+            pass
+
+    class Conn:
+        def commit(self):
+            pass
+
+    @contextlib.contextmanager
+    def fake_cursor():
+        yield Conn(), Cursor()
+
+    monkeypatch.setattr(misc, "db_cursor", fake_cursor)
+    return written
+
+
+def test_the_form_carries_a_hidden_honeypot(client):
+    html = client.get("/feedback").get_data(as_text=True)
+    assert 'name="feedback_extra"' in html
+    # Off-screen rather than display:none or type=hidden, both of which
+    # anything reading the DOM skips trivially.
+    assert 'tabindex="-1"' in html
+    assert 'aria-hidden="true"' in html
+    # A field a password manager would fill for a real visitor would flag a
+    # human as a bot, so the name has to stay semantically meaningless.
+    for autofillable in ('name="name"', 'name="email"', 'name="url"',
+                         'name="website"', 'name="phone"'):
+        assert autofillable not in html
+
+
+def test_feedback_notifies_on_a_real_submission(client, monkeypatch, capsys):
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "a topic", "feedback_body": "the body",
+        "referrer": "https://example.com/",
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_honeypot_saves_the_row_but_sends_no_alert(client, monkeypatch, capsys):
+    # The constraint the whole design serves: bot handling must never cost a
+    # person their feedback. A tripped honeypot still writes the row, and the
+    # daily digest lists every row from the last 24 hours, so a false positive
+    # is a delayed notification rather than a lost message.
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "buy cheap", "feedback_body": "spam",
+        "referrer": "", "feedback_extra": "http://spam.example",
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1                       # never rejected
+    out = capsys.readouterr().out
+    assert "feedback_new" not in out               # but no email
+    assert "honeypot filled" in out
+
+
+def test_an_empty_honeypot_is_not_a_bot(client, monkeypatch, capsys):
+    # A browser submits the field present and empty, which is the normal case
+    # and has to behave exactly as if it were not there.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+        "feedback_extra": "   ",
+    })
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_a_cached_form_without_the_honeypot_still_works(client, monkeypatch, capsys):
+    # Someone on an older cached copy of the page posts no feedback_extra at
+    # all. Reading it with [] rather than .get() would 400 them.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+    })
+    assert resp.status_code == 200
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_a_flood_cannot_fill_the_inbox(client, monkeypatch, capsys):
+    # A bound that does not depend on the honeypot working: even something
+    # that avoids it cannot turn one form into a hundred emails.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    for i in range(5):
+        client.post("/feedback", data={
+            "feedback_header": "flood %d" % i, "feedback_body": "b",
+            "referrer": "",
+        })
+    out = capsys.readouterr().out
+    assert out.count("JJ_ALERT check=feedback_new") == 1
+    assert out.count("feedback alert throttled") == 4
+
+
+##### validation: scanner junk must be a 400, never a 500 #####
+
+import time
+
+import helpers
+from helpers import ValidationError, issue_form_token, parse_choice, submitted_too_fast
+
+
+def test_parse_choice_accepts_a_listed_option():
+    assert parse_choice('Dark', 'roast', ['Light', 'Dark'], default='Light') == 'Dark'
+
+
+def test_parse_choice_defaults_on_blank():
+    for blank in (None, '', '   '):
+        assert parse_choice(blank, 'roast', ['Light', 'Dark'], default='Light') == 'Light'
+
+
+def test_parse_choice_rejects_anything_else():
+    with pytest.raises(ValidationError):
+        parse_choice('98766', 'roast', ['Light', 'Dark'], default='Light')
+
+
+def test_parse_choice_does_not_substitute_a_default_for_junk():
+    # Unlike parse_int's clamping, a choice has no nearest valid neighbour.
+    # Silently falling back would answer a question the visitor did not ask.
+    with pytest.raises(ValidationError):
+        parse_choice("1'", 'roast', ['Light', 'Dark'], default='Light')
+
+
+@pytest.mark.parametrize("payload", ["98766", "1'", '1"', "1)", "1')", "1 UNION SELECT 1,2,3"])
+def test_espresso_baseline_400s_on_scanner_junk(client, payload):
+    # Regression, 2026-09-29. roast went straight into
+    # espresso_points['roast_variable'][roast], so an unrecognised value was a
+    # KeyError -> 500. A scanner walking this route produced eight http_500
+    # alerts and eight rows in vw_prod_errors, none of them a real fault.
+    assert client.post("/espresso/baseline/",
+                       data={"roast": payload, "dose": "2"}).status_code == 400
+    assert client.post("/espresso/baseline/",
+                       data={"roast": "Medium", "dose": payload}).status_code == 400
+
+
+def test_espresso_baseline_still_serves_every_real_option(client):
+    for roast in ["Light", "Medium", "Medium Dark", "Dark"]:
+        for dose in ["1", "2", "3"]:
+            resp = client.post("/espresso/baseline/", data={"roast": roast, "dose": dose})
+            assert resp.status_code == 200, (roast, dose)
+
+
+def test_espresso_baseline_get_uses_the_defaults(client):
+    assert client.get("/espresso/baseline/").status_code == 200
+
+
+def test_espresso_plot_400s_before_it_reaches_google_sheets(client, monkeypatch):
+    # The x/y/z values are DataFrame column names, so an unknown one was a
+    # KeyError -> 500 the same way. Validating before get_espresso_data also
+    # means junk never triggers the Sheets pull.
+    import routes.espresso as esp
+
+    def explode():
+        raise AssertionError("junk input must never reach the Sheets pull")
+
+    monkeypatch.setattr(esp, "get_espresso_data", explode)
+    resp = client.post("/espresso/plot/", data={"espresso_x_col": "1' OR '1'='1"})
+    assert resp.status_code == 400
+
+
+##### feedback: time-to-submit #####
+
+def _token_aged(flask_app, seconds):
+    """Mint a real feedback token that looks `seconds` old."""
+    from itsdangerous.timed import TimestampSigner
+    import routes.misc as misc
+
+    real = TimestampSigner.get_timestamp
+    TimestampSigner.get_timestamp = lambda self: int(time.time()) - seconds
+    try:
+        with flask_app.test_request_context():
+            return issue_form_token(misc.FEEDBACK_TOKEN_SALT)
+    finally:
+        TimestampSigner.get_timestamp = real
+
+
+def test_the_form_carries_a_signed_token(client):
+    html = client.get("/feedback").get_data(as_text=True)
+    assert 'name="feedback_token"' in html
+    # Signed, not a bare timestamp - an unsigned field is one a bot backdates.
+    assert 'value=""' not in html.split('name="feedback_token"')[1][:40]
+
+
+def test_an_instant_submission_is_saved_but_not_notified(client, flask_app, monkeypatch, capsys):
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "buy cheap", "feedback_body": "spam", "referrer": "",
+        "feedback_token": _token_aged(flask_app, 0),
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1                        # never rejected
+    out = capsys.readouterr().out
+    assert "feedback_new" not in out
+    assert "submitted in under" in out
+
+
+def test_a_human_who_took_thirty_seconds_is_notified(client, flask_app, monkeypatch, capsys):
+    written = _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "a real topic", "feedback_body": "a real message",
+        "referrer": "", "feedback_token": _token_aged(flask_app, 30),
+    })
+    assert resp.status_code == 200
+    assert len(written) == 1
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("token", ["", "not-a-real-token", "abc.def.ghi"])
+def test_an_unverifiable_token_is_no_signal_not_suspicion(client, monkeypatch, capsys, token):
+    # The asymmetry the whole design rests on. A cached page, a rotated secret
+    # and a mangled field all mean "we learned nothing", and nothing here may
+    # act against a person on a guess.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    resp = client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+        "feedback_token": token,
+    })
+    assert resp.status_code == 200
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_an_expired_token_is_no_signal(client, flask_app, monkeypatch, capsys):
+    # A tab left open past FORM_TOKEN_MAX_AGE is a person, not a bot.
+    _stub_feedback_db(monkeypatch)
+    alerts.reset_throttle()
+    stale = _token_aged(flask_app, helpers.FORM_TOKEN_MAX_AGE + 60)
+    resp = client.post("/feedback", data={
+        "feedback_header": "t", "feedback_body": "b", "referrer": "",
+        "feedback_token": stale,
+    })
+    assert resp.status_code == 200
+    assert "JJ_ALERT check=feedback_new" in capsys.readouterr().out
+
+
+def test_a_clock_that_ran_backwards_is_no_signal(flask_app):
+    # A token from the future is skew, not speed.
+    future = _token_aged(flask_app, -300)
+    with flask_app.test_request_context():
+        import routes.misc as misc
+        assert submitted_too_fast(future, salt=misc.FEEDBACK_TOKEN_SALT) is False
