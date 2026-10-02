@@ -1,9 +1,10 @@
 """Small shared helpers used across route blueprints."""
 
+import ipaddress
 import math
 from datetime import datetime, timezone
 
-from flask import current_app
+from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
 
 
@@ -201,3 +202,52 @@ def make_trending_jsonld(items, list_name="YouTube Trending - Top videos today")
             for position, video_id, title in items
         ],
     }
+
+
+# Cloudflare's published edge ranges, https://www.cloudflare.com/ips/ as of
+# 2026-09-30. A stale list fails safe: visitors arriving through a new edge
+# range read as that edge's own address, so they merge into one visitor -
+# undercounting people, never inventing extra ones.
+_CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(net) for net in (
+    '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+    '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+    '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+    '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+    '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+))
+
+
+def _parse_ip(value):
+    try:
+        return ipaddress.ip_address(str(value).strip())
+    except ValueError:
+        return None
+
+
+def client_ip():
+    """The visitor's real IP address as a string, or '' if it can't be read.
+
+    request.remote_addr is not the visitor on Heroku - ProxyFix runs without
+    x_for (see app.py and the note above extensions.INTERACTIVE_LIMITS).
+
+    The last X-Forwarded-For hop is whoever connected to Heroku's router.
+    Heroku appends it, so a client cannot forge it. When that hop is a
+    Cloudflare edge, the visitor is in CF-Connecting-IP. When it is not -
+    someone calling the herokuapp.com origin directly - CF-Connecting-IP is
+    whatever they chose to send, so the hop itself is the answer. That is
+    what stops one person minting unlimited "different visitors" by setting
+    a header.
+
+    With no X-Forwarded-For at all (local runs, tests) remote_addr is used.
+    """
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    hop = forwarded.rsplit(',', 1)[-1] if forwarded.strip() else request.remote_addr
+    hop_ip = _parse_ip(hop or '')
+    if hop_ip is None:
+        return ''
+    if any(hop_ip in net for net in _CLOUDFLARE_NETWORKS):
+        visitor = _parse_ip(request.headers.get('CF-Connecting-IP', ''))
+        if visitor is not None:
+            return str(visitor)
+    return str(hop_ip)
