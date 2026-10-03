@@ -129,7 +129,6 @@ def blossom_solver():
                                 current_count=current_count,
                                 show_load_more=show_load_more,
                                 pangrams=pangrams,
-                                crowd_remove_votes=CROWD_REMOVE_VOTES,
                                 schema_data=schema_data)
 
         else:
@@ -147,7 +146,6 @@ def blossom_solver():
                                 used_words=used_words,
                                 current_count=25,
                                 show_load_more=False,
-                                crowd_remove_votes=CROWD_REMOVE_VOTES,
                                 schema_data=schema_data)
 
     except ValidationError:
@@ -408,6 +406,11 @@ def get_filtered_blossom_words():
 # change applies once enough *different* players agree. Nobody reviews it;
 # /blossom_admin's Remove is the undo (it also resets the word's votes).
 #
+# Players are never told these numbers, or that their vote was the one that
+# tipped a word over: page copy only says reports are taken into account, and
+# the JSON replies below are identical either way. Knowing the count is the
+# first thing anyone gaming this would want. Admin pages show them freely.
+#
 # Measured against prod on 2026-09-30, before choosing these numbers:
 # - The old report form was right every time: 16 of 16 "invalid" reports on
 #   listed words were confirmed, and 13 of 13 "missing" reports were added.
@@ -598,7 +601,6 @@ def _toggle_invalid(data):
     if 'invalid_words' not in session:
         session['invalid_words'] = []
     flagged = session['invalid_words']
-    removed = False
     if word in flagged:
         flagged.remove(word)
         _retract_vote(word, 'invalid')
@@ -607,9 +609,11 @@ def _toggle_invalid(data):
         # Only a word actually on offer, on a board it fits: anything else is
         # not a result this player could have been shown.
         if word in get_filtered_blossom_words() and _fits_puzzle(word, center, petals):
-            removed = _record_vote(word, 'invalid', _puzzle_tag(center, petals))
+            _record_vote(word, 'invalid', _puzzle_tag(center, petals))
     session.modified = True
-    return jsonify({'status': 'success', 'invalid_words': flagged, 'removed': removed})
+    # Same reply whether or not this vote removed the word (see the note above
+    # CROWD_REMOVE_VOTES).
+    return jsonify({'status': 'success', 'invalid_words': flagged})
 
 
 def _suggest_missing(data):
@@ -620,5 +624,7 @@ def _suggest_missing(data):
         return jsonify({'status': 'success', 'result': 'not_in_puzzle'})
     if word in get_filtered_blossom_words():
         return jsonify({'status': 'success', 'result': 'already_listed'})
-    added = _record_vote(word, 'missing', _puzzle_tag(center, petals))
-    return jsonify({'status': 'success', 'result': 'added' if added else 'recorded'})
+    # 'recorded' whether or not this vote added the word (see the note above
+    # CROWD_REMOVE_VOTES).
+    _record_vote(word, 'missing', _puzzle_tag(center, petals))
+    return jsonify({'status': 'success', 'result': 'recorded'})

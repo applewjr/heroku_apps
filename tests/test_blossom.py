@@ -459,8 +459,7 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
     db = crowd_db(_votes(players=1))
     first = _flag(client, "nastier")
     assert first.status_code == 200
-    assert first.get_json() == {
-        "status": "success", "invalid_words": ["nastier"], "removed": False}
+    assert first.get_json() == {"status": "success", "invalid_words": ["nastier"]}
     assert db.statements("INSERT INTO blossom_word_votes")
 
     second = _flag(client, "nastier")
@@ -470,13 +469,16 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
 
 def test_two_flags_change_nothing(client, crowd_db, fresh_word_cache):
     db = crowd_db(_votes(players=2))
-    assert _flag(client, "nastier").get_json()["removed"] is False
+    assert _flag(client, "nastier").status_code == 200
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
 def test_third_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
     db = crowd_db(_votes(players=3))
-    assert _flag(client, "nastier").get_json()["removed"] is True
+    resp = _flag(client, "nastier")
+    # The deciding vote gets exactly the reply any other vote gets: players
+    # are never told the threshold, or that theirs was the one that tipped it.
+    assert resp.get_json() == {"status": "success", "invalid_words": ["nastier"]}
 
     [(sql, params)] = db.statements("INSERT INTO blossom_invalid_words")
     assert "'crowd'" in sql and params[0] == "nastier"
@@ -491,7 +493,7 @@ def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_ca
     answers = _votes(players=9)
     answers["SELECT source FROM blossom_added_words"] = ("admin",)
     db = crowd_db(answers)
-    assert _flag(client, "nastier").get_json()["removed"] is False
+    _flag(client, "nastier")
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
@@ -499,8 +501,9 @@ def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache
     answers = _votes(players=3)
     answers["SELECT source FROM blossom_added_words"] = ("crowd",)
     db = crowd_db(answers)
-    assert _flag(client, "nastier").get_json()["removed"] is True
+    _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_added_words WHERE word = %s AND source = 'crowd'")
+    assert db.statements("INSERT INTO blossom_invalid_words")
 
 
 def test_votes_past_the_daily_cap_are_ignored(client, crowd_db, fresh_word_cache):
@@ -538,25 +541,26 @@ def test_unticking_a_vote_that_never_counted_changes_nothing(client, crowd_db, f
     assert not db.statements("DELETE FROM blossom_invalid_words")
 
 
-@pytest.mark.parametrize("word, players, expected", [
-    ("tazzt", 0, "not_in_puzzle"),      # z isn't on this board
-    ("rain", 0, "not_in_puzzle"),       # no center letter
-    ("nastier", 0, "already_listed"),
-    (NOT_LISTED, 1, "recorded"),
-    (NOT_LISTED, 2, "added"),
+@pytest.mark.parametrize("word, players, expected, adds", [
+    ("tazzt", 0, "not_in_puzzle", False),     # z isn't on this board
+    ("rain", 0, "not_in_puzzle", False),      # no center letter
+    ("nastier", 0, "already_listed", False),
+    (NOT_LISTED, 1, "recorded", False),
+    # The vote that adds the word gets the same reply as one that doesn't.
+    (NOT_LISTED, 2, "recorded", True),
 ])
-def test_suggest_missing_outcomes(client, crowd_db, fresh_word_cache, word, players, expected):
+def test_suggest_missing_outcomes(client, crowd_db, fresh_word_cache, word, players, expected, adds):
     assert NOT_LISTED not in words_blossom
     db = crowd_db(_votes(players=players))
     resp = _suggest(client, word)
     assert resp.status_code == 200
-    assert resp.get_json()["result"] == expected
-    assert bool(db.statements("INSERT INTO blossom_added_words")) == (expected == "added")
+    assert resp.get_json() == {"status": "success", "result": expected}
+    assert bool(db.statements("INSERT INTO blossom_added_words")) == adds
 
 
 def test_second_player_adds_a_missing_word(client, crowd_db, fresh_word_cache):
     db = crowd_db(_votes(players=2))
-    assert _suggest(client, NOT_LISTED).get_json()["result"] == "added"
+    assert _suggest(client, NOT_LISTED).get_json()["result"] == "recorded"
     [(sql, params)] = db.statements("INSERT INTO blossom_added_words")
     assert "'crowd'" in sql and params[0] == NOT_LISTED
     assert ("DELETE FROM blossom_word_votes WHERE word = %s AND vote = %s",
@@ -633,15 +637,27 @@ def test_admin_page_shows_who_made_each_change(client, crowd_db, monkeypatch):
     assert '<td class="by-admin">you</td>' in html
 
 
-def test_faq_names_the_real_threshold_and_still_parses(client):
+def test_players_are_never_told_the_vote_counts(client, blossom_client):
+    # James's call: knowing how many votes a change takes is the first thing
+    # anyone gaming this would want, so no player-facing page says it - not
+    # the FAQ, not the toast and box messages, not a JS constant in the source.
     import json
-    from routes.blossom import CROWD_REMOVE_VOTES
-    html = client.get("/blossom").get_data(as_text=True)
-    phrase = f"once {CROWD_REMOVE_VOTES} different players flag the same word"
-    assert html.count(phrase) == 2          # the visible FAQ and its JSON-LD
-    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
-    parsed = [json.loads(block) for block in blocks]
-    assert any(block.get("@type") == "FAQPage" for block in parsed)
+    pages = [
+        client.get("/blossom").get_data(as_text=True),
+        blossom_client.post(
+            "/blossom", data={"must_have": "t", "may_have": "raine", "petal_letter": "s"},
+        ).get_data(as_text=True),
+    ]
+    for html in pages:
+        lowered = html.lower()
+        for hint in ("crowd_remove_votes", "crowd_add_votes", "different players",
+                     "another player", "players flag", "players agreed",
+                     "for everyone"):
+            assert hint not in lowered, f"page hints at the threshold: {hint!r}"
+        assert "take every report into account" in html
+        blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+        parsed = [json.loads(block) for block in blocks]
+        assert any(block.get("@type") == "FAQPage" for block in parsed)
 
 
 # client_ip: whose address a vote belongs to.

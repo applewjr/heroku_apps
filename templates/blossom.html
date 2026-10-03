@@ -48,7 +48,7 @@
       "name": "Why are some words missing from the results?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box: once {{ crowd_remove_votes }} different players flag the same word, it is removed for everyone. If Blossom accepts a word we do not list, type it into the box under the results. You can also use the Report Invalid/Missing Word button."
+        "text": "This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list. You can also use the Report Invalid/Missing Word button."
       }
     },
     {
@@ -1282,7 +1282,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
       </div>
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why are some words missing from the results?</p>
-        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box: once {{ crowd_remove_votes }} different players flag the same word, it's removed for everyone. If Blossom accepts a word we don't list, type it into the box under the results. You can also use the "Report Invalid/Missing Word" button.</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list. You can also use the "Report Invalid/Missing Word" button.</p>
       </div>
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
@@ -1689,8 +1689,8 @@ function initializeBlossomApp() {
 
   // ---- Crowd corrections: the Invalid box and the missing-word box ----
   // Wired with addEventListener below, so nothing here needs a window export.
-
-  const CROWD_REMOVE_VOTES = {{ crowd_remove_votes|int }};
+  // Players are never told how many votes a change takes, or when theirs tipped
+  // a word over: the server doesn't say, and nothing on this page hints at it.
 
   // The letters the results table was built from, not whatever is typed in
   // the petals now, so a vote always describes the board its word came from.
@@ -1745,17 +1745,11 @@ function initializeBlossomApp() {
     row.classList.toggle('invalid-word', flagging);
 
     if (flagging && isFirstInvalidFlag()) {
-      showToast('Flagged. Use this when Blossom rejects a word: once ' + CROWD_REMOVE_VOTES +
-                ' players flag the same word, it is removed for everyone.', 6000);
+      showToast("Thanks, we'll take your vote into account. Use this box only when Blossom rejects a word.", 6000);
     }
 
     const puzzle = renderedPuzzle();
     postBlossom({ action: 'toggle_invalid', word: word, center: puzzle.center, petals: puzzle.petals })
-      .then(data => {
-        if (data && data.removed) {
-          showToast('Thanks! Enough players agreed, so "' + word + '" is now removed for everyone.', 5000);
-        }
-      })
       .catch(error => {
         console.error('Error flagging word:', error);
         checkbox.checked = !flagging;
@@ -1764,8 +1758,7 @@ function initializeBlossomApp() {
   }
 
   const MISSING_WORD_MESSAGES = {
-    recorded: 'Thanks! Once another player confirms it, it is added for everyone.',
-    added: 'Thanks! Another player confirmed it, so it is now added for everyone.',
+    recorded: "Thanks! We'll take your suggestion into account.",
     already_listed: 'That word is already in our list, further down. Try showing more words.',
     not_in_puzzle: 'That word does not fit these letters.'
   };
@@ -1803,7 +1796,7 @@ function initializeBlossomApp() {
         .then(data => {
           const result = data && data.result;
           status.textContent = MISSING_WORD_MESSAGES[result] || MISSING_WORD_MESSAGES.recorded;
-          if (result === 'recorded' || result === 'added') {
+          if (result === 'recorded') {
             input.value = '';
           }
         })
