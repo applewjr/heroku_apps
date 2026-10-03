@@ -907,6 +907,14 @@ table.blossom-results td.show-letter-cell { width: 80px; }
     accent-color: #e55555;
 }
 
+/* "Tried a word and Blossom rejected it?" line above the table */
+.invalid-hint {
+    margin: 0 auto 4px auto;
+    padding: 0 16px;
+    font-size: 13px;
+    color: #555;
+}
+
 /* "Blossom accepted a word that isn't listed?" box */
 .missing-word-row {
     max-width: 420px;
@@ -1089,6 +1097,12 @@ table.blossom-results td.show-letter-cell { width: 80px; }
 
   <!-- Wrap dynamic content to prevent layout shifts -->
   <div class="results-section" id="words">
+    {% if blossom_table %}
+    <!-- Read before the first tap, not after: a third of the top-listed words
+         look made-up, and a tick for "looks fake" is a vote against a word
+         Blossom accepts. -->
+    <p class="invalid-hint">Tried a word and Blossom rejected it? Tick its Invalid box.</p>
+    {% endif %}
     <!-- data-center / data-petals: the letters this table was built from, so a
          vote describes the board its word came from even if the petals have
          been retyped since. -->

@@ -388,12 +388,14 @@ class _ScriptedDB:
         yield Conn(), Cursor()
 
 
-def _votes(players, today=0):
-    """Answers for the two counts: this player's votes today, and the word's
-    distinct players in the window."""
+def _votes(players, today=0, invalid_today=1):
+    """Answers for the counts the vote path makes: this player's votes in the
+    last 24 hours (the recording cap), their Invalid ticks today (the
+    crossing-off limit), and the word's counting players in the window."""
     return {
-        "WHERE voter_hash = %s": (today,),
-        "COUNT(*) FROM blossom_word_votes WHERE word": (players,),
+        "WHERE voter_hash = %s AND created_at": (today,),
+        "WHERE voter_hash = %s AND vote = 'invalid'": (invalid_today,),
+        "FROM blossom_word_votes v WHERE v.word": (players,),
     }
 
 
@@ -438,6 +440,9 @@ def test_results_table_has_an_invalid_box_on_every_row(blossom_client):
     assert "<th>Invalid</th>" in html
     assert html.count('class="word-checkbox"') == 25
     assert html.count('class="invalid-checkbox"') == 25
+    # The hint sits above the table, so it is read before the first tap.
+    assert html.index('class="invalid-hint"') < html.index('<table')
+    assert "Tried a word and Blossom rejected it? Tick its Invalid box." in html
     # Votes carry the letters this table was built from, not the live petals.
     assert 'data-center="t" data-petals="raine"' in html
 
@@ -467,14 +472,16 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
     assert db.statements("DELETE FROM blossom_word_votes WHERE word = %s AND vote = %s AND voter_hash")
 
 
-def test_two_flags_change_nothing(client, crowd_db, fresh_word_cache):
-    db = crowd_db(_votes(players=2))
+def test_one_player_short_changes_nothing(client, crowd_db, fresh_word_cache):
+    from routes.blossom import CROWD_REMOVE_VOTES
+    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))
     assert _flag(client, "nastier").status_code == 200
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
-def test_third_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
-    db = crowd_db(_votes(players=3))
+def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
+    from routes.blossom import CROWD_REMOVE_VOTES
+    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES))
     resp = _flag(client, "nastier")
     # The deciding vote gets exactly the reply any other vote gets: players
     # are never told the threshold, or that theirs was the one that tipped it.
@@ -498,7 +505,8 @@ def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_ca
 
 
 def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache):
-    answers = _votes(players=3)
+    from routes.blossom import CROWD_REMOVE_VOTES
+    answers = _votes(players=CROWD_REMOVE_VOTES)
     answers["SELECT source FROM blossom_added_words"] = ("crowd",)
     db = crowd_db(answers)
     _flag(client, "nastier")
@@ -517,7 +525,7 @@ def test_votes_past_the_daily_cap_are_ignored(client, crowd_db, fresh_word_cache
 
 
 def test_only_a_result_on_this_board_gets_a_vote(client, crowd_db, fresh_word_cache):
-    db = crowd_db(_votes(players=3))
+    db = crowd_db(_votes(players=99))
     # zebra can't be made from these letters, so no one could have been shown it.
     assert _flag(client, "zebra").get_json()["invalid_words"] == ["zebra"]
     assert not db.statements("INSERT INTO blossom_word_votes")
@@ -527,10 +535,53 @@ def test_unticking_the_deciding_vote_puts_the_word_back(client, crowd_db, fresh_
     with client.session_transaction() as sess:
         sess["invalid_words"] = ["nastier"]
     fresh_word_cache.set("blossom_filtered_words", {"stale"})
-    db = crowd_db(_votes(players=2))     # what's left once this vote is gone
+    from routes.blossom import CROWD_REMOVE_VOTES
+    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))     # what's left once this vote is gone
     _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
     assert fresh_word_cache.get("blossom_filtered_words") is None
+
+
+def test_a_player_crossing_words_off_does_not_count(client, crowd_db, fresh_word_cache):
+    # More than CROWD_MAX_INVALID_PER_DAY ticks in a day reads as using
+    # Invalid like Used. The vote is still recorded, for calibrating the limit
+    # later, but changes nothing however many other players agree.
+    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    db = crowd_db(_votes(players=99, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1))
+    assert _flag(client, "nastier").status_code == 200
+    assert db.statements("INSERT INTO blossom_word_votes")
+    assert not db.statements("INSERT INTO blossom_invalid_words")
+
+
+def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
+        client, crowd_db, fresh_word_cache):
+    # Their earlier ticks today may have helped remove words before they
+    # passed the limit. Once they do, any of those words left without enough
+    # counting players goes back on the list.
+    from routes.blossom import CROWD_MAX_INVALID_PER_DAY, CROWD_REMOVE_VOTES
+    db = crowd_db(
+        _votes(players=CROWD_REMOVE_VOTES - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
+        rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
+    )
+    _flag(client, "nastier")
+    put_back = db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
+    assert sorted(params[0] for _sql, params in put_back) == ["nastier", "retains"]
+    assert not db.statements("INSERT INTO blossom_invalid_words")
+    # The list the next solve sees is rebuilt, not the cached one.
+    assert fresh_word_cache.get("blossom_filtered_words") is None
+
+
+def test_only_invalid_counts_apply_the_daily_limit(client, crowd_db, fresh_word_cache):
+    # The fake can't run SQL, so pin the shape: Invalid counts skip any vote
+    # whose player went over the limit that day; missing-word counts don't.
+    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    db = crowd_db(_votes(players=1))
+    _flag(client, "nastier")
+    _suggest(client, NOT_LISTED)
+    invalid_count, missing_count = db.statements("FROM blossom_word_votes v WHERE v.word")
+    assert "DATE(v.created_at)" in invalid_count[0]
+    assert invalid_count[1][-1] == CROWD_MAX_INVALID_PER_DAY
+    assert "DATE(v.created_at)" not in missing_count[0]
 
 
 def test_unticking_a_vote_that_never_counted_changes_nothing(client, crowd_db, fresh_word_cache):
