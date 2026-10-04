@@ -401,11 +401,15 @@ def _votes(players, today=0, invalid_today=1):
 
 @pytest.fixture
 def crowd_db(monkeypatch):
+    import crowd
     import routes.blossom as blossom
 
     def install(answers=None, rows=None, rowcount=1):
         db = _ScriptedDB(answers, rows, rowcount)
+        # The vote and admin mechanics live in crowd.py, shared with /smush;
+        # the word list and feedback reads stay in routes/blossom.py.
         monkeypatch.setattr(blossom, "db_cursor", db)
+        monkeypatch.setattr(crowd, "db_cursor", db)
         return db
 
     return install

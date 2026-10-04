@@ -4,6 +4,7 @@ blueprints, and owns app-level handlers. Gunicorn serves this via `app:app`.
 Routes live in the routes/ package:
     routes/wordgames.py  - wordle, antiwordle, quordle, fixer, word finders
     routes/blossom.py    - blossom solver, admin, feedback
+    routes/smush.py      - smush word list, crowd corrections, admin
     routes/espresso.py   - espresso optimizer pages
     routes/dashboards.py - youtube trending, etl status, mtg prices
     routes/misc.py       - front page, games, feedback, SEO files, redirects
@@ -33,7 +34,7 @@ if config.IS_HEROKU:
 from extensions import NOT_FOUND_LIMITS, cache, limiter, log_page_visit
 from helpers import ValidationError
 from monitoring import alerts
-from routes import blossom, dashboards, espresso, misc, wordgames
+from routes import blossom, dashboards, espresso, misc, smush, wordgames
 
 app = Flask(__name__)
 
@@ -69,6 +70,7 @@ def redirect_non_www():
 app.register_blueprint(misc.bp)
 app.register_blueprint(wordgames.bp)
 app.register_blueprint(blossom.bp)
+app.register_blueprint(smush.bp)
 app.register_blueprint(espresso.bp)
 app.register_blueprint(dashboards.bp)
 

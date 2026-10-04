@@ -1,22 +1,22 @@
 """Blossom solver, admin word management, and feedback routes."""
 
-import hashlib
-import hmac
-import ipaddress
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.text import MIMEText
 
 import pytz
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
 import config
+import crowd
+# The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
+from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
+                   CROWD_REMOVE_VOTES)
 from data import words_blossom
 from extensions import (INTERACTIVE_LIMITS, auth, cache, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
 from functions import all_words
-from helpers import ValidationError, client_ip, make_schema_data, parse_int, parse_letters
-from monitoring import alerts
+from helpers import ValidationError, make_schema_data, parse_int, parse_letters
 
 bp = Blueprint('blossom', __name__)
 
@@ -177,24 +177,11 @@ def blossom_reset():
 def blossom_admin():
     """Admin page to manage invalid and missing words"""
     try:
+        # source is 'admin' (added here) or 'crowd' (enough players agreed -
+        # see "crowd corrections" below).
+        invalid_words, added_words = BLOSSOM_CROWD.list_rows()
+
         with db_cursor() as (conn, cursor):
-            # Get invalid words. source is 'admin' (added here) or 'crowd'
-            # (enough players agreed - see "crowd corrections" below).
-            cursor.execute("""
-                SELECT word, added_date, source
-                FROM blossom_invalid_words
-                ORDER BY added_date DESC
-            """)
-            invalid_words = cursor.fetchall()
-
-            # Get added words
-            cursor.execute("""
-                SELECT word, added_date, source
-                FROM blossom_added_words
-                ORDER BY added_date DESC
-            """)
-            added_words = cursor.fetchall()
-
             # Get recent feedback
             cursor.execute("""
                 SELECT id, submit_time, report_type, reported_words
@@ -227,26 +214,7 @@ def add_word():
         if not word:
             return redirect('/blossom_admin?error=Word is required')
 
-        if word_type == 'missing':
-            table, other = 'blossom_added_words', 'blossom_invalid_words'
-        else:
-            table, other = 'blossom_invalid_words', 'blossom_added_words'
-
-        # Your call is the final one: marked 'admin' (upgrading any crowd row)
-        # so the crowd never reverses it, taken out of the other list so the
-        # two can't disagree, and the crowd's votes on it start over.
-        with db_cursor() as (conn, cursor):
-            cursor.execute(f"""
-                INSERT INTO {table} (word, added_date, source)
-                VALUES (%s, CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'), 'admin')
-                ON DUPLICATE KEY UPDATE source = 'admin'
-            """, (word,))
-            cursor.execute(f"DELETE FROM {other} WHERE word = %s", (word,))
-            cursor.execute("DELETE FROM blossom_word_votes WHERE word = %s", (word,))
-            conn.commit()
-
-        # Clear cache to force refresh
-        cache.delete('blossom_filtered_words')
+        BLOSSOM_CROWD.admin_set(word, 'missing' if word_type == 'missing' else 'invalid')
 
         action = "added to word list" if word_type == 'missing' else "marked as invalid"
         return redirect(f'/blossom_admin?success=Word {action} successfully')
@@ -267,21 +235,7 @@ def remove_word():
         if not word:
             return redirect('/blossom_admin?error=Word is required')
 
-        if word_type == 'missing':
-            table = 'blossom_added_words'
-        else:
-            table = 'blossom_invalid_words'
-
-        # Clearing its votes makes this a clean undo of a crowd change too:
-        # the crowd starts again from zero rather than re-applying it on the
-        # next vote.
-        with db_cursor() as (conn, cursor):
-            cursor.execute(f"DELETE FROM {table} WHERE word = %s", (word,))
-            cursor.execute("DELETE FROM blossom_word_votes WHERE word = %s", (word,))
-            conn.commit()
-
-        # Clear cache to force refresh
-        cache.delete('blossom_filtered_words')
+        BLOSSOM_CROWD.admin_remove(word, 'missing' if word_type == 'missing' else 'invalid')
 
         return redirect('/blossom_admin?success=Word removed successfully')
 
@@ -402,16 +356,11 @@ def get_filtered_blossom_words():
 ##### crowd corrections #####
 
 # Players fix the word list themselves: an Invalid box on every result row,
-# and a "Blossom accepted a word that isn't listed?" box under the table. A
-# change applies once enough *different* players agree. Nobody reviews it;
-# /blossom_admin's Remove is the undo (it also resets the word's votes).
+# and a "Blossom accepted a word that isn't listed?" box under the table. The
+# mechanics, thresholds and the never-tell-players rule live in crowd.py,
+# shared with /smush; only Blossom's own tables are touched here.
 #
-# Players are never told these numbers, or that their vote was the one that
-# tipped a word over: page copy only says reports are taken into account, and
-# the JSON replies below are identical either way. Knowing the count is the
-# first thing anyone gaming this would want. Admin pages show them freely.
-#
-# Measured against prod on 2026-09-30, before choosing these numbers:
+# Measured against prod on 2026-09-30, before choosing the thresholds:
 # - The old report form was right every time: 16 of 16 "invalid" reports on
 #   listed words were confirmed, and 13 of 13 "missing" reports were added.
 # - It was also rare. Each recently reported word was on screen in 170-350
@@ -420,72 +369,12 @@ def get_filtered_blossom_words():
 # - 63-86% of a day's solves are on the one daily puzzle, so a bad word near
 #   the top of today's list collects its flags within hours.
 #
-# Five to remove (raised from 3 on 2026-10-03, James's call). A tap is cheap,
-# and Invalid strikes the row just like Used, so some players will use it to
-# cross off words they played. Those players all tick the same popular words,
-# so the threshold sets how much of that the list can absorb: with ~150
-# players a day on one puzzle, 5 holds until about 3% of them do it.
-# CROWD_MAX_INVALID_PER_DAY below deals with the heavy cases outright.
-# Two to add because the word has to be typed and has to fit the puzzle
-# letters - but not one, because long words score highest and one player's
-# typo ("unfulfiling") would otherwise land at the top of everyone's list.
-CROWD_REMOVE_VOTES = 5
-CROWD_ADD_VOTES = 2
-# A player who ticks Invalid on more than this many words in one day (Pacific,
-# midnight to midnight) is crossing words off, not reporting rejections:
-# genuine ones run 1-2 per puzzle (9/29 hinnying and yatagan, 9/30 figuline and
-# ingulfing). None of that player's Invalid ticks from that day count -
-# including the ones made before they passed the limit. James's call,
-# 2026-10-03; check it against real per-player counts once there are some.
-CROWD_MAX_INVALID_PER_DAY = 10
-# Older votes stop counting, so occasional mis-taps on a good word cannot add
-# up across months of puzzles. A genuinely bad word gets its votes on its
-# puzzle day anyway.
-CROWD_WINDOW_DAYS = 7
-# Per player, per rolling day. Real players flag a handful of words a puzzle;
-# this bounds what anyone holding three IP addresses could do.
-CROWD_MAX_VOTES_PER_DAY = 30
+# Invalid strikes the row just like Used, so some players will use it to
+# cross off words they played. With ~150 players a day on one puzzle, 5 to
+# remove holds until about 3% of them do it.
 
-_CROWD_THRESHOLD = {'invalid': CROWD_REMOVE_VOTES, 'missing': CROWD_ADD_VOTES}
-_CROWD_OPPOSITE = {'invalid': 'missing', 'missing': 'invalid'}
-# The list a crowd decision lands in, and the list it takes the word out of.
-_CROWD_TABLES = {
-    'invalid': ('blossom_invalid_words', 'blossom_added_words'),
-    'missing': ('blossom_added_words', 'blossom_invalid_words'),
-}
-
-
-def voter_hash():
-    """Who is voting: an HMAC of the visitor's IP, never the IP itself.
-
-    HMAC rather than a plain hash because the IPv4 space is small enough to
-    brute-force a bare SHA-256 straight back to the address. IPv6 is cut to
-    its /64: privacy extensions rotate the low 64 bits, so otherwise one
-    phone would count as a new player every day.
-    """
-    ip = client_ip()
-    try:
-        parsed = ipaddress.ip_address(ip)
-    except ValueError:
-        parsed = None
-    if parsed is not None and parsed.version == 6:
-        if parsed.ipv4_mapped is not None:
-            ip = str(parsed.ipv4_mapped)
-        else:
-            ip = str(ipaddress.ip_network(f'{parsed}/64', strict=False).network_address)
-    key = str(current_app.secret_key).encode()
-    return hmac.new(key, b'blossom-vote|' + ip.encode(), hashlib.sha256).hexdigest()[:32]
-
-
-def _pst_days_ago(days):
-    """pst_now_str's format, `days` back - for comparing against created_at."""
-    then = datetime.now(pytz.timezone('America/Los_Angeles')) - timedelta(days=days)
-    return then.strftime('%Y-%m-%d %H:%M:%S')
-
-
-def _pst_today_start():
-    """Midnight Pacific today, in created_at's format."""
-    return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d 00:00:00')
+BLOSSOM_CROWD = crowd.CrowdList('blossom', on_change=lambda: cache.delete('blossom_filtered_words'))
+voter_hash = BLOSSOM_CROWD.voter_hash
 
 
 def _parse_word(value):
@@ -518,144 +407,6 @@ def _puzzle_tag(center, petals):
     return center + ':' + ''.join(sorted(petals))
 
 
-def _count_players(cursor, word, kind):
-    """Distinct players behind a change to this word, inside the vote window.
-
-    For Invalid, a vote only counts if its player ticked no more than
-    CROWD_MAX_INVALID_PER_DAY words on the Pacific day they cast it.
-    """
-    sql = ("SELECT COUNT(*) FROM blossom_word_votes v "
-           "WHERE v.word = %s AND v.vote = %s AND v.created_at >= %s")
-    params = [word, kind, _pst_days_ago(CROWD_WINDOW_DAYS)]
-    if kind == 'invalid':
-        sql += (" AND (SELECT COUNT(*) FROM blossom_word_votes d"
-                " WHERE d.voter_hash = v.voter_hash AND d.vote = 'invalid'"
-                " AND d.created_at >= DATE(v.created_at)"
-                " AND d.created_at < DATE(v.created_at) + INTERVAL 1 DAY) <= %s")
-        params.append(CROWD_MAX_INVALID_PER_DAY)
-    cursor.execute(sql, tuple(params))
-    return cursor.fetchone()[0]
-
-
-def _put_back_unsupported(cursor, words):
-    """Undo crowd removals among `words` that no longer have enough players.
-
-    Called when a player passes CROWD_MAX_INVALID_PER_DAY: their earlier ticks
-    that day may have helped remove a word before they were known to be
-    crossing words off. True if anything was put back.
-    """
-    put_back = False
-    for word in set(words):
-        if _count_players(cursor, word, 'invalid') < CROWD_REMOVE_VOTES:
-            cursor.execute(
-                "DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'", (word,))
-            put_back = put_back or cursor.rowcount > 0
-    return put_back
-
-
-def _apply_crowd_change(cursor, word, kind):
-    """Move the word into the list the crowd voted for. True if anything changed.
-
-    James's own entry in the other list wins: the crowd never reverses it.
-    """
-    target, other = _CROWD_TABLES[kind]
-    cursor.execute(f"SELECT source FROM {other} WHERE word = %s", (word,))
-    row = cursor.fetchone()
-    if row is not None and row[0] != 'crowd':
-        return False
-    cursor.execute(f"SELECT 1 FROM {target} WHERE word = %s", (word,))
-    if cursor.fetchone() is not None:
-        return False
-    cursor.execute(f"DELETE FROM {other} WHERE word = %s AND source = 'crowd'", (word,))
-    cursor.execute(f"INSERT INTO {target} (word, added_date, source) VALUES (%s, %s, 'crowd')",
-                   (word, pst_now_str()))
-    # Votes the other way were about the word before this change. Left in
-    # place, one more of them would flip it straight back.
-    cursor.execute("DELETE FROM blossom_word_votes WHERE word = %s AND vote = %s",
-                   (word, _CROWD_OPPOSITE[kind]))
-    return True
-
-
-def _record_vote(word, kind, puzzle):
-    """Count one player's vote, and apply the change once enough agree.
-
-    Returns True if this vote is the one that applied it. Written inline
-    rather than through the write-behind queue because the vote, the count
-    and the change must happen together, and the change has to clear this
-    process's word-list cache. Best-effort: a database problem costs the vote,
-    never the request.
-    """
-    voter = voter_hash()
-    applied = put_back = False
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute(
-                "SELECT COUNT(*) FROM blossom_word_votes WHERE voter_hash = %s AND created_at >= %s",
-                (voter, _pst_days_ago(1)))
-            if cursor.fetchone()[0] >= CROWD_MAX_VOTES_PER_DAY:
-                return False
-            # A repeat vote refreshes the old one rather than adding a second.
-            # Recorded even when it won't count, so real per-player numbers
-            # are there to check CROWD_MAX_INVALID_PER_DAY against later.
-            cursor.execute(
-                """INSERT INTO blossom_word_votes (word, vote, voter_hash, puzzle, created_at)
-                   VALUES (%s, %s, %s, %s, %s) AS new
-                   ON DUPLICATE KEY UPDATE created_at = new.created_at, puzzle = new.puzzle""",
-                (word, kind, voter, puzzle, pst_now_str()))
-            crossing_off = False
-            if kind == 'invalid':
-                cursor.execute(
-                    "SELECT COUNT(*) FROM blossom_word_votes "
-                    "WHERE voter_hash = %s AND vote = 'invalid' AND created_at >= %s",
-                    (voter, _pst_today_start()))
-                crossing_off = cursor.fetchone()[0] > CROWD_MAX_INVALID_PER_DAY
-            if crossing_off:
-                # None of this player's ticks today count, so anything their
-                # earlier ones helped remove goes back if it no longer has
-                # enough players without them.
-                cursor.execute(
-                    "SELECT word FROM blossom_word_votes "
-                    "WHERE voter_hash = %s AND vote = 'invalid' AND created_at >= %s",
-                    (voter, _pst_today_start()))
-                put_back = _put_back_unsupported(cursor, [w for (w,) in cursor.fetchall()])
-            elif _count_players(cursor, word, kind) >= _CROWD_THRESHOLD[kind]:
-                applied = _apply_crowd_change(cursor, word, kind)
-            conn.commit()
-    except Exception as e:
-        alerts.alert_throttled('blossom_vote_failed', exc=type(e).__name__, msg=e)
-        return False
-    if applied or put_back:
-        cache.delete('blossom_filtered_words')
-    return applied
-
-
-def _retract_vote(word, kind):
-    """Take back this player's vote.
-
-    If that leaves too few players behind a change the crowd made, the change
-    is undone too: unticking a mis-tap that tipped a word over should put the
-    word back. (Votes only age out of the count; that never reverts anything.)
-    """
-    reverted = False
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute(
-                "DELETE FROM blossom_word_votes WHERE word = %s AND vote = %s AND voter_hash = %s",
-                (word, kind, voter_hash()))
-            # Only a vote that was actually counted can undo anything: a tick
-            # that never recorded one (the word was already gone, say) can't.
-            if cursor.rowcount > 0 and _count_players(cursor, word, kind) < _CROWD_THRESHOLD[kind]:
-                target = _CROWD_TABLES[kind][0]
-                cursor.execute(f"DELETE FROM {target} WHERE word = %s AND source = 'crowd'", (word,))
-                reverted = cursor.rowcount > 0
-            conn.commit()
-    except Exception as e:
-        alerts.alert_throttled('blossom_vote_failed', exc=type(e).__name__, msg=e)
-        return
-    if reverted:
-        cache.delete('blossom_filtered_words')
-
-
 def _toggle_invalid(data):
     """Tick or untick a word's Invalid box: the player says Blossom rejected it."""
     word = _parse_word(data.get('word'))
@@ -666,16 +417,15 @@ def _toggle_invalid(data):
     flagged = session['invalid_words']
     if word in flagged:
         flagged.remove(word)
-        _retract_vote(word, 'invalid')
+        BLOSSOM_CROWD.retract_vote(word, 'invalid')
     else:
         flagged.append(word)
         # Only a word actually on offer, on a board it fits: anything else is
         # not a result this player could have been shown.
         if word in get_filtered_blossom_words() and _fits_puzzle(word, center, petals):
-            _record_vote(word, 'invalid', _puzzle_tag(center, petals))
+            BLOSSOM_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, petals))
     session.modified = True
-    # Same reply whether or not this vote removed the word (see the note above
-    # CROWD_REMOVE_VOTES).
+    # Same reply whether or not this vote removed the word (see crowd.py).
     return jsonify({'status': 'success', 'invalid_words': flagged})
 
 
@@ -687,7 +437,6 @@ def _suggest_missing(data):
         return jsonify({'status': 'success', 'result': 'not_in_puzzle'})
     if word in get_filtered_blossom_words():
         return jsonify({'status': 'success', 'result': 'already_listed'})
-    # 'recorded' whether or not this vote added the word (see the note above
-    # CROWD_REMOVE_VOTES).
-    _record_vote(word, 'missing', _puzzle_tag(center, petals))
+    # 'recorded' whether or not this vote added the word (see crowd.py).
+    BLOSSOM_CROWD.record_vote(word, 'missing', _puzzle_tag(center, petals))
     return jsonify({'status': 'success', 'result': 'recorded'})

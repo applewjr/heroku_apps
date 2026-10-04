@@ -730,10 +730,10 @@ def test_one_broken_probe_costs_one_probe(monkeypatch):
 ##### daily digest #####
 
 def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=(),
-            blossom=((), (), None)):
+            blossom=((), (), None), smush=((), (), None)):
     now = datetime.datetime(2026, 9, 28, 6, 0)
     return daily_digest.render(now, list(health), list(latency), storage,
-                               feedback, list(panels), blossom)
+                               feedback, list(panels), blossom, smush)
 
 
 def test_digest_keeps_the_limit_column_of_a_less_than_check():
@@ -919,3 +919,47 @@ def test_a_breach_inside_its_window_does_raise_an_alarm():
     assert rows[0][1] == 'FAIL'
     _html, ok, bad, _mb = _render(health=rows)
     assert (ok, bad) == (0, 1)
+
+
+def test_digest_lists_smush_crowd_fixes_separately():
+    html, _o, _b, _m = _render(smush=(
+        ['word', 'report', 'players_7d', 'last_report', 'result'],
+        [('<i>zarf</i>', 'missing', 2, '2026-09-28 05:10:00', 'added (crowd)')],
+        None,
+    ))
+    assert 'Blossom word fixes by players, last 24 hours (0)' in html
+    assert 'Smush word fixes by players, last 24 hours (1)' in html
+    assert '/smush_admin' in html
+    assert '&lt;i&gt;zarf&lt;/i&gt;' in html
+
+
+def test_a_failing_smush_section_is_reported_not_raised():
+    html, _o, _b, _m = _render(smush=(
+        [], [], "ProgrammingError: Table 'smush_word_votes' doesn't exist"))
+    assert 'section failed' in html
+    assert 'smush_word_votes' in html
+
+
+def test_gather_smush_crowd_reads_only_smush_tables():
+    seen = []
+
+    class Recording:
+        description = [('word',)]
+
+        def execute(self, sql, *a, **k):
+            seen.append(sql)
+
+        def fetchall(self):
+            return []
+
+    _cols, _rows, error = daily_digest.gather_smush_crowd(Recording())
+    assert error is None
+    [sql] = seen
+    assert 'smush_word_votes' in sql and 'smush_invalid_words' in sql
+    assert 'blossom_' not in sql
+
+
+def test_digest_vote_window_matches_the_app():
+    # The digest can't import crowd.py, so it repeats the number.
+    import crowd
+    assert daily_digest.CROWD_WINDOW_DAYS == crowd.CROWD_WINDOW_DAYS
