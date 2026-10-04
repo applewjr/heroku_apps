@@ -729,10 +729,11 @@ def test_one_broken_probe_costs_one_probe(monkeypatch):
 
 ##### daily digest #####
 
-def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=()):
+def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=(),
+            blossom=((), (), None)):
     now = datetime.datetime(2026, 9, 28, 6, 0)
     return daily_digest.render(now, list(health), list(latency), storage,
-                               feedback, list(panels))
+                               feedback, list(panels), blossom)
 
 
 def test_digest_keeps_the_limit_column_of_a_less_than_check():
@@ -778,6 +779,38 @@ def test_a_failing_panel_is_reported_not_dropped():
     ])
     assert 'panel failed' in html
     assert 'table is gone' in html
+
+
+def test_digest_lists_blossom_crowd_fixes_escaped():
+    # The words come from players, so they are escaped like feedback is.
+    html, _o, _b, _m = _render(blossom=(
+        ['word', 'report', 'players_7d', 'last_report', 'result'],
+        [('<b>figuline</b>', 'invalid', 3, '2026-09-28 05:10:00', 'removed (crowd)')],
+        None,
+    ))
+    assert 'Blossom word fixes by players, last 24 hours (1)' in html
+    assert '&lt;b&gt;figuline&lt;/b&gt;' in html
+    assert '<b>figuline</b>' not in html
+    assert 'removed (crowd)' in html
+
+
+def test_a_failing_blossom_section_is_reported_not_raised():
+    html, _o, _b, _m = _render(blossom=(
+        [], [], "ProgrammingError: Table 'blossom_word_votes' doesn't exist"))
+    assert 'section failed' in html
+    assert 'blossom_word_votes' in html
+
+
+def test_gather_blossom_crowd_never_raises():
+    # build() has no per-section guard, so a missing votes table (DDL not run
+    # yet) must cost this section, never the whole digest.
+    class Broken:
+        def execute(self, *a, **k):
+            raise RuntimeError("table is gone")
+
+    columns, rows, error = daily_digest.gather_blossom_crowd(Broken())
+    assert (columns, rows) == ([], [])
+    assert 'table is gone' in error
 
 
 def test_digest_refuses_non_select_panel_sql():

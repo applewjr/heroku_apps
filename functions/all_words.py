@@ -392,14 +392,20 @@ def length_score(word_length):
     else:
         return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
 
-def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None):
+def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None,
+                                invalid_words=None):
     """
     Enhanced version that includes checkbox column for session-based word tracking
-    and supports load more functionality with hyperlinked words
+    and supports load more functionality with hyperlinked words.
+
+    invalid_words are the words this player flagged as rejected by Blossom; they
+    render with the Invalid box ticked.
     """
     if used_words is None:
         used_words = []
-        
+    if invalid_words is None:
+        invalid_words = []
+
     required_letters = set((must_have + may_have + petal).lower())
     forbidden_letters = set(unused_letters_revamp(must_have, may_have, petal)[0])
     must_have_set = set(must_have.lower())
@@ -441,7 +447,20 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
         checkbox_html.append(f'<input type="checkbox" class="word-checkbox" data-word="{word}" {checked}>')
     
     top_df.insert(0, 'Used', checkbox_html)
-    
+
+    # Far-right column, deliberately away from Used: a mis-tap here is a vote
+    # against the word for everyone, so it should not sit next to the box
+    # people tick all game. Its own class keeps the Used listeners (and helper
+    # mode, which finds words via .word-checkbox) off it.
+    invalid_html = []
+    for word in top_df['Word']:
+        checked = 'checked' if word in invalid_words else ''
+        invalid_html.append(
+            f'<input type="checkbox" class="invalid-checkbox" data-word="{word}" '
+            f'aria-label="Blossom rejected {word}" {checked}>'
+        )
+    top_df['Invalid'] = invalid_html
+
     # Convert words to hyperlinks that open in new tab
     word_links = []
     for word in top_df['Word']:
@@ -453,7 +472,7 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     top_df.rename(columns={'Word': 'Word', 'Pangram': '🌸'}, inplace=True)
 
     # Convert to HTML with escape=False to render HTML checkboxes and links
-    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', '🌸'], escape=False, classes='blossom-results').replace(' border="1"', '')
+    blossom_table = top_df.to_html(index=False, columns=['Used', 'Word', 'Score', '🌸', 'Invalid'], escape=False, classes='blossom-results').replace(' border="1"', '')
 
     # Style pangram rows and replace Yes/No with visual indicator
     rows = blossom_table.split('</tr>')

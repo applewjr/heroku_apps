@@ -171,6 +171,16 @@
 .tab-content.active {
     display: block;
 }
+
+.crowd-note {
+    color: #666;
+    font-size: 13px;
+}
+
+.by-crowd {
+    color: #02484d;
+    font-weight: bold;
+}
 </style>
 
 <div class="admin-container">
@@ -253,12 +263,14 @@
     <!-- Invalid Words Tab -->
     <div id="invalid-tab" class="tab-content">
         <h2>Invalid Words (Removed from Results)</h2>
+        <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Remove undoes one and resets its votes.</p>
         {% if invalid_words %}
         <table class="words-table">
             <thead>
                 <tr>
                     <th>Word</th>
                     <th>Added Date</th>
+                    <th>By</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -267,6 +279,7 @@
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
                         <form method="POST" action="/remove_word" class="remove-form"
                               onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the invalid list?')">
@@ -287,12 +300,14 @@
     <!-- Added Words Tab -->
     <div id="added-tab" class="tab-content">
         <h2>Added Words (Included in Results)</h2>
+        <p class="crowd-note">"Crowd" rows were added automatically after {{ crowd_add_votes }} different players submitted the word. Remove undoes one and resets its votes.</p>
         {% if added_words %}
         <table class="words-table">
             <thead>
                 <tr>
                     <th>Word</th>
                     <th>Added Date</th>
+                    <th>By</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -301,6 +316,7 @@
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
                         <form method="POST" action="/remove_word" class="remove-form"
                               onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the added words list?')">
