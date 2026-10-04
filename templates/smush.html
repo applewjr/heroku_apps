@@ -1510,18 +1510,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<button type="button" class="rare-flag" data-rare="${w.word}"
                        title="Rare word - Smush may not accept it"
                        aria-label="${w.word.toUpperCase()} is rare - Smush may not accept it, tap for details">⚠</button> ` : '';
+        // ✗ sits last, with ↗ between it and ✓ Played, so a slipped tap on
+        // Played can't report a word the player meant to play.
         return `
             <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
                 <span class="word-text">${w.word.toUpperCase()}</span>
                 <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
-                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing) and let us know" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
                 <a class="define-link"
                    href="https://en.wiktionary.org/wiki/${w.word}"
                    target="_blank" rel="noopener noreferrer"
                    title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
                    onclick="event.stopPropagation()">↗</a>
+                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing) and let us know" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
                 <div class="copy-feedback">Copied!</div>
             </div>`;
     }
