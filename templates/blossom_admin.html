@@ -76,6 +76,11 @@
     background-color: #c82333;
 }
 
+/* Wide tables scroll inside their own box on a phone, not the whole page. */
+.table-wrap {
+    overflow-x: auto;
+}
+
 .words-table {
     width: 100%;
     border-collapse: collapse;
@@ -128,22 +133,6 @@
     display: inline;
 }
 
-.feedback-item {
-    background-color: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 15px;
-    margin-bottom: 10px;
-}
-
-.feedback-type-invalid {
-    border-left: 4px solid #dc3545;
-}
-
-.feedback-type-missing {
-    border-left: 4px solid #28a745;
-}
-
 .tab-container {
     margin-bottom: 20px;
 }
@@ -177,6 +166,26 @@
     font-size: 13px;
 }
 
+.feedback-item {
+    background-color: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.feedback-type-invalid {
+    border-left: 4px solid #dc3545;
+}
+
+.feedback-type-missing {
+    border-left: 4px solid #28a745;
+}
+
+.result-waiting {
+    color: #666;
+}
+
 .by-crowd {
     color: #02484d;
     font-weight: bold;
@@ -185,34 +194,33 @@
 
 <div class="admin-container">
     <h1>Blossom Admin - Word Management</h1>
-    
-    <!-- Success/Error Messages -->
+
     {% if request.args.get('success') %}
     <div class="alert alert-success">
         {{ request.args.get('success') }}
     </div>
     {% endif %}
-    
+
     {% if request.args.get('error') %}
     <div class="alert alert-error">
         {{ request.args.get('error') }}
     </div>
     {% endif %}
-    
-    <!-- Stats -->
+
     <div class="stats">
+        <strong>Words reported ({{ crowd_window_days }} days):</strong> {{ reports|length }} |
         <strong>Recent feedback:</strong> {{ recent_feedback|length }} |
-        <strong>Invalid words:</strong> {{ invalid_words|length }} | 
+        <strong>Removed words:</strong> {{ invalid_words|length }} |
         <strong>Added words:</strong> {{ added_words|length }}
     </div>
-    
-    <!-- Add Word Form -->
+
     <div class="admin-section">
         <h2>Add/Remove Words</h2>
+        <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over.</p>
         <form method="POST" action="/add_word">
             <div class="form-group">
                 <label for="word">Word:</label>
-                <input type="text" id="word" name="word" required 
+                <input type="text" id="word" name="word" required
                        placeholder="Enter word"
                        style="text-transform: lowercase;">
             </div>
@@ -226,45 +234,93 @@
             <button type="submit" class="btn btn-primary">Process Word</button>
         </form>
     </div>
-    
-    <!-- Tabs for different sections -->
+
     <div class="tab-container">
-        <div class="tab-button active" onclick="showTab('feedback')">Recent Feedback</div>
-        <div class="tab-button" onclick="showTab('invalid')">Invalid Words Removed</div>
-        <div class="tab-button" onclick="showTab('added')">Added Words</div>
+        <div class="tab-button active" onclick="showTab(event, 'reports')">Player Reports</div>
+        <div class="tab-button" onclick="showTab(event, 'feedback')">Recent Feedback</div>
+        <div class="tab-button" onclick="showTab(event, 'invalid')">Removed Words</div>
+        <div class="tab-button" onclick="showTab(event, 'added')">Added Words</div>
     </div>
-    
+
+    <!-- Player Reports Tab -->
+    <div id="reports-tab" class="tab-content active">
+        <h2>Player Reports, last {{ crowd_window_days }} days</h2>
+        <p class="crowd-note">"invalid" is an Invalid tick on a result (Blossom rejected it). "missing" is the box under the results (Blossom accepted a word we don't list).
+            A word is removed once {{ crowd_remove_votes }} different players flag it, and added once {{ crowd_add_votes }} suggest it.
+            Players counts every vote in the window, including ones from a player over the daily Invalid limit, which don't count toward a removal.</p>
+        {% if reports %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Report</th>
+                    <th>Players</th>
+                    <th>Last report</th>
+                    <th>Result</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reports %}
+                <tr>
+                    <td><strong>{{ r[0] }}</strong></td>
+                    <td>{{ r[1] }}</td>
+                    <td>{{ r[2] }}</td>
+                    <td>{{ r[3].strftime('%Y-%m-%d %H:%M') if r[3] else 'N/A' }}</td>
+                    <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
+                    <td>
+                        {% if r[4] == 'waiting' %}
+                        <form method="POST" action="/add_word" class="remove-form">
+                            <input type="hidden" name="word" value="{{ r[0] }}">
+                            <input type="hidden" name="word_type" value="{{ r[1] }}">
+                            {% if r[1] == 'invalid' %}
+                            <button type="submit" class="btn btn-danger">Remove now</button>
+                            {% else %}
+                            <button type="submit" class="btn btn-success">Add now</button>
+                            {% endif %}
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p>No reports in the last {{ crowd_window_days }} days.</p>
+        {% endif %}
+    </div>
+
     <!-- Recent Feedback Tab -->
-    <div id="feedback-tab" class="tab-content active">
+    <div id="feedback-tab" class="tab-content">
         <h2>Recent Feedback Reports</h2>
+        <p class="crowd-note">From the Report Invalid/Missing Word form. These are not votes: act on them with the form above.</p>
         {% if recent_feedback %}
         {% for feedback in recent_feedback %}
         <div class="feedback-item feedback-type-{{ feedback[2] }}">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div style="flex-grow: 1;">
-                    <strong>
-                        {% if feedback[2] == 'invalid' %}
-                        🚫 Invalid Words Report
-                        {% else %}
-                        ➕ Missing Words Report
-                        {% endif %}
-                    </strong>
-                    <small style="color: #666; margin-left: 10px;">{{ feedback[1].strftime('%Y-%m-%d %H:%M') }}</small>
-                    <div style="margin-top: 8px; white-space: pre-line;">{{ feedback[3] }}</div>
-                </div>
-            </div>
+            <strong>
+                {% if feedback[2] == 'invalid' %}
+                🚫 Invalid Words Report
+                {% else %}
+                ➕ Missing Words Report
+                {% endif %}
+            </strong>
+            <small style="color: #666; margin-left: 10px;">{{ feedback[1].strftime('%Y-%m-%d %H:%M') }}</small>
+            <div style="margin-top: 8px; white-space: pre-line;">{{ feedback[3] }}</div>
         </div>
         {% endfor %}
         {% else %}
         <p>No recent feedback.</p>
         {% endif %}
     </div>
-    
-    <!-- Invalid Words Tab -->
+
+    <!-- Removed Words Tab -->
     <div id="invalid-tab" class="tab-content">
-        <h2>Invalid Words (Removed from Results)</h2>
-        <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Remove undoes one and resets its votes.</p>
+        <h2>Removed Words (Hidden from Results)</h2>
+        <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Undo puts the word back and resets its votes.</p>
         {% if invalid_words %}
+        <div class="table-wrap">
         <table class="words-table">
             <thead>
                 <tr>
@@ -282,26 +338,28 @@
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
                         <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the invalid list?')">
+                              onsubmit="return confirm('Put {{ word_data[0] }} back in the Blossom word list?')">
                             <input type="hidden" name="word" value="{{ word_data[0] }}">
                             <input type="hidden" name="word_type" value="invalid">
-                            <button type="submit" class="btn btn-danger">Remove</button>
+                            <button type="submit" class="btn btn-danger">Undo</button>
                         </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
-        <p>No invalid words currently marked.</p>
+        <p>No words removed.</p>
         {% endif %}
     </div>
-    
+
     <!-- Added Words Tab -->
     <div id="added-tab" class="tab-content">
         <h2>Added Words (Included in Results)</h2>
-        <p class="crowd-note">"Crowd" rows were added automatically after {{ crowd_add_votes }} different players submitted the word. Remove undoes one and resets its votes.</p>
+        <p class="crowd-note">"Crowd" rows were added automatically after {{ crowd_add_votes }} different players suggested the word. Undo takes the word back out and resets its votes.</p>
         {% if added_words %}
+        <div class="table-wrap">
         <table class="words-table">
             <thead>
                 <tr>
@@ -319,50 +377,40 @@
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
                         <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Are you sure you want to remove {{ word_data[0] }} from the added words list?')">
+                              onsubmit="return confirm('Take {{ word_data[0] }} out of the Blossom word list?')">
                             <input type="hidden" name="word" value="{{ word_data[0] }}">
                             <input type="hidden" name="word_type" value="missing">
-                            <button type="submit" class="btn btn-danger">Remove</button>
+                            <button type="submit" class="btn btn-danger">Undo</button>
                         </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
-        <p>No added words currently.</p>
+        <p>No words added.</p>
         {% endif %}
     </div>
-    
+
     <br>
     <a href="/blossom" class="btn btn-primary">Back to Blossom Solver</a>
-    
+
 </div>
 
 <script>
-// Convert word input to lowercase automatically
 document.getElementById('word').addEventListener('input', function() {
     this.value = this.value.toLowerCase();
 });
 
-// Tab functionality
-function showTab(tabName) {
-    // Hide all tab contents
-    var tabContents = document.querySelectorAll('.tab-content');
-    tabContents.forEach(function(content) {
+function showTab(event, tabName) {
+    document.querySelectorAll('.tab-content').forEach(function(content) {
         content.classList.remove('active');
     });
-    
-    // Remove active class from all tab buttons
-    var tabButtons = document.querySelectorAll('.tab-button');
-    tabButtons.forEach(function(button) {
+    document.querySelectorAll('.tab-button').forEach(function(button) {
         button.classList.remove('active');
     });
-    
-    // Show selected tab content
     document.getElementById(tabName + '-tab').classList.add('active');
-    
-    // Add active class to clicked tab button
     event.target.classList.add('active');
 }
 </script>

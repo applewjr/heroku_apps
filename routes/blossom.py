@@ -11,7 +11,7 @@ import config
 import crowd
 # The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
 from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
-                   CROWD_REMOVE_VOTES)
+                   CROWD_REMOVE_VOTES, CROWD_WINDOW_DAYS)
 from data import words_blossom
 from extensions import (INTERACTIVE_LIMITS, auth, cache, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
@@ -172,14 +172,22 @@ def blossom_reset():
     return redirect(url_for('blossom.blossom_solver'))
 
 
+def _admin_form():
+    word = request.form.get('word', '').strip().lower()
+    kind = 'missing' if request.form.get('word_type') == 'missing' else 'invalid'
+    return word, kind
+
+
 @bp.route('/blossom_admin')
 @auth.login_required
 def blossom_admin():
-    """Admin page to manage invalid and missing words"""
+    """Blossom's corrected word list, what players have reported, and the
+    old report form's submissions."""
     try:
         # source is 'admin' (added here) or 'crowd' (enough players agreed -
         # see "crowd corrections" below).
         invalid_words, added_words = BLOSSOM_CROWD.list_rows()
+        reports = BLOSSOM_CROWD.recent_reports()
 
         with db_cursor() as (conn, cursor):
             # Get recent feedback
@@ -194,9 +202,11 @@ def blossom_admin():
         return render_template('blossom_admin.html',
                              invalid_words=invalid_words,
                              added_words=added_words,
+                             reports=reports,
                              recent_feedback=recent_feedback,
                              crowd_remove_votes=CROWD_REMOVE_VOTES,
-                             crowd_add_votes=CROWD_ADD_VOTES)
+                             crowd_add_votes=CROWD_ADD_VOTES,
+                             crowd_window_days=CROWD_WINDOW_DAYS)
 
     except Exception as e:
         print(f"Error loading blossom admin: {e}")
@@ -206,42 +216,32 @@ def blossom_admin():
 @bp.route('/add_word', methods=['POST'])
 @auth.login_required
 def add_word():
-    """Add a word to the added words list (for missing words)"""
+    """Remove a word from Blossom's list ('invalid') or add one ('missing')."""
+    word, kind = _admin_form()
+    if not word.isalpha():
+        return redirect('/blossom_admin?error=Word must be letters only')
     try:
-        word = request.form.get('word', '').strip().lower()
-        word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
-
-        if not word:
-            return redirect('/blossom_admin?error=Word is required')
-
-        BLOSSOM_CROWD.admin_set(word, 'missing' if word_type == 'missing' else 'invalid')
-
-        action = "added to word list" if word_type == 'missing' else "marked as invalid"
-        return redirect(f'/blossom_admin?success=Word {action} successfully')
-
+        BLOSSOM_CROWD.admin_set(word, kind)
     except Exception as e:
         print(f"Error adding word: {e}")
         return redirect('/blossom_admin?error=Database error')
+    done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
+    return redirect(f'/blossom_admin?success={word} {done}')
 
 
 @bp.route('/remove_word', methods=['POST'])
 @auth.login_required
 def remove_word():
-    """Remove a word from either invalid or added words list"""
+    """Undo an entry in either list, and reset that word's votes."""
+    word, kind = _admin_form()
+    if not word.isalpha():
+        return redirect('/blossom_admin?error=Word must be letters only')
     try:
-        word = request.form.get('word', '').strip().lower()
-        word_type = request.form.get('word_type', 'invalid')  # 'invalid' or 'missing'
-
-        if not word:
-            return redirect('/blossom_admin?error=Word is required')
-
-        BLOSSOM_CROWD.admin_remove(word, 'missing' if word_type == 'missing' else 'invalid')
-
-        return redirect('/blossom_admin?success=Word removed successfully')
-
+        BLOSSOM_CROWD.admin_remove(word, kind)
     except Exception as e:
         print(f"Error removing word: {e}")
         return redirect('/blossom_admin?error=Database error')
+    return redirect(f'/blossom_admin?success={word} undone')
 
 
 @bp.route("/blossom_feedback", methods=["POST", "GET"])
