@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Blossom Admin - Word Management{% endblock %}
+{% block title %}Smush Admin - Word Management{% endblock %}
 
 {% block content %}
 <style>
@@ -166,22 +166,6 @@
     font-size: 13px;
 }
 
-.feedback-item {
-    background-color: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 15px;
-    margin-bottom: 10px;
-}
-
-.feedback-type-invalid {
-    border-left: 4px solid #dc3545;
-}
-
-.feedback-type-missing {
-    border-left: 4px solid #28a745;
-}
-
 .result-waiting {
     color: #666;
 }
@@ -193,7 +177,7 @@
 </style>
 
 <div class="admin-container">
-    <h1>Blossom Admin - Word Management</h1>
+    <h1>Smush Admin - Word Management</h1>
 
     {% if request.args.get('success') %}
     <div class="alert alert-success">
@@ -209,7 +193,6 @@
 
     <div class="stats">
         <strong>Words reported ({{ crowd_window_days }} days):</strong> {{ reports|length }} |
-        <strong>Recent feedback:</strong> {{ recent_feedback|length }} |
         <strong>Removed words:</strong> {{ invalid_words|length }} |
         <strong>Added words:</strong> {{ added_words|length }}
     </div>
@@ -217,7 +200,7 @@
     <div class="admin-section">
         <h2>Add/Remove Words</h2>
         <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over.</p>
-        <form method="POST" action="/add_word">
+        <form method="POST" action="/smush_admin/add_word">
             <div class="form-group">
                 <label for="word">Word:</label>
                 <input type="text" id="word" name="word" required
@@ -237,7 +220,6 @@
 
     <div class="tab-container">
         <div class="tab-button active" onclick="showTab(event, 'reports')">Player Reports</div>
-        <div class="tab-button" onclick="showTab(event, 'feedback')">Recent Feedback</div>
         <div class="tab-button" onclick="showTab(event, 'invalid')">Removed Words</div>
         <div class="tab-button" onclick="showTab(event, 'added')">Added Words</div>
     </div>
@@ -245,9 +227,9 @@
     <!-- Player Reports Tab -->
     <div id="reports-tab" class="tab-content active">
         <h2>Player Reports, last {{ crowd_window_days }} days</h2>
-        <p class="crowd-note">"invalid" is an Invalid tick on a result (Blossom rejected it). "missing" is the box under the results (Blossom accepted a word we don't list).
+        <p class="crowd-note">"invalid" is a ✗ on a result (Smush refused it). "missing" is the suggest box (Smush accepted a word we don't list).
             A word is removed once {{ crowd_remove_votes }} different players flag it, and added once {{ crowd_add_votes }} suggest it.
-            Players counts every vote in the window, including ones from a player over the daily Invalid limit, which don't count toward a removal.</p>
+            Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.</p>
         {% if reports %}
         <div class="table-wrap">
         <table class="words-table">
@@ -271,7 +253,7 @@
                     <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
                     <td>
                         {% if r[4] == 'waiting' %}
-                        <form method="POST" action="/add_word" class="remove-form">
+                        <form method="POST" action="/smush_admin/add_word" class="remove-form">
                             <input type="hidden" name="word" value="{{ r[0] }}">
                             <input type="hidden" name="word_type" value="{{ r[1] }}">
                             {% if r[1] == 'invalid' %}
@@ -289,29 +271,6 @@
         </div>
         {% else %}
         <p>No reports in the last {{ crowd_window_days }} days.</p>
-        {% endif %}
-    </div>
-
-    <!-- Recent Feedback Tab -->
-    <div id="feedback-tab" class="tab-content">
-        <h2>Recent Feedback Reports</h2>
-        <p class="crowd-note">From the Report Invalid/Missing Word form. These are not votes: act on them with the form above.</p>
-        {% if recent_feedback %}
-        {% for feedback in recent_feedback %}
-        <div class="feedback-item feedback-type-{{ feedback[2] }}">
-            <strong>
-                {% if feedback[2] == 'invalid' %}
-                🚫 Invalid Words Report
-                {% else %}
-                ➕ Missing Words Report
-                {% endif %}
-            </strong>
-            <small style="color: #666; margin-left: 10px;">{{ feedback[1].strftime('%Y-%m-%d %H:%M') }}</small>
-            <div style="margin-top: 8px; white-space: pre-line;">{{ feedback[3] }}</div>
-        </div>
-        {% endfor %}
-        {% else %}
-        <p>No recent feedback.</p>
         {% endif %}
     </div>
 
@@ -337,8 +296,8 @@
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
-                        <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Put {{ word_data[0] }} back in the Blossom word list?')">
+                        <form method="POST" action="/smush_admin/remove_word" class="remove-form"
+                              onsubmit="return confirm('Put {{ word_data[0] }} back in the Smush word list?')">
                             <input type="hidden" name="word" value="{{ word_data[0] }}">
                             <input type="hidden" name="word_type" value="invalid">
                             <button type="submit" class="btn btn-danger">Undo</button>
@@ -376,8 +335,8 @@
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
-                        <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Take {{ word_data[0] }} out of the Blossom word list?')">
+                        <form method="POST" action="/smush_admin/remove_word" class="remove-form"
+                              onsubmit="return confirm('Take {{ word_data[0] }} out of the Smush word list?')">
                             <input type="hidden" name="word" value="{{ word_data[0] }}">
                             <input type="hidden" name="word_type" value="missing">
                             <button type="submit" class="btn btn-danger">Undo</button>
@@ -394,7 +353,7 @@
     </div>
 
     <br>
-    <a href="/blossom" class="btn btn-primary">Back to Blossom Solver</a>
+    <a href="/smush" class="btn btn-primary">Back to Smush Solver</a>
 
 </div>
 

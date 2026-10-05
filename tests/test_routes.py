@@ -358,11 +358,9 @@ RIBBIT_BODY = {
 
 
 @pytest.fixture
-def ribbit_client(client, monkeypatch):
-    # Hermetic like smush_client: run the solver on the committed word list.
-    import routes.wordgames as wordgames
-    from data import words
-    monkeypatch.setattr(wordgames, "get_smush_words", lambda: words)
+def ribbit_client(client):
+    # Already hermetic: Ribbit runs on the committed word list, with no
+    # DB-backed corrections (those belong to Blossom and Smush).
     return client
 
 

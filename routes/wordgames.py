@@ -1,15 +1,15 @@
 """Wordle / Antiwordle / Quordle / misc word-solver routes."""
 
 import re
-import time
 
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import (INTERACTIVE_LIMITS, add_data_to_stream, db_cursor, limiter,
-                        log_page_visit)
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
+from routes import smush as smush_crowd
+from routes.smush import get_smush_words
 
 bp = Blueprint('wordgames', __name__)
 
@@ -278,54 +278,6 @@ def any_word():
     return render_template("any_word.html", schema_data=schema_data)
 
 
-# Memoized in the module (not SimpleCache: that pickles, so every cache.get
-# would rebuild the ~17MB set per request). Holds at most one extra copy of
-# the word list per process, and none at all while the DB corrections are
-# empty.
-_smush_words = {'value': None, 'expires': 0.0}
-
-
-def get_smush_words():
-    """The full word list with blossom's user-curated corrections applied
-    (invalid words reported via feedback removed, missing ones added).
-
-    Blossom itself works from a reduced copy (<=7 unique letters, len >= 4)
-    that would drop Smush pangrams, so the corrections are applied to the
-    unreduced list here instead. Falls back to the raw list if the DB is
-    unreachable. Refreshed every 12 hours like blossom's copy.
-    """
-    if _smush_words['value'] is not None and time.time() < _smush_words['expires']:
-        return _smush_words['value']
-
-    invalid_words, added_words = set(), set()
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM blossom_invalid_words")
-            invalid_words = {row[0].lower() for row in cursor.fetchall()}
-            cursor.execute("SELECT word FROM blossom_added_words")
-            added_words = {row[0].lower() for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Error fetching smush word corrections: {e}")
-        # A DB blip at refresh time must not evict the corrections for 12
-        # hours: keep serving the last good list (or the raw list if there
-        # has never been one) and retry soon.
-        fallback = _smush_words['value'] if _smush_words['value'] is not None else words
-        _smush_words['value'] = fallback
-        _smush_words['expires'] = time.time() + 300
-        return fallback
-
-    # data.py's word set is already lowercase; only build a corrected copy
-    # when there is actually something to correct.
-    if invalid_words or added_words:
-        smush_words = (words - invalid_words) | added_words
-    else:
-        smush_words = words
-
-    _smush_words['value'] = smush_words
-    _smush_words['expires'] = time.time() + 43200
-    return smush_words
-
-
 def parse_smush_word_list(data, key):
     """Validate an optional list of words (played / rejected) in the smush
     POST body."""
@@ -352,6 +304,11 @@ def run_smush():
         data = request.get_json()
         if not isinstance(data, dict):
             raise ValidationError('expected a JSON object')
+
+        # ✗ on a result, tapping a hidden word back, and the "Smush accepted a
+        # word that isn't listed?" box: crowd votes, not a solve.
+        if 'action' in data:
+            return smush_crowd.handle_vote(data)
 
         center = data.get('center', '')
         if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
@@ -491,8 +448,10 @@ def run_ribbit():
         min_len = parse_int(data.get('min_len'), 'min_len',
                             default=4, min_value=3, max_value=15)
 
+        # The plain dictionary: Smush's and Blossom's corrections are about
+        # those games' word lists, not Ribbit's.
         results, total_playable = all_words.ribbit_solver(
-            nodes, edges, get_smush_words(), min_len=min_len,
+            nodes, edges, words, min_len=min_len,
             exclude=set(rejected) | set(played), disabled=disabled,
             popularity=word_pop, list_len=500)
 

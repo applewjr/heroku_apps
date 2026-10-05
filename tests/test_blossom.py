@@ -401,11 +401,15 @@ def _votes(players, today=0, invalid_today=1):
 
 @pytest.fixture
 def crowd_db(monkeypatch):
+    import crowd
     import routes.blossom as blossom
 
     def install(answers=None, rows=None, rowcount=1):
         db = _ScriptedDB(answers, rows, rowcount)
+        # The vote and admin mechanics live in crowd.py, shared with /smush;
+        # the word list and feedback reads stay in routes/blossom.py.
         monkeypatch.setattr(blossom, "db_cursor", db)
+        monkeypatch.setattr(crowd, "db_cursor", db)
         return db
 
     return install
@@ -686,6 +690,42 @@ def test_admin_page_shows_who_made_each_change(client, crowd_db, monkeypatch):
     assert resp.status_code == 200
     assert '<td class="by-crowd">crowd</td>' in html
     assert '<td class="by-admin">you</td>' in html
+
+
+def test_admin_needs_the_password(client, crowd_db):
+    crowd_db()
+    assert client.get("/blossom_admin").status_code == 401
+    assert client.post("/add_word", data={"word": "figuline"}).status_code == 401
+    assert client.post("/remove_word", data={"word": "figuline"}).status_code == 401
+
+
+def test_admin_page_shows_player_reports(client, crowd_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    crowd_db(rows={
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting"),
+                                      (NOT_LISTED, "missing", 1, when, "waiting"),
+                                      ("figuline", "invalid", 5, when, "removed (crowd)")],
+        "FROM feedback_blossom": [(1, when, "missing", "yatagan")],
+    })
+    resp = client.get("/blossom_admin", headers=_admin_headers(monkeypatch))
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "Player Reports, last 7 days" in html
+    # A waiting report gets a one-click button matching its vote; a finished one doesn't.
+    assert html.count("Remove now") == 1
+    assert html.count("Add now") == 1
+    assert "removed (crowd)" in html
+    # The old report form's submissions are still there.
+    assert "yatagan" in html
+
+
+def test_admin_rejects_a_non_word(client, crowd_db, monkeypatch):
+    db = crowd_db()
+    resp = client.post("/add_word", data={"word": "drop table", "word_type": "invalid"},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=" in resp.headers["Location"]
+    assert not db.executed
 
 
 def test_players_are_never_told_the_vote_counts(client, blossom_client):

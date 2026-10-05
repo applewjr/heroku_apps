@@ -82,7 +82,7 @@
       "name": "Will Smush accept every word this solver suggests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver tags as rare based on real-world word frequency. When a word is refused, hit the X button on it: it is hidden from the results without spending any letters, just like a refused guess in the real game."
+        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver tags as rare based on real-world word frequency. When a word is refused, hit the X button on it: it is hidden from the results without spending any letters, just like a refused guess in the real game. Your X also tells us, and we take every report into account when updating the list."
       }
     },
     {
@@ -90,7 +90,7 @@
       "name": "Why don't my points match the game exactly?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret editor's choice word worth a flat +15 that cannot be predicted. If you find a word the solver missed or one Smush would not accept, use the feedback button to let us know."
+        "text": "This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret editor's choice word worth a flat +15 that cannot be predicted. If Smush refuses a word we suggest, hit the X on it. If Smush accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list."
       }
     },
     {
@@ -640,6 +640,18 @@
 
 .we-note { font-size: 12px; line-height: 1.45; color: #6b7280; margin-top: 6px; }
 
+/* ---------- "Smush accepted a word that isn't listed?" ---------- */
+/* Borrows the played-word box's look (.word-entry / .we-*). Shown only while
+   solving: a suggestion is checked against the board's letters. */
+.suggest-box { margin-top: 20px; }
+
+.suggest-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #555;
+}
+
 /* ---------- played pile ---------- */
 .played-section {
     display: none;
@@ -792,7 +804,8 @@
         and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
         after every play, so tap the new spicy tile after each word. To fix a tile's remaining uses
         or change a letter, tap <strong>✏️ Fix a tile</strong> first. If Smush refuses a word, hit
-        <strong>✗</strong> to hide it - rejected words don't spend any letters. Words marked
+        <strong>✗</strong> to hide it - rejected words don't spend any letters, and your ✗ helps us fix
+        the word list. If Smush accepts a word we don't list, type it into the box under the results. Words marked
         <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
         <br><br>
         <strong>Joining a game already in progress?</strong> Tap <strong>➕&nbsp;Add played word</strong>
@@ -862,6 +875,17 @@
 
 <div id="results-container" class="results-container" aria-live="polite">
     <!-- Results render here -->
+</div>
+
+<div class="word-entry suggest-box" id="suggest-box">
+    <label class="suggest-label" for="suggest-input">Smush accepted a word that isn't listed?</label>
+    <div class="we-row">
+        <input type="text" id="suggest-input" class="we-input" maxlength="15" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="type the word" aria-describedby="suggest-status">
+        <button type="button" class="we-btn" id="suggest-btn">Add</button>
+    </div>
+    <div class="we-status" id="suggest-status" aria-live="polite"></div>
 </div>
 
 <br>
@@ -1039,11 +1063,11 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver marks with <strong>⚠</strong> based on real-world word frequency. When a word is refused, hit the ✗ button on it: it's hidden from the results without spending any letters, just like a refused guess in the real game.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver marks with <strong>⚠</strong> based on real-world word frequency. When a word is refused, hit the ✗ button on it: it's hidden from the results without spending any letters, just like a refused guess in the real game. Your ✗ also tells us, and we take every report into account when updating the list.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret "editor's choice" word worth a flat +15 that can't be predicted. If you find a word the solver missed or one Smush wouldn't accept, use the feedback button to let us know.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret "editor's choice" word worth a flat +15 that can't be predicted. If Smush refuses a word we suggest, hit the ✗ on it. If Smush accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
@@ -1103,6 +1127,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const weInput = document.getElementById('we-input');
     const weBtn = document.getElementById('we-add');
     const weStatus = document.getElementById('we-status');
+    const suggestBox = document.getElementById('suggest-box');
+    const suggestInput = document.getElementById('suggest-input');
+    const suggestBtn = document.getElementById('suggest-btn');
+    const suggestStatus = document.getElementById('suggest-status');
 
     const SOLVE_HINT = 'Tap a tile to move the 🌶 spicy letter - it moves after every play. ' +
                        'Need to fix a tile\'s uses or letter? Tap ✏️ Fix a tile first.';
@@ -1194,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tiles.forEach(t => t.querySelector('input').classList.remove('editing'));
         resultsContainer.innerHTML = '';
         setEntryOpen(false);
+        suggestBox.classList.remove('visible');
         renderControls();
         persist();
     }
@@ -1385,6 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- solving ---------- */
     function afterStateChange() {
+        suggestBox.classList.toggle('visible', solveMode);
         renderBoard();
         renderControls();
         renderStatus();
@@ -1480,18 +1510,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<button type="button" class="rare-flag" data-rare="${w.word}"
                        title="Rare word - Smush may not accept it"
                        aria-label="${w.word.toUpperCase()} is rare - Smush may not accept it, tap for details">⚠</button> ` : '';
+        // ✗ sits last, with ↗ between it and ✓ Played, so a slipped tap on
+        // Played can't report a word the player meant to play.
         return `
             <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
                 <span class="word-text">${w.word.toUpperCase()}</span>
                 <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
-                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing)" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
                 <a class="define-link"
                    href="https://en.wiktionary.org/wiki/${w.word}"
                    target="_blank" rel="noopener noreferrer"
                    title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
                    onclick="event.stopPropagation()">↗</a>
+                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing) and let us know" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
                 <div class="copy-feedback">Copied!</div>
             </div>`;
     }
@@ -1659,17 +1691,85 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* The game refused this word: hide it from results without spending
-       letters, scoring, or moving the spicy letter. */
+       letters, scoring, or moving the spicy letter - and tell the server,
+       which fixes the word list once enough players agree. */
     function markRejected(word) {
         if (rejected.includes(word)) return;
         rejected.push(word);
-        toast(`${word.toUpperCase()} hidden - no letters spent. Tap it below to restore.`);
+        if (isFirstReject()) {
+            toast(`${word.toUpperCase()} hidden - no letters spent. Thanks, we'll take your report ` +
+                  `into account. Use ✗ only when Smush refuses a word.`, false, 6000);
+        } else {
+            toast(`${word.toUpperCase()} hidden - no letters spent. Tap it below to restore.`);
+        }
+        postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
         afterStateChange();
     }
 
     function restoreRejected(word) {
         rejected = rejected.filter(w => w !== word);
+        postVote({action: 'restore', word: word}).catch(() => {});
         afterStateChange();
+    }
+
+    /* ---------- crowd corrections ---------- */
+    /* Players are never told how many reports a change takes, or when theirs
+       tipped a word over: the server doesn't say, and nothing on this page
+       hints at it. */
+    function boardLetters() {
+        return {center: letters[CENTER],
+                outer: letters.filter((_, i) => i !== CENTER).join('')};
+    }
+
+    function postVote(payload) {
+        return fetch('/smush', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.assign(payload, boardLetters()))
+        }).then(r => {
+            if (!r.ok) throw new Error('vote failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    // True only the first time this browser hides a word. Storage can throw
+    // when a browser blocks site data; the explainer then just shows again.
+    function isFirstReject() {
+        try {
+            if (localStorage.getItem('smushRejectExplained')) return false;
+            localStorage.setItem('smushRejectExplained', '1');
+        } catch (_) {}
+        return true;
+    }
+
+    const SUGGEST_MESSAGES = {
+        recorded: "Thanks! We'll take your suggestion into account.",
+        already_listed: 'That word is already in our list.',
+        not_in_puzzle: "That word doesn't fit these letters."
+    };
+
+    function submitSuggestion() {
+        const w = (suggestInput.value || '').trim().toLowerCase();
+        const center = letters[CENTER];
+        // The same checks the server makes, answered here without a round trip.
+        let problem = '';
+        if (!/^[a-z]+$/.test(w)) problem = 'Letters only, please.';
+        else if (w.length < 3) problem = 'Smush words are at least 3 letters.';
+        else if (!w.includes(center)) problem = `Every Smush word has to use the gold ${center.toUpperCase()}.`;
+        else if (!Array.from(w).every(ch => letters.includes(ch))) problem = SUGGEST_MESSAGES.not_in_puzzle;
+        else if (rejected.includes(w)) problem = `You hid ${w.toUpperCase()} with ✗ - tap it in the hidden list to bring it back.`;
+        if (problem) { suggestStatus.textContent = problem; return; }
+
+        suggestBtn.disabled = true;
+        suggestStatus.textContent = 'Sending...';
+        postVote({action: 'suggest_missing', word: w})
+            .then(data => {
+                const result = data && data.result;
+                suggestStatus.textContent = SUGGEST_MESSAGES[result] || SUGGEST_MESSAGES.recorded;
+                if (result === 'recorded') suggestInput.value = '';
+            })
+            .catch(() => { suggestStatus.textContent = 'Could not send that. Please try again.'; })
+            .finally(() => { suggestBtn.disabled = false; });
     }
 
     function undoLast() {
@@ -1792,6 +1892,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tiles.forEach(t => { const inp = t.querySelector('input'); inp.value = ''; inp.classList.remove('editing'); });
         resultsContainer.innerHTML = '';
         setEntryOpen(false);
+        suggestBox.classList.remove('visible');
+        suggestInput.value = '';
+        suggestStatus.textContent = '';
         renderControls(); renderStatus(); renderPlayed(); renderBoard();
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         inputOf(CENTER).focus();
@@ -1845,7 +1948,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- toast ---------- */
     let toastEl = null, toastTimer = null;
-    function toast(msg, warn) {
+    function toast(msg, warn, ms) {
         if (toastEl) toastEl.remove();
         clearTimeout(toastTimer);
         toastEl = document.createElement('div');
@@ -1860,7 +1963,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.transition = 'opacity 0.5s ease';
             el.style.opacity = '0';
             setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
-        }, 2600);
+        }, ms || 2600);
     }
 
     /* ---------- wiring ---------- */
@@ -1875,6 +1978,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') { e.preventDefault(); addTyped(); }
     });
     weBtn.addEventListener('click', addTyped);
+
+    suggestBtn.addEventListener('click', submitSuggestion);
+    suggestInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); submitSuggestion(); }
+    });
 
     const instructionsPanel = document.getElementById('instructions-panel');
     document.getElementById('instructions-toggle').addEventListener('click', () => {

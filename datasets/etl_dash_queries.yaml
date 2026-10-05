@@ -61,26 +61,63 @@ Youtube Trending Grouped:
     query: SELECT * FROM vw_prod_youtube_trending_grouped;
 
 
-Dynamic View 1:
+Blossom Votes Recent:
     round: 4
+    label: 'Blossom Votes Recent'
+    description: "Most recent 100 crowd votes (Invalid box, missing-word box). player = first 8 of voter_hash"
+    query: SELECT * FROM vw_prod_blossom_votes_recent;
+
+Blossom Votes 7 Days:
+    round: 4
+    label: 'Blossom Votes 7 Days'
+    description: "Votes per word in the 7-day window. counted drops players over 10 Invalid ticks that day. Removes at 5 counted, adds at 2"
+    query: SELECT * FROM vw_prod_blossom_votes_7d;
+
+Blossom Crowd Changes:
+    round: 4
+    label: 'Blossom Crowd Changes'
+    description: "Words the crowd removed or added (your admin rows excluded). Undo in /blossom_admin"
+    query: SELECT * FROM vw_prod_blossom_crowd_changes;
+
+Smush Votes Recent:
+    round: 4
+    label: 'Smush Votes Recent'
+    description: "Most recent 100 crowd votes (the X button, suggest box). player = first 8 of voter_hash"
+    query: SELECT * FROM vw_prod_smush_votes_recent;
+
+Smush Votes 7 Days:
+    round: 4
+    label: 'Smush Votes 7 Days'
+    description: "Votes per word in the 7-day window. counted drops players over 10 X taps that day. Removes at 5 counted, adds at 2"
+    query: SELECT * FROM vw_prod_smush_votes_7d;
+
+Smush Crowd Changes:
+    round: 4
+    label: 'Smush Crowd Changes'
+    description: "Words the crowd removed or added (your admin rows excluded). Undo in /smush_admin"
+    query: SELECT * FROM vw_prod_smush_crowd_changes;
+
+
+Dynamic View 1:
+    round: 5
     label: 'Dynamic View 1'
     description: ""
     query: SELECT * FROM vw_prod_dynamic_1;
 
 Dynamic View 2:
-    round: 4
+    round: 5
     label: 'Dynamic View 2'
     description: ""
     query: SELECT * FROM vw_prod_dynamic_2;
 
 Dynamic View 3:
-    round: 4
+    round: 5
     label: 'Dynamic View 3'
     description: ""
     query: SELECT * FROM vw_prod_dynamic_3;
 
 Dynamic View 4:
-    round: 4
+    round: 5
     label: 'Dynamic View 4'
     description: ""
     query: SELECT * FROM vw_prod_dynamic_4;

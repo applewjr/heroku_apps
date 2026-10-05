@@ -41,6 +41,7 @@ import yaml
 
 import config
 from monitoring import alerts, run_checks
+from monitoring.crowd_report import report_sql
 
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DASH_PATH = os.path.join(APP_ROOT, 'datasets', 'etl_dash_queries.yaml')
@@ -218,45 +219,35 @@ def gather_feedback(cursor):
     """)
 
 
-def gather_blossom_crowd(cursor):
-    """What players did to the Blossom word list in the last day. FYI only.
+# crowd.CROWD_WINDOW_DAYS, repeated because this job can't import crowd.py
+# (it pulls in `extensions`; see the module docstring). A test keeps them equal.
+CROWD_WINDOW_DAYS = 7
+
+
+def gather_crowd(cursor, game):
+    """What players did to one game's word list in the last day. FYI only.
 
     Corrections apply on their own once enough different players agree (see
-    "crowd corrections" in routes/blossom.py), so this is a record, not a
-    to-do list. Remove in /blossom_admin undoes any of it.
+    crowd.py), so this is a record, not a to-do list. Remove in the game's
+    admin page undoes any of it.
 
     Returns (columns, rows, error). Self-contained on failure, unlike the
     other gather_* functions: build() has no per-section guard, and this
     section must never be the reason the digest does not arrive.
     """
     try:
-        columns, rows = _rows(cursor, """
-            SELECT v.word,
-                   v.vote AS report,
-                   COUNT(*) AS players_7d,
-                   MAX(v.created_at) AS last_report,
-                   CASE
-                       WHEN v.vote = 'invalid' AND MAX(i.word) IS NOT NULL
-                           THEN CONCAT('removed (', MAX(i.source), ')')
-                       WHEN v.vote = 'missing' AND MAX(a.word) IS NOT NULL
-                           THEN CONCAT('added (', MAX(a.source), ')')
-                       WHEN v.vote = 'invalid' AND MAX(a.source) = 'admin'
-                           THEN 'kept: you added it'
-                       WHEN v.vote = 'missing' AND MAX(i.source) = 'admin'
-                           THEN 'kept out: you removed it'
-                       ELSE 'waiting'
-                   END AS result
-            FROM blossom_word_votes v
-            LEFT JOIN blossom_invalid_words i ON i.word = v.word
-            LEFT JOIN blossom_added_words a ON a.word = v.word
-            WHERE v.created_at >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 7 DAY
-            GROUP BY v.word, v.vote
-            HAVING MAX(v.created_at) >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 1 DAY
-            ORDER BY players_7d DESC, last_report DESC
-        """)
+        columns, rows = _rows(cursor, report_sql(game, CROWD_WINDOW_DAYS, recent_days=1))
         return columns, rows, None
     except Exception as e:
         return [], [], '{}: {}'.format(type(e).__name__, e)
+
+
+def gather_blossom_crowd(cursor):
+    return gather_crowd(cursor, 'blossom')
+
+
+def gather_smush_crowd(cursor):
+    return gather_crowd(cursor, 'smush')
 
 
 def gather_dashboard(cursor):
@@ -328,7 +319,8 @@ def _table(columns, rows, limit=MAX_ROWS_PER_PANEL):
     return '<table><tr>{}</tr>{}</table>{}'.format(head, ''.join(body), extra)
 
 
-def render(now, health, latency, storage, feedback, panels, blossom=((), (), None)):
+def render(now, health, latency, storage, feedback, panels, blossom=((), (), None),
+           smush=((), (), None)):
     total_mb, tables = storage
     ok = sum(1 for r in health if r[1] == 'ok')
     bad = sum(1 for r in health if r[1] == 'FAIL')
@@ -389,14 +381,16 @@ def render(now, health, latency, storage, feedback, panels, blossom=((), (), Non
                  .format(_esc(submit_time), _esc(referrer)))
         h.append('<pre>{}</pre>'.format(_esc(body_text)))
 
-    bl_cols, bl_rows, bl_error = blossom
-    h.append('<h2>Blossom word fixes by players, last 24 hours ({})</h2>'.format(len(bl_rows)))
-    h.append('<p class="sub">Applied on their own once enough different players '
-             'agree. Nothing to do here; Remove in /blossom_admin undoes any of it.</p>')
-    if bl_error:
-        h.append('<p class="note">section failed: {}</p>'.format(_esc(bl_error)))
-    else:
-        h.append(_table(bl_cols, bl_rows))
+    for title, admin, (cr_cols, cr_rows, cr_error) in (
+            ('Blossom', '/blossom_admin', blossom),
+            ('Smush', '/smush_admin', smush)):
+        h.append('<h2>{} word fixes by players, last 24 hours ({})</h2>'.format(title, len(cr_rows)))
+        h.append('<p class="sub">Applied on their own once enough different players '
+                 'agree. Nothing to do here; Remove in {} undoes any of it.</p>'.format(admin))
+        if cr_error:
+            h.append('<p class="note">section failed: {}</p>'.format(_esc(cr_error)))
+        else:
+            h.append(_table(cr_cols, cr_rows))
 
     h.append('<h2>ETL dashboard</h2>')
     h.append('<p class="sub">Every panel from /etl_dash, every round. A panel '
@@ -435,8 +429,9 @@ def build(now):
         feedback = gather_feedback(cursor)
         panels = gather_dashboard(cursor)
         # Last, so a failure here can't leave the cursor in a state that
-        # costs a section gathered after it.
+        # costs a section gathered after it. Each guards itself.
         blossom = gather_blossom_crowd(cursor)
+        smush = gather_smush_crowd(cursor)
     finally:
         cursor.close()
         conn.close()
@@ -445,7 +440,8 @@ def build(now):
     # holding one of fifteen JawsDB connections open across them is rude.
     latency = gather_latency()
 
-    html, ok, bad, total_mb = render(now, health, latency, storage, feedback, panels, blossom)
+    html, ok, bad, total_mb = render(now, health, latency, storage, feedback, panels,
+                                     blossom, smush)
     # The summary goes in the subject so the phone notification is the report.
     # Most days that is the only part read, and it should be enough.
     subject = 'JJ daily {} - {} ok, {} alert{}, {} MB'.format(
