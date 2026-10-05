@@ -703,21 +703,38 @@ def test_admin_page_shows_player_reports(client, crowd_db, monkeypatch):
     from datetime import datetime
     when = datetime(2026, 10, 4, 8, 0)
     crowd_db(rows={
-        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting"),
-                                      (NOT_LISTED, "missing", 1, when, "waiting"),
-                                      ("figuline", "invalid", 5, when, "removed (crowd)")],
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, "f:egilnu"),
+                                      (NOT_LISTED, "missing", 1, when, "waiting", when, "f:egilnu"),
+                                      ("figuline", "invalid", 5, when, "removed (crowd)", when, "f:egilnu")],
         "FROM feedback_blossom": [(1, when, "missing", "yatagan")],
     })
     resp = client.get("/blossom_admin", headers=_admin_headers(monkeypatch))
     html = resp.get_data(as_text=True)
     assert resp.status_code == 200
     assert "Player Reports, last 7 days" in html
-    # A waiting report gets a one-click button matching its vote; a finished one doesn't.
-    assert html.count("Remove now") == 1
-    assert html.count("Add now") == 1
-    assert "removed (crowd)" in html
+    # Each open report gets both buttons; the settled one is hidden by default.
+    assert html.count("Remove now") == 2
+    assert html.count("Add now") == 2
+    assert "removed (crowd)" not in html
+    assert "1 settled report hidden" in html
     # The old report form's submissions are still there.
     assert "yatagan" in html
+
+
+def test_admin_page_has_game_links_and_no_dropdown(client, crowd_db, monkeypatch):
+    crowd_db()
+    html = client.get("/blossom_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<select" not in html
+    assert 'data-choice="missing"' in html and "Add missing word" in html
+    assert 'id="word-submit" disabled' in html
+    assert 'target="_blank"' in html and "Open Blossom Game" in html
+
+
+def test_admin_add_without_a_choice_changes_nothing(client, crowd_db, monkeypatch):
+    db = crowd_db()
+    resp = client.post("/add_word", data={"word": "nastier"}, headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=Choose" in resp.headers["Location"]
+    assert not db.executed
 
 
 def test_admin_rejects_a_non_word(client, crowd_db, monkeypatch):

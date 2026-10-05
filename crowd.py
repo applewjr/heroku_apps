@@ -20,6 +20,7 @@ import hashlib
 import hmac
 import ipaddress
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 import pytz
 from flask import current_app
@@ -57,6 +58,15 @@ CROWD_MAX_VOTES_PER_DAY = 30
 
 _CROWD_OPPOSITE = {'invalid': 'missing', 'missing': 'invalid'}
 
+# Admin pages: rows per page, and the report results a change has already
+# settled. Settled reports are hidden from the list unless the admin asks.
+ADMIN_PAGE_SIZE = 100
+SETTLED_RESULTS = ('removed (crowd)', 'kept: you added it',
+                   'kept out: you removed it', 'added (crowd)')
+# Query args an admin page carries from one link to the next. Not 'success' or
+# 'error': those are one-off messages from a redirect.
+_ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
+
 
 def _pst_days_ago(days):
     """pst_now_str's format, `days` back - for comparing against created_at."""
@@ -67,6 +77,49 @@ def _pst_days_ago(days):
 def _pst_today_start():
     """Midnight Pacific today, in created_at's format."""
     return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d 00:00:00')
+
+
+def _admin_url(path, args, **changes):
+    """The admin page's own URL with its carried args, plus `changes`.
+    A change set to None drops that arg."""
+    query = {k: args[k] for k in _ADMIN_CARRIED_ARGS if args.get(k)}
+    query.update(changes)
+    query = {k: v for k, v in query.items() if v is not None}
+    return path + ('?' + urlencode(query) if query else '')
+
+
+def _pager(path, args, tab, param, page, pages):
+    """Prev / numbers / Next for one list. `param` is the query arg holding
+    this list's page number, so each tab pages on its own."""
+    def url(n):
+        return _admin_url(path, args, tab=tab, **{param: str(n)})
+    return {
+        'page': page,
+        'pages': pages,
+        'prev': url(page - 1) if page > 1 else None,
+        'next': url(page + 1) if page < pages else None,
+        'numbers': [(n, url(n)) for n in range(1, pages + 1)],
+    }
+
+
+def _paginate(rows, page):
+    """(this page's rows, page number, page count). A page outside the list
+    clamps to the nearest real one, so a stale link still shows something."""
+    pages = max(1, -(-len(rows) // ADMIN_PAGE_SIZE))
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    page = min(max(page, 1), pages)
+    start = (page - 1) * ADMIN_PAGE_SIZE
+    return rows[start:start + ADMIN_PAGE_SIZE], page, pages
+
+
+def _matching(rows, query):
+    """Rows whose word (first column) contains `query`, case-blind."""
+    if not query:
+        return rows
+    return [row for row in rows if query in row[0].lower()]
 
 
 class CrowdList:
@@ -308,7 +361,55 @@ class CrowdList:
 
     def recent_reports(self):
         """Every word players reported in the vote window, for the admin page:
-        (word, report, players_7d, last_report, result)."""
+        (word, report, players_7d, last_report, result, first_report, boards)."""
         with db_cursor() as (conn, cursor):
             cursor.execute(report_sql(self.game, CROWD_WINDOW_DAYS))
             return cursor.fetchall()
+
+    def admin_view(self, args, path, tabs=('reports', 'invalid', 'added')):
+        """What an admin page shows of this game's lists, from its query args.
+
+        q filters every list by word. settled=1 shows the reports
+        SETTLED_RESULTS hides. rpage / ipage / apage pick a page of the
+        reports, removed and added lists. tab is the tab to open, if it is one
+        of `tabs`. `path` is the admin page's own path, for the links.
+        """
+        query = (args.get('q') or '').strip().lower()
+        show_settled = args.get('settled') == '1'
+        active_tab = args.get('tab') if args.get('tab') in tabs else 'reports'
+
+        invalid_all, added_all = self.list_rows()
+        reports_all = self.recent_reports()
+        settled = [r for r in reports_all if r[4] in SETTLED_RESULTS]
+        open_reports = [r for r in reports_all if r[4] not in SETTLED_RESULTS]
+        reports, reports_page, reports_pages = _paginate(
+            _matching(reports_all if show_settled else open_reports, query), args.get('rpage'))
+        invalid_words, invalid_page, invalid_pages = _paginate(
+            _matching(invalid_all, query), args.get('ipage'))
+        added_words, added_page, added_pages = _paginate(
+            _matching(added_all, query), args.get('apage'))
+
+        # Normally a word is in one list only (each change clears the other).
+        # If one ever is in both, the solver still plays it, because the added
+        # list wins: say so, rather than let the admin page disagree with it.
+        in_both = sorted({w for w, *_ in invalid_all} & {w for w, *_ in added_all})
+
+        return {
+            'reports': reports,
+            'invalid_words': invalid_words,
+            'added_words': added_words,
+            'reports_pager': _pager(path, args, 'reports', 'rpage', reports_page, reports_pages),
+            'invalid_pager': _pager(path, args, 'invalid', 'ipage', invalid_page, invalid_pages),
+            'added_pager': _pager(path, args, 'added', 'apage', added_page, added_pages),
+            'open_count': len(open_reports),
+            'settled_count': len(settled),
+            'invalid_total': len(invalid_all),
+            'added_total': len(added_all),
+            'show_settled': show_settled,
+            'settled_url': _admin_url(path, args, tab='reports',
+                                      settled=None if show_settled else '1', rpage=None),
+            'query': query,
+            'clear_url': _admin_url(path, {'tab': active_tab, 'settled': args.get('settled')}),
+            'active_tab': active_tab,
+            'in_both': in_both,
+        }

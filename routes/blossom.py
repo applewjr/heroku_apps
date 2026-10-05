@@ -173,9 +173,14 @@ def blossom_reset():
 
 
 def _admin_form():
+    """The word and its list, or None for the list if no choice was sent.
+    Nothing is assumed: a missing choice must not count as a removal."""
     word = request.form.get('word', '').strip().lower()
-    kind = 'missing' if request.form.get('word_type') == 'missing' else 'invalid'
-    return word, kind
+    kind = request.form.get('word_type')
+    return word, kind if kind in ('invalid', 'missing') else None
+
+
+NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
 
 
 @bp.route('/blossom_admin')
@@ -186,8 +191,8 @@ def blossom_admin():
     try:
         # source is 'admin' (added here) or 'crowd' (enough players agreed -
         # see "crowd corrections" below).
-        invalid_words, added_words = BLOSSOM_CROWD.list_rows()
-        reports = BLOSSOM_CROWD.recent_reports()
+        view = BLOSSOM_CROWD.admin_view(request.args.to_dict(), request.path,
+                                        tabs=('reports', 'feedback', 'invalid', 'added'))
 
         with db_cursor() as (conn, cursor):
             # Get recent feedback
@@ -200,9 +205,7 @@ def blossom_admin():
             recent_feedback = cursor.fetchall()
 
         return render_template('blossom_admin.html',
-                             invalid_words=invalid_words,
-                             added_words=added_words,
-                             reports=reports,
+                             **view,
                              recent_feedback=recent_feedback,
                              crowd_remove_votes=CROWD_REMOVE_VOTES,
                              crowd_add_votes=CROWD_ADD_VOTES,
@@ -218,6 +221,8 @@ def blossom_admin():
 def add_word():
     """Remove a word from Blossom's list ('invalid') or add one ('missing')."""
     word, kind = _admin_form()
+    if kind is None:
+        return redirect(f'/blossom_admin?error={NO_CHOICE}')
     if not word.isalpha():
         return redirect('/blossom_admin?error=Word must be letters only')
     try:
@@ -234,6 +239,8 @@ def add_word():
 def remove_word():
     """Undo an entry in either list, and reset that word's votes."""
     word, kind = _admin_form()
+    if kind is None:
+        return redirect(f'/blossom_admin?error={NO_CHOICE}')
     if not word.isalpha():
         return redirect('/blossom_admin?error=Word must be letters only')
     try:
