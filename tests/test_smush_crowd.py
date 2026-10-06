@@ -243,18 +243,98 @@ def test_admin_page_shows_lists_and_reports(client, smush_db, monkeypatch):
     when = datetime(2026, 10, 4, 8, 0)
     smush_db(rows={
         "FROM smush_invalid_words": [("glop", when, "crowd"), ("zarf", when, "admin")],
-        "FROM smush_word_votes v": [("flagellum", "invalid", 3, when, "waiting"),
-                                    ("glumac", "missing", 2, when, "added (crowd)")],
+        "FROM smush_word_votes v": [("flagellum", "invalid", 3, when, "waiting", when, "l:acefgmou"),
+                                    ("glumac", "missing", 2, when, "added (crowd)", when, "l:acefgmou")],
     })
     resp = client.get("/smush_admin", headers=_admin_headers(monkeypatch))
     html = resp.get_data(as_text=True)
     assert resp.status_code == 200
     assert '<td class="by-crowd">crowd</td>' in html
     assert '<td class="by-admin">you</td>' in html
-    # A waiting report gets a one-click button matching its vote; a finished one doesn't.
+    # An open report gets both buttons; the settled one is hidden by default.
     assert html.count("Remove now") == 1
-    assert "Add now" not in html
+    assert html.count("Add now") == 1
+    assert "added (crowd)" not in html
+    assert "1 settled report hidden" in html
+    assert "l:acefgmou" in html
+
+
+def test_settled_reports_come_back_on_request(client, smush_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    smush_db(rows={
+        "FROM smush_word_votes v": [("glumac", "missing", 2, when, "added (crowd)", when, None)],
+    })
+    resp = client.get("/smush_admin?settled=1", headers=_admin_headers(monkeypatch))
+    html = resp.get_data(as_text=True)
     assert "added (crowd)" in html
+    assert "Hide them" in html
+    assert "Remove now" not in html
+
+
+def test_admin_page_warns_about_a_word_in_both_lists(client, smush_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    smush_db(rows={
+        "FROM smush_invalid_words": [("glop", when, "crowd")],
+        "FROM smush_added_words": [("glop", when, "admin")],
+    })
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "In both lists: glop" in html
+
+
+def test_admin_lists_page_and_clamp(client, smush_db, monkeypatch):
+    from datetime import datetime
+    import crowd
+    when = datetime(2026, 10, 4, 8, 0)
+    many = [(f"word{i:03d}", when, "crowd") for i in range(250)]
+    smush_db(rows={"FROM smush_invalid_words": many})
+    html = client.get("/smush_admin?tab=invalid&ipage=2", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "Page 2 of 3" in html
+    assert "<strong>word100</strong>" in html and "<strong>word199</strong>" in html
+    assert "<strong>word099</strong>" not in html and "<strong>word200</strong>" not in html
+    html = client.get("/smush_admin?tab=invalid&ipage=99", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "Page 3 of 3" in html
+    assert crowd._paginate(many, "junk")[1] == 1
+
+
+def test_admin_search_filters_every_list(client, smush_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    smush_db(rows={
+        "FROM smush_invalid_words": [("glop", when, "crowd"), ("zarf", when, "admin")],
+    })
+    html = client.get("/smush_admin?q=GL", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>glop</strong>" in html
+    assert "<strong>zarf</strong>" not in html
+
+
+def test_admin_form_is_choose_then_submit(client, smush_db, monkeypatch):
+    smush_db()
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<select" not in html
+    assert 'data-choice="invalid"' in html and "Remove invalid word" in html
+    assert 'data-choice="missing"' in html and "Add missing word" in html
+    # Nothing is chosen on load, and Submit stays off until a list is picked.
+    assert 'name="word_type" id="word-type" value=""' in html
+    assert 'id="word-submit" disabled' in html
+    assert 'target="_blank"' in html and "Open Smush Game" in html
+
+
+def test_admin_add_without_a_choice_changes_nothing(client, smush_db, monkeypatch):
+    db = smush_db()
+    resp = client.post("/smush_admin/add_word", data={"word": "zarf"},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=Choose" in resp.headers["Location"]
+    assert not db.executed
+
+
+def test_admin_remove_without_a_choice_changes_nothing(client, smush_db, monkeypatch):
+    db = smush_db()
+    resp = client.post("/smush_admin/remove_word", data={"word": "glop"},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=Choose" in resp.headers["Location"]
+    assert not db.executed
 
 
 def test_your_add_is_final(client, smush_db, monkeypatch):

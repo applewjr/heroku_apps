@@ -14,11 +14,13 @@ CROWD_GAMES = ('blossom', 'smush')
 
 def report_sql(game, window_days, recent_days=None):
     """Every word with votes in the last `window_days`, one row per (word,
-    vote): (word, report, players_7d, last_report, result). With
-    `recent_days`, only words with a vote that recent.
+    vote): (word, report, players_7d, last_report, result, first_report,
+    boards). With `recent_days`, only words with a vote that recent.
 
     players_7d counts every vote in the window, before the crossing-off rule
     in crowd.py, so it can read above a count that still says 'waiting'.
+    boards is the comma-separated puzzle tags (center:outer letters) the
+    reports came from, so an admin can tell today's board from an older one.
     """
     if game not in CROWD_GAMES:
         raise ValueError(f'not a crowd game: {game!r}')
@@ -41,7 +43,9 @@ def report_sql(game, window_days, recent_days=None):
                    WHEN v.vote = 'missing' AND MAX(i.source) = 'admin'
                        THEN 'kept out: you removed it'
                    ELSE 'waiting'
-               END AS result
+               END AS result,
+               MIN(v.created_at) AS first_report,
+               GROUP_CONCAT(DISTINCT v.puzzle ORDER BY v.puzzle) AS boards
         FROM {game}_word_votes v
         LEFT JOIN {game}_invalid_words i ON i.word = v.word
         LEFT JOIN {game}_added_words a ON a.word = v.word

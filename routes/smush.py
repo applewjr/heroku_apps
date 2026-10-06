@@ -160,9 +160,14 @@ def handle_vote(data):
 ##### admin #####
 
 def _admin_form():
+    """The word and its list, or None for the list if no choice was sent.
+    Nothing is assumed: a missing choice must not count as a removal."""
     word = request.form.get('word', '').strip().lower()
-    kind = 'missing' if request.form.get('word_type') == 'missing' else 'invalid'
-    return word, kind
+    kind = request.form.get('word_type')
+    return word, kind if kind in ('invalid', 'missing') else None
+
+
+NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
 
 
 @bp.route('/smush_admin')
@@ -170,12 +175,9 @@ def _admin_form():
 def smush_admin():
     """Smush's corrected word list and what players have reported."""
     try:
-        invalid_words, added_words = SMUSH_CROWD.list_rows()
-        reports = SMUSH_CROWD.recent_reports()
+        view = SMUSH_CROWD.admin_view(request.args.to_dict(), request.path)
         return render_template('smush_admin.html',
-                               invalid_words=invalid_words,
-                               added_words=added_words,
-                               reports=reports,
+                               **view,
                                crowd_remove_votes=CROWD_REMOVE_VOTES,
                                crowd_add_votes=CROWD_ADD_VOTES,
                                crowd_window_days=CROWD_WINDOW_DAYS)
@@ -189,6 +191,8 @@ def smush_admin():
 def smush_add_word():
     """Remove a word from Smush's list ('invalid') or add one ('missing')."""
     word, kind = _admin_form()
+    if kind is None:
+        return redirect(f'/smush_admin?error={NO_CHOICE}')
     if not word.isalpha():
         return redirect('/smush_admin?error=Word must be letters only')
     try:
@@ -205,6 +209,8 @@ def smush_add_word():
 def smush_remove_word():
     """Undo an entry in either list, and reset that word's votes."""
     word, kind = _admin_form()
+    if kind is None:
+        return redirect(f'/smush_admin?error={NO_CHOICE}')
     if not word.isalpha():
         return redirect('/smush_admin?error=Word must be letters only')
     try:

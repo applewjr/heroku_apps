@@ -29,7 +29,7 @@
     color: #333;
 }
 
-.form-group input, .form-group select {
+.form-group input {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
@@ -58,6 +58,15 @@
     background-color: #0056b3;
 }
 
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
 .btn-success {
     background-color: #28a745;
     color: white;
@@ -76,6 +85,11 @@
     background-color: #c82333;
 }
 
+.btn-disabled {
+    background-color: #e9ecef;
+    color: #999;
+}
+
 /* Wide tables scroll inside their own box on a phone, not the whole page. */
 .table-wrap {
     overflow-x: auto;
@@ -92,6 +106,7 @@
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid #ddd;
+    vertical-align: top;
 }
 
 .words-table th {
@@ -129,8 +144,76 @@
     margin-bottom: 20px;
 }
 
+.top-nav {
+    margin-bottom: 20px;
+}
+
+.top-nav .btn {
+    margin-bottom: 8px;
+}
+
 .remove-form {
     display: inline;
+}
+
+/* First and last report: one short line each, never wrapped. */
+.report-dates {
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+/* The two row buttons sit side by side, never wrapped onto two lines. */
+.row-actions {
+    white-space: nowrap;
+}
+
+.row-actions .btn {
+    padding: 6px 10px;
+    margin: 0 6px 0 0;
+}
+
+.word-choice {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+/* Two outlined boxes until one is chosen; the chosen one fills in. */
+.choice-btn {
+    flex: 1;
+    margin: 0;
+    font-weight: bold;
+    background-color: #fff;
+    border: 2px solid;
+}
+
+.choice-remove {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.choice-add {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.choice-remove[aria-pressed="true"] {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.choice-add[aria-pressed="true"] {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.word-submit {
+    margin: 0;
+}
+
+.word-submit:disabled {
+    background-color: #adb5bd;
+    cursor: not-allowed;
 }
 
 .tab-container {
@@ -166,6 +249,55 @@
     font-size: 13px;
 }
 
+.search-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.search-form input {
+    flex: 1 1 180px;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.search-form .btn {
+    margin: 0;
+}
+
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.pager .btn {
+    margin: 0;
+    padding: 6px 12px;
+}
+
+.pager a {
+    padding: 4px 8px;
+}
+
+.pager-now {
+    padding: 4px 8px;
+    font-weight: bold;
+}
+
+.board-tag {
+    font-family: monospace;
+    font-size: 13px;
+    display: block;
+}
+
 .result-waiting {
     color: #666;
 }
@@ -174,10 +306,32 @@
     color: #02484d;
     font-weight: bold;
 }
+
+.in-both {
+    font-weight: normal;
+}
 </style>
+
+{% macro pager(p) %}
+{% if p.pages > 1 %}
+<nav class="pager">
+    {% if p.prev %}<a class="btn btn-secondary" href="{{ p.prev }}">Prev</a>{% else %}<span class="btn btn-disabled">Prev</span>{% endif %}
+    {% for n, url in p.numbers %}
+        {% if n == p.page %}<span class="pager-now">{{ n }}</span>{% else %}<a href="{{ url }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+    {% if p.next %}<a class="btn btn-secondary" href="{{ p.next }}">Next</a>{% else %}<span class="btn btn-disabled">Next</span>{% endif %}
+    <span class="crowd-note">Page {{ p.page }} of {{ p.pages }}</span>
+</nav>
+{% endif %}
+{% endmacro %}
 
 <div class="admin-container">
     <h1>Smush Admin - Word Management</h1>
+
+    <div class="top-nav">
+        <a href="/smush" target="_blank" rel="noopener" class="btn btn-primary">Back to Smush Solver</a>
+        <a href="https://hankgreen.com/smush" target="_blank" rel="noopener" class="btn btn-success">Open Smush Game</a>
+    </div>
 
     {% if request.args.get('success') %}
     <div class="alert alert-success">
@@ -191,45 +345,66 @@
     </div>
     {% endif %}
 
+    {% if in_both %}
+    <div class="alert alert-error">
+        In both lists: {{ in_both|join(', ') }}. Smush still plays these (Added wins). Undo the side you don't want.
+    </div>
+    {% endif %}
+
     <div class="stats">
-        <strong>Words reported ({{ crowd_window_days }} days):</strong> {{ reports|length }} |
-        <strong>Removed words:</strong> {{ invalid_words|length }} |
-        <strong>Added words:</strong> {{ added_words|length }}
+        <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
+        <strong>Removed words:</strong> {{ invalid_total }} |
+        <strong>Added words:</strong> {{ added_total }}
     </div>
 
     <div class="admin-section">
         <h2>Add/Remove Words</h2>
-        <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over.</p>
-        <form method="POST" action="/smush_admin/add_word">
+        <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over. Type the word, choose a list, then press Submit.</p>
+        <form method="POST" action="/smush_admin/add_word" id="word-form">
             <div class="form-group">
                 <label for="word">Word:</label>
                 <input type="text" id="word" name="word" required
                        placeholder="Enter word"
                        style="text-transform: lowercase;">
             </div>
-            <div class="form-group">
-                <label for="word_type">Action:</label>
-                <select id="word_type" name="word_type" required>
-                    <option value="invalid">Remove Invalid Word</option>
-                    <option value="missing">Add Missing Word</option>
-                </select>
+            <div class="word-choice">
+                <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove invalid word</button>
+                <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add missing word</button>
             </div>
-            <button type="submit" class="btn btn-primary">Process Word</button>
+            <input type="hidden" name="word_type" id="word-type" value="">
+            <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
+            <p class="crowd-note" id="word-hint">Type a word, then choose a list.</p>
         </form>
     </div>
 
+    <form method="GET" class="search-form" id="search-form">
+        <input type="hidden" name="tab" id="tab-input" value="{{ active_tab }}">
+        {% if show_settled %}<input type="hidden" name="settled" value="1">{% endif %}
+        <input type="text" name="q" value="{{ query }}" placeholder="Search words">
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if query %}<a href="{{ clear_url }}">Clear search</a>{% endif %}
+    </form>
+
     <div class="tab-container">
-        <div class="tab-button active" onclick="showTab(event, 'reports')">Player Reports</div>
-        <div class="tab-button" onclick="showTab(event, 'invalid')">Removed Words</div>
-        <div class="tab-button" onclick="showTab(event, 'added')">Added Words</div>
+        <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
+        <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
+        <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Added Words</div>
     </div>
 
     <!-- Player Reports Tab -->
-    <div id="reports-tab" class="tab-content active">
+    <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         <h2>Player Reports, last {{ crowd_window_days }} days</h2>
         <p class="crowd-note">"invalid" is a ✗ on a result (Smush refused it). "missing" is the suggest box (Smush accepted a word we don't list).
             A word is removed once {{ crowd_remove_votes }} different players flag it, and added once {{ crowd_add_votes }} suggest it.
-            Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.</p>
+            Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.
+            Either button clears that word's votes, whichever kind they were.</p>
+        <p class="crowd-note">
+            {% if show_settled %}
+                Showing settled reports too. <a href="{{ settled_url }}">Hide them</a>
+            {% else %}
+                {{ settled_count }} settled report{{ '' if settled_count == 1 else 's' }} hidden. <a href="{{ settled_url }}">Show them</a>
+            {% endif %}
+        </p>
         {% if reports %}
         <div class="table-wrap">
         <table class="words-table">
@@ -238,7 +413,8 @@
                     <th>Word</th>
                     <th>Report</th>
                     <th>Players</th>
-                    <th>Last report</th>
+                    <th>First / last report</th>
+                    <th>Board (letters)</th>
                     <th>Result</th>
                     <th>Action</th>
                 </tr>
@@ -249,18 +425,24 @@
                     <td><strong>{{ r[0] }}</strong></td>
                     <td>{{ r[1] }}</td>
                     <td>{{ r[2] }}</td>
-                    <td>{{ r[3].strftime('%Y-%m-%d %H:%M') if r[3] else 'N/A' }}</td>
+                    <td class="report-dates">
+                        {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
+                        {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
+                    </td>
+                    <td>
+                        {% for board in (r[6] or '').split(',') if board %}
+                        <span class="board-tag">{{ board }}</span>
+                        {% else %}
+                        <span class="crowd-note">not recorded</span>
+                        {% endfor %}
+                    </td>
                     <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
                     <td>
                         {% if r[4] == 'waiting' %}
-                        <form method="POST" action="/smush_admin/add_word" class="remove-form">
+                        <form method="POST" action="/smush_admin/add_word" class="remove-form row-actions">
                             <input type="hidden" name="word" value="{{ r[0] }}">
-                            <input type="hidden" name="word_type" value="{{ r[1] }}">
-                            {% if r[1] == 'invalid' %}
-                            <button type="submit" class="btn btn-danger">Remove now</button>
-                            {% else %}
-                            <button type="submit" class="btn btn-success">Add now</button>
-                            {% endif %}
+                            <button type="submit" name="word_type" value="invalid" class="btn btn-danger">Remove now</button>
+                            <button type="submit" name="word_type" value="missing" class="btn btn-success">Add now</button>
                         </form>
                         {% endif %}
                     </td>
@@ -269,13 +451,14 @@
             </tbody>
         </table>
         </div>
+        {{ pager(reports_pager) }}
         {% else %}
-        <p>No reports in the last {{ crowd_window_days }} days.</p>
+        <p>{% if query %}No reports match "{{ query }}".{% else %}No open reports in the last {{ crowd_window_days }} days.{% endif %}</p>
         {% endif %}
     </div>
 
     <!-- Removed Words Tab -->
-    <div id="invalid-tab" class="tab-content">
+    <div id="invalid-tab" class="tab-content{% if active_tab == 'invalid' %} active{% endif %}">
         <h2>Removed Words (Hidden from Results)</h2>
         <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Undo puts the word back and resets its votes.</p>
         {% if invalid_words %}
@@ -308,13 +491,14 @@
             </tbody>
         </table>
         </div>
+        {{ pager(invalid_pager) }}
         {% else %}
-        <p>No words removed.</p>
+        <p>{% if query %}No removed words match "{{ query }}".{% else %}No words removed.{% endif %}</p>
         {% endif %}
     </div>
 
     <!-- Added Words Tab -->
-    <div id="added-tab" class="tab-content">
+    <div id="added-tab" class="tab-content{% if active_tab == 'added' %} active{% endif %}">
         <h2>Added Words (Included in Results)</h2>
         <p class="crowd-note">"Crowd" rows were added automatically after {{ crowd_add_votes }} different players suggested the word. Undo takes the word back out and resets its votes.</p>
         {% if added_words %}
@@ -347,20 +531,56 @@
             </tbody>
         </table>
         </div>
+        {{ pager(added_pager) }}
         {% else %}
-        <p>No words added.</p>
+        <p>{% if query %}No added words match "{{ query }}".{% else %}No words added.{% endif %}</p>
         {% endif %}
     </div>
-
-    <br>
-    <a href="/smush" class="btn btn-primary">Back to Smush Solver</a>
-
 </div>
 
 <script>
-document.getElementById('word').addEventListener('input', function() {
+var wordInput = document.getElementById('word');
+var wordType = document.getElementById('word-type');
+var wordSubmit = document.getElementById('word-submit');
+var wordHint = document.getElementById('word-hint');
+
+wordInput.addEventListener('input', function() {
     this.value = this.value.toLowerCase();
+    refreshWordForm();
 });
+
+// Enter does nothing here: the word is submitted only by the Submit button,
+// after a list is chosen.
+wordInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') e.preventDefault();
+});
+
+document.querySelectorAll('.choice-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        wordType.value = this.getAttribute('data-choice');
+        document.querySelectorAll('.choice-btn').forEach(function(other) {
+            other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        });
+        refreshWordForm();
+    });
+});
+
+function refreshWordForm() {
+    var word = wordInput.value.trim();
+    var choice = wordType.value;
+    wordSubmit.disabled = !(word && choice);
+    if (!word) {
+        wordHint.textContent = choice ? 'Type the word.' : 'Type a word, then choose a list.';
+    } else if (!choice) {
+        wordHint.textContent = 'Now choose a list.';
+    } else if (choice === 'invalid') {
+        wordHint.textContent = 'Submit will remove "' + word + '" from the Smush word list.';
+    } else {
+        wordHint.textContent = 'Submit will add "' + word + '" to the Smush word list.';
+    }
+}
+
+refreshWordForm();
 
 function showTab(event, tabName) {
     document.querySelectorAll('.tab-content').forEach(function(content) {
@@ -371,6 +591,7 @@ function showTab(event, tabName) {
     });
     document.getElementById(tabName + '-tab').classList.add('active');
     event.target.classList.add('active');
+    document.getElementById('tab-input').value = tabName;
 }
 </script>
 
