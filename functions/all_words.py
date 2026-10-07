@@ -622,16 +622,18 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
         mult = 1 + spicy_uses + smushes + pangram_bonus
         base = smush_word_score(w)
 
+        pts = base * mult
         results.append({
             'word': w,
             'base': base,
             'mult': mult,
-            'pts': base * mult,
+            'pts': pts,
             'spicy_uses': spicy_uses,
             'smushes': smushes,
             'pangram': is_pangram,
             'cost': cost,
             'pop': popularity.get(w, 0.0) if popularity else 0.0,
+            'efficiency': round(pts / max(sum(cost.values()), 1), 1),
         })
 
     results.sort(key=lambda r: (-r['pts'], -len(r['word']), r['word']))
@@ -649,31 +651,82 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     return results[:list_len], total_playable, pangram_status
 
 
-def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
-                   pop_tiers=(3.3, 2.7, 2.0)):
+def _smush_play_order(chosen, outer_uses, first_word):
+    """Sequence a chosen set of smush_all_plan words into real play order
+    and rescore each one against the board state as it will actually exist
+    at that point - not the single pre-plan snapshot smush_solver computed
+    them against. Pangram leads (required first for PERFECT); after that,
+    and for a non-pangram plan's first word too, spicy_uses only applies to
+    whichever word is genuinely played first, since the spicy tile moves
+    randomly after every play and later credit would assume foreknowledge
+    the plan can't have. Returns a new list of dicts; `chosen` is untouched.
+    """
+    state = dict(outer_uses)
+    pool = list(chosen)
+    pangram_word = next((r for r in pool if r['pangram']), None)
+    ordered = []
+
+    while pool:
+        force_pangram = pangram_word is not None and not ordered
+        candidates = [pangram_word] if force_pangram else pool
+        scored = []
+        for r in candidates:
+            smushes = sum(1 for l, n in r['cost'].items()
+                          if state.get(l, 0) > 0 and n == state[l])
+            spicy_uses = r['spicy_uses'] if not ordered else 0
+            pangram_bonus = (4 if first_word else 2) if r is pangram_word else 0
+            mult = 1 + spicy_uses + smushes + pangram_bonus
+            scored.append((r['base'] * mult, r, mult, smushes, spicy_uses))
+        pts, best, mult, smushes, spicy_uses = max(scored, key=lambda t: t[0])
+        cost_total = sum(best['cost'].values())
+        ordered.append(dict(
+            best, mult=mult, pts=pts, smushes=smushes, spicy_uses=spicy_uses,
+            efficiency=round(pts / max(cost_total, 1), 1)))
+        pool.remove(best)
+        for l, n in best['cost'].items():
+            state[l] -= n
+
+    return ordered
+
+
+def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
+                   time_limit=1.5):
     """Plan a set of currently playable words that spends EVERY remaining use
     of every outer letter, smushing the whole board flat.
 
     results     -- untruncated smush_solver output for the current state; the
-                   plan draws its words (cost / points / popularity) from
-                   here, so rejected and played words are already excluded
+                   plan draws its words (cost / cost-independent base score /
+                   popularity) from here, so rejected and played words are
+                   already excluded
     outer_uses  -- {letter: remaining uses 0..5} for the 8 outer tiles
-    pop_tiers   -- descending Zipf popularity floors to try before allowing
-                   the whole dictionary in
+    first_word  -- whether the plan's first play would be the game's first
+                   word overall (a seeded pangram's PERFECT-eligible +4
+                   bonus needs this to be true; a mid-game replan passes
+                   False)
 
     A plan only ever constrains letter TOTALS: a complete plan's per-letter
     costs sum exactly to the remaining uses, and a partial plan's never
-    exceed them. Totals bound every prefix, so the words can be played in
-    any order without a letter running out early.
+    exceed them. Totals bound every prefix, so WHICH words get chosen never
+    depends on their order - but each word's own smush/spicy bonus does
+    depend on the board state at the moment it's actually played, so the
+    chosen set is scored and sequenced in a second pass (see below).
 
-    Smush's real word list is stricter than ours, and one refused word breaks
-    an all-8 run, so the plan's weakest word decides its odds. The search
-    therefore maximins popularity: it first tries to complete a plan using
-    only words at or above the highest Zipf floor, relaxing tier by tier, and
-    only opens the full dictionary when no popular-only plan exists. Pangrams
-    are exempt from the floor (every board has an authored pangram, and the
-    pangram-first PERFECT bonus doubles the final score), and within a cost
-    signature the most popular word is always chosen first.
+    Every word on hand is assumed to be one Smush will accept, so the search
+    always draws from the whole dictionary. The real total-letter spend is
+    fixed by outer_uses no matter how it's split across words, but the free
+    center letter's value, and every word's own +1-per-spicy/+1-per-smush
+    bonus, are earned per WORD PLAYED - so splitting the same letter budget
+    across more words earns more of them. The search therefore maximizes
+    points per outer-tile-use spent (efficiency), not raw points per word:
+    within a cost signature the highest-scoring word is always chosen first
+    (same cost, so highest points = highest efficiency there; ties broken by
+    popularity), and the search itself is biased toward the most efficient
+    signatures wherever it has a choice, favoring more, smaller high-value
+    words over fewer, bigger ones. This search phase only decides WHICH
+    words to include - the points and smush/spicy bonuses it uses to compare
+    options are the pre-plan snapshot from `results` (accurate for a single
+    next move, approximate for anything later in a multi-word plan), good
+    enough to guide which combination to pick.
 
     Each attempt is a multi-dimensional subset-sum solved by depth-first
     search over remaining-uses vectors: words are grouped by cost signature,
@@ -683,12 +736,23 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
     can't be fully flattened the exact requirement is relaxed one letter at
     a time - scarcest first - and a greedy pass spends what it still can.
 
-    Returns (plan, leftover): plan is a list of result dicts and leftover
-    maps each letter the plan fails to flatten to its stranded uses ({}
-    means a complete smush). The plan is ordered for play: pangram first
-    (PERFECT needs it as the game's first word), then least popular to most
-    popular, so any refusal lands while the board still has enough letters
-    left to re-plan around.
+    Once a set of words is chosen, they're re-sequenced and rescored for
+    real: a tile's smush bonus can only truly be credited to whichever word
+    actually drains it to zero *in play order*, which isn't necessarily the
+    word the single-snapshot search preferred - so this second pass replays
+    the chosen words against a simulated board, greedily picking whichever
+    remaining word scores highest against the board state as it will
+    actually stand at that point (pangram forced first, for PERFECT).
+    Spicy is only ever credited to the literal first word played - the
+    spicy tile moves randomly after every play, so crediting it further out
+    would assume foreknowledge the plan can't have. Every word's `base`,
+    `mult`, `pts`, `smushes`, and `spicy_uses` in the returned plan reflect
+    this real sequential score, not the pre-plan snapshot.
+
+    Returns (plan, leftover): plan is a list of result dicts in real play
+    order, with their scoring fields updated to the real sequential values
+    described above; leftover maps each letter the plan fails to flatten to
+    its stranded uses ({} means a complete smush).
     """
     norm = {str(l).lower(): int(n) for l, n in outer_uses.items()}
     letters = sorted(norm)
@@ -712,8 +776,9 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
         the relax chain plus greedy top-up and always return (plan, leftover).
         """
         # Words with the same cost signature are interchangeable for the
-        # search; grouping them collapses the branching factor. The most
-        # popular member fronts each group so plans favor accepted words.
+        # search; grouping them collapses the branching factor. The
+        # highest-scoring member fronts each group (ties broken by
+        # popularity) so plans favor the best score available.
         groups = {}
         pangram_sigs = []
         for sig, r in cands:
@@ -721,7 +786,7 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
             if r['pangram'] and sig not in pangram_sigs:
                 pangram_sigs.append(sig)
         for members in groups.values():
-            members.sort(key=lambda r: (-r.get('pop', 0.0), -r['pts']))
+            members.sort(key=lambda r: (-r['pts'], -r.get('pop', 0.0)))
         sigs = list(groups)
         by_letter = [[s for s in sigs if s[i]] for i in range(n_letters)]
         supply = [sum(s[i] * len(groups[s]) for s in by_letter[i])
@@ -749,7 +814,7 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
             options = [s for s in by_letter[pivot]
                        if used[s] < len(groups[s])
                        and all(c <= n for c, n in zip(s, state))]
-            options.sort(key=lambda s: (-s[pivot], -sum(s)))
+            options.sort(key=lambda s: (-groups[s][0]['efficiency'], -s[pivot], -sum(s)))
             for s in options:
                 used[s] += 1
                 path.append(s)
@@ -823,39 +888,28 @@ def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
                 if not fits:
                     break
                 best = max(fits, key=lambda s: (
-                    sum(1 for c, n in zip(s, state) if c and c == n), sum(s)))
+                    sum(1 for c, n in zip(s, state) if c and c == n),
+                    groups[s][0]['efficiency'], sum(s)))
                 used[best] += 1
                 path.append(best)
                 for i, c in enumerate(best):
                     state[i] -= c
 
         take = {}
-        plan = []
+        chosen = []
         for s in path:
-            plan.append(groups[s][take.get(s, 0)])
+            chosen.append(groups[s][take.get(s, 0)])
             take[s] = take.get(s, 0) + 1
-        # Pangram up front (play it first for PERFECT), then least popular
-        # first: a refusal early leaves letters to re-plan around, while a
-        # refusal on a nearly-flat board can make all 8 impossible.
-        plan.sort(key=lambda r: (not r['pangram'], r.get('pop', 0.0), -r['pts']))
+        plan = _smush_play_order(chosen, norm, first_word)
         leftover = {letters[i]: state[i]
                     for i in range(n_letters) if state[i] > 0}
         return plan, leftover
 
-    # Popularity floors first: tiers are nested (thresholds descend), so an
-    # unchanged candidate count means an identical set already tried.
-    tried_sizes = set()
-    for floor in pop_tiers:
-        if time.monotonic() > deadline:
-            break
-        cands = [(s, r) for s, r in tagged
-                 if r.get('pop', 0.0) >= floor or r['pangram']]
-        if not cands or len(cands) in tried_sizes or len(cands) == len(tagged):
-            continue
-        tried_sizes.add(len(cands))
-        found = solve(cands, exact_only=True)
-        if found is not None:
-            return found
+    # Every word on hand is assumed acceptable, so the whole dictionary is
+    # one candidate set: try for a fully flat board first, then best-effort.
+    found = solve(tagged, exact_only=True)
+    if found is not None:
+        return found
 
     return solve(tagged, exact_only=False)
 

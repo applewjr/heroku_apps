@@ -359,7 +359,8 @@ def run_smush():
 
         plan = None
         if want_plan:
-            plan_words, leftover = all_words.smush_all_plan(results, outer_uses)
+            plan_words, leftover = all_words.smush_all_plan(
+                results, outer_uses, first_word=first_word)
             plan = {'complete': not leftover, 'words': plan_words,
                     'leftover': leftover}
 

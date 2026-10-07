@@ -275,10 +275,9 @@ def test_smush_center_letter_is_free_and_required():
         assert "l" not in r["cost"]  # the gold center never costs uses
 
 
-def _smush_plan(center, outer, word_list, popularity=None):
+def _smush_plan(center, outer, word_list):
     results, _, _ = all_words.smush_solver(
-        center, outer, "", False, word_list, list_len=None,
-        popularity=popularity)
+        center, outer, "", False, word_list, list_len=None)
     return all_words.smush_all_plan(results, outer)
 
 
@@ -319,39 +318,36 @@ def test_smush_solver_attaches_popularity():
     assert results[0]["pop"] == 0.0
 
 
-def test_smush_all_plan_prefers_popular_words():
-    # Two complete plans exist; only BAB+ACAD clears the popularity floor,
-    # so the coin-toss words BAD/BAC never enter the plan.
+def test_smush_all_plan_prefers_higher_scoring_words():
+    # Two complete plans exist (BAB+ACAD or BAD+BAC); every word is assumed
+    # acceptable, so the planner picks whichever covers the board for more
+    # points. BAB+ACAD (smushing b, then both c and d) outscores BAD+BAC.
     plan, leftover = _smush_plan(
-        "a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad", "bad", "bac"},
-        popularity={"bab": 4.0, "acad": 4.0})
+        "a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad", "bad", "bac"})
     assert leftover == {}
     assert sorted(r["word"] for r in plan) == ["acad", "bab"]
 
 
-def test_smush_all_plan_picks_popular_words_within_a_signature():
-    # ABBA and BAB spend identical letters; the common spelling wins the slot.
-    plan, leftover = _smush_plan(
-        "a", {"b": 2, "c": 1}, {"bab", "abba", "aca"},
-        popularity={"abba": 4.0, "aca": 4.0})
+def test_smush_all_plan_picks_higher_scoring_word_within_a_signature():
+    # ABBA and BAB spend identical letters; ABBA scores more (two free `a`s
+    # add to its base), so it wins the slot over the lower-scoring BAB.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 1}, {"bab", "abba", "aca"})
     assert leftover == {}
     assert "abba" in {r["word"] for r in plan}
 
 
-def test_smush_all_plan_orders_riskiest_words_first():
-    # After any pangram, least popular comes first: an early refusal leaves
-    # letters to re-plan around; a late one can strand the clean plate.
-    plan, leftover = _smush_plan(
-        "a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad"},
-        popularity={"bab": 4.5, "acad": 2.5})
+def test_smush_all_plan_orders_highest_score_first():
+    # After any pangram, the highest-scoring word comes first - with no
+    # refusal risk assumed, there's nothing left to sequence around but score.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 1, "d": 1}, {"bab", "acad"})
     assert leftover == {}
     assert [r["word"] for r in plan] == ["acad", "bab"]
 
 
-def test_smush_all_plan_pangram_is_exempt_from_the_popularity_floor():
-    # The pangram is unscored (rare) but still seeds and leads the plan.
-    plan, leftover = _smush_plan(
-        "a", {"b": 2, "c": 2}, {"cabba", "aca"}, popularity={"aca": 4.0})
+def test_smush_all_plan_pangram_always_seeds_and_leads_the_plan():
+    # The pangram always seeds the search and leads the plan, regardless of
+    # its own score relative to the other word.
+    plan, leftover = _smush_plan("a", {"b": 2, "c": 2}, {"cabba", "aca"})
     assert leftover == {}
     assert [r["word"] for r in plan] == ["cabba", "aca"]
 

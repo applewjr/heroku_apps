@@ -74,7 +74,7 @@
       "name": "Can this solver smush all 8 letters flat?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, rejecting it recalculates a fresh plan from the words that remain."
+        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it's ordered highest score first, for the biggest possible final total. If Smush refuses a word, rejecting it recalculates a fresh plan from the words that remain."
       }
     },
     {
@@ -477,6 +477,13 @@
 
 .word-result.pangram-word .word-pts { background-color: #b7960b; }
 
+.word-eff {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .played-btn {
     flex-shrink: 0;
     background-color: #fff;
@@ -776,6 +783,7 @@
     .word-bonuses:empty { display: none; }
     .rare-flag { font-size: 12px; padding: 0 2px; }
     .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
+    .word-eff { order: 1; font-size: 10px; }
     .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
     .results-container { padding: 10px 8px 20px; }
     .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
@@ -818,9 +826,9 @@
         words that spends every remaining letter use exactly, flattening the whole board for the
         Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
         first <em>and</em> cleaning the plate earns Smush's PERFECT bonus, doubling your final
-        score. Play the plan top to bottom: after the pangram it leads with its riskiest words,
-        so if Smush refuses one there are still plenty of letters left to re-plan around. The
-        plan recalculates whenever you play or reject a word.
+        score. Play the plan top to bottom: after the pangram, it's ordered highest score first
+        for the biggest possible final total. The plan recalculates whenever you play or reject
+        a word.
         <br><br>
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
@@ -1059,7 +1067,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it's ordered highest score first, for the biggest possible final total. If Smush refuses a word, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
@@ -1479,8 +1487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // server and only holds affordable words, so no extra sort needed.
             r = r.filter(w => w.pangram);
         } else if (sortMode === 'eff') {
-            const costOf = w => Object.values(w.cost).reduce((s, n) => s + n, 0) || 1;
-            r.sort((a, b) => (b.pts / costOf(b)) - (a.pts / costOf(a)) || b.pts - a.pts);
+            r.sort((a, b) => (b.efficiency - a.efficiency) || (b.pts - a.pts));
         }
         return r;
     }
@@ -1517,6 +1524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="word-text">${w.word.toUpperCase()}</span>
                 <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
+                <span class="word-eff" title="Points per tile use - pick the highest to maximize your final score">${w.efficiency}/use</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
                 <a class="define-link"
                    href="https://en.wiktionary.org/wiki/${w.word}"
@@ -1557,10 +1565,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* The All 8 view: a set of words whose letter costs together spend every
        remaining use, smushing the whole board flat. The server orders it for
-       play - pangram first, then riskiest (least popular) words - so a
-       refusal lands while there are still letters left to re-plan around;
-       every ✓ or ✗ refetches with the rejected/played lists, which
-       recalculates the plan. */
+       play - pangram first, then highest score first - and every ✓ or ✗
+       refetches with the rejected/played lists, which recalculates the
+       plan. */
     function renderPlan() {
         if (!planData) { scheduleFetch(); return; }
         const words = planData.words || [];
@@ -1579,12 +1586,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (words[0].pangram && played.length === 0) {
                 banner = `★ Play the pangram FIRST, then the rest top to bottom, and every letter ends smushed flat. ` +
                          `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled.` +
-                         riskNote + ` The riskiest words come early, while there's still room to re-plan - ` +
+                         riskNote + ` Ordered highest score first - ` +
                          `if Smush refuses one, hit ✗ and a new plan is calculated.`;
             } else {
                 banner = `🥞 Play these ${words.length} top to bottom and every letter ends smushed flat` +
                          `${words[0].pangram ? ' (pangram included)' : ''}.` + riskNote +
-                         ` The riskiest words come early, while there's still room to re-plan - ` +
+                         ` Ordered highest score first - ` +
                          `if Smush refuses one, hit ✗ and a new plan is calculated.`;
             }
         } else {
