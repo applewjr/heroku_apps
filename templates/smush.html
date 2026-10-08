@@ -1620,8 +1620,20 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             partial = true;
             count = `${words.length}-word plan (best effort)`;
-            banner = `🫥 No combination in our dictionary smushes everything flat - this plan leaves ${leftover || 'nothing else'} stranded. ` +
-                     `It recalculates after every ✓ or ✗.`;
+            const leftoverObj = planData.leftover || {};
+            const leftoverKeys = Object.keys(leftoverObj);
+            const onlySpicyStranded = iceCold && spicy && leftoverKeys.length === 1 && leftoverKeys[0] === spicy;
+            if (onlySpicyStranded) {
+                banner = `🧊 ${spicy.toUpperCase()}×${leftoverObj[spicy]} is stranded only because it's currently spicy - ` +
+                         `Ice Cold mode won't touch it on purpose. It'll free up once the spicy letter moves to ` +
+                         `another tile (watch for that after your next play), and this plan recalculates every time.`;
+            } else {
+                banner = `🫥 No combination in our dictionary smushes everything flat - this plan leaves ${leftover || 'nothing else'} stranded. ` +
+                         `It recalculates after every ✓ or ✗.` +
+                         (iceCold && spicy && leftoverObj[spicy]
+                             ? ` (${spicy.toUpperCase()} is also currently spicy, so Ice Cold mode is avoiding it too.)`
+                             : '');
+            }
         }
         let html = `
             <div class="results-header">

@@ -580,16 +580,19 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
                    'pop' (0.0 when unknown) so callers can judge how likely
                    Smush is to accept the word
     ice_cold    -- if True, drop every word that touches the current spicy
-                   letter at all. ICE COLD is a secret end-game bonus (not
+                   letter at all, AND drop the pangram unconditionally even
+                   if spicy is '' (unknown) - a pangram always uses every
+                   outer letter, so it always touches whichever one is
+                   spicy whether or not the caller has told us which letter
+                   that is. ICE COLD is a secret end-game bonus (not
                    documented anywhere in Smush's own UI) that ×5s the whole
                    final score if you never play a spicy letter the entire
-                   game; a pangram always uses every outer letter, so it
-                   always touches whichever one is spicy and is therefore
-                   unreachable under this flag (pangram_status will read
-                   'none' or 'out_of_reach' accordingly - that's correct,
-                   not a bug). ICE COLD can't combine with PERFECT (which
-                   needs the pangram first), but ×5 beats PERFECT's ×2, so
-                   it's the better target on its own.
+                   game; the pangram exclusion makes it unreachable under
+                   this flag (pangram_status will read 'none' or
+                   'out_of_reach' accordingly - that's correct, not a bug).
+                   ICE COLD can't combine with PERFECT (which needs the
+                   pangram first), but ×5 beats PERFECT's ×2, so it's the
+                   better target on its own.
 
     Returns (results, total_playable, pangram_status) where results is a list
     of dicts sorted by points desc and pangram_status is one of 'found' (a
@@ -618,9 +621,12 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
             continue
 
         cost = {l: w.count(l) for l in letters if l != center}
-        if ice_cold and spicy and cost.get(spicy, 0) > 0:
-            continue
         is_pangram = letters == board_letters
+        if ice_cold and (is_pangram or (spicy and cost.get(spicy, 0) > 0)):
+            # A pangram touches every outer letter, so it always touches
+            # whichever one is spicy - exclude it on that fact alone, even
+            # before the player has told us which letter that is.
+            continue
         if is_pangram:
             pangram_exists = True
         if any(n > outer_uses[l] for l, n in cost.items()):
