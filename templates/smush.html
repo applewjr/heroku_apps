@@ -839,7 +839,10 @@
         spicy letter, all game. Tap <strong>🧊&nbsp;Ice Cold mode</strong> under the board and every
         suggestion (and the All 8 plan) will skip any word that touches whatever's currently spicy. It
         can't combine with the pangram or PERFECT - a pangram always uses every outer letter, so it
-        always touches spice - but ×5 beats PERFECT's ×2, so it's worth more on its own.
+        always touches spice - but ×5 beats PERFECT's ×2, so it's worth more on its own. Watch for a
+        🧊 warning note if a letter runs out of standalone words (nothing that uses just that letter and
+        the center) while others are still alive - clear it early, since it can get stranded for good if
+        it's ever left as one of the last two tiles with no word sharing it with whatever's left.
     </div>
 </div>
 
@@ -878,6 +881,7 @@
 </div>
 
 <div class="pangram-banner" id="pangram-banner"></div>
+<div class="pangram-banner" id="fragile-banner"></div>
 
 <div class="played-section" id="played-section">
     <div class="played-title">Your played words</div>
@@ -1132,6 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let planData = null;                     // /smush "plan" payload for the All 8 mode
     let totalPlayable = 0;
     let pangramStatus = 'none';
+    let fragileLetters = [];                 // ice_cold: letters with no solo word left
     let sortMode = 'pts';                     // default; overridden by SORT_KEY if saved
     let visibleCount = WORDS_STEP;
     let fetchTimer = null;
@@ -1233,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fixMode = false;
         clearTimeout(fetchTimer);
         fetchSeq++;
-        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none'; fragileLetters = [];
         board.classList.remove('solve-mode');
         boardTools.classList.remove('visible');
         fixBtn.classList.remove('active');
@@ -1424,6 +1429,17 @@ document.addEventListener('DOMContentLoaded', () => {
             banner.className = 'pangram-banner';
             banner.textContent = '';
         }
+        const fragileBanner = document.getElementById('fragile-banner');
+        if (iceCold && fragileLetters.length > 0) {
+            const parts = fragileLetters.map(l => `${l.toUpperCase()}×${uses[l] ?? MAX_USES}`).join(', ');
+            fragileBanner.className = 'pangram-banner gone';
+            fragileBanner.textContent = `🧊 No solo word left for ${parts} - fine for now if other living ` +
+                `letters still share words with ${fragileLetters.length === 1 ? 'it' : 'them'}, but clear ` +
+                `${fragileLetters.length === 1 ? 'it' : 'them'} before ${fragileLetters.length === 1 ? 'it becomes' : 'they become'} one of the last tiles standing.`;
+        } else {
+            fragileBanner.className = 'pangram-banner';
+            fragileBanner.textContent = '';
+        }
     }
 
     function renderPlayed() {
@@ -1493,6 +1509,7 @@ document.addEventListener('DOMContentLoaded', () => {
             planData = data.plan || null;
             totalPlayable = data.total_playable || 0;
             pangramStatus = data.pangram_status || 'none';
+            fragileLetters = data.fragile_letters || [];
             visibleCount = WORDS_STEP;
             renderStatus();
             renderResults();
@@ -1510,13 +1527,20 @@ document.addEventListener('DOMContentLoaded', () => {
             // server and only holds affordable words, so no extra sort needed.
             r = r.filter(w => w.pangram);
         } else if (sortMode === 'eff') {
-            r.sort((a, b) => (b.efficiency - a.efficiency) || (b.pts - a.pts));
+            // Same urgent (clears a fragile letter) sort-only boost the
+            // server applies to the default points order, so both sorts
+            // agree on surfacing fragile-clearing words.
+            const rank = w => w.efficiency * (w.urgent ? 1.5 : 1);
+            r.sort((a, b) => (rank(b) - rank(a)) || (b.pts - a.pts));
         }
         return r;
     }
 
     function bonusBadges(r) {
         const bits = [];
+        if (r.urgent && r.fragile_hit && r.fragile_hit.length) {
+            bits.push('🧊' + r.fragile_hit.map(l => l.toUpperCase()).join(''));
+        }
         if (r.spicy_uses > 0) bits.push('🌶' + (r.spicy_uses > 1 ? '×' + r.spicy_uses : ''));
         if (r.smushes > 0) bits.push('🥞' + (r.smushes > 1 ? '×' + r.smushes : ''));
         if (r.pangram) bits.push(played.length === 0 ? '★★' : '★');
@@ -1923,7 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
         letters = Array(9).fill('');
         uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
         solveMode = false; selected = -1; fixMode = false;
-        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none'; fragileLetters = [];
         board.classList.remove('solve-mode');
         boardTools.classList.remove('visible');
         fixBtn.classList.remove('active');
