@@ -347,6 +347,14 @@ def run_smush():
         if not isinstance(want_plan, bool):
             raise ValidationError('plan must be a boolean')
 
+        # ice_cold: chase the secret ICE COLD bonus (×5 for never playing a
+        # spicy letter all game) instead of the pangram/PERFECT - the two are
+        # mutually exclusive, since a pangram always touches every outer
+        # letter including whichever one is spicy.
+        ice_cold = data.get('ice_cold', False)
+        if not isinstance(ice_cold, bool):
+            raise ValidationError('ice_cold must be a boolean')
+
         # A non-empty pile contradicts first_word; trust the pile so the
         # first-word pangram bonus can't be inflated.
         first_word = first_word and not played
@@ -355,7 +363,8 @@ def run_smush():
         # that the ranked response cuts off.
         results, total_playable, pangram_status = all_words.smush_solver(
             center, outer_uses, spicy.lower(), first_word, get_smush_words(),
-            list_len=None, exclude=rejected, played=played, popularity=word_pop)
+            list_len=None, exclude=rejected, played=played, popularity=word_pop,
+            ice_cold=ice_cold)
 
         plan = None
         if want_plan:

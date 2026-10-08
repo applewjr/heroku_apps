@@ -833,6 +833,13 @@
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
         (+4 if it's your first word). Points = base × multiplier.
+        <br><br>
+        <strong>Going for ICE COLD instead?</strong> It's a secret Smush bonus - never mentioned in its own
+        rules - that ×5s your <em>entire</em> final score if you never play a single word containing the
+        spicy letter, all game. Tap <strong>🧊&nbsp;Ice Cold mode</strong> under the board and every
+        suggestion (and the All 8 plan) will skip any word that touches whatever's currently spicy. It
+        can't combine with the pangram or PERFECT - a pangram always uses every outer letter, so it
+        always touches spice - but ×5 beats PERFECT's ×2, so it's worth more on its own.
     </div>
 </div>
 
@@ -844,6 +851,8 @@
     <button type="button" class="tool-btn" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
     <button type="button" class="tool-btn" id="we-toggle" aria-expanded="false"
             aria-controls="word-entry">➕ Add played word</button>
+    <button type="button" class="tool-btn" id="ice-cold-toggle" aria-pressed="false"
+            title="Never play a word with the current 🌶 spicy letter. Smush's secret ICE COLD bonus ×5s your whole final score if you avoid spice all game - bigger than PERFECT's ×2, but the two can't combine, since a pangram always touches every outer letter.">🧊 Ice Cold mode</button>
 </div>
 
 <div class="tile-controls" id="tile-controls" aria-live="polite"></div>
@@ -1103,11 +1112,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // under its own key and survives board resets and the daily wipe.
     const SORT_KEY = 'smushSortMode_v1';
     const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
+    // Ice Cold is a strategy choice, not game state - same reasoning as
+    // SORT_KEY, so it gets its own storage key and survives board resets.
+    const ICE_COLD_KEY = 'smushIceCold_v1';
 
     /* ---------- state ---------- */
     let letters = Array(9).fill('');         // board letters, index 4 = center
     let uses = {};                           // outer letter -> remaining uses
     let spicy = '';                          // current spicy letter ('' = unset)
+    let iceCold = false;                     // chase ICE COLD (x5) instead of the pangram
     let played = [];                         // [{word, pts}]
     let rejected = [];                       // words Smush refused - hidden, cost nothing
     let score = 0;
@@ -1129,6 +1142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const boardHint = document.getElementById('board-hint');
     const tileControls = document.getElementById('tile-controls');
     const fixBtn = document.getElementById('fix-tiles-btn');
+    const iceColdBtn = document.getElementById('ice-cold-toggle');
     const boardTools = document.getElementById('board-tools');
     const weToggle = document.getElementById('we-toggle');
     const weWrap = document.getElementById('word-entry');
@@ -1390,12 +1404,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const pchip = document.getElementById('chip-pangram');
         if (!solveMode) { pchip.style.display = 'none'; return; }
         pchip.style.display = 'inline-block';
-        pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
-                          : pangramStatus === 'affordable' ? '★ Pangram available'
-                          : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
-                          : 'No pangram in our word list';
+        if (iceCold) {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!' : '🧊 Ice Cold: no pangram by design';
+        } else {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
+                              : pangramStatus === 'affordable' ? '★ Pangram available'
+                              : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
+                              : 'No pangram in our word list';
+        }
         const banner = document.getElementById('pangram-banner');
-        if (pangramStatus === 'out_of_reach') {
+        if (iceCold && pangramStatus !== 'found') {
+            banner.className = 'pangram-banner gone';
+            banner.textContent = '🧊 Ice Cold mode: skipping the pangram on purpose - it always touches the ' +
+                                 'spicy letter, which would break the ×5 bonus.';
+        } else if (!iceCold && pangramStatus === 'out_of_reach') {
             banner.className = 'pangram-banner gone';
             banner.textContent = '🫥 The pangram is out of reach with your remaining letter uses.';
         } else {
@@ -1455,7 +1477,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 first_word: played.length === 0,
                 rejected: rejected,
                 played: played.map(p => p.word),
-                plan: sortMode === 'all8'
+                plan: sortMode === 'all8',
+                ice_cold: iceCold
             })
         })
         .then(r => {
@@ -1977,6 +2000,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reset-btn').addEventListener('click', resetBoard);
     document.getElementById('undo-btn').addEventListener('click', undoLast);
     fixBtn.addEventListener('click', () => setFixMode(!fixMode));
+    iceColdBtn.addEventListener('click', () => {
+        iceCold = !iceCold;
+        iceColdBtn.classList.toggle('active', iceCold);
+        iceColdBtn.setAttribute('aria-pressed', String(iceCold));
+        try { localStorage.setItem(ICE_COLD_KEY, iceCold); } catch (_) {}
+        toast(iceCold
+            ? '🧊 Ice Cold mode: suggestions now avoid the spicy letter entirely - no pangram, but a clean run ×5s your final score.'
+            : '🧊 Ice Cold mode off.', false, 4000);
+        if (solveMode) scheduleFetch();
+    });
 
     weToggle.addEventListener('click', () => setEntryOpen(!weWrap.classList.contains('visible')));
     weInput.addEventListener('input', renderEntry);
@@ -2005,6 +2038,11 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const savedSort = localStorage.getItem(SORT_KEY);
         if (SORT_MODES.includes(savedSort)) sortMode = savedSort;
+    } catch (_) {}
+    try {
+        iceCold = localStorage.getItem(ICE_COLD_KEY) === 'true';
+        iceColdBtn.classList.toggle('active', iceCold);
+        iceColdBtn.setAttribute('aria-pressed', String(iceCold));
     } catch (_) {}
 
     function copyWord(element) {
