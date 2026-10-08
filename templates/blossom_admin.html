@@ -429,6 +429,7 @@
                     <th>Players</th>
                     <th>First / last report</th>
                     <th>Board (letters)</th>
+                    <th>Board date</th>
                     <th>Result</th>
                     <th>Action</th>
                 </tr>
@@ -450,6 +451,7 @@
                         <span class="crowd-note">not recorded</span>
                         {% endfor %}
                     </td>
+                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
                     <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
                     <td>
                         {% if r[4] == 'waiting' %}

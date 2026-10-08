@@ -361,7 +361,10 @@ class CrowdList:
 
     def recent_reports(self):
         """Every word players reported in the vote window, for the admin page:
-        (word, report, players_7d, last_report, result, first_report, boards)."""
+        (word, report, players_7d, last_report, result, first_report, board,
+        board_date), one row per board rather than merged across boards,
+        newest board first. board_date is the estimated day that board was
+        presented, not just the last vote's date."""
         with db_cursor() as (conn, cursor):
             cursor.execute(report_sql(self.game, CROWD_WINDOW_DAYS))
             return cursor.fetchall()

@@ -13,14 +13,24 @@ CROWD_GAMES = ('blossom', 'smush')
 
 
 def report_sql(game, window_days, recent_days=None):
-    """Every word with votes in the last `window_days`, one row per (word,
-    vote): (word, report, players_7d, last_report, result, first_report,
-    boards). With `recent_days`, only words with a vote that recent.
+    """Every word with votes in the last `window_days`, one row per (board,
+    word, vote): (word, report, players_7d, last_report, result,
+    first_report, board, board_date). With `recent_days`, only words with a
+    vote that recent.
 
     players_7d counts every vote in the window, before the crossing-off rule
     in crowd.py, so it can read above a count that still says 'waiting'.
-    boards is the comma-separated puzzle tags (center:outer letters) the
-    reports came from, so an admin can tell today's board from an older one.
+    board is the puzzle tag (center:outer letters) the reports came from, so
+    an admin can tell today's board from an older one.
+
+    Rows are grouped per board rather than merged across boards a word was
+    reported on, and boards are sorted newest first - by the most common
+    submission date among that board's votes, not the latest one. Most
+    votes land on a board the day it is live, but some trickle in later from
+    players working through archived boards; using the mode instead of
+    MAX(created_at) keeps that lagging tail from making an old board look
+    like today's. board_date is that mode date: the estimated day the board
+    was actually presented to players.
     """
     if game not in CROWD_GAMES:
         raise ValueError(f'not a crowd game: {game!r}')
@@ -28,7 +38,24 @@ def report_sql(game, window_days, recent_days=None):
     if recent_days is not None:
         recent = ("HAVING MAX(v.created_at) >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')"
                   f" - INTERVAL {int(recent_days)} DAY")
+    window = f"CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL {int(window_days)} DAY"
     return f"""
+        WITH board_dates AS (
+            SELECT puzzle,
+                   DATE(created_at) AS vote_date,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY puzzle
+                       ORDER BY COUNT(*) DESC, DATE(created_at) DESC
+                   ) AS rn
+            FROM {game}_word_votes
+            WHERE created_at >= {window}
+            GROUP BY puzzle, DATE(created_at)
+        ),
+        boards AS (
+            SELECT puzzle, vote_date AS board_date
+            FROM board_dates
+            WHERE rn = 1
+        )
         SELECT v.word,
                v.vote AS report,
                COUNT(*) AS players_7d,
@@ -45,12 +72,14 @@ def report_sql(game, window_days, recent_days=None):
                    ELSE 'waiting'
                END AS result,
                MIN(v.created_at) AS first_report,
-               GROUP_CONCAT(DISTINCT v.puzzle ORDER BY v.puzzle) AS boards
+               v.puzzle AS board,
+               b.board_date
         FROM {game}_word_votes v
+        JOIN boards b ON b.puzzle <=> v.puzzle
         LEFT JOIN {game}_invalid_words i ON i.word = v.word
         LEFT JOIN {game}_added_words a ON a.word = v.word
-        WHERE v.created_at >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL {int(window_days)} DAY
-        GROUP BY v.word, v.vote
+        WHERE v.created_at >= {window}
+        GROUP BY v.puzzle, b.board_date, v.word, v.vote
         {recent}
-        ORDER BY players_7d DESC, last_report DESC
+        ORDER BY b.board_date DESC, v.puzzle DESC, players_7d DESC, last_report DESC
     """
