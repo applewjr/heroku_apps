@@ -347,46 +347,24 @@ def run_smush():
         if not isinstance(want_plan, bool):
             raise ValidationError('plan must be a boolean')
 
-        # ice_cold: chase the secret ICE COLD bonus (×5 for never playing a
-        # spicy letter all game) instead of the pangram/PERFECT - the two are
-        # mutually exclusive, since a pangram always touches every outer
-        # letter including whichever one is spicy.
-        ice_cold = data.get('ice_cold', False)
-        if not isinstance(ice_cold, bool):
-            raise ValidationError('ice_cold must be a boolean')
-
         # A non-empty pile contradicts first_word; trust the pile so the
         # first-word pangram bonus can't be inflated.
         first_word = first_word and not played
 
-        # Fragile letters (no solo word left) are only a trap under ice_cold -
-        # a letter stuck alive alongside spice with no shared word deadlocks
-        # the board. Computed before solving so the solver can actively rank
-        # words that clear one higher, not just report them after the fact.
-        # A letter's only solo word may already be played, so exclude
-        # played/rejected the same way the solver does.
-        smush_words = get_smush_words()
-        fragile_letters = (all_words.smush_fragile_letters(
-            center, outer_uses, smush_words,
-            exclude=set(rejected) | set(played)) if ice_cold else [])
-
         # Solve untruncated: the all-8 planner needs the cheap low-point words
         # that the ranked response cuts off.
         results, total_playable, pangram_status = all_words.smush_solver(
-            center, outer_uses, spicy.lower(), first_word, smush_words,
-            list_len=None, exclude=rejected, played=played, popularity=word_pop,
-            ice_cold=ice_cold, fragile_letters=fragile_letters)
+            center, outer_uses, spicy.lower(), first_word, get_smush_words(),
+            list_len=None, exclude=rejected, played=played, popularity=word_pop)
 
         plan = None
         if want_plan:
-            plan_words, leftover = all_words.smush_all_plan(
-                results, outer_uses, first_word=first_word)
+            plan_words, leftover = all_words.smush_all_plan(results, outer_uses)
             plan = {'complete': not leftover, 'words': plan_words,
                     'leftover': leftover}
 
         return jsonify(results=results[:400], total_playable=total_playable,
-                       pangram_status=pangram_status, plan=plan,
-                       fragile_letters=fragile_letters)
+                       pangram_status=pangram_status, plan=plan)
     else:
         log_page_visit('smush.html')
         return render_template("smush.html", schema_data=schema_data)

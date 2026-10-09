@@ -1,109 +1,9 @@
 {% extends 'base.html' %}
 
-{% block title %}Smush Solver - Find Today's Pangram & Best Words{% endblock %}
+{% block title %}Smush Dev - ICE COLD Planner{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game, with letter wear and spicy tracking.">
-<link rel="canonical" href="https://www.jamesapplewhite.com/smush">
-<meta name="keywords" content="smush solver, smush word game, hank green smush, smush pangram, smush pangram today, smush answers today, smush help, smush word finder, word game solver">
-<meta property="og:title" content="Smush Solver - Find Today's Pangram & Best Words">
-<meta property="og:description" content="Find today's Smush pangram in seconds - enter your nine letters and instantly see every playable word ranked by points, with spicy and smush multipliers tracked as you play.">
-<meta property="og:url" content="https://jamesapplewhite.com/smush">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="JJ Apps">
-
-{% if schema_data %}
-<script type="application/ld+json">{{ schema_data | tojson }}</script>
-{% endif %}
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "What is Smush?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Smush is Hank Green's free daily word game. You get a 3x3 grid of nine letters and make words for points. Every word must use the gold center letter, which never runs out. Every other letter can only be used five times total. Using the spicy letter or spending a letter's last use (smushing it) multiplies that word's points, and every board hides a pangram that uses all nine letters."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How does this Smush solver work?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the spicy letter, and mark words as played to automatically track letter wear as your game progresses. If you are already partway through a game, tap Add played word and type in the words you have used - the solver spends their letters for you."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Can I enter words I already played?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes. Tap Add played word under the board, type in each word you have used, and hit Played - the solver spends its letters and adds it to your played pile, so the rest of its suggestions fit the uses you actually have left. This is the fast way to pick the solver up mid-game when you are down to the last few letters. The box accepts any word your board can spell, whether or not it is one we suggested, so you do not need to find it in the ranked list first. One caveat: it scores the word with whatever spicy letter is set right now, so words you are catching up on can score low - the letters they spend are still exact."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How is a word scored in Smush?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Each letter has a point value similar to Scrabble, and a word's base score is the sum of its letter values. Bonuses then add to a single multiplier: +1 for each use of the spicy letter, +1 for each letter the word smushes flat (spends its last use), and +2 for a pangram, or +4 if the pangram is your very first word. The word's points are its base score times that multiplier."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "What is a pangram in Smush?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "A pangram is a word that uses every one of the nine letters on the board at least once. Every Smush board has at least one. A pangram gets +2 added to its multiplier, or +4 if it is the first word you play, so playing the pangram first is usually the single highest-scoring move of the game."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "How do I find today's Smush pangram?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Enter today's nine Smush letters into the solver with the gold center letter in the middle. Every pangram in the word list is highlighted and marked with a star, usually right at the top of the points ranking. Play it as your very first word for the biggest bonus - the pangram-first multiplier, and the setup for Smush's PERFECT score doubler."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Can this solver smush all 8 letters flat?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Yes - the All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the pangram, because playing the pangram first and cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, rejecting it recalculates a fresh plan from the words that remain."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Will Smush accept every word this solver suggests?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Not always. Smush's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver tags as rare based on real-world word frequency. When a word is refused, hit the X button on it: it is hidden from the results without spending any letters, just like a refused guess in the real game. Your X also tells us, and we take every report into account when updating the list."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Why don't my points match the game exactly?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret editor's choice word worth a flat +15 that cannot be predicted. If Smush refuses a word we suggest, hit the X on it. If Smush accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "About this tool",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by Hank Green. You can play the real game at hankgreen.com/smush."
-      }
-    }
-  ]
-}
-</script>
+<meta name="robots" content="noindex, nofollow">
 {% endblock %}
 
 {% block head %}
@@ -477,6 +377,13 @@
 
 .word-result.pangram-word .word-pts { background-color: #b7960b; }
 
+.word-eff {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .played-btn {
     flex-shrink: 0;
     background-color: #fff;
@@ -776,9 +683,103 @@
     .word-bonuses:empty { display: none; }
     .rare-flag { font-size: 12px; padding: 0 2px; }
     .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
+    .word-eff { order: 1; font-size: 10px; }
     .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
     .results-container { padding: 10px 8px 20px; }
     .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+
+/* ---------- dev page ---------- */
+.dev-badge {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: #e8d44d;
+    color: #02484d;
+    font-size: 0.45em;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.dev-note { font-size: 13px; color: #6b7280; margin: -6px 0 12px; }
+
+.import-btn {
+    display: none;
+    margin: 0 auto 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #cfe0e0;
+    background-color: #eef4f4;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.import-btn.visible { display: inline-block; }
+
+/* ---------- ICE COLD plan ---------- */
+.ice-card {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #cfe0e0;
+    background-color: #eef4f4;
+    color: #02484d;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.ice-card.bad { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
+.ice-chance { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.ice-chance small { font-size: 13px; font-weight: 600; margin-left: 6px; }
+
+.ice-label {
+    margin: 12px 0 2px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #02484d;
+    text-align: left;
+}
+
+.spice-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.spice-tile {
+    flex: 0 0 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 2px solid #e55555;
+    background-color: #fff;
+    color: #02484d;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spice-row .word-result { flex: 1 1 auto; margin: 0; min-width: 0; }
+.spice-chance { flex: 0 0 auto; font-size: 11px; color: #6b7280; min-width: 34px; text-align: right; }
+
+.ice-finish { margin-top: 8px; }
+.ice-finish b { letter-spacing: 1px; }
+.ice-source { margin-top: 6px; font-size: 11px; color: #6b7280; }
+
+@media (max-width: 480px) {
+    .ice-chance { font-size: 22px; }
+    .spice-tile { flex-basis: 28px; height: 28px; font-size: 14px; }
 }
 </style>
 {% endblock %}
@@ -787,7 +788,9 @@
 
 <center>
 <br>
-<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush Solver & Word Finder</h1>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush ICE COLD Planner<span class="dev-badge">DEV</span></h1>
+<p class="dev-note">Private test page - <a href="/smush" style="color: #02484d;">/smush</a> is unchanged. Turn on 🧊 Ice Cold and open 🥞 All 8.</p>
+<button type="button" class="import-btn" id="import-btn">⤵ Copy my game from /smush</button>
 
 <div class="instructions collapsed" id="instructions-panel">
     <div class="instructions-header" id="instructions-toggle">
@@ -825,6 +828,20 @@
         <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
         +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
         (+4 if it's your first word). Points = base × multiplier.
+        <br><br>
+        <strong>Going for ICE COLD + a clean plate?</strong> ICE COLD is Smush's secret bonus: never play a
+        word containing the 🌶 spicy letter (and play at least 5 words) and your <em>entire</em> final score is
+        ×5, Clean Plate's +50 included. Turn on <strong>🧊&nbsp;Ice Cold mode</strong> and open the
+        <strong>🥞 All 8</strong> tab. Because you never spend the spicy tile, the spice only disappears once
+        it's the last tile standing - so every clean ICE COLD game ends the same way: a word that clears
+        everything except the spicy tile, then, with no spice left, a <em>solo word</em> (that letter plus the
+        center, nothing else) that spends exactly its last uses. Solo words are rare, so the plan is a game
+        against wherever the 🌶 lands next: each turn it shows the best word for every tile the spice could
+        be on, your chance of finishing clean, and the words to save for the end. Play the word for the tile
+        that's spicy right now, hit <strong>✓&nbsp;Played</strong>, and it re-plans. If Smush refuses one,
+        hit <strong>✗</strong> - no letters are spent and the spice doesn't move. Some boards can't be
+        cleaned ICE COLD at all (a letter only the pangram can spend); the plan says so, and ICE COLD alone
+        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain.
     </div>
 </div>
 
@@ -836,6 +853,8 @@
     <button type="button" class="tool-btn" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
     <button type="button" class="tool-btn" id="we-toggle" aria-expanded="false"
             aria-controls="word-entry">➕ Add played word</button>
+    <button type="button" class="tool-btn" id="ice-cold-toggle" aria-pressed="false"
+            title="Plan for Smush's secret ICE COLD bonus: never play a word with the 🌶 spicy letter, and finish with a clean plate. ×5 on your whole final score.">🧊 Ice Cold mode</button>
 </div>
 
 <div class="tile-controls" id="tile-controls" aria-live="polite"></div>
@@ -902,18 +921,6 @@
         font-size: 14px;
         transition: all 0.2s ease;
     " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🥞 Play Smush</a>
-    <a href="/feedback" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
     <a href="#" id="reset-btn" style="
         background-color: #f8f9fa;
         color: #495057;
@@ -928,153 +935,6 @@
     " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Board</a>
 </div>
 
-<div style="margin-top: 20px; min-height: 100px;">
-    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
-    <div style="
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 4px;
-        max-width: 400px;
-        margin: 0 auto;
-    ">
-        <a href="/ribbit" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Ribbit</a>
-
-        <a href="/blossom" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
-
-        <a href="/wordle" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
-
-        <a href="/wordiply" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
-
-        <a href="/quordle" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
-
-        <a href="/antiwordle" style="
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #e9ecef;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            flex: 0 0 calc(50% - 2px);
-            text-align: center;
-            box-sizing: border-box;
-        " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
-    </div>
-</div>
-
-<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
-  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
-  <div style="border-top: 1px solid #e9ecef;">
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Smush?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Smush is Hank Green's free daily word game. You get a 3×3 grid of nine letters and make words for points. Every word must use the gold center letter, which never runs out. Every other letter can only be used five times total. Using the spicy letter or spending a letter's last use (smushing it) multiplies that word's points, and every board hides a pangram that uses all nine letters.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Smush solver work?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the 🌶 spicy letter - or use ✏️ Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can I enter words I already played?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Tap ➕ Add played word under the board, type in each word you've used, and hit ✓ Played - the solver spends its letters and adds it to your played pile, so the rest of its suggestions fit the uses you actually have left. This is the fast way to pick the solver up mid-game when you're down to the last few letters. The box accepts any word your board can spell, whether or not it's one we suggested, so you don't need to find it in the ranked list first. One caveat: it scores the word with whatever 🌶 spicy letter is set right now, so words you're catching up on can score low - the letters they spend are still exact.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How is a word scored in Smush?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Each letter has a point value similar to Scrabble, and a word's base score is the sum of its letter values. Bonuses then add to a single multiplier: +1 for each use of the 🌶 spicy letter, +1 for each letter the word 🥞 smushes flat (spends its last use), and +2 for a ★ pangram, or +4 if the pangram is your very first word. The word's points are its base score times that multiplier - so a word that uses the spicy letter once and smushes two letters scores ×4.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the best Smush strategy?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play the pangram first - the +4 first-word bonus makes it worth roughly five times its base score, usually the biggest single play of the game. After that, chase words that combine the spicy letter with smushing letters flat, since every bonus adds another +1 to the multiplier. Lean on the center letter as much as possible: it is free and its points still count.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I find today's Smush pangram?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter today's nine Smush letters into the solver with the gold center letter in the middle. Every pangram in the word list is highlighted gold and marked with a ★, usually right at the top of the points ranking. Play it as your very first word for the biggest bonus - the pangram-first multiplier, and the setup for Smush's PERFECT score doubler.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can this solver smush all 8 letters flat?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes - the 🥞 All 8 mode plans a set of words whose letter costs together spend every remaining use of all eight outer letters, flattening the whole board for Smush's Clean Plate bonus. When possible the plan starts with the ★ pangram: playing the pangram first <em>and</em> cleaning the plate earns the PERFECT bonus, which doubles your final score. Play the plan top to bottom - after the pangram it leads with its riskiest words, so a refusal lands while there are still letters left to re-plan around. If Smush refuses a word, hitting ✗ recalculates a fresh plan from the words that remain. When no combination in the dictionary can flatten everything, it shows the best plan it found and which letters get stranded.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Smush accept every word this solver suggests?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Smush's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some of them - especially obscure words, which the solver marks with <strong>⚠</strong> based on real-world word frequency. When a word is refused, hit the ✗ button on it: it's hidden from the results without spending any letters, just like a refused guess in the real game. Your ✗ also tells us, and we take every report into account when updating the list.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why don't my points match the game exactly?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Smush's official list, and each Smush puzzle also hides a secret "editor's choice" word worth a flat +15 that can't be predicted. If Smush refuses a word we suggest, hit the ✗ on it. If Smush accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list.</p>
-    </div>
-    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
-      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the Smush word game, provided for assistance and entertainment purposes only. The word list comes from an <a href="https://github.com/MagicOctopusUrn/wordListsByLength" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">open-source GitHub repository</a> and may not always align with the official game. Not affiliated with or endorsed by Hank Green. Play the real game at <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">hankgreen.com/smush</a>.</p>
-    </div>
-  </div>
-</section>
 <br>
 <br>
 </center>
@@ -1090,16 +950,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const ENTRY_ORDER = [4, 0, 1, 2, 3, 5, 6, 7, 8];
     const MAX_USES = 5;
     const WORDS_STEP = 25;
-    const STORAGE_KEY = 'smushSolverState_v1';
+    // This page keeps its own keys, so a game here never touches the one
+    // saved on /smush. /smush's save is only ever read, to import a game.
+    const STORAGE_KEY = 'smushDevState_v1';
+    const SMUSH_STORAGE_KEY = 'smushSolverState_v1';
+    const API = '/smush_dev';
     // The chosen sort/filter is a UI preference, not game state, so it lives
     // under its own key and survives board resets and the daily wipe.
-    const SORT_KEY = 'smushSortMode_v1';
+    const SORT_KEY = 'smushDevSortMode_v1';
     const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
+    // Ice Cold is a strategy choice, not game state - same reasoning as
+    // SORT_KEY, so it gets its own storage key and survives board resets.
+    const ICE_COLD_KEY = 'smushDevIceCold_v1';
+    // While the board's shared table builds, the plan is re-asked this often.
+    const BUILD_POLL_MS = 5000;
 
     /* ---------- state ---------- */
     let letters = Array(9).fill('');         // board letters, index 4 = center
     let uses = {};                           // outer letter -> remaining uses
     let spicy = '';                          // current spicy letter ('' = unset)
+    let iceCold = true;                      // chase ICE COLD (x5) - what this page is for
     let played = [];                         // [{word, pts}]
     let rejected = [];                       // words Smush refused - hidden, cost nothing
     let score = 0;
@@ -1108,19 +978,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let selected = -1;
     let fixMode = false;                     // when on, tile taps open the adjust strip
     let lastResults = [];
-    let planData = null;                     // /smush "plan" payload for the All 8 mode
+    let planData = null;                     // /smush_dev "plan" payload for the All 8 mode
     let totalPlayable = 0;
     let pangramStatus = 'none';
-    let sortMode = 'pts';                     // default; overridden by SORT_KEY if saved
+    let sortMode = 'all8';                   // default; overridden by SORT_KEY if saved
     let visibleCount = WORDS_STEP;
     let fetchTimer = null;
     let fetchSeq = 0;
+    let pollTimer = null;                    // re-asks while the shared table builds
 
     const board = document.getElementById('smush-board');
     const resultsContainer = document.getElementById('results-container');
     const boardHint = document.getElementById('board-hint');
     const tileControls = document.getElementById('tile-controls');
     const fixBtn = document.getElementById('fix-tiles-btn');
+    const iceColdBtn = document.getElementById('ice-cold-toggle');
     const boardTools = document.getElementById('board-tools');
     const weToggle = document.getElementById('we-toggle');
     const weWrap = document.getElementById('word-entry');
@@ -1212,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(fetchTimer);
         fetchSeq++;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        clearTimeout(pollTimer);
         board.classList.remove('solve-mode');
         boardTools.classList.remove('visible');
         fixBtn.classList.remove('active');
@@ -1382,12 +1255,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const pchip = document.getElementById('chip-pangram');
         if (!solveMode) { pchip.style.display = 'none'; return; }
         pchip.style.display = 'inline-block';
-        pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
-                          : pangramStatus === 'affordable' ? '★ Pangram available'
-                          : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
-                          : 'No pangram in our word list';
+        if (iceCold) {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!' : '🧊 Ice Cold: no pangram by design';
+        } else {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
+                              : pangramStatus === 'affordable' ? '★ Pangram available'
+                              : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
+                              : 'No pangram in our word list';
+        }
         const banner = document.getElementById('pangram-banner');
-        if (pangramStatus === 'out_of_reach') {
+        if (iceCold && pangramStatus !== 'found') {
+            banner.className = 'pangram-banner gone';
+            banner.textContent = '🧊 Ice Cold mode: skipping the pangram on purpose - it always touches the ' +
+                                 'spicy letter, which would break the ×5 bonus.';
+        } else if (!iceCold && pangramStatus === 'out_of_reach') {
             banner.className = 'pangram-banner gone';
             banner.textContent = '🫥 The pangram is out of reach with your remaining letter uses.';
         } else {
@@ -1421,6 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPlayed();
         renderEntry();
         persist();
+        refreshImport();
         scheduleFetch();
     }
 
@@ -1437,7 +1319,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchResults(seq) {
         const outerUses = {};
         letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
-        fetch('/smush', {
+        clearTimeout(pollTimer);
+        fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1447,7 +1330,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 first_word: played.length === 0,
                 rejected: rejected,
                 played: played.map(p => p.word),
-                plan: sortMode === 'all8'
+                plan: sortMode === 'all8',
+                ice_cold: iceCold
             })
         })
         .then(r => {
@@ -1465,6 +1349,11 @@ document.addEventListener('DOMContentLoaded', () => {
             visibleCount = WORDS_STEP;
             renderStatus();
             renderResults();
+            // The board's first ICE COLD plan takes a minute to build; ask
+            // again quietly (no "Crunching" flash) until it's ready.
+            if (planData && planData.mode === 'ice_cold' && planData.status === 'building') {
+                pollTimer = setTimeout(() => { if (solveMode) fetchResults(++fetchSeq); }, BUILD_POLL_MS);
+            }
         })
         .catch(() => {
             if (seq !== fetchSeq) return;
@@ -1479,8 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // server and only holds affordable words, so no extra sort needed.
             r = r.filter(w => w.pangram);
         } else if (sortMode === 'eff') {
-            const costOf = w => Object.values(w.cost).reduce((s, n) => s + n, 0) || 1;
-            r.sort((a, b) => (b.pts / costOf(b)) - (a.pts / costOf(a)) || b.pts - a.pts);
+            r.sort((a, b) => (b.efficiency - a.efficiency) || (b.pts - a.pts));
         }
         return r;
     }
@@ -1517,6 +1405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="word-text">${w.word.toUpperCase()}</span>
                 <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
                 <span class="word-pts">${w.pts}</span>
+                <span class="word-eff" title="Points per tile use - pick the highest to maximize your final score">${w.efficiency}/use</span>
                 <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
                 <a class="define-link"
                    href="https://en.wiktionary.org/wiki/${w.word}"
@@ -1555,6 +1444,80 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('click', () => copyWord(el)));
     }
 
+    function esc(text) {
+        return String(text ?? '').replace(/[&<>"']/g, ch =>
+            ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[ch]);
+    }
+
+    /* The ICE COLD plan. The server plays the game against a random spice, so
+       there's no fixed word list to show: just the best word for wherever the
+       🌶 is now - or for each tile it could be on, before it's tapped - the
+       chance of finishing clean and ICE COLD, and the words worth saving for
+       the end. Every ✓ or ✗ re-plans. */
+    function renderIcePlan() {
+        const p = planData;
+        const pct = v => `${Math.round((v || 0) * 100)}%`;
+        let html = `
+            <div class="results-header">
+                <span class="results-count">🧊 ICE COLD plan</span>
+                ${sortChipsHtml()}
+            </div>`;
+        if (p.status === 'building') {
+            html += `<div class="ice-card">🧊 Building this board's ICE COLD plan - the first one each day takes
+                     about ${p.eta || 45} seconds, and it shows up here by itself. Don't play yet if you want the
+                     clean finish: the first words matter most.</div>`;
+        } else if (p.status === 'failed' || p.status === 'capped') {
+            html += `<div class="ice-card bad">${esc(p.reason)}</div>`;
+        } else if (p.status === 'done') {
+            html += `<div class="ice-card">🥞 Every letter is smushed flat. If no word touched the spice, that's
+                     ICE COLD plus the Clean Plate.</div>`;
+        } else if (p.status === 'impossible') {
+            html += `<div class="ice-card bad">🫥 No clean ICE COLD finish is left. ${esc(p.reason)}
+                     <br>ICE COLD alone still ×5s your final score: keep playing non-spicy words (best first,
+                     below), and once only spicy words remain, end the game with Smush's <em>stuck?</em> link -
+                     it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
+            lastResults.slice(0, 5).forEach(w => { html += wordRowHtml(w); });
+        } else {
+            html += `<div class="ice-card">
+                <div class="ice-chance">${pct(p.p_success)}<small>chance of a clean ICE COLD finish</small></div>
+                That counts the 🌶's luck and Smush taking our words. The plan changes every turn: play the word
+                for the tile that's spicy right now, then hit ✓&nbsp;Played - or ✗ if Smush refuses it.
+            </div>`;
+            if (p.spice === 'unknown') {
+                html += `<div class="ice-label">Where's the 🌶 now? Play that tile's word</div>`;
+                letters.forEach((ch, i) => {
+                    if (!ch || i === CENTER || (uses[ch] ?? MAX_USES) === 0) return;
+                    const w = (p.by_spice || {})[ch];
+                    html += `<div class="spice-row"><span class="spice-tile">${ch.toUpperCase()}</span>`;
+                    html += w ? `${wordRowHtml(w)}<span class="spice-chance">${pct(w.p)}</span>`
+                              : `<span class="spice-chance" style="text-align:left">no word keeps a clean finish</span>`;
+                    html += `</div>`;
+                });
+            } else {
+                const label = p.spice === null
+                    ? 'No spice now - the last tile is free. Finish with'
+                    : `Play now (🌶 on ${String(p.spice).toUpperCase()})`;
+                html += `<div class="ice-label">${label}</div>`;
+                (p.next || []).slice(0, 1).forEach(w => { html += wordRowHtml(w); });
+                if ((p.next || []).length > 1) {
+                    html += `<div class="ice-label">If Smush refuses it, try</div>`;
+                    p.next.slice(1).forEach(w => { html += wordRowHtml(w); });
+                }
+            }
+            if ((p.finish_words || []).length) {
+                html += `<div class="ice-card ice-finish">Save for the finish:
+                         <b>${p.finish_words.map(w => esc(w).toUpperCase()).join(', ')}</b> - the words the
+                         plan expects to end on, so don't spend them early.</div>`;
+            }
+            html += `<div class="ice-source">${p.source === 'exact'
+                        ? 'Solved exactly for your remaining letters and words'
+                        : "From today's full-board table"}${p.sim_win_rate == null ? ''
+                        : ` · won ${pct(p.sim_win_rate)} of 24 simulated games if Smush takes every word`}</div>`;
+        }
+        resultsContainer.innerHTML = html;
+        wireResults();
+    }
+
     /* The All 8 view: a set of words whose letter costs together spend every
        remaining use, smushing the whole board flat. The server orders it for
        play - pangram first, then riskiest (least popular) words - so a
@@ -1563,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
        recalculates the plan. */
     function renderPlan() {
         if (!planData) { scheduleFetch(); return; }
+        if (planData.mode === 'ice_cold') { renderIcePlan(); return; }
         const words = planData.words || [];
         const leftover = Object.entries(planData.leftover || {})
             .map(([l, n]) => `${l.toUpperCase()}×${n}`).join(', ');
@@ -1677,14 +1641,23 @@ document.addEventListener('DOMContentLoaded', () => {
         spicy = '';
         selected = -1;
         if (fixMode) setFixMode(false);   // next tap should place the new 🌶
-        const anyAlive = letters.some((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
-        toast(`${r.word.toUpperCase()} +${r.pts} · ${anyAlive ? 'the 🌶 moved - tap the new spicy tile' : 'board smushed flat!'}`);
+        const alive = letters.filter((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
+        // Under ICE COLD the last tile left was the spicy one, so the game's
+        // spice is gone and that tile is free to finish.
+        const next = alive.length === 0 ? 'board smushed flat!'
+                   : (iceCold && alive.length === 1) ? `only ${alive[0].toUpperCase()} is left - no spice now`
+                   : iceCold ? "the 🌶 moved - play its tile's word below, or tap it"
+                   : 'the 🌶 moved - tap the new spicy tile';
+        toast(`${r.word.toUpperCase()} +${r.pts} · ${next}`);
         afterStateChange();
     }
 
     function markPlayed(word) {
         // Plan words can sit below the ranked list's cutoff, so check both.
-        const planWords = (planData && planData.words) || [];
+        // An ICE COLD plan offers its words per spicy tile instead of as a list.
+        const planWords = planData
+            ? [...(planData.words || []), ...(planData.next || []), ...Object.values(planData.by_spice || {})]
+            : [];
         const r = lastResults.find(x => x.word === word) || planWords.find(x => x.word === word);
         if (!r) return;
         recordPlay(r);
@@ -1722,7 +1695,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function postVote(payload) {
-        return fetch('/smush', {
+        return fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(Object.assign(payload, boardLetters()))
@@ -1736,8 +1709,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // when a browser blocks site data; the explainer then just shows again.
     function isFirstReject() {
         try {
-            if (localStorage.getItem('smushRejectExplained')) return false;
-            localStorage.setItem('smushRejectExplained', '1');
+            if (localStorage.getItem('smushDevRejectExplained')) return false;
+            localStorage.setItem('smushDevRejectExplained', '1');
         } catch (_) {}
         return true;
     }
@@ -1882,6 +1855,7 @@ document.addEventListener('DOMContentLoaded', () => {
         uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
         solveMode = false; selected = -1; fixMode = false;
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        clearTimeout(pollTimer);
         board.classList.remove('solve-mode');
         boardTools.classList.remove('visible');
         fixBtn.classList.remove('active');
@@ -1897,6 +1871,7 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestStatus.textContent = '';
         renderControls(); renderStatus(); renderPlayed(); renderBoard();
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        refreshImport();
         inputOf(CENTER).focus();
     }
 
@@ -1970,6 +1945,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reset-btn').addEventListener('click', resetBoard);
     document.getElementById('undo-btn').addEventListener('click', undoLast);
     fixBtn.addEventListener('click', () => setFixMode(!fixMode));
+    iceColdBtn.addEventListener('click', () => {
+        iceCold = !iceCold;
+        iceColdBtn.classList.toggle('active', iceCold);
+        iceColdBtn.setAttribute('aria-pressed', String(iceCold));
+        try { localStorage.setItem(ICE_COLD_KEY, iceCold); } catch (_) {}
+        toast(iceCold
+            ? '🧊 Ice Cold on: 🥞 All 8 plans a clean ICE COLD finish, and the word lists skip the spicy letter.'
+            : '🧊 Ice Cold off: 🥞 All 8 is the regular plan, same as /smush.', false, 4000);
+        if (solveMode) scheduleFetch();
+    });
+
+    /* ---------- copying a game from /smush ---------- */
+    /* /smush's own save is only read here, never written. */
+    const importBtn = document.getElementById('import-btn');
+    function smushSave() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(SMUSH_STORAGE_KEY)); } catch (_) {}
+        return s && Array.isArray(s.letters) && s.letters.length === 9 && !isStale(s) ? s : null;
+    }
+    function refreshImport() {
+        importBtn.classList.toggle('visible', !solveMode && !!smushSave());
+    }
+    importBtn.addEventListener('click', () => {
+        const s = smushSave();
+        if (!s) { refreshImport(); return; }
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+        if (restore()) toast('Copied your /smush game here - /smush keeps its own.');
+        refreshImport();
+    });
 
     weToggle.addEventListener('click', () => setEntryOpen(!weWrap.classList.contains('visible')));
     weInput.addEventListener('input', renderEntry);
@@ -1987,10 +1991,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const instructionsPanel = document.getElementById('instructions-panel');
     document.getElementById('instructions-toggle').addEventListener('click', () => {
         instructionsPanel.classList.toggle('collapsed');
-        try { localStorage.setItem('smushInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+        try { localStorage.setItem('smushDevInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
     });
     try {
-        if (localStorage.getItem('smushInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+        if (localStorage.getItem('smushDevInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
     } catch (_) {}
 
     // Restore the player's last sort/filter before restore() below, so a
@@ -1999,6 +2003,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedSort = localStorage.getItem(SORT_KEY);
         if (SORT_MODES.includes(savedSort)) sortMode = savedSort;
     } catch (_) {}
+    // On unless this browser turned it off here: ICE COLD is what the page is for.
+    try { iceCold = localStorage.getItem(ICE_COLD_KEY) !== 'false'; } catch (_) {}
+    iceColdBtn.classList.toggle('active', iceCold);
+    iceColdBtn.setAttribute('aria-pressed', String(iceCold));
 
     function copyWord(element) {
         const word = element.dataset.word.toUpperCase();
@@ -2026,6 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBoard();
         inputOf(CENTER).focus();
     }
+    refreshImport();
 });
 </script>
 

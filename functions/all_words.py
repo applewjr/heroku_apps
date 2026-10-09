@@ -556,8 +556,7 @@ def scrabble_score(word):
 
 
 def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
-                 exclude=None, played=None, popularity=None, ice_cold=False,
-                 fragile_letters=None):
+                 exclude=None, played=None, popularity=None):
     """Rank every playable Smush word for the current board state.
 
     Smush rules (verified against the game's source): a word must contain the
@@ -580,32 +579,12 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     popularity  -- optional {word: Zipf score}; attached to each result as
                    'pop' (0.0 when unknown) so callers can judge how likely
                    Smush is to accept the word
-    ice_cold    -- if True, drop every word that touches the current spicy
-                   letter at all, AND drop the pangram unconditionally even
-                   if spicy is '' (unknown) - a pangram always uses every
-                   outer letter, so it always touches whichever one is
-                   spicy whether or not the caller has told us which letter
-                   that is. ICE COLD is a secret end-game bonus (not
-                   documented anywhere in Smush's own UI) that ×5s the whole
-                   final score if you never play a spicy letter the entire
-                   game; the pangram exclusion makes it unreachable under
-                   this flag (pangram_status will read 'none' or
-                   'out_of_reach' accordingly - that's correct, not a bug).
-                   ICE COLD can't combine with PERFECT (which needs the
-                   pangram first), but ×5 beats PERFECT's ×2, so it's the
-                   better target on its own.
-    fragile_letters -- optional iterable of outer letters with no solo word
-                   left (see smush_fragile_letters) - a word spending any of
-                   them is tagged 'urgent' and gets a ranking boost (1.5x
-                   points, for sort purposes only - 'pts' itself is never
-                   inflated), since clearing a fragile letter while it still
-                   has living partners is time-sensitive under ice_cold.
 
     Returns (results, total_playable, pangram_status) where results is a list
-    of dicts sorted by points desc (urgent words boosted first within that)
-    and pangram_status is one of 'found' (a played word was the pangram),
-    'affordable', 'out_of_reach' (a pangram exists but uses are too
-    depleted), or 'none' (the word list has no pangram for these letters).
+    of dicts sorted by points desc and pangram_status is one of 'found' (a
+    played word was the pangram), 'affordable', 'out_of_reach' (a pangram
+    exists but uses are too depleted), or 'none' (the word list has no
+    pangram for these letters).
     """
     center = str(center).lower()
     outer_uses = {str(l).lower(): u for l, u in outer_uses.items()
@@ -614,8 +593,6 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     exclude = {str(w).lower() for w in exclude} if exclude else set()
     played = {str(w).lower() for w in played} if played else set()
     exclude |= played
-    fragile_letters = ({str(l).lower() for l in fragile_letters}
-                       if fragile_letters else set())
 
     results = []
     pangram_exists = False
@@ -631,11 +608,6 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
 
         cost = {l: w.count(l) for l in letters if l != center}
         is_pangram = letters == board_letters
-        if ice_cold and (is_pangram or (spicy and cost.get(spicy, 0) > 0)):
-            # A pangram touches every outer letter, so it always touches
-            # whichever one is spicy - exclude it on that fact alone, even
-            # before the player has told us which letter that is.
-            continue
         if is_pangram:
             pangram_exists = True
         if any(n > outer_uses[l] for l, n in cost.items()):
@@ -650,28 +622,19 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
         mult = 1 + spicy_uses + smushes + pangram_bonus
         base = smush_word_score(w)
 
-        pts = base * mult
-        fragile_hit = sorted(fragile_letters & cost.keys())
         results.append({
             'word': w,
             'base': base,
             'mult': mult,
-            'pts': pts,
+            'pts': base * mult,
             'spicy_uses': spicy_uses,
             'smushes': smushes,
             'pangram': is_pangram,
             'cost': cost,
             'pop': popularity.get(w, 0.0) if popularity else 0.0,
-            'efficiency': round(pts / max(sum(cost.values()), 1), 1),
-            'fragile_hit': fragile_hit,
-            'urgent': bool(fragile_hit),
         })
 
-    # Urgent (clears a fragile letter) words rank first within their point
-    # tier via a sort-only boost - 'pts' itself is never touched, so the
-    # number shown is always the real score.
-    results.sort(key=lambda r: (-r['pts'] * (1.5 if r['urgent'] else 1.0),
-                                -len(r['word']), r['word']))
+    results.sort(key=lambda r: (-r['pts'], -len(r['word']), r['word']))
     total_playable = len(results)
 
     if any(set(w) == board_letters for w in played):
@@ -686,138 +649,31 @@ def smush_solver(center, outer_uses, spicy, first_word, words, list_len=400,
     return results[:list_len], total_playable, pangram_status
 
 
-def smush_fragile_letters(center, outer_uses, words, exclude=None):
-    """Outer letters (with uses remaining) that have no "solo word" left to
-    play - no AVAILABLE word using just that one outer letter plus the free
-    center, with no other outer letter involved.
-
-    This matters specifically for ICE COLD: once only one or two tiles are
-    still alive, the spicy tile can only move to another LIVING tile (and
-    never back to itself), so if the board is ever reduced to exactly one
-    living letter, spicy resets to none and that letter becomes freely
-    playable again - but with two or more letters still alive, spicy can
-    get stuck cycling between them. A fragile letter (no solo word left) can
-    only ever be cleared by a word that also spends some other still-living
-    letter, so if it's ever left as one of the last two tiles standing
-    alongside a letter it has no shared word with, the board deadlocks:
-    neither letter has a legal, ice-cold-safe play. Clearing fragile letters
-    early, while more partner letters are still alive, avoids that trap. A
-    letter can start the game with solo-word coverage and still go fragile
-    mid-game once its only solo word gets played - that's exactly why
-    `exclude` (played + rejected words) matters here, not just the raw
-    dictionary.
-
-    exclude -- words no longer available (already played, or rejected by
-               Smush); dropped before checking solo coverage
-
-    Returns a sorted list of fragile letters (ones with uses_remaining > 0
-    and no available solo word in `words`).
-    """
-    center = str(center).lower()
-    outer_uses = {str(l).lower(): n for l, n in outer_uses.items()
-                  if str(l).lower() != center}
-    exclude = {str(w).lower() for w in exclude} if exclude else set()
-    solo_covered = set()
-    for word in words:
-        w = str(word).lower()
-        if not (3 <= len(w) <= 15) or center not in w or w in exclude:
-            continue
-        extra = set(w) - {center}
-        if len(extra) == 1:
-            solo_covered.add(next(iter(extra)))
-    return sorted(l for l, n in outer_uses.items()
-                  if n > 0 and l not in solo_covered)
-
-
-def _smush_play_order(chosen, outer_uses, first_word):
-    """Sequence a chosen set of smush_all_plan words into real play order
-    and rescore each one against the board state as it will actually exist
-    at that point - not the single pre-plan snapshot smush_solver computed
-    them against. Pangram leads (required first for PERFECT); after that,
-    and for a non-pangram plan's first word too, spicy_uses only applies to
-    whichever word is genuinely played first, since the spicy tile moves
-    randomly after every play and later credit would assume foreknowledge
-    the plan can't have. Returns a new list of dicts; `chosen` is untouched.
-    """
-    state = dict(outer_uses)
-    pool = list(chosen)
-    pangram_word = next((r for r in pool if r['pangram']), None)
-    ordered = []
-
-    while pool:
-        force_pangram = pangram_word is not None and not ordered
-        candidates = [pangram_word] if force_pangram else pool
-        scored = []
-        for r in candidates:
-            smushes = sum(1 for l, n in r['cost'].items()
-                          if state.get(l, 0) > 0 and n == state[l])
-            spicy_uses = r['spicy_uses'] if not ordered else 0
-            pangram_bonus = (4 if first_word else 2) if r is pangram_word else 0
-            mult = 1 + spicy_uses + smushes + pangram_bonus
-            scored.append((r['base'] * mult, r, mult, smushes, spicy_uses))
-        pts, best, mult, smushes, spicy_uses = max(scored, key=lambda t: t[0])
-        cost_total = sum(best['cost'].values())
-        ordered.append(dict(
-            best, mult=mult, pts=pts, smushes=smushes, spicy_uses=spicy_uses,
-            efficiency=round(pts / max(cost_total, 1), 1)))
-        pool.remove(best)
-        for l, n in best['cost'].items():
-            state[l] -= n
-
-    return ordered
-
-
-def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
-                   time_limit=1.5, pop_tiers=(3.3, 2.7, 2.0)):
+def smush_all_plan(results, outer_uses, run_budget=1500, time_limit=1.5,
+                   pop_tiers=(3.3, 2.7, 2.0)):
     """Plan a set of currently playable words that spends EVERY remaining use
     of every outer letter, smushing the whole board flat.
 
     results     -- untruncated smush_solver output for the current state; the
-                   plan draws its words (cost / cost-independent base score /
-                   popularity) from here, so rejected and played words are
-                   already excluded
+                   plan draws its words (cost / points / popularity) from
+                   here, so rejected and played words are already excluded
     outer_uses  -- {letter: remaining uses 0..5} for the 8 outer tiles
-    first_word  -- whether the plan's first play would be the game's first
-                   word overall (a seeded pangram's PERFECT-eligible +4
-                   bonus needs this to be true; a mid-game replan passes
-                   False)
     pop_tiers   -- descending Zipf popularity floors to try before allowing
                    the whole dictionary in
 
     A plan only ever constrains letter TOTALS: a complete plan's per-letter
     costs sum exactly to the remaining uses, and a partial plan's never
-    exceed them. Totals bound every prefix, so WHICH words get chosen never
-    depends on their order - but each word's own smush/spicy bonus does
-    depend on the board state at the moment it's actually played, so the
-    chosen set is scored and sequenced in a second pass (see below).
+    exceed them. Totals bound every prefix, so the words can be played in
+    any order without a letter running out early.
 
     Smush's real word list is stricter than ours, and one refused word breaks
     an all-8 run, so the plan's weakest word decides its odds. The search
-    therefore maximins popularity FIRST: it tries to complete a plan using
+    therefore maximins popularity: it first tries to complete a plan using
     only words at or above the highest Zipf floor, relaxing tier by tier, and
     only opens the full dictionary when no popular-only plan exists. Pangrams
     are exempt from the floor (every board has an authored pangram, and the
-    pangram-first PERFECT bonus doubles the final score) - unless ice_cold
-    excluded the pangram from `results` entirely upstream, in which case
-    there's nothing to exempt.
-
-    Safety settles WHICH candidate pool is used; score-maximizing then
-    decides WHICH words from that pool fill the plan. The real total-letter
-    spend is fixed by outer_uses no matter how it's split across words, but
-    the free center letter's value, and every word's own +1-per-spicy/
-    +1-per-smush bonus, are earned per WORD PLAYED - so splitting the same
-    letter budget across more words earns more of them. Within a candidate
-    pool the search therefore maximizes points per outer-tile-use spent
-    (efficiency), not raw points per word: within a cost signature the
-    highest-scoring word is always chosen first (same cost, so highest
-    points = highest efficiency there; ties broken by popularity), and the
-    search itself is biased toward the most efficient signatures wherever it
-    has a choice, favoring more, smaller high-value words over fewer, bigger
-    ones. This search phase only decides WHICH words to include - the points
-    and smush/spicy bonuses it uses to compare options are the pre-plan
-    snapshot from `results` (accurate for a single next move, approximate
-    for anything later in a multi-word plan), good enough to guide which
-    combination to pick.
+    pangram-first PERFECT bonus doubles the final score), and within a cost
+    signature the most popular word is always chosen first.
 
     Each attempt is a multi-dimensional subset-sum solved by depth-first
     search over remaining-uses vectors: words are grouped by cost signature,
@@ -827,23 +683,12 @@ def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
     can't be fully flattened the exact requirement is relaxed one letter at
     a time - scarcest first - and a greedy pass spends what it still can.
 
-    Once a set of words is chosen, they're re-sequenced and rescored for
-    real: a tile's smush bonus can only truly be credited to whichever word
-    actually drains it to zero *in play order*, which isn't necessarily the
-    word the single-snapshot search preferred - so this second pass replays
-    the chosen words against a simulated board, greedily picking whichever
-    remaining word scores highest against the board state as it will
-    actually stand at that point (pangram forced first, for PERFECT).
-    Spicy is only ever credited to the literal first word played - the
-    spicy tile moves randomly after every play, so crediting it further out
-    would assume foreknowledge the plan can't have. Every word's `base`,
-    `mult`, `pts`, `smushes`, and `spicy_uses` in the returned plan reflect
-    this real sequential score, not the pre-plan snapshot.
-
-    Returns (plan, leftover): plan is a list of result dicts in real play
-    order, with their scoring fields updated to the real sequential values
-    described above; leftover maps each letter the plan fails to flatten to
-    its stranded uses ({} means a complete smush).
+    Returns (plan, leftover): plan is a list of result dicts and leftover
+    maps each letter the plan fails to flatten to its stranded uses ({}
+    means a complete smush). The plan is ordered for play: pangram first
+    (PERFECT needs it as the game's first word), then least popular to most
+    popular, so any refusal lands while the board still has enough letters
+    left to re-plan around.
     """
     norm = {str(l).lower(): int(n) for l, n in outer_uses.items()}
     letters = sorted(norm)
@@ -867,9 +712,8 @@ def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
         the relax chain plus greedy top-up and always return (plan, leftover).
         """
         # Words with the same cost signature are interchangeable for the
-        # search; grouping them collapses the branching factor. The
-        # highest-scoring member fronts each group (ties broken by
-        # popularity) so plans favor the best score available.
+        # search; grouping them collapses the branching factor. The most
+        # popular member fronts each group so plans favor accepted words.
         groups = {}
         pangram_sigs = []
         for sig, r in cands:
@@ -877,7 +721,7 @@ def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
             if r['pangram'] and sig not in pangram_sigs:
                 pangram_sigs.append(sig)
         for members in groups.values():
-            members.sort(key=lambda r: (-r['pts'], -r.get('pop', 0.0)))
+            members.sort(key=lambda r: (-r.get('pop', 0.0), -r['pts']))
         sigs = list(groups)
         by_letter = [[s for s in sigs if s[i]] for i in range(n_letters)]
         supply = [sum(s[i] * len(groups[s]) for s in by_letter[i])
@@ -905,7 +749,7 @@ def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
             options = [s for s in by_letter[pivot]
                        if used[s] < len(groups[s])
                        and all(c <= n for c, n in zip(s, state))]
-            options.sort(key=lambda s: (-groups[s][0]['efficiency'], -s[pivot], -sum(s)))
+            options.sort(key=lambda s: (-s[pivot], -sum(s)))
             for s in options:
                 used[s] += 1
                 path.append(s)
@@ -979,28 +823,27 @@ def smush_all_plan(results, outer_uses, first_word=True, run_budget=1500,
                 if not fits:
                     break
                 best = max(fits, key=lambda s: (
-                    sum(1 for c, n in zip(s, state) if c and c == n),
-                    groups[s][0]['efficiency'], sum(s)))
+                    sum(1 for c, n in zip(s, state) if c and c == n), sum(s)))
                 used[best] += 1
                 path.append(best)
                 for i, c in enumerate(best):
                     state[i] -= c
 
         take = {}
-        chosen = []
+        plan = []
         for s in path:
-            chosen.append(groups[s][take.get(s, 0)])
+            plan.append(groups[s][take.get(s, 0)])
             take[s] = take.get(s, 0) + 1
-        plan = _smush_play_order(chosen, norm, first_word)
+        # Pangram up front (play it first for PERFECT), then least popular
+        # first: a refusal early leaves letters to re-plan around, while a
+        # refusal on a nearly-flat board can make all 8 impossible.
+        plan.sort(key=lambda r: (not r['pangram'], r.get('pop', 0.0), -r['pts']))
         leftover = {letters[i]: state[i]
                     for i in range(n_letters) if state[i] > 0}
         return plan, leftover
 
     # Popularity floors first: tiers are nested (thresholds descend), so an
-    # unchanged candidate count means an identical set already tried. Safety
-    # wins outright when a tier can complete the board; score-maximizing
-    # (via `solve`'s efficiency-driven search) only decides which words
-    # fill that tier, and is the sole driver once no safe tier works out.
+    # unchanged candidate count means an identical set already tried.
     tried_sizes = set()
     for floor in pop_tiers:
         if time.monotonic() > deadline:
