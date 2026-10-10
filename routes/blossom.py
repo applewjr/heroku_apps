@@ -11,7 +11,8 @@ import config
 import crowd
 # The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
 from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
-                   CROWD_REMOVE_VOTES, CROWD_WINDOW_DAYS)
+                   CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
+                   CROWD_WINDOW_DAYS)
 from data import word_pop, words_blossom
 from extensions import (INTERACTIVE_LIMITS, auth, cache, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
@@ -208,7 +209,8 @@ def blossom_admin():
                              **view,
                              recent_feedback=recent_feedback,
                              word_pop=word_pop,
-                             crowd_remove_votes=CROWD_REMOVE_VOTES,
+                             crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
+                             crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
                              crowd_add_votes=CROWD_ADD_VOTES,
                              crowd_window_days=CROWD_WINDOW_DAYS)
 

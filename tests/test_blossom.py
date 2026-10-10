@@ -477,15 +477,15 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
 
 
 def test_one_player_short_changes_nothing(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))
     assert _flag(client, "nastier").status_code == 200
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
 def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES))
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier")))
     resp = _flag(client, "nastier")
     # The deciding vote gets exactly the reply any other vote gets: players
     # are never told the threshold, or that theirs was the one that tipped it.
@@ -509,8 +509,8 @@ def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_ca
 
 
 def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    answers = _votes(players=CROWD_REMOVE_VOTES)
+    from crowd import remove_votes_needed
+    answers = _votes(players=remove_votes_needed("nastier"))
     answers["SELECT source FROM blossom_added_words"] = ("crowd",)
     db = crowd_db(answers)
     _flag(client, "nastier")
@@ -539,8 +539,8 @@ def test_unticking_the_deciding_vote_puts_the_word_back(client, crowd_db, fresh_
     with client.session_transaction() as sess:
         sess["invalid_words"] = ["nastier"]
     fresh_word_cache.set("blossom_filtered_words", {"stale"})
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))     # what's left once this vote is gone
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))     # what's left once this vote is gone
     _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
     assert fresh_word_cache.get("blossom_filtered_words") is None
@@ -562,9 +562,10 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     # Their earlier ticks today may have helped remove words before they
     # passed the limit. Once they do, any of those words left without enough
     # counting players goes back on the list.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY, CROWD_REMOVE_VOTES
+    from crowd import remove_votes_needed
+    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(
-        _votes(players=CROWD_REMOVE_VOTES - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
+        _votes(players=remove_votes_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
         rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
     )
     _flag(client, "nastier")

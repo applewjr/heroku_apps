@@ -25,20 +25,32 @@ from urllib.parse import urlencode
 import pytz
 from flask import current_app
 
+from data import word_pop
 from extensions import db_cursor, pst_now_str
 from helpers import client_ip
 from monitoring import alerts
 from monitoring.crowd_report import CROWD_GAMES, report_sql
 
-# Five to remove (raised from 3 on 2026-10-03, James's call). A tap is cheap,
-# so some players will use it on words the game took, not ones it refused.
-# Those players all tick the same popular words, so the threshold sets how
-# much of that the list can absorb. CROWD_MAX_INVALID_PER_DAY below deals with
-# the heavy cases outright.
+# Five to remove a common word (raised from 3 on 2026-10-03, James's call). A
+# tap is cheap, so some players will use it on words the game took, not ones
+# it refused. Those players all tick the same popular words, so the threshold
+# sets how much of that the list can absorb. CROWD_MAX_INVALID_PER_DAY below
+# deals with the heavy cases outright.
+# Rarer words need fewer (CROWD_REMOVE_VOTES_BY_POP, 2026-10-10, James's
+# call): the games refuse obscure words far more often, so a flag on one is
+# more likely right. Not below 3: replaying the first week of Smush votes, 4
+# of the 6 rare words with exactly 2 flags were ones James had checked and
+# added by hand, and 3 of those were flagged by the same pair within seconds.
 # Two to add because the word has to be typed and has to fit the puzzle
 # letters - but not one, because long words score highest and one player's
 # typo ("unfulfiling") would otherwise land at the top of everyone's list.
 CROWD_REMOVE_VOTES = 5
+# (lowest Zipf popularity, players needed to remove), most common first. The
+# floors are two of the Smush solver's tier floors (functions/all_words.py
+# pop_tiers), so "needs 3" lines up with its rare tag. A word below every
+# floor, or missing from data.word_pop, needs CROWD_REMOVE_VOTES_RARE.
+CROWD_REMOVE_VOTES_BY_POP = ((3.3, CROWD_REMOVE_VOTES), (2.0, 4))
+CROWD_REMOVE_VOTES_RARE = 3
 CROWD_ADD_VOTES = 2
 # A player who flags more than this many words Invalid in one day (Pacific,
 # midnight to midnight) is crossing words off, not reporting rejections:
@@ -66,6 +78,15 @@ SETTLED_RESULTS = ('removed (crowd)', 'kept: you added it',
 # Query args an admin page carries from one link to the next. Not 'success' or
 # 'error': those are one-off messages from a redirect.
 _ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
+
+
+def remove_votes_needed(word):
+    """Players needed to take `word` out of a game's list: fewer the rarer it is."""
+    pop = word_pop.get(word)
+    for floor, needed in CROWD_REMOVE_VOTES_BY_POP:
+        if pop is not None and pop >= floor:
+            return needed
+    return CROWD_REMOVE_VOTES_RARE
 
 
 def _pst_days_ago(days):
@@ -142,12 +163,16 @@ class CrowdList:
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
         self.on_change = on_change
-        self.threshold = {'invalid': CROWD_REMOVE_VOTES, 'missing': CROWD_ADD_VOTES}
         # The list a crowd decision lands in, and the list it takes the word out of.
         self.tables = {
             'invalid': (self.invalid_table, self.added_table),
             'missing': (self.added_table, self.invalid_table),
         }
+
+    @staticmethod
+    def threshold(word, kind):
+        """Players needed before the crowd's `kind` of change to `word` applies."""
+        return remove_votes_needed(word) if kind == 'invalid' else CROWD_ADD_VOTES
 
     def voter_hash(self):
         """Who is voting: an HMAC of the visitor's IP, never the IP itself.
@@ -198,7 +223,7 @@ class CrowdList:
         """
         put_back = False
         for word in set(words):
-            if self._count_players(cursor, word, 'invalid') < CROWD_REMOVE_VOTES:
+            if self._count_players(cursor, word, 'invalid') < remove_votes_needed(word):
                 cursor.execute(
                     f"DELETE FROM {self.invalid_table} WHERE word = %s AND source = 'crowd'", (word,))
                 put_back = put_back or cursor.rowcount > 0
@@ -268,7 +293,7 @@ class CrowdList:
                         "WHERE voter_hash = %s AND vote = 'invalid' AND created_at >= %s",
                         (voter, _pst_today_start()))
                     put_back = self._put_back_unsupported(cursor, [w for (w,) in cursor.fetchall()])
-                elif self._count_players(cursor, word, kind) >= self.threshold[kind]:
+                elif self._count_players(cursor, word, kind) >= self.threshold(word, kind):
                     applied = self._apply_crowd_change(cursor, word, kind)
                 conn.commit()
         except Exception as e:
@@ -295,7 +320,7 @@ class CrowdList:
                 # Only a vote that was actually counted can undo anything: a
                 # flag that never recorded one (the word was already gone, say)
                 # can't.
-                if cursor.rowcount > 0 and self._count_players(cursor, word, kind) < self.threshold[kind]:
+                if cursor.rowcount > 0 and self._count_players(cursor, word, kind) < self.threshold(word, kind):
                     target = self.tables[kind][0]
                     cursor.execute(f"DELETE FROM {target} WHERE word = %s AND source = 'crowd'", (word,))
                     reverted = cursor.rowcount > 0
@@ -415,4 +440,5 @@ class CrowdList:
             'clear_url': _admin_url(path, {'tab': active_tab, 'settled': args.get('settled')}),
             'active_tab': active_tab,
             'in_both': in_both,
+            'votes_needed': self.threshold,
         }

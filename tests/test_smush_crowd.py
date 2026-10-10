@@ -65,16 +65,16 @@ def test_reject_records_a_vote_for_this_board(client, smush_db):
 
 
 def test_one_player_short_changes_nothing(client, smush_db):
-    from crowd import CROWD_REMOVE_VOTES
-    db = smush_db(_votes(players=CROWD_REMOVE_VOTES - 1))
+    from crowd import remove_votes_needed
+    db = smush_db(_votes(players=remove_votes_needed(LISTED) - 1))
     _vote(client, "reject", LISTED)
     assert not db.statements("INSERT INTO smush_invalid_words")
 
 
 def test_the_deciding_player_removes_the_word(client, smush_db):
     import routes.smush as smush
-    from crowd import CROWD_REMOVE_VOTES
-    db = smush_db(_votes(players=CROWD_REMOVE_VOTES))
+    from crowd import remove_votes_needed
+    db = smush_db(_votes(players=remove_votes_needed(LISTED)))
     resp = _vote(client, "reject", LISTED)
     # Exactly the reply any other vote gets.
     assert resp.get_json() == {"status": "success"}
@@ -86,6 +86,52 @@ def test_the_deciding_player_removes_the_word(client, smush_db):
     assert smush._smush_words["expires"] == 0.0
 
 
+@pytest.mark.parametrize("pop, needed", [
+    (7.59, 5), (3.3, 5), (3.29, 4), (2.0, 4), (1.99, 3), (1.01, 3), (None, 3),
+])
+def test_rarer_words_need_fewer_players_to_remove(monkeypatch, pop, needed):
+    import crowd
+    monkeypatch.setattr(crowd, "word_pop", {} if pop is None else {"zarf": pop})
+    assert crowd.remove_votes_needed("zarf") == needed
+    assert crowd.CrowdList.threshold("zarf", "invalid") == needed
+    # Adding a word doesn't depend on how common it is.
+    assert crowd.CrowdList.threshold("zarf", "missing") == crowd.CROWD_ADD_VOTES
+
+
+def test_the_scale_never_goes_below_three_or_above_five():
+    import crowd
+    assert crowd.CROWD_REMOVE_VOTES_RARE == 3
+    assert crowd.CROWD_REMOVE_VOTES_BY_POP[0][1] == crowd.CROWD_REMOVE_VOTES == 5
+    floors = [floor for floor, _ in crowd.CROWD_REMOVE_VOTES_BY_POP]
+    assert floors == sorted(floors, reverse=True)
+
+
+def test_a_rare_word_goes_at_three_players_a_common_one_does_not(client, smush_db, monkeypatch):
+    import crowd
+    monkeypatch.setattr(crowd, "word_pop", {LISTED: 1.2})
+    db = smush_db(_votes(players=3))
+    _vote(client, "reject", LISTED)
+    assert db.statements("INSERT INTO smush_invalid_words")
+
+    monkeypatch.setattr(crowd, "word_pop", {LISTED: 4.5})
+    db = smush_db(_votes(players=4))
+    _vote(client, "reject", LISTED)
+    assert not db.statements("INSERT INTO smush_invalid_words")
+
+
+def test_taking_back_a_vote_uses_the_same_scale(client, smush_db, monkeypatch):
+    import crowd
+    # A rare word removed by 3 stays removed while 3 are left...
+    monkeypatch.setattr(crowd, "word_pop", {})
+    db = smush_db(_votes(players=3))
+    _vote(client, "restore", LISTED)
+    assert not db.statements("DELETE FROM smush_invalid_words")
+    # ...and goes back at 2.
+    db = smush_db(_votes(players=2))
+    _vote(client, "restore", LISTED)
+    assert db.statements("DELETE FROM smush_invalid_words WHERE word = %s AND source = 'crowd'")
+
+
 def test_the_crowd_never_reverses_your_own_entry(client, smush_db):
     answers = _votes(players=9)
     answers["SELECT source FROM smush_added_words"] = ("admin",)
@@ -95,8 +141,8 @@ def test_the_crowd_never_reverses_your_own_entry(client, smush_db):
 
 
 def test_restoring_the_deciding_vote_puts_the_word_back(client, smush_db):
-    from crowd import CROWD_REMOVE_VOTES
-    db = smush_db(_votes(players=CROWD_REMOVE_VOTES - 1))   # what's left once this vote is gone
+    from crowd import remove_votes_needed
+    db = smush_db(_votes(players=remove_votes_needed(LISTED) - 1))   # what's left once this vote is gone
     assert _vote(client, "restore", LISTED).get_json() == {"status": "success"}
     assert db.statements("DELETE FROM smush_word_votes WHERE word = %s AND vote = %s AND voter_hash")
     assert db.statements("DELETE FROM smush_invalid_words WHERE word = %s AND source = 'crowd'")
@@ -273,6 +319,26 @@ def test_admin_page_shows_word_popularity(client, smush_db, monkeypatch):
     # Below 2 is what the solver tags rare; a word not in the list says so.
     assert '<td class="pop-rare">1.2</td>' in html
     assert '<td class="pop-none">none</td>' in html
+
+
+def test_admin_needed_column_shows_what_each_word_needs(client, smush_db, monkeypatch):
+    from datetime import datetime
+    import crowd
+    when = datetime(2026, 10, 4, 8, 0)
+    monkeypatch.setattr(crowd, "word_pop", {"flagellum": 2.22, "leaf": 4.35})
+    smush_db(rows={
+        "FROM smush_word_votes v": [("flagellum", "invalid", 2, when, "waiting", when, None),
+                                    ("leaf", "invalid", 1, when, "waiting", when, None),
+                                    ("glop", "invalid", 1, when, "waiting", when, None),
+                                    ("glumac", "missing", 1, when, "waiting", when, None)],
+    })
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert re.search(r"<td>2</td>\s*<td>4</td>", html)     # flagellum
+    assert re.search(r"<td>1</td>\s*<td>5</td>", html)     # leaf
+    assert re.search(r"<td>1</td>\s*<td>3</td>", html)     # glop, not in the frequency list
+    assert re.search(r"<td>1</td>\s*<td>2</td>", html)     # glumac, a suggestion
+    assert "<th>Players</th>" in html and "<th>Needed</th>" in html
+    assert "5 at popularity 3.3 or above, 4 at popularity 2.0 or above, 3 below that or none" in html
 
 
 def test_settled_reports_come_back_on_request(client, smush_db, monkeypatch):

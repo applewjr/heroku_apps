@@ -428,7 +428,7 @@
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         <h2>Player Reports, last {{ crowd_window_days }} days</h2>
         <p class="crowd-note">"invalid" is an Invalid tick on a result (Blossom rejected it). "missing" is the box under the results (Blossom accepted a word we don't list).
-            A word is removed once {{ crowd_remove_votes }} different players flag it, and added once {{ crowd_add_votes }} suggest it.
+            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily Invalid limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
         <p class="crowd-note">
@@ -447,6 +447,7 @@
                     <th>Popularity</th>
                     <th>Report</th>
                     <th>Players</th>
+                    <th>Needed</th>
                     <th>First / last report</th>
                     <th>Board (letters)</th>
                     <th>Board date</th>
@@ -461,6 +462,7 @@
                     {{ pop_cell(r[0]) }}
                     <td>{{ r[1] }}</td>
                     <td>{{ r[2] }}</td>
+                    <td>{{ votes_needed(r[0], r[1]) }}</td>
                     <td class="report-dates">
                         {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
                         {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
@@ -520,7 +522,7 @@
     <!-- Removed Words Tab -->
     <div id="invalid-tab" class="tab-content{% if active_tab == 'invalid' %} active{% endif %}">
         <h2>Removed Words (Hidden from Results)</h2>
-        <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Undo puts the word back and resets its votes.</p>
+        <p class="crowd-note">"Crowd" rows were applied automatically once enough different players flagged the word ({{ crowd_remove_rare }} to {{ crowd_remove_bands[0][1] }}, depending on its popularity). Undo puts the word back and resets its votes.</p>
         {% if invalid_words %}
         <div class="table-wrap">
         <table class="words-table">
