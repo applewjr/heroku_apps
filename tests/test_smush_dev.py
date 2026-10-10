@@ -28,8 +28,9 @@ def _body(outer_uses, **extra):
 
 
 class _Dev:
-    def __init__(self, client, headers, jobs, db, module):
+    def __init__(self, client, headers, jobs, db, module, sweeps):
         self.client, self.headers, self.jobs, self.db, self.module = client, headers, jobs, db, module
+        self.sweeps = sweeps
 
     def post(self, body, headers=None):
         return self.client.post("/smush_dev", json=body,
@@ -49,10 +50,14 @@ def dev(client, monkeypatch):
     jobs = []
     monkeypatch.setattr(smush_dev, "TABLES", ice.TableCache(spawn=jobs.append))
     monkeypatch.setattr(smush_dev, "EXACT", ice.ExactCache())
+    # The sweeper's loop is captured too, never started.
+    sweeps = []
+    monkeypatch.setattr(smush_dev, "SWEEPER", ice.IdleSweeper(
+        lambda: (smush_dev.TABLES, smush_dev.EXACT), start=sweeps.append))
     monkeypatch.setattr(smush_dev, "_vote_counts", {})
     monkeypatch.setattr(smush_dev, "_board_results", {})
     monkeypatch.setattr(smush_dev, "_played", {"day": None, "boards": {}})
-    return _Dev(client, _admin_headers(monkeypatch), jobs, db, smush_dev)
+    return _Dev(client, _admin_headers(monkeypatch), jobs, db, smush_dev, sweeps)
 
 
 def test_the_page_and_its_api_need_the_admin_password(dev):
@@ -97,6 +102,28 @@ def test_ice_cold_warms_the_table_before_all_8_is_opened(dev):
     resp = dev.post(_body(FULL, plan=False))
     assert resp.get_json()["plan"] is None
     assert len(dev.jobs) == 1
+
+
+def test_a_finished_game_gives_its_tables_back(dev, monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(dev.module, "EXACT", ice.ExactCache(clock=lambda: now[0]))
+    dev.post(_body(LATE, spicy="m"))
+    dev.post(_body(FULL, spicy="g"))                       # starts the full-board build
+    assert len(dev.sweeps) == 1                            # one sweeper for both caches
+    assert dev.module.EXACT.holding() and dev.module.TABLES.holding()
+    now[0] += ice.IDLE_RELEASE_SECONDS
+    assert dev.module.SWEEPER.sweep()
+    assert not dev.module.EXACT.holding()
+    assert dev.module.TABLES.holding()                     # the build is still on its way
+
+
+def test_boards_played_once_dont_pile_up(dev):
+    dev.post(_body(LATE, spicy="m"))
+    for cache in (dev.module._board_results, dev.module._vote_counts):
+        cache[TAG] = (0.0, cache[TAG][1])                  # long run out
+    dev.post(dict(_body(dict.fromkeys("bcghlntu", 1)), center="i"))
+    assert list(dev.module._board_results) == ["i:bcghlntu"]
+    assert list(dev.module._vote_counts) == ["i:bcghlntu"]
 
 
 def test_played_words_count_as_accepted_for_the_board(dev):

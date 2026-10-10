@@ -112,8 +112,16 @@ def invalid_vote_counts(tag, words):
             print(f"smush_dev: no ✗ counts this time: {e}")
             ttl = VOTE_RETRY_SECONDS
     with _cache_lock:
+        _drop_expired(_vote_counts, now)
         _vote_counts[tag] = (now + ttl, counts)
     return counts
+
+
+def _drop_expired(cache, now):
+    """Forget boards whose cached entry has run out, so boards played once
+    don't pile up until the next restart."""
+    for tag in [t for t, (expires, _) in cache.items() if expires <= now]:
+        del cache[tag]
 
 
 def full_board_results(tag, center, letters, smush_words):
@@ -127,6 +135,7 @@ def full_board_results(tag, center, letters, smush_words):
         center, {l: 5 for l in letters}, '', False, smush_words,
         list_len=None, popularity=word_pop)
     with _cache_lock:
+        _drop_expired(_board_results, now)
         _board_results[tag] = (now + BOARD_CACHE_SECONDS, results)
     return results
 
@@ -139,6 +148,9 @@ def _build_failed(exc):
 
 TABLES = ice.TableCache(on_error=_build_failed, rebuild_gap=TABLE_REBUILD_SECONDS)
 EXACT = ice.ExactCache()
+# Drops both caches' tables once they've sat unused for
+# ice.IDLE_RELEASE_SECONDS, then stops until the next request.
+SWEEPER = ice.IdleSweeper(lambda: (TABLES, EXACT))
 
 
 def planning_spice(spicy, letters, L):
@@ -185,12 +197,14 @@ def ice_cold_plan(center, outer_uses, spicy, results, played, smush_words, want_
         # and ✗'d words are already out of `results`.
         pool = ice.Pool(ice.make_groups(results, letters, accepted, votes))
         table = EXACT.get((tag, L, pool.fingerprint()), lambda: ice.solve_box(L, pool.groups))
+        SWEEPER.poke()
         payload = ice.plan_payload(table, pool, L, spice, letters)
         payload['source'] = 'exact'
         return payload
 
     shared = ice.Pool(ice.make_groups(full, letters, accepted, votes))
     table, status, eta = TABLES.get(tag, shared.fingerprint(), lambda: shared)
+    SWEEPER.poke()
     if not want_plan:
         return None
     if table is None:

@@ -61,9 +61,11 @@ at or below a root L (mixed-radix indexing, one layer per total remaining
 uses). The full board's box - 1.68M states x 9 spice columns - takes about a
 minute, so /smush_dev builds it once per board in a background thread
 (TableCache); smaller boxes are solved per request from the player's exact
-word pool.
+word pool. Tables nobody has used for IDLE_RELEASE_SECONDS are dropped
+(IdleSweeper), so a finished game gives its memory back.
 """
 
+import ctypes
 import hashlib
 import math
 import random
@@ -78,6 +80,12 @@ import numpy as np
 N_LETTERS = 8
 FULL_ROOT = (5,) * N_LETTERS
 NULL = N_LETTERS                 # the tables' column for the spice-free turn
+
+# A table nobody has used for this long is dropped. The full-board table only
+# answers a game's first few words - the per-request solve takes over after
+# that - so it goes about this long after the opening (James's call,
+# 2026-10-10: one player, no need to keep a board's strategy after playing).
+IDLE_RELEASE_SECONDS = 900
 
 # A request solves the box below the player's own uses when it holds at most
 # this many states. Measured 2026-10-09 (points and chance): 0.4 s at 9k
@@ -744,6 +752,18 @@ def states_below(L):
     return math.prod(l + 1 for l in L)
 
 
+def release_memory():
+    """Give freed memory back to the OS. Dropping a table frees its arrays,
+    but on Linux (the dyno) glibc keeps freed blocks for reuse, so the
+    process only shrinks once malloc_trim hands them back. Does nothing where
+    there's no glibc (Windows, macOS)."""
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except OSError:
+        return
+    libc.malloc_trim(0)
+
+
 class TableCache:
     """The shared full-board table: one board at a time, built lazily in a
     background thread the first time a request needs it.
@@ -752,12 +772,13 @@ class TableCache:
     2026-10-09). Nothing is persisted: a dyno restart just rebuilds on the
     next request. A newer fingerprint for the same board (a crowd correction,
     a newly played or flagged word) rebuilds it, but at most once per
-    `rebuild_gap`, and the old table keeps answering meanwhile.
+    `rebuild_gap`, and the old table keeps answering meanwhile. A table no
+    request has used for `idle_seconds` goes (release_idle, IdleSweeper).
     """
 
     def __init__(self, solve=None, spawn=None, clock=time.monotonic, on_error=None,
                  max_builds_per_day=12, retry_after=600.0, rebuild_gap=900.0,
-                 expected_seconds=60.0):
+                 expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS):
         self.solve = solve or solve_box
         self.spawn = spawn or self._spawn_thread
         self.clock = clock
@@ -766,8 +787,10 @@ class TableCache:
         self.retry_after = retry_after
         self.rebuild_gap = rebuild_gap
         self.expected_seconds = expected_seconds
+        self.idle_seconds = idle_seconds
         self._lock = threading.Lock()
         self._entry = None           # (key, fingerprint, table, built_at)
+        self._used_at = None         # when a request last got the table
         self._job = None             # (key, fingerprint, started_at)
         self._failed = {}            # key -> when it failed
         self._day = None
@@ -794,6 +817,7 @@ class TableCache:
             now = self.clock()
             entry = self._entry
             if entry is not None and entry[0] == key:
+                self._used_at = now
                 if (entry[1] != fingerprint and self._job is None
                         and now - entry[3] >= self.rebuild_gap and self._may_build()):
                     self._start(key, fingerprint, make_pool, now)
@@ -826,24 +850,46 @@ class TableCache:
                 return
             with self._lock:
                 self._entry = (key, fingerprint, table, self.clock())
+                self._used_at = self.clock()
                 self._failed.pop(key, None)
                 self._job = None
                 self.expected_seconds = max(5.0, self.clock() - started)
+            # The build's scratch arrays (~70 MB), and any table this one replaced.
+            release_memory()
 
         self.spawn(run)
+
+    def holding(self):
+        """Whether there's a table, or one on the way."""
+        with self._lock:
+            return self._entry is not None or self._job is not None
+
+    def release_idle(self):
+        """Drop the table if no request has used it for idle_seconds.
+        -> whether it went. A build in progress carries on."""
+        with self._lock:
+            if self._entry is None or self.clock() - self._used_at < self.idle_seconds:
+                return False
+            self._entry = None
+        return True
 
 
 class ExactCache:
     """The last few per-request tables, so tapping a different spicy tile or
-    re-polling doesn't re-solve the same box."""
+    re-polling doesn't re-solve the same box. All go once none has been used
+    for `idle_seconds`."""
 
-    def __init__(self, size=4):
+    def __init__(self, size=4, clock=time.monotonic, idle_seconds=IDLE_RELEASE_SECONDS):
         self.size = size
+        self.clock = clock
+        self.idle_seconds = idle_seconds
         self._lock = threading.Lock()
         self._tables = OrderedDict()
+        self._used_at = None
 
     def get(self, key, build):
         with self._lock:
+            self._used_at = self.clock()
             if key in self._tables:
                 self._tables.move_to_end(key)
                 return self._tables[key]
@@ -854,3 +900,63 @@ class ExactCache:
             while len(self._tables) > self.size:
                 self._tables.popitem(last=False)
         return table
+
+    def holding(self):
+        with self._lock:
+            return bool(self._tables)
+
+    def release_idle(self):
+        """Drop every table if none has been used for idle_seconds.
+        -> whether they went."""
+        with self._lock:
+            if not self._tables or self.clock() - self._used_at < self.idle_seconds:
+                return False
+            self._tables.clear()
+        return True
+
+
+class IdleSweeper:
+    """Wakes every `every` seconds while any of its caches holds a table (or
+    is building one), drops the tables nobody has used lately, and stops once
+    they're all empty - so memory goes back without anyone pressing a button.
+
+    Call poke() whenever a request has touched the caches; it starts the loop
+    if it isn't running. `caches` is a function returning them, so it always
+    sweeps the current ones (tests swap them out)."""
+
+    def __init__(self, caches, every=60.0, start=None, sleep=time.sleep):
+        self.caches = caches
+        self.every = every
+        self.start = start or self._start_thread
+        self.sleep = sleep
+        self._lock = threading.Lock()
+        self._running = False
+
+    @staticmethod
+    def _start_thread(target):
+        threading.Thread(target=target, name='smush-ice-sweep', daemon=True).start()
+
+    def poke(self):
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+        self.start(self._loop)
+
+    def sweep(self):
+        """One pass. -> whether anything was dropped."""
+        dropped = [cache.release_idle() for cache in self.caches()]
+        if any(dropped):
+            release_memory()
+        return any(dropped)
+
+    def _loop(self):
+        while True:
+            self.sleep(self.every)
+            self.sweep()
+            with self._lock:
+                # Checked under the lock poke() takes, so a table stored
+                # just now either keeps this loop going or starts a new one.
+                if not any(cache.holding() for cache in self.caches()):
+                    self._running = False
+                    return

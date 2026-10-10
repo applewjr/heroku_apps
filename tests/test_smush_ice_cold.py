@@ -402,6 +402,79 @@ def test_builds_are_capped_per_day():
     assert cache.get("two", "f", pool)[1] == "capped"
 
 
+def test_a_table_nobody_uses_goes_after_the_idle_time():
+    cache, jobs, clock, _ = _cache(idle_seconds=900)
+    pool = lambda: ice.Pool([])
+    cache.get("k", "f", pool); jobs.pop()()
+    clock.now += 899
+    assert not cache.release_idle()
+    assert cache.get("k", "f", pool)[0] == "table-1"     # a use restarts the wait
+    clock.now += 899
+    assert not cache.release_idle()
+    clock.now += 1
+    assert cache.release_idle() and not cache.holding()
+    # Coming back later just builds it again.
+    assert cache.get("k", "f", pool)[1] == "building"
+
+
+def test_a_build_on_the_way_counts_as_holding():
+    cache, jobs, clock, _ = _cache()
+    cache.get("k", "f", lambda: ice.Pool([]))
+    assert cache.holding() and not cache.release_idle()
+
+
+def test_exact_tables_all_go_once_none_is_used():
+    clock = _Clock()
+    cache = ice.ExactCache(clock=clock, idle_seconds=900)
+    cache.get("a", lambda: "table-a")
+    clock.now += 600
+    cache.get("b", lambda: "table-b")
+    clock.now += 600
+    assert not cache.release_idle()                       # B was used 600 s ago
+    clock.now += 300
+    assert cache.release_idle() and not cache.holding()
+
+
+class _Held:
+    """A cache stand-in for the sweeper: holds until it's released."""
+
+    def __init__(self, idle):
+        self.idle, self.held = idle, True
+
+    def release_idle(self):
+        if self.held and self.idle:
+            self.held = False
+            return True
+        return False
+
+    def holding(self):
+        return self.held
+
+
+def test_the_sweeper_runs_while_something_is_held_then_stops(monkeypatch):
+    trims = []
+    monkeypatch.setattr(ice, "release_memory", lambda: trims.append(1))
+    loops, naps = [], []
+    caches = [_Held(idle=False), _Held(idle=False)]
+
+    def nap(seconds):
+        naps.append(seconds)
+        caches[len(naps) - 1].idle = True                 # by the n-th wake, cache n sits unused
+
+    sweeper = ice.IdleSweeper(lambda: caches, every=60, start=loops.append, sleep=nap)
+    sweeper.poke(); sweeper.poke()
+    assert len(loops) == 1                                # one loop, however many requests
+    loops[0]()           # wakes, drops the first; wakes, drops the second; nothing left, stops
+    assert naps == [60, 60] and trims == [1, 1]
+    assert not any(c.holding() for c in caches)
+    sweeper.poke()
+    assert len(loops) == 2                                # the next request starts it again
+
+
+def test_releasing_memory_is_safe_anywhere():
+    ice.release_memory()                                  # malloc_trim on Linux, nothing elsewhere
+
+
 # --- a real board ---------------------------------------------------------------
 
 def _real_board(outer):
