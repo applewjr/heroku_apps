@@ -322,6 +322,15 @@
     color: #02484d;
     font-weight: bold;
 }
+
+.pop-rare {
+    color: #b00020;
+    font-weight: bold;
+}
+
+.pop-none {
+    color: #999;
+}
 </style>
 
 {% macro pager(p) %}
@@ -335,6 +344,15 @@
     <span class="crowd-note">Page {{ p.page }} of {{ p.pages }}</span>
 </nav>
 {% endif %}
+{% endmacro %}
+
+{# How common the word is: the Zipf score the Smush solver ranks by (see
+   data.word_pop). Below 2 is what the solver tags rare; a word missing from
+   the frequency list counts as 0 there. #}
+{% macro pop_cell(word) %}
+{% set pop = word_pop.get(word) %}
+{% if pop is none %}<td class="pop-none">none</td>
+{% else %}<td class="{{ 'pop-rare' if pop < 2 else '' }}">{{ '%.1f' % pop }}</td>{% endif %}
 {% endmacro %}
 
 <div class="admin-container">
@@ -397,6 +415,7 @@
         <button type="submit" class="btn btn-primary">Search</button>
         {% if query %}<a href="{{ clear_url }}">Clear search</a>{% endif %}
     </form>
+    <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Smush solver tags rare; "none" means it isn't in the frequency list at all.</p>
 
     <div class="tab-container">
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
@@ -425,6 +444,7 @@
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Report</th>
                     <th>Players</th>
                     <th>First / last report</th>
@@ -438,6 +458,7 @@
                 {% for r in reports %}
                 <tr>
                     <td><strong>{{ r[0] }}</strong></td>
+                    {{ pop_cell(r[0]) }}
                     <td>{{ r[1] }}</td>
                     <td>{{ r[2] }}</td>
                     <td class="report-dates">
@@ -506,6 +527,7 @@
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Added Date</th>
                     <th>By</th>
                     <th>Action</th>
@@ -515,6 +537,7 @@
                 {% for word_data in invalid_words %}
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
@@ -546,6 +569,7 @@
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Added Date</th>
                     <th>By</th>
                     <th>Action</th>
@@ -555,6 +579,7 @@
                 {% for word_data in added_words %}
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>

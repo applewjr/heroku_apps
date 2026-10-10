@@ -692,6 +692,21 @@ def test_admin_page_shows_who_made_each_change(client, crowd_db, monkeypatch):
     assert '<td class="by-admin">you</td>' in html
 
 
+def test_admin_page_shows_word_popularity(client, crowd_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 9, 30, 8, 0)
+    monkeypatch.setattr("routes.blossom.word_pop", {"figuline": 0.84, "nastier": 3.4})
+    crowd_db(rows={
+        "FROM blossom_invalid_words": [("figuline", when, "crowd"), ("yatagan", when, "admin")],
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, None)],
+    })
+    html = client.get("/blossom_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<th>Popularity</th>" in html
+    assert '<td class="">3.4</td>' in html
+    assert '<td class="pop-rare">0.8</td>' in html
+    assert '<td class="pop-none">none</td>' in html
+
+
 def test_admin_needs_the_password(client, crowd_db):
     crowd_db()
     assert client.get("/blossom_admin").status_code == 401

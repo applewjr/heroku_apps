@@ -259,6 +259,22 @@ def test_admin_page_shows_lists_and_reports(client, smush_db, monkeypatch):
     assert "l:acefgmou" in html
 
 
+def test_admin_page_shows_word_popularity(client, smush_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    monkeypatch.setattr("routes.smush.word_pop", {"glop": 1.23, "flagellum": 2.5})
+    smush_db(rows={
+        "FROM smush_invalid_words": [("glop", when, "crowd"), ("zarf", when, "admin")],
+        "FROM smush_word_votes v": [("flagellum", "invalid", 3, when, "waiting", when, None)],
+    })
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<th>Popularity</th>" in html
+    assert '<td class="">2.5</td>' in html
+    # Below 2 is what the solver tags rare; a word not in the list says so.
+    assert '<td class="pop-rare">1.2</td>' in html
+    assert '<td class="pop-none">none</td>' in html
+
+
 def test_settled_reports_come_back_on_request(client, smush_db, monkeypatch):
     from datetime import datetime
     when = datetime(2026, 10, 4, 8, 0)
