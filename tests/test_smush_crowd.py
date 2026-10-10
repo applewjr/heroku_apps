@@ -341,6 +341,19 @@ def test_admin_needed_column_shows_what_each_word_needs(client, smush_db, monkey
     assert "5 at popularity 3.3 or above, 4 at popularity 2.0 or above, 3 below that or none" in html
 
 
+def test_a_late_vote_on_your_own_change_counts_as_settled(client, smush_db, monkeypatch):
+    # A player whose results predate your change can still vote on the word.
+    from datetime import datetime
+    when = datetime(2026, 10, 10, 7, 28)
+    smush_db(rows={
+        "FROM smush_word_votes v": [("iodid", "invalid", 1, when, "removed (admin)", when, None),
+                                    ("oof", "missing", 1, when, "added (admin)", when, None)],
+    })
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>iodid</strong>" not in html and "<strong>oof</strong>" not in html
+    assert "2 settled reports hidden" in html
+
+
 def test_settled_reports_come_back_on_request(client, smush_db, monkeypatch):
     from datetime import datetime
     when = datetime(2026, 10, 4, 8, 0)

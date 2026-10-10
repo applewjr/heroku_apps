@@ -72,9 +72,12 @@ _CROWD_OPPOSITE = {'invalid': 'missing', 'missing': 'invalid'}
 
 # Admin pages: rows per page, and the report results a change has already
 # settled. Settled reports are hidden from the list unless the admin asks.
+# The admin ones are here too: an admin change clears the word's votes, but a
+# player whose results predate it can still vote on it afterwards.
 ADMIN_PAGE_SIZE = 100
 SETTLED_RESULTS = ('removed (crowd)', 'kept: you added it',
-                   'kept out: you removed it', 'added (crowd)')
+                   'kept out: you removed it', 'added (crowd)',
+                   'removed (admin)', 'added (admin)')
 # Query args an admin page carries from one link to the next. Not 'success' or
 # 'error': those are one-off messages from a redirect.
 _ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
