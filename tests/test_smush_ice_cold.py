@@ -1,9 +1,10 @@
 """ICE COLD planner (functions/smush_ice_cold.py).
 
 Most boards here are tiny hand-built ones over the eight letter slots a..h,
-so each solve takes milliseconds and every expected chance can be worked out
-by hand. Words are given as solver-shaped rows: only their cost (the uses of
-each letter), popularity and pangram flag matter to the planner.
+so each solve takes milliseconds and every expected chance and point total
+can be worked out by hand. Words are given as solver-shaped rows: only their
+cost (the uses of each letter), base score, popularity and pangram flag
+matter to the planner. A word's base defaults to its length.
 """
 
 import numpy as np
@@ -15,8 +16,9 @@ LETTERS = tuple("abcdefgh")
 A, B, C, D = 0, 1, 2, 3
 
 
-def row(word, cost, pop=4.0, pangram=False):
-    return {"word": word, "cost": cost, "pop": pop, "base": len(word), "pangram": pangram}
+def row(word, cost, pop=4.0, pangram=False, base=None):
+    return {"word": word, "cost": cost, "pop": pop, "pangram": pangram,
+            "base": len(word) if base is None else base}
 
 
 def uses(**counts):
@@ -31,14 +33,23 @@ def solve(rows, L, accepted=None):
     return ice.solve_box(L, groups), ice.Pool(groups)
 
 
-# --- the endgame -------------------------------------------------------------
+@pytest.fixture
+def no_hoard(monkeypatch):
+    """Point totals without the per-word Word Hoard share, so they add up by hand."""
+    monkeypatch.setattr(ice, "WORD_HOARD_PER_WORD", 0.0)
 
-def test_two_solo_letters_finish_whatever_the_spice_does():
+
+# --- the endgame: chances ------------------------------------------------------
+
+def test_two_solo_letters_finish_whatever_the_spice_does(no_hoard):
     # A:1 and B:1, each with its own solo word: play the other letter's word,
     # the spice has nowhere left but none, and the last solo finishes it.
+    # Points: two 3-point words that each smush their letter (x2), plus the
+    # clean finish.
     table, _ = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
-    assert table.value(uses(a=1, b=1), A) == pytest.approx(1.0)
-    assert table.value(uses(a=1, b=1), B) == pytest.approx(1.0)
+    for spice in (A, B):
+        assert table.chance(uses(a=1, b=1), spice) == pytest.approx(1.0)
+        assert table.points(uses(a=1, b=1), spice) == pytest.approx(6 + 6 + ice.CLEAN_BONUS)
 
 
 def test_one_finisher_needs_the_spice_on_it():
@@ -48,9 +59,9 @@ def test_one_finisher_needs_the_spice_on_it():
     rows = [row("kaka", {"a": 2}), row("bc", {"b": 1, "c": 1})]
     L = uses(a=2, b=1, c=1)
     table, _ = solve(rows, L)
-    assert table.value(L, A) == pytest.approx(1.0)
-    assert table.value(L, B) == pytest.approx(0.0)
-    assert table.value(L, C) == pytest.approx(0.0)
+    assert table.chance(L, A) == pytest.approx(1.0)
+    assert table.chance(L, B) == pytest.approx(0.0)
+    assert table.chance(L, C) == pytest.approx(0.0)
 
 
 def test_a_waiting_move_is_worth_half():
@@ -62,17 +73,17 @@ def test_a_waiting_move_is_worth_half():
             row("dz", {"d": 1}), row("bcd", {"b": 1, "c": 1, "d": 1})]
     L = uses(a=2, b=1, c=1, d=1)
     table, _ = solve(rows, L)
-    assert table.value(L, B) == pytest.approx(0.5, abs=0.01)
-    assert table.value(L, A) == pytest.approx(1.0)   # BCD closes at once
+    assert table.chance(L, B) == pytest.approx(0.5, abs=0.01)
+    assert table.chance(L, A) == pytest.approx(1.0)   # BCD closes at once
 
 
 def test_the_spice_free_turn_needs_an_exact_solo_word():
     # One tile left and no spice: only a word spending exactly its last uses
     # wins. A partial one hands the spice straight back to that same tile.
     exact, _ = solve([row("aaz", {"a": 1}), row("aa", {"a": 2})], uses(a=2))
-    assert exact.value(uses(a=2), None) == pytest.approx(1.0)
+    assert exact.chance(uses(a=2), None) == pytest.approx(1.0)
     partial, _ = solve([row("aaz", {"a": 1})], uses(a=2))
-    assert partial.value(uses(a=2), None) == pytest.approx(0.0)
+    assert partial.chance(uses(a=2), None) == pytest.approx(0.0)
 
 
 def test_a_word_is_never_planned_twice():
@@ -81,11 +92,11 @@ def test_a_word_is_never_planned_twice():
     # word makes the same line legal.
     one = [row("az", {"a": 1}), row("bz", {"b": 1})]
     table, _ = solve(one, uses(a=2, b=1))
-    assert table.value(uses(a=2, b=1), B) == pytest.approx(0.0)
+    assert table.chance(uses(a=2, b=1), B) == pytest.approx(0.0)
 
     two = one + [row("aay", {"a": 1})]
     table, _ = solve(two, uses(a=2, b=1))
-    assert table.value(uses(a=2, b=1), B) == pytest.approx(1.0)
+    assert table.chance(uses(a=2, b=1), B) == pytest.approx(1.0)
 
 
 def test_two_uses_of_a_group_need_two_accepted_words():
@@ -97,16 +108,62 @@ def test_two_uses_of_a_group_need_two_accepted_words():
     L = uses(a=1, g=4)
     table, _ = solve(rows, L, accepted=set())
     solo = ice.ACCEPT_SOLO[0]
-    assert table.value(L, A) == pytest.approx(solo ** 3, abs=0.01)
+    assert table.chance(L, A) == pytest.approx(solo ** 3, abs=0.01)
 
 
-def test_refusal_odds_lower_the_chance():
-    # Same two-solo endgame, but nobody has played these words yet: the plan
-    # needs both solo words accepted, so the chance is their priors' product.
+def test_refusal_odds_lower_the_chance_and_the_points(no_hoard):
+    # Same two-solo endgame, but nobody has played these words yet: both solo
+    # words have to be accepted for the clean finish, and each one's points
+    # only count if Smush takes it.
     rows = [row("aaz", {"a": 1}, pop=4.0), row("bbz", {"b": 1}, pop=4.0)]
     table, _ = solve(rows, uses(a=1, b=1), accepted=set())
     solo = ice.ACCEPT_SOLO[0]
-    assert table.value(uses(a=1, b=1), A) == pytest.approx(solo * solo, abs=0.01)
+    assert table.chance(uses(a=1, b=1), A) == pytest.approx(solo * solo, abs=0.01)
+    last = solo * (6 + ice.CLEAN_BONUS)
+    assert table.points(uses(a=1, b=1), A) == pytest.approx(solo * (6 + last), abs=0.5)
+
+
+# --- points ----------------------------------------------------------------------
+
+def test_one_word_smushing_three_letters_beats_three_that_smush_one(no_hoard):
+    # A:1 B:1 C:1 D:1, spice on D. ABC (base 9) spends A, B and C at once for
+    # 9 x 4 = 36; the solo words for them (base 3 each) make 3 x 2 = 6 apiece.
+    # Either way D's solo word then finishes the board.
+    rows = [row("abc", {"a": 1, "b": 1, "c": 1}, base=9), row("az", {"a": 1}, base=3),
+            row("bz", {"b": 1}, base=3), row("cz", {"c": 1}, base=3), row("dz", {"d": 1}, base=3)]
+    L = uses(a=1, b=1, c=1, d=1)
+    table, pool = solve(rows, L)
+    plan = ice.plan_payload(table, pool, L, D, LETTERS)
+    assert plan["next"][0]["word"] == "abc"
+    assert plan["next"][0]["pts"] == 36
+    assert plan["expected_points"] == pytest.approx(36 + 6 + ice.CLEAN_BONUS)
+
+
+@pytest.mark.parametrize("big_base, closer_first", [(20, True), (50, False)])
+def test_a_clean_finish_is_worth_its_75(no_hoard, big_base, closer_first):
+    # A:1 B:1 C:1, spice on A. The closer BC (6) then AZ (4) finishes clean:
+    # 6 + 4 + 75 = 85. BQ alone scores big_base x 2, but leaves C with no solo
+    # word, so the board can't be cleared: 2 x big_base + 4 after AZ. At 20
+    # that's 44 and the clean line wins; at 50 it's 104, and the plan takes
+    # the points - which is what playing for points means.
+    rows = [row("bc", {"b": 1, "c": 1}, base=2), row("az", {"a": 1}, base=2),
+            row("bq", {"b": 1}, base=big_base)]
+    L = uses(a=1, b=1, c=1)
+    table, pool = solve(rows, L)
+    plan = ice.plan_payload(table, pool, L, A, LETTERS)
+    assert plan["next"][0]["word"] == ("bc" if closer_first else "bq")
+    assert plan["p_success"] == (1.0 if closer_first else 0.0)
+    assert table.chance(L, A) == (1.0 if closer_first else 0.0)
+
+
+def test_a_groups_points_follow_its_try_order():
+    # The common word is tried first; the rarer, longer one only if Smush
+    # refuses it, so the expected base leans to the common word's.
+    [g] = ice.make_groups([row("lul", {"a": 1}, pop=5.0, base=4),
+                           row("lulled", {"a": 1}, pop=0.0, base=10)], LETTERS)
+    a1, a2 = g.accepts
+    expected = (a1 * 4 + (1 - a1) * a2 * 10) / (a1 + (1 - a1) * a2)
+    assert g.expected_base == pytest.approx(expected)
 
 
 # --- words and acceptance ----------------------------------------------------
@@ -148,35 +205,58 @@ def test_solo_words_have_their_own_priors():
 # --- ranking ------------------------------------------------------------------
 
 def _flat_table(L, overrides):
-    """A table that says 1.0 everywhere except `overrides` {(state, col): v}."""
-    table = ice.Table(L, np.ones((int(np.prod([l + 1 for l in L])), ice.N_LETTERS + 1), np.float32))
+    """A table worth 0 points everywhere except `overrides` {(state, col): points}."""
+    size = int(np.prod([l + 1 for l in L]))
+    table = ice.Table(L, np.zeros((size, ice.N_LETTERS + 1), np.float32),
+                      np.zeros((size, ice.N_LETTERS + 1), np.float32))
     for (state, col), v in overrides.items():
-        table.V[table.index(state), col] = v
+        table.J[table.index(state), col] = v
     return table
 
 
-def test_equal_chances_offer_the_most_common_word_first():
+def test_equal_values_offer_the_most_common_word_first():
+    # BEE and CEE both score 6 and leave positions worth nothing: try the
+    # likelier word first.
     L = uses(a=1, b=1, c=1)
-    pool = ice.Pool(ice.make_groups([row("bcq", {"b": 1, "c": 1}, pop=0.0),
-                                     row("bee", {"b": 1}, pop=4.5),
-                                     row("cee", {"c": 1}, pop=2.5)], LETTERS))
+    pool = ice.Pool(ice.make_groups([row("cee", {"c": 1}, pop=2.5),
+                                     row("bee", {"b": 1}, pop=4.5)], LETTERS))
     moves = ice.rank_moves(_flat_table(L, {}), pool, L, A)
-    assert [m.group.words[0] for m in moves][0] == "bee"
+    assert moves[0].group.words[0] == "bee"
 
 
-def test_a_long_shot_only_goes_first_when_it_buys_enough():
-    # BCQ (rare) finishes for sure; BEE (common) leaves a 99% position. Trying
-    # BEE first costs about 0.3% - offer it first. At 95% it costs more than
-    # NEAR_BEST, so the long shot goes first: a refusal is a free retry.
+@pytest.mark.parametrize("bee_after, first", [(18.0, "bee"), (8.0, "bcq")])
+def test_a_long_shot_only_goes_first_when_it_buys_enough(bee_after, first):
+    # BCQ (rare: 29%) is worth 9 + 20 after; BEE (common) 6 + bee_after.
+    # Trying BEE first costs a_rare * a_common * (difference): with BEE 5
+    # behind that's about 1.2 points - within NEAR_BEST_POINTS, so offer it
+    # first. 15 behind it costs 3.6, so the long shot goes first: a refusal
+    # is a free retry.
     L = uses(a=1, b=1, c=1)
     rows = [row("bcq", {"b": 1, "c": 1}, pop=0.0), row("bee", {"b": 1}, pop=4.5)]
     pool = ice.Pool(ice.make_groups(rows, LETTERS))
     after_bee = (uses(a=1, c=1), C)          # the spice must land on C
     after_bcq = (uses(a=1), ice.NULL)        # only A left: the spice-free turn
-    close = _flat_table(L, {after_bee: 0.99, after_bcq: 1.0})
-    assert ice.rank_moves(close, pool, L, A)[0].group.words[0] == "bee"
-    far = _flat_table(L, {after_bee: 0.95, after_bcq: 1.0})
-    assert ice.rank_moves(far, pool, L, A)[0].group.words[0] == "bcq"
+    table = _flat_table(L, {after_bee: bee_after, after_bcq: 20.0})
+    assert ice.rank_moves(table, pool, L, A)[0].group.words[0] == first
+
+
+def test_long_shots_on_top_dont_let_any_likely_word_go_first(no_hoard):
+    # Two long shots (5% each) top the order at 106, then DZ (83%, worth
+    # 4 + 95) and BCDLONG (92%, worth 80 - it scores 80 now but gives up the
+    # finish). Putting DZ first costs about half a point; BCDLONG would cost
+    # about 15. Judged against the top two moves alone, both looked free and
+    # the likelier, higher-scoring BCDLONG went first.
+    L = uses(a=1, b=1, c=1, d=1)
+    rows = [row("bxx", {"b": 1}, pop=0.0), row("cxx", {"c": 1}, pop=0.0),
+            row("dz", {"d": 1}, base=2), row("bcdlong", {"b": 1, "c": 1, "d": 1}, base=20)]
+    pool = ice.Pool(ice.make_groups(rows, LETTERS))
+    after_b, after_c, after_d = uses(a=1, c=1, d=1), uses(a=1, b=1, d=1), uses(a=1, b=1, c=1)
+    table = _flat_table(L, {(after_b, C): 100.0, (after_b, D): 100.0,
+                            (after_c, B): 100.0, (after_c, D): 100.0,
+                            (after_d, B): 95.0, (after_d, C): 95.0})
+    moves = ice.rank_moves(table, pool, L, A)
+    assert moves[0].group.words[0] == "dz"
+    assert moves[0].value == pytest.approx(99.0)
 
 
 def test_moves_never_touch_the_spicy_letter():
@@ -198,6 +278,8 @@ def test_unknown_spice_offers_a_word_for_every_living_tile():
     assert plan["by_spice"]["a"]["word"] == "bbz"     # spice on A: play B's word
     assert plan["by_spice"]["b"]["word"] == "aaz"
     assert plan["p_success"] == pytest.approx(1.0)
+    assert plan["expected_points"] > ice.CLEAN_BONUS
+    assert plan["by_spice"]["a"]["exp"] == pytest.approx(plan["expected_points"], abs=0.2)
 
 
 def test_known_spice_gives_the_word_and_its_try_order():
@@ -212,8 +294,9 @@ def test_known_spice_gives_the_word_and_its_try_order():
     assert set(plan["finish_words"]) <= {"bbz", "bob", "aaz"}
 
 
-def test_a_lost_board_says_why():
-    # Q only appears in the pangram, so it can never be spent ICE COLD.
+def test_with_no_word_left_at_all_the_board_is_impossible():
+    # Q only appears in the pangram, so it can never be spent ICE COLD - and
+    # with the spice on A there's nothing to play.
     rows = [row("pangramq", dict.fromkeys(LETTERS, 1), pangram=True), row("az", {"a": 1})]
     table, pool = solve(rows, uses(a=1, h=1))
     plan = ice.plan_payload(table, pool, uses(a=1, h=1), A, LETTERS)
@@ -221,25 +304,29 @@ def test_a_lost_board_says_why():
     assert "H" in plan["reason"]
 
 
-def test_a_letter_with_too_few_words_is_named():
-    # H has two uses left but only one word that spends it.
+def test_a_lost_clean_finish_still_plays_for_points():
+    # H has two uses left but only one word that spends it, so no clean
+    # finish - yet HZ still scores, x5, and the n-uses rule mustn't hide it.
     table, pool = solve([row("az", {"a": 1}), row("hz", {"h": 1})], uses(a=1, h=2))
     plan = ice.plan_payload(table, pool, uses(a=1, h=2), A, LETTERS)
-    assert plan["status"] == "impossible"
+    assert plan["status"] == "ready" and plan["p_success"] == 0
+    assert plan["next"][0]["word"] == "hz"
     assert plan["reason"].startswith("H has 2 uses left")
 
 
 def test_a_last_tile_without_an_exact_solo_word_says_so():
-    # A:2 alone in the spice-free turn, but A's only solo word spends one.
+    # A:2 alone in the spice-free turn, but A's only solo word spends one: it
+    # still scores, but can't finish clean.
     table, pool = solve([row("az", {"a": 1})], uses(a=2))
     plan = ice.plan_payload(table, pool, uses(a=2), None, LETTERS)
-    assert plan["status"] == "impossible"
+    assert plan["p_success"] == 0 and plan["next"][0]["word"] == "az"
     assert plan["reason"].startswith("Only A is left, with 2 uses")
 
 
 def test_a_flat_board_is_done():
     table, pool = solve([row("az", {"a": 1})], uses(a=1))
-    assert ice.plan_payload(table, pool, uses(), None, LETTERS)["status"] == "done"
+    plan = ice.plan_payload(table, pool, uses(), None, LETTERS)
+    assert plan["status"] == "done" and plan["expected_points"] == ice.CLEAN_BONUS
 
 
 # --- the shared table -----------------------------------------------------------
@@ -317,19 +404,53 @@ def test_builds_are_capped_per_day():
 
 # --- a real board ---------------------------------------------------------------
 
-def test_a_real_mid_game_board_plans_without_touching_spice():
-    # The 2026-07-08 board (center L), late in a game: every word the plan
-    # offers fits the uses left and avoids whichever tile is spicy.
+def _real_board(outer):
+    """The 2026-07-08 board (center L) at the given remaining uses."""
     from data import word_pop, words
     from functions import all_words
-    outer = {"e": 2, "g": 1, "i": 1, "m": 1, "n": 1, "o": 1, "p": 1, "y": 1}
     letters = tuple(sorted(outer))
     L = tuple(outer[l] for l in letters)
     results, _, _ = all_words.smush_solver("l", outer, "", False, words,
                                            list_len=None, popularity=word_pop)
-    pool = ice.Pool(ice.make_groups(results, letters))
+    return letters, L, ice.Pool(ice.make_groups(results, letters))
+
+
+def test_a_real_mid_game_board_plans_without_touching_spice():
+    # Late in a game: every word the plan offers fits the uses left and
+    # avoids whichever tile is spicy.
+    outer = {"e": 2, "g": 1, "i": 1, "m": 1, "n": 1, "o": 1, "p": 1, "y": 1}
+    letters, L, pool = _real_board(outer)
     table = ice.solve_box(L, pool.groups)
     plan = ice.plan_payload(table, pool, L, "unknown", letters)
     for tile, w in plan["by_spice"].items():
         assert tile not in w["cost"]
         assert all(n <= outer[l] for l, n in w["cost"].items())
+        assert 0.0 <= w["p"] <= 1.0 and w["exp"] >= w["pts"]
+
+
+def test_a_compact_table_decides_as_well_as_a_full_precision_one():
+    # The full board's table is stored as uint8. On a real position, playing
+    # the move it picks - judged by the full-precision table - must cost next
+    # to nothing against the full-precision table's own plan.
+    outer = {"e": 3, "g": 2, "i": 2, "m": 2, "n": 2, "o": 2, "p": 2, "y": 2}
+    letters, L, pool = _real_board(outer)
+    full = ice.solve_box(L, pool.groups, compact=False)
+    small = ice.solve_box(L, pool.groups, compact=True)
+    assert small.J.dtype == np.uint8 and small.P.dtype == np.uint8
+    for spice in range(len(letters)):
+        moves = ice.rank_moves(full, pool, L, spice)
+        if not moves:
+            continue
+        picked = ice.rank_moves(small, pool, L, spice)[0].group.sig
+        best, _ = ice.plan_value(moves)
+        tried = sorted(moves, key=lambda m: m.group.sig != picked)   # the pick first
+        assert best - ice.plan_value(tried)[0] <= 0.5
+
+
+def test_a_fallback_word_promises_no_clean_finish():
+    # The n-uses rule leaves no move; the fallback's own points count, but the
+    # table's plan after it could replay that word, so it promises nothing.
+    table, pool = solve([row("az", {"a": 1}), row("hz", {"h": 1})], uses(a=1, h=2))
+    [m] = ice.fallback_moves(pool, uses(a=1, h=2), A)
+    assert m.group.words == ("hz",) and m.chance == 0.0
+    assert ice.rank_moves(table, pool, uses(a=1, h=2), A) == []

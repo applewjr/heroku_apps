@@ -836,8 +836,10 @@
         it's the last tile standing - so every clean ICE COLD game ends the same way: a word that clears
         everything except the spicy tile, then, with no spice left, a <em>solo word</em> (that letter plus the
         center, nothing else) that spends exactly its last uses. Solo words are rare, so the plan is a game
-        against wherever the 🌶 lands next: each turn it shows the best word for every tile the spice could
-        be on, your chance of finishing clean, and the words to save for the end. Play the word for the tile
+        against wherever the 🌶 lands next, played for the most points: for every tile the spice could be on
+        it picks the word worth the most - a word that smushes several letters at once multiplies them all,
+        and a clean finish counts its real +375 - and it shows your expected final score, your chance of
+        finishing clean, and the words to save for the end. Play the word for the tile
         that's spicy right now, hit <strong>✓&nbsp;Played</strong>, and it re-plans. If Smush refuses one,
         hit <strong>✗</strong> - no letters are spent and the spice doesn't move. Some boards can't be
         cleaned ICE COLD at all (a letter only the pangram can spend); the plan says so, and ICE COLD alone
@@ -1449,14 +1451,18 @@ document.addEventListener('DOMContentLoaded', () => {
             ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[ch]);
     }
 
-    /* The ICE COLD plan. The server plays the game against a random spice, so
-       there's no fixed word list to show: just the best word for wherever the
-       🌶 is now - or for each tile it could be on, before it's tapped - the
-       chance of finishing clean and ICE COLD, and the words worth saving for
-       the end. Every ✓ or ✗ re-plans. */
+    /* The ICE COLD plan. The server plays the game against a random spice for
+       the most expected points, so there's no fixed word list to show: just
+       the best word for wherever the 🌶 is now - or for each tile it could be
+       on, before it's tapped - the expected final score, the chance of a
+       clean finish, and the words worth saving for the end. Every ✓ or ✗
+       re-plans. */
     function renderIcePlan() {
         const p = planData;
         const pct = v => `${Math.round((v || 0) * 100)}%`;
+        // ICE COLD x5s everything: the points so far plus the plan's expected rest.
+        const finalScore = v => Math.round(5 * (score + (v || 0))).toLocaleString();
+        const HOARD = 13;
         let html = `
             <div class="results-header">
                 <span class="results-count">🧊 ICE COLD plan</span>
@@ -1472,16 +1478,21 @@ document.addEventListener('DOMContentLoaded', () => {
             html += `<div class="ice-card">🥞 Every letter is smushed flat. If no word touched the spice, that's
                      ICE COLD plus the Clean Plate.</div>`;
         } else if (p.status === 'impossible') {
-            html += `<div class="ice-card bad">🫥 No clean ICE COLD finish is left. ${esc(p.reason)}
-                     <br>ICE COLD alone still ×5s your final score: keep playing non-spicy words (best first,
-                     below), and once only spicy words remain, end the game with Smush's <em>stuck?</em> link -
-                     it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
-            lastResults.slice(0, 5).forEach(w => { html += wordRowHtml(w); });
+            html += `<div class="ice-card bad">🫥 Nothing left avoids the 🌶. ${esc(p.reason || '')}
+                     <br>Your ICE COLD ×5 is safe if you stop here: end the game with Smush's <em>stuck?</em>
+                     link - it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
         } else {
-            html += `<div class="ice-card">
-                <div class="ice-chance">${pct(p.p_success)}<small>chance of a clean ICE COLD finish</small></div>
-                That counts the 🌶's luck and Smush taking our words. The plan changes every turn: play the word
-                for the tile that's spicy right now, then hit ✓&nbsp;Played - or ✗ if Smush refuses it.
+            const hoard = played.length >= HOARD
+                ? `Word Hoard ✓ (${played.length} words)`
+                : `Word Hoard: ${played.length}/${HOARD} words`;
+            html += `<div class="ice-card${p.p_success > 0 ? '' : ' bad'}">
+                <div class="ice-chance">≈ ${finalScore(p.expected_points)}<small>expected final score</small></div>
+                ${pct(p.p_success)} chance of a clean ICE COLD finish · ${hoard}
+                ${p.p_success > 0 ? '' : `<br>🫥 No clean finish is left: ${esc(p.reason)}
+                    Playing for the most ICE COLD points instead.`}
+                <br><small>Counts the 🌶's luck, Smush taking our words and the ×5. Speed, streak, rank and
+                Long Boy bonuses come on top. The plan changes every turn: play the word for the tile that's
+                spicy right now, then hit ✓&nbsp;Played - or ✗ if Smush refuses it.</small>
             </div>`;
             if (p.spice === 'unknown') {
                 html += `<div class="ice-label">Where's the 🌶 now? Play that tile's word</div>`;
@@ -1489,8 +1500,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!ch || i === CENTER || (uses[ch] ?? MAX_USES) === 0) return;
                     const w = (p.by_spice || {})[ch];
                     html += `<div class="spice-row"><span class="spice-tile">${ch.toUpperCase()}</span>`;
-                    html += w ? `${wordRowHtml(w)}<span class="spice-chance">${pct(w.p)}</span>`
-                              : `<span class="spice-chance" style="text-align:left">no word keeps a clean finish</span>`;
+                    html += w ? `${wordRowHtml(w)}<span class="spice-chance" title="expected final score · clean-finish chance">≈${finalScore(w.exp)}<br>${pct(w.p)}</span>`
+                              : `<span class="spice-chance" style="text-align:left">nothing avoids the 🌶 there</span>`;
                     html += `</div>`;
                 });
             } else {

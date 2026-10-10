@@ -159,8 +159,8 @@ def _waiting(status, eta, spice, letters):
         'capped': "Today's plan builds are used up - try again tomorrow.",
     }
     return {'mode': 'ice_cold', 'status': status, 'eta': eta, 'p_success': None,
-            'next': [], 'by_spice': {}, 'finish_words': [], 'sim_win_rate': None,
-            'reason': reasons.get(status),
+            'expected_points': None, 'next': [], 'by_spice': {}, 'finish_words': [],
+            'sim_win_rate': None, 'reason': reasons.get(status),
             'spice': None if spice is None else ('unknown' if spice == 'unknown' else letters[spice])}
 
 
