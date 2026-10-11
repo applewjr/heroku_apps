@@ -6,11 +6,14 @@ production JawsDB, so nothing here may reach a real connection.
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 
 from data import words
 from test_blossom import _ScriptedDB, _admin_headers
+
+TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
 
 # The board test_routes.py solves: gold L plus eight outer letters.
 CENTER, OUTER = "l", "mguoaecf"
@@ -36,8 +39,8 @@ def smush_db(monkeypatch):
     # Start each test with no word list cached, so the fake builds it.
     monkeypatch.setattr(smush, "_smush_words", {"value": None, "expires": 0.0})
 
-    def install(answers=None, rows=None, rowcount=1):
-        db = _ScriptedDB(answers, rows, rowcount)
+    def install(answers=None, rows=None, rowcount=1, fail=None):
+        db = _ScriptedDB(answers, rows, rowcount, fail)
         monkeypatch.setattr(smush, "db_cursor", db)
         monkeypatch.setattr(crowd, "db_cursor", db)
         return db
@@ -463,6 +466,184 @@ def test_admin_rejects_a_non_word(client, smush_db, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Vote log: every vote and decision, kept after the live tables move on
+# ---------------------------------------------------------------------------
+
+def _vote_from(client, action, word, mode):
+    return client.post("/smush", json={
+        "action": action, "word": word, "center": CENTER, "outer": OUTER, "mode": mode})
+
+
+def test_a_vote_is_logged_with_its_board_tab_and_counts(client, smush_db, monkeypatch):
+    import crowd
+    monkeypatch.setattr(crowd, "word_pop", {LISTED: 4.567})
+    db = smush_db(_votes(players=1))
+    assert _vote_from(client, "reject", LISTED, "all8").get_json() == {"status": "success"}
+    [row] = db.log_rows("smush")
+    assert (row["event"], row["word"], row["vote"], row["puzzle"], row["mode"]) == (
+        "vote", LISTED, "invalid", PUZZLE_TAG, "all8")
+    assert re.fullmatch(r"[0-9a-f]{32}", row["voter_hash"])
+    assert (row["players"], row["needed"]) == (1, crowd.remove_votes_needed(LISTED))
+    assert row["popularity"] == 4.57 and row["detail"] is None
+    # Logged in the vote's own transaction, so the two can't disagree.
+    assert db.commits == 1
+
+
+@pytest.mark.parametrize("rowcount", [2, 0])
+def test_a_repeat_vote_is_logged_as_one(client, smush_db, rowcount):
+    # The upsert says 2 when it refreshed this player's earlier vote, and 0
+    # when a double tap inside the same second changed nothing.
+    db = smush_db(_votes(players=1), rowcount=rowcount)
+    _vote_from(client, "reject", LISTED, "pts")
+    assert [row["event"] for row in db.log_rows("smush")] == ["repeat_vote"]
+
+
+def test_a_capped_vote_is_logged_though_not_counted(client, smush_db):
+    from crowd import CROWD_MAX_VOTES_PER_DAY
+    db = smush_db(_votes(players=99, today=CROWD_MAX_VOTES_PER_DAY))
+    assert _vote_from(client, "reject", LISTED, "eff").get_json() == {"status": "success"}
+    assert not db.statements("INSERT INTO smush_word_votes")
+    [row] = db.log_rows("smush")
+    assert (row["event"], row["word"], row["vote"], row["puzzle"], row["mode"]) == (
+        "capped", LISTED, "invalid", PUZZLE_TAG, "eff")
+    assert row["voter_hash"]
+    # That path returns early, so the log row needs its own commit.
+    assert db.commits == 1
+
+
+def test_the_deciding_vote_logs_the_change_too(client, smush_db):
+    from crowd import remove_votes_needed
+    needed = remove_votes_needed(LISTED)
+    db = smush_db(_votes(players=needed))
+    _vote_from(client, "reject", LISTED, "pts")
+    vote, applied = db.log_rows("smush")
+    assert vote["event"] == "vote" and vote["players"] == needed
+    assert (applied["event"], applied["word"], applied["vote"]) == ("crowd_applied", LISTED, "invalid")
+    assert (applied["players"], applied["needed"]) == (needed, needed)
+    # A decision, not a player's act. detail: the opposite votes it cleared.
+    assert applied["voter_hash"] is None and applied["mode"] is None
+    assert applied["detail"] == "1"
+
+
+def test_restoring_logs_the_retract_and_the_word_going_back(client, smush_db):
+    from crowd import remove_votes_needed
+    needed = remove_votes_needed(LISTED)
+    db = smush_db(_votes(players=needed - 1))       # what's left once this vote is gone
+    _vote_from(client, "restore", LISTED, "all8")
+    retract, reverted = db.log_rows("smush")
+    assert (retract["event"], retract["puzzle"], retract["mode"]) == ("retract", PUZZLE_TAG, "all8")
+    assert retract["voter_hash"] and (retract["players"], retract["needed"]) == (needed - 1, needed)
+    assert (reverted["event"], reverted["word"], reverted["voter_hash"]) == ("crowd_reverted", LISTED, None)
+
+
+def test_restoring_while_enough_players_remain_logs_only_the_retract(client, smush_db):
+    from crowd import remove_votes_needed
+    db = smush_db(_votes(players=remove_votes_needed(LISTED)))
+    _vote_from(client, "restore", LISTED, "pts")
+    assert [row["event"] for row in db.log_rows("smush")] == ["retract"]
+
+
+def test_restoring_a_vote_that_never_counted_logs_nothing(client, smush_db):
+    db = smush_db(_votes(players=0), rowcount=0)     # no vote of theirs to delete
+    _vote_from(client, "restore", LISTED, "pts")
+    assert db.log_rows("smush") == []
+
+
+def test_crossing_off_logs_the_vote_and_what_it_put_back(client, smush_db):
+    from crowd import CROWD_MAX_INVALID_PER_DAY, remove_votes_needed
+    db = smush_db(
+        _votes(players=remove_votes_needed(LISTED) - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
+        rows={"SELECT word FROM smush_word_votes WHERE voter_hash": [(LISTED,)]},
+    )
+    _vote_from(client, "reject", LISTED, "all8")
+    vote, reverted = db.log_rows("smush")
+    assert (vote["event"], vote["detail"], vote["mode"]) == ("vote", "crossing_off", "all8")
+    assert vote["players"] is None        # nothing counts on that path
+    assert (reverted["event"], reverted["word"], reverted["detail"]) == (
+        "crowd_reverted", LISTED, "crossing_off")
+
+
+@pytest.mark.parametrize("path, event, kind", [
+    ("/smush_admin/add_word", "admin_set", "missing"),
+    ("/smush_admin/remove_word", "admin_remove", "invalid"),
+])
+def test_admin_changes_are_logged_with_the_votes_they_cleared(client, smush_db, monkeypatch,
+                                                               path, event, kind):
+    db = smush_db(rowcount=3)
+    resp = client.post(path, data={"word": "Zarf", "word_type": kind},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302
+    [row] = db.log_rows("smush")
+    assert (row["event"], row["word"], row["vote"], row["detail"]) == (event, "zarf", kind, "3")
+    assert row["voter_hash"] is None and row["mode"] is None
+
+
+def test_a_failing_log_costs_neither_the_vote_nor_the_change(client, smush_db, capsys):
+    from crowd import remove_votes_needed
+    from monitoring import alerts
+    alerts.reset_throttle()
+    db = smush_db(_votes(players=remove_votes_needed(LISTED)), fail="INSERT INTO smush_vote_log")
+    assert _vote_from(client, "reject", LISTED, "pts").get_json() == {"status": "success"}
+    assert db.statements("INSERT INTO smush_word_votes")
+    assert db.statements("INSERT INTO smush_invalid_words")
+    assert db.commits == 1
+    out = capsys.readouterr().out
+    assert "check=smush_vote_log_failed" in out
+    assert "check=smush_vote_failed" not in out
+
+
+def test_a_failing_log_still_lets_an_admin_change_through(client, smush_db, monkeypatch, capsys):
+    from monitoring import alerts
+    alerts.reset_throttle()
+    db = smush_db(fail="INSERT INTO smush_vote_log")
+    resp = client.post("/smush_admin/add_word", data={"word": "zarf", "word_type": "missing"},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=" not in resp.headers["Location"]
+    assert db.statements("INSERT INTO smush_added_words") and db.commits == 1
+    assert "check=smush_vote_log_failed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("sent, logged", [
+    ("all8", "all8"), ("pan", "pan"), ("pts", "pts"), ("eff", "eff"),
+    (None, None),           # a page loaded before it started saying
+    ("hack", None), (["all8"], None),
+])
+def test_the_tab_a_vote_came_from_is_logged_never_refused(client, smush_db, sent, logged):
+    db = smush_db(_votes(players=1))
+    body = {"action": "suggest_missing", "word": NOT_LISTED, "center": CENTER, "outer": OUTER}
+    if sent is not None:
+        body["mode"] = sent
+    assert client.post("/smush", json=body).get_json() == {"status": "success", "result": "recorded"}
+    assert db.statements("INSERT INTO smush_word_votes")
+    [row] = db.log_rows("smush")
+    assert (row["vote"], row["mode"]) == ("missing", logged)
+
+
+@pytest.mark.parametrize("data, dev, logged", [
+    ({"mode": "all8", "ice_cold": True}, True, "dev_all8_ice"),
+    ({"mode": "pts", "ice_cold": False}, True, "dev_pts"),
+    ({"mode": "pan"}, True, "dev_pan"),
+    ({"mode": "all8", "ice_cold": "yes"}, True, "dev_all8"),
+    ({"ice_cold": True}, True, None),
+    # Only /smush_dev has the Ice Cold toggle.
+    ({"mode": "all8", "ice_cold": True}, False, "all8"),
+])
+def test_smush_dev_votes_are_tagged_as_dev(data, dev, logged):
+    from routes.smush import _vote_mode
+    assert _vote_mode(data, dev) == logged
+
+
+def test_the_logged_tabs_are_the_pages_tabs():
+    from routes.smush import SMUSH_RESULT_TABS
+    for page in ("smush.html", "smush_dev.html"):
+        source = (TEMPLATES / page).read_text(encoding="utf-8")
+        tabs = re.search(r"const SORT_MODES = \[(.*?)\];", source).group(1)
+        assert sorted(re.findall(r"'(\w+)'", tabs)) == sorted(SMUSH_RESULT_TABS), page
+    # The longest mode still fits the log's VARCHAR(16).
+    assert max(len(f"dev_{tab}_ice") for tab in SMUSH_RESULT_TABS) <= 16
+
+
+# ---------------------------------------------------------------------------
 # What players see
 # ---------------------------------------------------------------------------
 
@@ -470,7 +651,8 @@ def test_smush_page_ships_the_crowd_hooks(client):
     html = client.get("/smush").get_data(as_text=True)
     for hook in ('id="suggest-box"', 'id="suggest-input"', 'id="suggest-btn"',
                  "Smush accepted a word that isn't listed?",
-                 "action: 'reject'", "action: 'restore'", "action: 'suggest_missing'"):
+                 "action: 'reject'", "action: 'restore'", "action: 'suggest_missing'",
+                 "{mode: sortMode}"):
         assert hook in html, f"smush.html lost {hook}"
 
 

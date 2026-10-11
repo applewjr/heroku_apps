@@ -1705,11 +1705,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 outer: letters.filter((_, i) => i !== CENTER).join('')};
     }
 
+    // mode / ice_cold: where the vote came from, kept in the server's vote
+    // log only, which tags votes from this page as dev.
     function postVote(payload) {
         return fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(Object.assign(payload, boardLetters()))
+            body: JSON.stringify(Object.assign(payload, boardLetters(), {mode: sortMode, ice_cold: iceCold}))
         }).then(r => {
             if (!r.ok) throw new Error('vote failed: ' + r.status);
             return r.json();

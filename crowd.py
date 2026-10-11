@@ -151,9 +151,13 @@ class CrowdList:
     row per word, kind of vote and player), <game>_invalid_words (removed
     from the game's list) and <game>_added_words (added to it).
 
-    game      -- also names the failure alert ('<game>_vote_failed') and
-                 salts the voter hash, so the same visitor is a different
-                 player in each game
+    Every vote and every change is also appended to <game>_vote_log. Nothing
+    here reads it: the live tables delete and overwrite votes as they go, and
+    the log keeps the history the thresholds are calibrated from.
+
+    game      -- also names the failure alerts ('<game>_vote_failed',
+                 '<game>_vote_log_failed') and salts the voter hash, so the
+                 same visitor is a different player in each game
     on_change -- called after any change to the two word tables, to drop
                  that game's cached word list
     """
@@ -165,6 +169,7 @@ class CrowdList:
         self.votes_table = f'{game}_word_votes'
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
+        self.log_table = f'{game}_vote_log'
         self.on_change = on_change
         # The list a crowd decision lands in, and the list it takes the word out of.
         self.tables = {
@@ -217,6 +222,27 @@ class CrowdList:
         cursor.execute(sql, tuple(params))
         return cursor.fetchone()[0]
 
+    def _log(self, cursor, event, word, vote=None, voter=None, puzzle=None,
+             players=None, needed=None, mode=None, detail=None):
+        """Append one row to the vote log, in the caller's transaction, so the
+        log and the live tables can't disagree.
+
+        Never raises: a lost log row must not cost the vote or the admin
+        action. In MySQL a failed statement leaves the transaction open, so
+        the change it records still commits. It also overwrites
+        cursor.rowcount, so read that before logging.
+        """
+        pop = word_pop.get(word)
+        try:
+            cursor.execute(
+                f"""INSERT INTO {self.log_table} (event, word, vote, voter_hash, puzzle, players,
+                       needed, popularity, mode, detail, created_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (event, word, vote, voter, puzzle, players, needed,
+                 None if pop is None else round(pop, 2), mode, detail, pst_now_str()))
+        except Exception as e:
+            alerts.alert_throttled(f'{self.game}_vote_log_failed', exc=type(e).__name__, msg=e)
+
     def _put_back_unsupported(self, cursor, words):
         """Undo crowd removals among `words` that no longer have enough players.
 
@@ -226,16 +252,21 @@ class CrowdList:
         """
         put_back = False
         for word in set(words):
-            if self._count_players(cursor, word, 'invalid') < remove_votes_needed(word):
+            players, needed = self._count_players(cursor, word, 'invalid'), remove_votes_needed(word)
+            if players < needed:
                 cursor.execute(
                     f"DELETE FROM {self.invalid_table} WHERE word = %s AND source = 'crowd'", (word,))
-                put_back = put_back or cursor.rowcount > 0
+                if cursor.rowcount > 0:
+                    put_back = True
+                    self._log(cursor, 'crowd_reverted', word, 'invalid', players=players,
+                              needed=needed, detail='crossing_off')
         return put_back
 
-    def _apply_crowd_change(self, cursor, word, kind):
+    def _apply_crowd_change(self, cursor, word, kind, players):
         """Move the word into the list the crowd voted for. True if anything changed.
 
         James's own entry in the other list wins: the crowd never reverses it.
+        `players` is the count that carried it, for the log.
         """
         target, other = self.tables[kind]
         cursor.execute(f"SELECT source FROM {other} WHERE word = %s", (word,))
@@ -252,16 +283,19 @@ class CrowdList:
         # place, one more of them would flip it straight back.
         cursor.execute(f"DELETE FROM {self.votes_table} WHERE word = %s AND vote = %s",
                        (word, _CROWD_OPPOSITE[kind]))
+        self._log(cursor, 'crowd_applied', word, kind, players=players,
+                  needed=self.threshold(word, kind), detail=str(cursor.rowcount))
         return True
 
-    def record_vote(self, word, kind, puzzle):
+    def record_vote(self, word, kind, puzzle, mode=None):
         """Count one player's vote, and apply the change once enough agree.
 
         Returns True if this vote is the one that applied it. Written inline
         rather than through the write-behind queue because the vote, the count
         and the change must happen together, and the change has to clear this
         process's word-list cache. Best-effort: a database problem costs the
-        vote, never the request.
+        vote, never the request. `mode` is where on the page the player voted
+        from, for the log only.
         """
         voter = self.voter_hash()
         applied = put_back = False
@@ -271,6 +305,9 @@ class CrowdList:
                     f"SELECT COUNT(*) FROM {self.votes_table} WHERE voter_hash = %s AND created_at >= %s",
                     (voter, _pst_days_ago(1)))
                 if cursor.fetchone()[0] >= CROWD_MAX_VOTES_PER_DAY:
+                    # Not stored in the votes table, so the log is its only record.
+                    self._log(cursor, 'capped', word, kind, voter, puzzle, mode=mode)
+                    conn.commit()
                     return False
                 # A repeat vote refreshes the old one rather than adding a second.
                 # Recorded even when it won't count, so real per-player numbers
@@ -280,6 +317,10 @@ class CrowdList:
                        VALUES (%s, %s, %s, %s, %s) AS new
                        ON DUPLICATE KEY UPDATE created_at = new.created_at, puzzle = new.puzzle""",
                     (word, kind, voter, puzzle, pst_now_str()))
+                # 1 for a new row. A repeat is 2, or 0 when it changed nothing
+                # (a double tap inside the same second).
+                event = 'vote' if cursor.rowcount == 1 else 'repeat_vote'
+                needed = self.threshold(word, kind)
                 crossing_off = False
                 if kind == 'invalid':
                     cursor.execute(
@@ -288,6 +329,8 @@ class CrowdList:
                         (voter, _pst_today_start()))
                     crossing_off = cursor.fetchone()[0] > CROWD_MAX_INVALID_PER_DAY
                 if crossing_off:
+                    self._log(cursor, event, word, kind, voter, puzzle, needed=needed,
+                              mode=mode, detail='crossing_off')
                     # None of this player's flags today count, so anything their
                     # earlier ones helped remove goes back if it no longer has
                     # enough players without them.
@@ -296,8 +339,11 @@ class CrowdList:
                         "WHERE voter_hash = %s AND vote = 'invalid' AND created_at >= %s",
                         (voter, _pst_today_start()))
                     put_back = self._put_back_unsupported(cursor, [w for (w,) in cursor.fetchall()])
-                elif self._count_players(cursor, word, kind) >= self.threshold(word, kind):
-                    applied = self._apply_crowd_change(cursor, word, kind)
+                else:
+                    players = self._count_players(cursor, word, kind)
+                    self._log(cursor, event, word, kind, voter, puzzle, players, needed, mode)
+                    if players >= needed:
+                        applied = self._apply_crowd_change(cursor, word, kind, players)
                 conn.commit()
         except Exception as e:
             alerts.alert_throttled(f'{self.game}_vote_failed', exc=type(e).__name__, msg=e)
@@ -306,27 +352,33 @@ class CrowdList:
             self.on_change()
         return applied
 
-    def retract_vote(self, word, kind):
+    def retract_vote(self, word, kind, puzzle=None, mode=None):
         """Take back this player's vote.
 
         If that leaves too few players behind a change the crowd made, the
         change is undone too: taking back a mis-tap that tipped a word over
         should put the word back. (Votes only age out of the count; that never
-        reverts anything.)
+        reverts anything.) `puzzle` and `mode` are for the log only.
         """
         reverted = False
         try:
             with db_cursor() as (conn, cursor):
+                voter = self.voter_hash()
                 cursor.execute(
                     f"DELETE FROM {self.votes_table} WHERE word = %s AND vote = %s AND voter_hash = %s",
-                    (word, kind, self.voter_hash()))
+                    (word, kind, voter))
                 # Only a vote that was actually counted can undo anything: a
                 # flag that never recorded one (the word was already gone, say)
                 # can't.
-                if cursor.rowcount > 0 and self._count_players(cursor, word, kind) < self.threshold(word, kind):
-                    target = self.tables[kind][0]
-                    cursor.execute(f"DELETE FROM {target} WHERE word = %s AND source = 'crowd'", (word,))
-                    reverted = cursor.rowcount > 0
+                if cursor.rowcount > 0:
+                    players, needed = self._count_players(cursor, word, kind), self.threshold(word, kind)
+                    self._log(cursor, 'retract', word, kind, voter, puzzle, players, needed, mode)
+                    if players < needed:
+                        target = self.tables[kind][0]
+                        cursor.execute(f"DELETE FROM {target} WHERE word = %s AND source = 'crowd'", (word,))
+                        reverted = cursor.rowcount > 0
+                        if reverted:
+                            self._log(cursor, 'crowd_reverted', word, kind, players=players, needed=needed)
                 conn.commit()
         except Exception as e:
             alerts.alert_throttled(f'{self.game}_vote_failed', exc=type(e).__name__, msg=e)
@@ -353,6 +405,9 @@ class CrowdList:
             """, (word,))
             cursor.execute(f"DELETE FROM {other} WHERE word = %s", (word,))
             cursor.execute(f"DELETE FROM {self.votes_table} WHERE word = %s", (word,))
+            # These are the crowd's labels checked by hand, and the votes
+            # just deleted were the only other record of them.
+            self._log(cursor, 'admin_set', word, kind, detail=str(cursor.rowcount))
             conn.commit()
         self.on_change()
 
@@ -367,6 +422,7 @@ class CrowdList:
         with db_cursor() as (conn, cursor):
             cursor.execute(f"DELETE FROM {table} WHERE word = %s", (word,))
             cursor.execute(f"DELETE FROM {self.votes_table} WHERE word = %s", (word,))
+            self._log(cursor, 'admin_remove', word, kind, detail=str(cursor.rowcount))
             conn.commit()
         self.on_change()
 

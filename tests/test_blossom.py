@@ -344,23 +344,36 @@ def test_blossom_show_more_button_hidden_when_all_words_shown(blossom_client):
 CENTER, PETALS = "t", "raines"
 # Fits that board but is not a word, so it can stand in for a missing one.
 NOT_LISTED = "tseniar"
+PUZZLE_TAG = "t:aeinrs"
+
+# crowd.CrowdList._log's columns, in its INSERT's order.
+VOTE_LOG_FIELDS = ("event", "word", "vote", "voter_hash", "puzzle", "players", "needed",
+                   "popularity", "mode", "detail", "created_at")
 
 
 class _ScriptedDB:
     """Stands in for extensions.db_cursor.
 
     fetchone()/fetchall() answer by matching a fragment of the statement just
-    run; every statement is recorded with whitespace collapsed.
+    run; every statement is recorded with whitespace collapsed. A statement
+    containing `fail` is recorded and then raises, like a missing table.
     """
 
-    def __init__(self, answers=None, rows=None, rowcount=1):
+    def __init__(self, answers=None, rows=None, rowcount=1, fail=None):
         self.answers = answers or {}
         self.rows = rows or {}
         self.rowcount = rowcount
+        self.fail = fail
         self.executed = []
+        self.commits = 0
 
     def statements(self, fragment):
         return [(sql, params) for sql, params in self.executed if fragment in sql]
+
+    def log_rows(self, game):
+        """The rows written to <game>_vote_log, as dicts, in order."""
+        return [dict(zip(VOTE_LOG_FIELDS, params))
+                for _sql, params in self.statements(f"INSERT INTO {game}_vote_log")]
 
     @contextmanager
     def __call__(self):
@@ -374,6 +387,8 @@ class _ScriptedDB:
                 self.last = " ".join(sql.split())
                 self.rowcount = db.rowcount
                 db.executed.append((self.last, params))
+                if db.fail and db.fail in self.last:
+                    raise RuntimeError(f"scripted failure: {db.fail}")
 
             def fetchone(self):
                 return next((v for f, v in db.answers.items() if f in self.last), None)
@@ -383,7 +398,7 @@ class _ScriptedDB:
 
         class Conn:
             def commit(self):
-                pass
+                db.commits += 1
 
         yield Conn(), Cursor()
 
@@ -404,8 +419,8 @@ def crowd_db(monkeypatch):
     import crowd
     import routes.blossom as blossom
 
-    def install(answers=None, rows=None, rowcount=1):
-        db = _ScriptedDB(answers, rows, rowcount)
+    def install(answers=None, rows=None, rowcount=1, fail=None):
+        db = _ScriptedDB(answers, rows, rowcount, fail)
         # The vote and admin mechanics live in crowd.py, shared with /smush;
         # the word list and feedback reads stay in routes/blossom.py.
         monkeypatch.setattr(blossom, "db_cursor", db)
@@ -759,6 +774,80 @@ def test_admin_rejects_a_non_word(client, crowd_db, monkeypatch):
                        headers=_admin_headers(monkeypatch))
     assert resp.status_code == 302 and "error=" in resp.headers["Location"]
     assert not db.executed
+
+
+# The vote log. The mechanics are crowd.py's, shared with /smush and tested
+# in full in test_smush_crowd.py; these pin Blossom's own wiring.
+
+def _flag_from(client, word, mode):
+    return client.post("/blossom", json={
+        "action": "toggle_invalid", "word": word, "center": CENTER, "petals": PETALS, "mode": mode})
+
+
+def test_an_invalid_tick_is_logged_with_its_mode(client, crowd_db, fresh_word_cache):
+    db = crowd_db(_votes(players=1))
+    _flag_from(client, "nastier", "helper")
+    [row] = db.log_rows("blossom")
+    assert (row["event"], row["word"], row["vote"], row["puzzle"], row["mode"]) == (
+        "vote", "nastier", "invalid", PUZZLE_TAG, "helper")
+    assert row["voter_hash"] and row["players"] == 1
+
+
+def test_unticking_logs_the_retract_with_its_mode(client, crowd_db, fresh_word_cache):
+    with client.session_transaction() as sess:
+        sess["invalid_words"] = ["nastier"]
+    db = crowd_db(_votes(players=99))
+    _flag_from(client, "nastier", "normal")
+    [row] = db.log_rows("blossom")
+    assert (row["event"], row["puzzle"], row["mode"]) == ("retract", PUZZLE_TAG, "normal")
+
+
+@pytest.mark.parametrize("sent, logged", [
+    ("normal", "normal"), ("helper", "helper"),
+    (None, None),           # a page loaded before it started saying
+    ("all8", None),
+])
+def test_a_missing_word_is_logged_with_its_mode_never_refused(client, crowd_db, fresh_word_cache,
+                                                              sent, logged):
+    db = crowd_db(_votes(players=1))
+    body = {"action": "suggest_missing", "word": NOT_LISTED, "center": CENTER, "petals": PETALS}
+    if sent is not None:
+        body["mode"] = sent
+    assert client.post("/blossom", json=body).get_json() == {"status": "success", "result": "recorded"}
+    [row] = db.log_rows("blossom")
+    assert (row["vote"], row["mode"]) == ("missing", logged)
+
+
+def test_admin_changes_are_logged_with_the_votes_they_cleared(client, crowd_db, monkeypatch):
+    db = crowd_db(rowcount=2)
+    client.post("/add_word", data={"word": "Nastier", "word_type": "invalid"},
+                headers=_admin_headers(monkeypatch))
+    client.post("/remove_word", data={"word": "figuline", "word_type": "missing"},
+                headers=_admin_headers(monkeypatch))
+    assert [(r["event"], r["word"], r["vote"], r["detail"]) for r in db.log_rows("blossom")] == [
+        ("admin_set", "nastier", "invalid", "2"), ("admin_remove", "figuline", "missing", "2")]
+
+
+def test_a_failing_log_costs_neither_the_vote_nor_the_admin_change(
+        client, crowd_db, fresh_word_cache, monkeypatch, capsys):
+    from monitoring import alerts
+    alerts.reset_throttle()
+    db = crowd_db(_votes(players=1), fail="INSERT INTO blossom_vote_log")
+    assert _flag(client, "nastier").get_json()["invalid_words"] == ["nastier"]
+    assert db.statements("INSERT INTO blossom_word_votes") and db.commits == 1
+    resp = client.post("/remove_word", data={"word": "figuline", "word_type": "invalid"},
+                       headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 302 and "error=" not in resp.headers["Location"]
+    assert db.commits == 2
+    out = capsys.readouterr().out
+    assert "check=blossom_vote_log_failed" in out
+    assert "check=blossom_vote_failed" not in out
+
+
+def test_votes_say_which_mode_they_came_from(blossom_template):
+    # Helper Mode masks the words but keeps the Invalid box.
+    assert blossom_template.count("mode: voteMode() })") == 2
+    assert "return isHelperMode ? 'helper' : 'normal';" in blossom_template
 
 
 def test_players_are_never_told_the_vote_counts(client, blossom_client):

@@ -1729,6 +1729,13 @@ function initializeBlossomApp() {
     });
   }
 
+  // Which mode a vote came from, kept in the server's vote log only: Helper
+  // Mode masks the words but keeps the Invalid box. isHelperMode is declared
+  // further down this script; this only runs from clicks, after it is set.
+  function voteMode() {
+    return isHelperMode ? 'helper' : 'normal';
+  }
+
   let toastTimer = null;
   function showToast(message, ms) {
     const toast = document.getElementById('blossom-toast');
@@ -1763,7 +1770,7 @@ function initializeBlossomApp() {
     }
 
     const puzzle = renderedPuzzle();
-    postBlossom({ action: 'toggle_invalid', word: word, center: puzzle.center, petals: puzzle.petals })
+    postBlossom({ action: 'toggle_invalid', word: word, center: puzzle.center, petals: puzzle.petals, mode: voteMode() })
       .catch(error => {
         console.error('Error flagging word:', error);
         checkbox.checked = !flagging;
@@ -1806,7 +1813,7 @@ function initializeBlossomApp() {
 
       button.disabled = true;
       status.textContent = 'Sending...';
-      postBlossom({ action: 'suggest_missing', word: word, center: puzzle.center, petals: puzzle.petals })
+      postBlossom({ action: 'suggest_missing', word: word, center: puzzle.center, petals: puzzle.petals, mode: voteMode() })
         .then(data => {
           const result = data && data.result;
           status.textContent = MISSING_WORD_MESSAGES[result] || MISSING_WORD_MESSAGES.recorded;
