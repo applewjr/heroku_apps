@@ -477,15 +477,15 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
 
 
 def test_one_player_short_changes_nothing(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))
     assert _flag(client, "nastier").status_code == 200
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
 def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES))
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier")))
     resp = _flag(client, "nastier")
     # The deciding vote gets exactly the reply any other vote gets: players
     # are never told the threshold, or that theirs was the one that tipped it.
@@ -509,8 +509,8 @@ def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_ca
 
 
 def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_REMOVE_VOTES
-    answers = _votes(players=CROWD_REMOVE_VOTES)
+    from crowd import remove_votes_needed
+    answers = _votes(players=remove_votes_needed("nastier"))
     answers["SELECT source FROM blossom_added_words"] = ("crowd",)
     db = crowd_db(answers)
     _flag(client, "nastier")
@@ -539,8 +539,8 @@ def test_unticking_the_deciding_vote_puts_the_word_back(client, crowd_db, fresh_
     with client.session_transaction() as sess:
         sess["invalid_words"] = ["nastier"]
     fresh_word_cache.set("blossom_filtered_words", {"stale"})
-    from routes.blossom import CROWD_REMOVE_VOTES
-    db = crowd_db(_votes(players=CROWD_REMOVE_VOTES - 1))     # what's left once this vote is gone
+    from crowd import remove_votes_needed
+    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))     # what's left once this vote is gone
     _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
     assert fresh_word_cache.get("blossom_filtered_words") is None
@@ -562,9 +562,10 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     # Their earlier ticks today may have helped remove words before they
     # passed the limit. Once they do, any of those words left without enough
     # counting players goes back on the list.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY, CROWD_REMOVE_VOTES
+    from crowd import remove_votes_needed
+    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(
-        _votes(players=CROWD_REMOVE_VOTES - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
+        _votes(players=remove_votes_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
         rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
     )
     _flag(client, "nastier")
@@ -690,6 +691,21 @@ def test_admin_page_shows_who_made_each_change(client, crowd_db, monkeypatch):
     assert resp.status_code == 200
     assert '<td class="by-crowd">crowd</td>' in html
     assert '<td class="by-admin">you</td>' in html
+
+
+def test_admin_page_shows_word_popularity(client, crowd_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 9, 30, 8, 0)
+    monkeypatch.setattr("routes.blossom.word_pop", {"figuline": 0.84, "nastier": 3.4})
+    crowd_db(rows={
+        "FROM blossom_invalid_words": [("figuline", when, "crowd"), ("yatagan", when, "admin")],
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, None)],
+    })
+    html = client.get("/blossom_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<th>Popularity</th>" in html
+    assert '<td class="">3.4</td>' in html
+    assert '<td class="pop-rare">0.8</td>' in html
+    assert '<td class="pop-none">none</td>' in html
 
 
 def test_admin_needs_the_password(client, crowd_db):

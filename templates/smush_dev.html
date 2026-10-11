@@ -1,0 +1,2052 @@
+{% extends 'base.html' %}
+
+{% block title %}Smush Dev - ICE COLD Planner{% endblock %}
+
+{% block meta %}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- board ---------- */
+.smush-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: min(92vw, 360px);
+    /* 3 square tiles + 2 gaps make the board exactly as tall as it is wide;
+       reserving that space stops the page jumping when JS builds the tiles */
+    aspect-ratio: 1;
+    margin: 18px auto 6px;
+}
+
+/* Tiles use the site's blossom-solver language: teal tiles with white
+   letters, gold center with teal text. */
+.smush-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background-color: #02484d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.25s ease, background-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.smush-tile:hover { background-color: #03595f; }
+.smush-tile:active { transform: translateY(1px); }
+
+.smush-tile.center-tile {
+    background-color: #ffd700;
+    border-color: #02484d;
+}
+
+.smush-tile.center-tile:hover { background-color: #f2ce00; }
+
+.smush-tile.spicy-tile { border-color: #e55555; }
+
+.smush-tile.dead-tile {
+    opacity: 0.4;
+    filter: grayscale(0.9);
+    box-shadow: none;
+}
+
+.smush-tile.selected-tile {
+    outline: 3px solid #ffd700;
+    outline-offset: 2px;
+}
+
+.smush-tile.center-tile.selected-tile { outline-color: #02484d; }
+
+.smush-tile input {
+    width: 100%;
+    height: 58%;
+    background: transparent !important;
+    border: none !important;
+    text-align: center;
+    font-size: clamp(26px, 8vw, 36px);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    outline: none;
+    padding: 0 !important;
+    margin: 12% 0 0 !important;
+    border-radius: 0 !important;
+    caret-color: #ffd700;
+}
+
+.smush-tile.center-tile input {
+    color: #02484d !important;
+    -webkit-text-fill-color: #02484d !important;
+    caret-color: #02484d;
+}
+
+.smush-tile input::placeholder { color: rgba(255, 255, 255, 0.25); opacity: 1; }
+.smush-tile.center-tile input::placeholder { color: rgba(2, 72, 77, 0.25); }
+
+.smush-board.solve-mode .smush-tile input { pointer-events: none; }
+.smush-board.solve-mode .smush-tile input.editing { pointer-events: auto; }
+
+.tile-value {
+    position: absolute;
+    top: 6px;
+    right: 9px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.smush-tile.center-tile .tile-value { color: rgba(2, 72, 77, 0.6); }
+
+.tile-spice-tag {
+    position: absolute;
+    top: 5px;
+    left: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #c0392b;
+    background-color: rgba(255, 255, 255, 0.92);
+    border-radius: 8px;
+    padding: 1px 5px;
+}
+
+.tile-pips {
+    position: absolute;
+    bottom: 9px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+
+.tile-pips .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+.tile-pips .pip.spent { background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.4); }
+
+.center-infinity {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(2, 72, 77, 0.65);
+}
+
+/* entry-phase glow on the tile about to receive a letter */
+@keyframes smushNextPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(255, 215, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2); }
+}
+@keyframes smushNextPulseCenter {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(2, 72, 77, 0.85), 0 2px 4px rgba(0, 0, 0, 0.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(2, 72, 77, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2); }
+}
+.smush-tile.next-entry { animation: smushNextPulse 1.1s ease-in-out infinite; }
+.smush-tile.center-tile.next-entry { animation-name: smushNextPulseCenter; }
+
+/* ---------- tile control strip ---------- */
+.tile-controls {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 10px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.tile-controls.visible { display: flex; }
+
+.tile-controls .tc-label { font-weight: 600; color: #374151; flex-basis: 100%; }
+
+.tc-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tc-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.tc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tc-btn:disabled:hover { background-color: #fff; color: #02484d; border-color: #cdd8d7; }
+.tc-btn.tc-spicy-on { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.board-hint { font-size: 13px; color: #6b7280; margin: 8px auto 0; max-width: 420px; }
+
+/* The two hand-correction tools share one row. Both open a panel below
+   instead of living on the page: the strip between the board and the word
+   list is the page's most valuable space, so nothing parks there uninvited. */
+.board-tools {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px auto 0;
+}
+
+.board-tools.visible { display: flex; }
+
+.tool-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    min-height: 40px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tool-btn:hover, .tool-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+/* ---------- status chips ---------- */
+.smush-status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px auto 4px;
+    max-width: 560px;
+}
+
+.status-chip {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.status-chip b { color: #02484d; }
+.status-chip.spicy-chip b { color: #c0392b; }
+
+.pangram-banner {
+    max-width: 480px;
+    margin: 12px auto 0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+}
+
+.pangram-banner.gone { display: block; background-color: #f3f4f6; border: 1px solid #e5e7eb; color: #6b7280; }
+
+/* ---------- results ---------- */
+.results-container {
+    max-width: 620px;
+    margin: 10px auto;
+    padding: 10px 20px 20px;
+    min-height: 200px;
+}
+
+.results-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.results-count { font-size: 14px; color: #6b7280; }
+
+.sort-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.sort-chip {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.plan-banner {
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    color: #02484d;
+}
+
+.plan-banner.partial { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
+.word-result {
+    background-color: #f8f9fa;
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.word-result:hover { background-color: #e9ecef; transform: translateX(4px); }
+
+.word-result.pangram-word {
+    background-color: #fefdf5;
+    border-color: #f0ebb8;
+    border-left: 4px solid #e8d44d;
+}
+
+.word-result.pangram-word:hover { background-color: #fdfae8; }
+
+.word-result.copied { background-color: #6aaa64; border-color: #6aaa64; }
+.word-result.copied .word-text, .word-result.copied .word-bonuses { color: white; }
+
+.word-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #1f2937;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.word-bonuses { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
+
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+.word-pts {
+    background-color: #02484d;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: center;
+}
+
+.word-result.pangram-word .word-pts { background-color: #b7960b; }
+
+.word-eff {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.played-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.played-btn:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+
+.reject-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #e0d5d5;
+    border-radius: 6px;
+    color: #a55;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 9px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.define-link {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 8px 8px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.define-link:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.copy-feedback {
+    position: absolute;
+    right: 50%;
+    transform: translateX(50%);
+    top: -28px;
+    background-color: #333;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+}
+
+.copy-feedback.show { opacity: 1; }
+
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.show-more-btn:hover { background-color: #03595f; }
+
+.no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; }
+.loading { text-align: center; color: #6b7280; margin: 20px 0; }
+
+/* ---------- type in a word you already played ---------- */
+/* Words the results list can't offer - below the ranked cutoff, or missing
+   from our dictionary entirely - still spent their letters in the real game,
+   so players catching the solver up mid-board type them in here. Collapsed
+   until ➕ Add played word is tapped; catching up is a once-a-session job. */
+.word-entry {
+    display: none;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 12px 14px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.word-entry.visible { display: block; }
+
+.we-row { display: flex; gap: 8px; }
+
+/* Beats base.html's input[type=text] on specificity, so the field can drop
+   that rule's wide padding without reaching for !important. */
+.word-entry .we-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    /* 16px: anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+.word-entry .we-input::placeholder {
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+    color: #9ca3af;
+}
+
+.we-btn {
+    flex-shrink: 0;
+    background-color: #02484d;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.we-btn:hover:not(:disabled) { background-color: #03595f; }
+.we-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Reserve the line so the panel doesn't jump as the message appears. */
+.we-status { font-size: 13px; line-height: 1.4; margin-top: 8px; min-height: 18px; color: #6b7280; }
+.we-status.good { color: #02484d; }
+.we-status.bad { color: #a55; }
+
+.we-note { font-size: 12px; line-height: 1.45; color: #6b7280; margin-top: 6px; }
+
+/* ---------- "Smush accepted a word that isn't listed?" ---------- */
+/* Borrows the played-word box's look (.word-entry / .we-*). Shown only while
+   solving: a suggestion is checked against the board's letters. */
+.suggest-box { margin-top: 20px; }
+
+.suggest-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #555;
+}
+
+/* ---------- played pile ---------- */
+.played-section {
+    display: none;
+    max-width: 620px;
+    margin: 6px auto 0;
+    padding: 12px 20px;
+    text-align: center;
+}
+
+.played-section.visible { display: block; }
+
+.played-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+
+.played-pile {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.played-chip {
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #02484d;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.played-chip small { color: #6b7280; font-weight: 400; text-transform: none; }
+
+.rejected-chip {
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #a55;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-decoration: line-through;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.rejected-chip:hover { background-color: #e55555; border-color: #e55555; color: #fff; text-decoration: none; }
+
+.undo-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 12px;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: pointer;
+    margin-top: 8px;
+    padding: 6px;
+}
+
+.undo-btn:hover { color: #02484d; }
+
+/* ---------- shared bits ---------- */
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+
+.smush-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+
+.smush-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@keyframes toastSlideIn {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.smush-toast { animation: toastSlideIn 0.3s ease-out; }
+
+@media (max-width: 480px) {
+    /* Word + buttons stay on the top line; bonus/rarity icons drop small to a full-width second line. */
+    .word-result { padding: 6px 10px; margin: 5px 0; min-height: 0; gap: 3px 7px; flex-wrap: wrap; }
+    .word-text { font-size: 15px; letter-spacing: 0.5px; }
+    .word-bonuses { order: 1; flex: 0 0 100%; font-size: 11px; line-height: 1; }
+    .word-bonuses:empty { display: none; }
+    .rare-flag { font-size: 12px; padding: 0 2px; }
+    .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
+    .word-eff { order: 1; font-size: 10px; }
+    .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
+    .results-container { padding: 10px 8px 20px; }
+    .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+
+/* ---------- dev page ---------- */
+.dev-badge {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: #e8d44d;
+    color: #02484d;
+    font-size: 0.45em;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.dev-note { font-size: 13px; color: #6b7280; margin: -6px 0 12px; }
+
+.import-btn {
+    display: none;
+    margin: 0 auto 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #cfe0e0;
+    background-color: #eef4f4;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.import-btn.visible { display: inline-block; }
+
+/* ---------- ICE COLD plan ---------- */
+.ice-card {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #cfe0e0;
+    background-color: #eef4f4;
+    color: #02484d;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.ice-card.bad { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
+.ice-chance { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.ice-chance small { font-size: 13px; font-weight: 600; margin-left: 6px; }
+
+.ice-label {
+    margin: 12px 0 2px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #02484d;
+    text-align: left;
+}
+
+.spice-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.spice-tile {
+    flex: 0 0 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 2px solid #e55555;
+    background-color: #fff;
+    color: #02484d;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spice-row .word-result { flex: 1 1 auto; margin: 0; min-width: 0; }
+.spice-chance { flex: 0 0 auto; font-size: 11px; color: #6b7280; min-width: 34px; text-align: right; }
+
+.ice-finish { margin-top: 8px; }
+.ice-finish b { letter-spacing: 1px; }
+.ice-source { margin-top: 6px; font-size: 11px; color: #6b7280; }
+
+@media (max-width: 480px) {
+    .ice-chance { font-size: 22px; }
+    .spice-tile { flex-basis: 28px; height: 28px; font-size: 14px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<center>
+<br>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush ICE COLD Planner<span class="dev-badge">DEV</span></h1>
+<p class="dev-note">Private test page - <a href="/smush" style="color: #02484d;">/smush</a> is unchanged. Turn on 🧊 Ice Cold and open 🥞 All 8.</p>
+<button type="button" class="import-btn" id="import-btn">⤵ Copy my game from /smush</button>
+
+<div class="instructions collapsed" id="instructions-panel">
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        Type your nine Smush letters into the grid - the gold center letter goes in the middle.
+        Every playable word appears instantly, ranked by points using the game's exact scoring.
+        One caveat: Smush's official word list isn't public, so the solver uses its own dictionary
+        and the game may refuse some suggestions.
+        <br><br>
+        <strong>As you play:</strong> tap a tile to make it the 🌶 spicy letter,
+        and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
+        after every play, so tap the new spicy tile after each word. To fix a tile's remaining uses
+        or change a letter, tap <strong>✏️ Fix a tile</strong> first. If Smush refuses a word, hit
+        <strong>✗</strong> to hide it - rejected words don't spend any letters, and your ✗ helps us fix
+        the word list. If Smush accepts a word we don't list, type it into the box under the results. Words marked
+        <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
+        <br><br>
+        <strong>Joining a game already in progress?</strong> Tap <strong>➕&nbsp;Add played word</strong>
+        under the board, then type in each word you've already used and hit <strong>✓&nbsp;Played</strong>.
+        The solver spends those letters for you, so everything it suggests fits the uses you have left.
+        It takes any word your board can spell, including ones missing from our list, so there's no
+        hunting through the results for it.
+        <br><br>
+        <strong>Going for the full smush?</strong> The <strong>🥞 All 8</strong> tab plans a set of
+        words that spends every remaining letter use exactly, flattening the whole board for the
+        Clean Plate bonus. When it can, the plan starts with the ★ pangram - playing the pangram
+        first <em>and</em> cleaning the plate earns Smush's PERFECT bonus, doubling your final
+        score. Play the plan top to bottom: after the pangram it leads with its riskiest words,
+        so if Smush refuses one there are still plenty of letters left to re-plan around. The
+        plan recalculates whenever you play or reject a word.
+        <br><br>
+        <strong>Smush scoring:</strong> letter values add up to a base score. Bonuses add to one multiplier:
+        +1 per 🌶 spicy letter use, +1 per letter 🥞 smushed flat (its last use spent), +2 for the ★ pangram
+        (+4 if it's your first word). Points = base × multiplier.
+        <br><br>
+        <strong>Going for ICE COLD + a clean plate?</strong> ICE COLD is Smush's secret bonus: never play a
+        word containing the 🌶 spicy letter (and play at least 5 words) and your <em>entire</em> final score is
+        ×5, Clean Plate's +50 included. Turn on <strong>🧊&nbsp;Ice Cold mode</strong> and open the
+        <strong>🥞 All 8</strong> tab. Because you never spend the spicy tile, the spice only disappears once
+        it's the last tile standing - so every clean ICE COLD game ends the same way: a word that clears
+        everything except the spicy tile, then, with no spice left, a <em>solo word</em> (that letter plus the
+        center, nothing else) that spends exactly its last uses. Solo words are rare, so the plan is a game
+        against wherever the 🌶 lands next, played for the most points: for every tile the spice could be on
+        it picks the word worth the most - a word that smushes several letters at once multiplies them all,
+        and a clean finish counts its real +375 - and it shows your expected final score, your chance of
+        finishing clean, and the words to save for the end. Play the word for the tile
+        that's spicy right now, hit <strong>✓&nbsp;Played</strong>, and it re-plans. If Smush refuses one,
+        hit <strong>✗</strong> - no letters are spent and the spice doesn't move. Some boards can't be
+        cleaned ICE COLD at all (a letter only the pangram can spend); the plan says so, and ICE COLD alone
+        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain.
+    </div>
+</div>
+
+<div class="smush-board" id="smush-board" role="group" aria-label="Smush board letters"></div>
+
+<div class="board-hint" id="board-hint">Enter the gold center letter first, then the eight around it.</div>
+
+<div class="board-tools" id="board-tools">
+    <button type="button" class="tool-btn" id="fix-tiles-btn" aria-pressed="false">✏️ Fix a tile</button>
+    <button type="button" class="tool-btn" id="we-toggle" aria-expanded="false"
+            aria-controls="word-entry">➕ Add played word</button>
+    <button type="button" class="tool-btn" id="ice-cold-toggle" aria-pressed="false"
+            title="Plan for Smush's secret ICE COLD bonus: never play a word with the 🌶 spicy letter, and finish with a clean plate. ×5 on your whole final score.">🧊 Ice Cold mode</button>
+</div>
+
+<div class="tile-controls" id="tile-controls" aria-live="polite"></div>
+
+<div class="word-entry" id="word-entry">
+    <div class="we-row">
+        <input type="text" id="we-input" class="we-input" maxlength="15" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="a word you already played" aria-label="A word you already played"
+               aria-describedby="we-status">
+        <button type="button" class="we-btn" id="we-add" disabled>✓ Played</button>
+    </div>
+    <div class="we-status" id="we-status" aria-live="polite"></div>
+    <div class="we-note">Any word works, even ones we didn't suggest. Points use the 🌶 spicy letter set
+        right now, so catch-up words can score low - the letters they spend are always exact.</div>
+</div>
+
+<div class="smush-status" id="smush-status" style="display: none;">
+    <span class="status-chip">Score: <b id="chip-score">0</b></span>
+    <span class="status-chip">Words played: <b id="chip-played">0</b></span>
+    <span class="status-chip spicy-chip" id="chip-spicy">🌶 Spicy: <b>tap a tile</b></span>
+    <span class="status-chip" id="chip-pangram" style="display: none;"></span>
+</div>
+
+<div class="pangram-banner" id="pangram-banner"></div>
+
+<div class="played-section" id="played-section">
+    <div class="played-title">Your played words</div>
+    <div class="played-pile" id="played-pile"></div>
+    <button type="button" class="undo-btn" id="undo-btn">↩ Undo last played word</button>
+</div>
+
+<div class="played-section" id="rejected-section">
+    <div class="played-title">Hidden - Smush didn't accept these (tap one to restore it)</div>
+    <div class="played-pile" id="rejected-pile"></div>
+</div>
+
+<div id="results-container" class="results-container" aria-live="polite">
+    <!-- Results render here -->
+</div>
+
+<div class="word-entry suggest-box" id="suggest-box">
+    <label class="suggest-label" for="suggest-input">Smush accepted a word that isn't listed?</label>
+    <div class="we-row">
+        <input type="text" id="suggest-input" class="we-input" maxlength="15" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="type the word" aria-describedby="suggest-status">
+        <button type="button" class="we-btn" id="suggest-btn">Add</button>
+    </div>
+    <div class="we-status" id="suggest-status" aria-live="polite"></div>
+</div>
+
+<br>
+<div style="margin: 20px 0; text-align: center; min-height: 51px;">
+    <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" style="
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🥞 Play Smush</a>
+    <a href="#" id="reset-btn" style="
+        background-color: #f8f9fa;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 4px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Reset Board</a>
+</div>
+
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    /* Letter values mirrored from the game (Scrabble-style). */
+    const LVAL = {a:1,b:3,c:3,d:2,e:1,f:4,g:2,h:4,i:1,j:8,k:5,l:1,m:3,n:1,o:1,p:3,
+                  q:10,r:1,s:1,t:1,u:1,v:4,w:4,x:8,y:4,z:10};
+
+    const CENTER = 4;                        // grid index of the gold tile
+    const ENTRY_ORDER = [4, 0, 1, 2, 3, 5, 6, 7, 8];
+    const MAX_USES = 5;
+    const WORDS_STEP = 25;
+    // This page keeps its own keys, so a game here never touches the one
+    // saved on /smush. /smush's save is only ever read, to import a game.
+    const STORAGE_KEY = 'smushDevState_v1';
+    const SMUSH_STORAGE_KEY = 'smushSolverState_v1';
+    const API = '/smush_dev';
+    // The chosen sort/filter is a UI preference, not game state, so it lives
+    // under its own key and survives board resets and the daily wipe.
+    const SORT_KEY = 'smushDevSortMode_v1';
+    const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
+    // Ice Cold is a strategy choice, not game state - same reasoning as
+    // SORT_KEY, so it gets its own storage key and survives board resets.
+    const ICE_COLD_KEY = 'smushDevIceCold_v1';
+    // While the board's shared table builds, the plan is re-asked this often.
+    const BUILD_POLL_MS = 5000;
+
+    /* ---------- state ---------- */
+    let letters = Array(9).fill('');         // board letters, index 4 = center
+    let uses = {};                           // outer letter -> remaining uses
+    let spicy = '';                          // current spicy letter ('' = unset)
+    let iceCold = true;                      // chase ICE COLD (x5) - what this page is for
+    let played = [];                         // [{word, pts}]
+    let rejected = [];                       // words Smush refused - hidden, cost nothing
+    let score = 0;
+    let history = [];                        // snapshots for undo
+    let solveMode = false;
+    let selected = -1;
+    let fixMode = false;                     // when on, tile taps open the adjust strip
+    let lastResults = [];
+    let planData = null;                     // /smush_dev "plan" payload for the All 8 mode
+    let totalPlayable = 0;
+    let pangramStatus = 'none';
+    let sortMode = 'all8';                   // default; overridden by SORT_KEY if saved
+    let visibleCount = WORDS_STEP;
+    let fetchTimer = null;
+    let fetchSeq = 0;
+    let pollTimer = null;                    // re-asks while the shared table builds
+
+    const board = document.getElementById('smush-board');
+    const resultsContainer = document.getElementById('results-container');
+    const boardHint = document.getElementById('board-hint');
+    const tileControls = document.getElementById('tile-controls');
+    const fixBtn = document.getElementById('fix-tiles-btn');
+    const iceColdBtn = document.getElementById('ice-cold-toggle');
+    const boardTools = document.getElementById('board-tools');
+    const weToggle = document.getElementById('we-toggle');
+    const weWrap = document.getElementById('word-entry');
+    const weInput = document.getElementById('we-input');
+    const weBtn = document.getElementById('we-add');
+    const weStatus = document.getElementById('we-status');
+    const suggestBox = document.getElementById('suggest-box');
+    const suggestInput = document.getElementById('suggest-input');
+    const suggestBtn = document.getElementById('suggest-btn');
+    const suggestStatus = document.getElementById('suggest-status');
+
+    const SOLVE_HINT = 'Tap a tile to move the 🌶 spicy letter - it moves after every play. ' +
+                       'Need to fix a tile\'s uses or letter? Tap ✏️ Fix a tile first.';
+    const FIX_HINT = 'Fix mode: tap a tile to adjust its remaining uses or change its letter.';
+
+    /* ---------- build the 9 tiles ---------- */
+    const tiles = [];
+    for (let i = 0; i < 9; i++) {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'smush-tile' + (i === CENTER ? ' center-tile' : '');
+        tile.innerHTML = `
+            <span class="tile-spice-tag" hidden>🌶×2</span>
+            <span class="tile-value"></span>
+            <input type="text" maxlength="2" autocomplete="off" autocapitalize="characters"
+                   placeholder="${i === CENTER ? '★' : ''}" aria-label="${i === CENTER ? 'Center letter' : 'Letter ' + (i + 1)}">
+            <span class="tile-pips"></span>
+            <span class="center-infinity" hidden>∞</span>`;
+        board.appendChild(tile);
+        const input = tile.querySelector('input');
+        tile.addEventListener('click', () => onTileClick(i));
+        input.addEventListener('input', () => onLetterInput(i));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value === '') onBackspace(i);
+        });
+        input.addEventListener('blur', () => { if (solveMode) input.classList.remove('editing'); });
+        tiles.push(tile);
+    }
+
+    function inputOf(i) { return tiles[i].querySelector('input'); }
+
+    /* ---------- entry handling ---------- */
+    function onLetterInput(i) {
+        const input = inputOf(i);
+        const ch = (input.value.replace(/[^A-Za-z]/g, '').slice(-1) || '').toLowerCase();
+        if (!ch) { input.value = ''; if (letters[i]) removeLetter(i); return; }
+        if (letters.some((l, j) => l === ch && j !== i)) {
+            toast(`${ch.toUpperCase()} is already on the board`, true);
+            input.value = letters[i].toUpperCase();
+            return;
+        }
+        const old = letters[i];
+        letters[i] = ch;
+        input.value = ch.toUpperCase();
+        if (i !== CENTER) {
+            uses[ch] = (old && uses[old] !== undefined) ? uses[old] : MAX_USES;
+        }
+        if (old && old !== ch) {
+            delete uses[old];
+            if (spicy === old) spicy = ch;
+        }
+        if (solveMode) {
+            input.classList.remove('editing');
+            afterStateChange();
+        } else if (letters.every(l => l)) {
+            enterSolveMode();
+        } else {
+            focusNextEmpty();
+            renderBoard();
+        }
+    }
+
+    function removeLetter(i) {
+        const old = letters[i];
+        letters[i] = '';
+        if (old) { delete uses[old]; if (spicy === old) spicy = ''; }
+        if (solveMode) exitSolveMode();
+        renderBoard();
+    }
+
+    /* Clearing a letter mid-solve invalidates the results: /smush rejects
+       partial boards, and a stale word marked ✓ Played would spend the wrong
+       letters. Drop back to entry mode (keeping the tracked game) until all
+       nine tiles are filled again. */
+    function exitSolveMode() {
+        solveMode = false;
+        selected = -1;
+        fixMode = false;
+        clearTimeout(fetchTimer);
+        fetchSeq++;
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        clearTimeout(pollTimer);
+        board.classList.remove('solve-mode');
+        boardTools.classList.remove('visible');
+        fixBtn.classList.remove('active');
+        fixBtn.setAttribute('aria-pressed', 'false');
+        document.getElementById('smush-status').style.display = 'none';
+        document.getElementById('pangram-banner').className = 'pangram-banner';
+        boardHint.textContent = 'Fill every tile to get your ranked words back.';
+        tiles.forEach(t => t.querySelector('input').classList.remove('editing'));
+        resultsContainer.innerHTML = '';
+        setEntryOpen(false);
+        suggestBox.classList.remove('visible');
+        renderControls();
+        persist();
+    }
+
+    function onBackspace(i) {
+        const pos = ENTRY_ORDER.indexOf(i);
+        if (pos > 0) {
+            const prev = ENTRY_ORDER[pos - 1];
+            inputOf(prev).focus();
+        }
+    }
+
+    function focusNextEmpty() {
+        for (const i of ENTRY_ORDER) {
+            if (!letters[i]) { inputOf(i).focus(); return; }
+        }
+    }
+
+    function enterSolveMode() {
+        solveMode = true;
+        selected = -1;
+        fixMode = false;
+        board.classList.add('solve-mode');
+        document.getElementById('smush-status').style.display = 'flex';
+        boardHint.textContent = SOLVE_HINT;
+        boardTools.classList.add('visible');
+        fixBtn.classList.remove('active');
+        fixBtn.setAttribute('aria-pressed', 'false');
+        document.activeElement && document.activeElement.blur();
+        afterStateChange();
+    }
+
+    /* ---------- tile selection & controls ---------- */
+    /* Spicy moves after every play, making it the most frequent tracked
+       action, so a plain tile tap sets it in one go. The rare adjustments
+       (uses / letter) only open when ✏️ Fix a tile is on. */
+    function onTileClick(i) {
+        if (!solveMode) { inputOf(i).focus(); return; }
+        if (fixMode) {
+            selected = (selected === i) ? -1 : i;
+            renderBoard();
+            renderControls();
+            return;
+        }
+        const ch = letters[i];
+        if (i === CENTER) {
+            toast("The gold center letter can't be spicy - it never runs out");
+            return;
+        }
+        if ((uses[ch] ?? MAX_USES) === 0) {
+            toast(`${ch.toUpperCase()} is smushed flat - it can't be spicy`, true);
+            return;
+        }
+        toggleSpicy(ch);
+    }
+
+    function setFixMode(on) {
+        // Only one hand-correction panel at a time; two stacked would push the
+        // word list off the screen. Turning fix mode OFF leaves the entry panel
+        // alone - recordPlay does exactly that after every word logged.
+        if (on) setEntryOpen(false);
+        fixMode = on;
+        selected = -1;
+        fixBtn.classList.toggle('active', on);
+        fixBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        boardHint.textContent = on ? FIX_HINT : SOLVE_HINT;
+        renderBoard();
+        renderControls();
+    }
+
+    function renderControls() {
+        if (selected < 0) {
+            tileControls.classList.remove('visible');
+            tileControls.innerHTML = '';
+            return;
+        }
+        const ch = letters[selected];
+        tileControls.classList.add('visible');
+        if (selected === CENTER) {
+            tileControls.innerHTML = `
+                <span class="tc-label">${ch.toUpperCase()} - gold center letter: unlimited uses, required in every word</span>
+                <button type="button" class="tc-btn" id="tc-edit">✏️ Change letter</button>`;
+        } else {
+            const left = uses[ch] ?? MAX_USES;
+            const isSpicy = spicy === ch;
+            tileControls.innerHTML = `
+                <span class="tc-label">${ch.toUpperCase()} - ${LVAL[ch] || 1} pt${(LVAL[ch] || 1) > 1 ? 's' : ''} · ${left} of ${MAX_USES} uses left${left === 0 ? ' (smushed flat!)' : ''}</span>
+                <button type="button" class="tc-btn" id="tc-minus" ${left === 0 ? 'disabled' : ''}>− use</button>
+                <button type="button" class="tc-btn" id="tc-plus" ${left === MAX_USES ? 'disabled' : ''}>+ use</button>
+                <button type="button" class="tc-btn ${isSpicy ? 'tc-spicy-on' : ''}" id="tc-spicy">${isSpicy ? '🌶 Spicy here ✓' : '🌶 Spicy here'}</button>
+                <button type="button" class="tc-btn" id="tc-edit">✏️ Change letter</button>`;
+            document.getElementById('tc-minus').addEventListener('click', () => adjustUse(ch, -1));
+            document.getElementById('tc-plus').addEventListener('click', () => adjustUse(ch, +1));
+            document.getElementById('tc-spicy').addEventListener('click', () => toggleSpicy(ch));
+        }
+        document.getElementById('tc-edit').addEventListener('click', () => {
+            const input = inputOf(selected);
+            input.classList.add('editing');
+            input.focus();
+            input.select && input.select();
+        });
+    }
+
+    function adjustUse(ch, delta) {
+        uses[ch] = Math.min(MAX_USES, Math.max(0, (uses[ch] ?? MAX_USES) + delta));
+        if (uses[ch] === 0 && spicy === ch) spicy = '';
+        afterStateChange();
+    }
+
+    function toggleSpicy(ch) {
+        spicy = (spicy === ch) ? '' : ch;
+        afterStateChange();
+    }
+
+    /* ---------- board rendering ---------- */
+    function renderBoard() {
+        let next = -1;
+        if (!solveMode) { for (const i of ENTRY_ORDER) { if (!letters[i]) { next = i; break; } } }
+        for (let i = 0; i < 9; i++) {
+            const tile = tiles[i];
+            const ch = letters[i];
+            const isCenter = i === CENTER;
+            tile.className = 'smush-tile' + (isCenter ? ' center-tile' : '');
+            if (!isCenter && ch && spicy === ch) tile.classList.add('spicy-tile');
+            if (!isCenter && ch && solveMode && (uses[ch] ?? MAX_USES) === 0) tile.classList.add('dead-tile');
+            if (solveMode && selected === i) tile.classList.add('selected-tile');
+            if (i === next) tile.classList.add('next-entry');
+
+            tile.querySelector('.tile-value').textContent = ch ? (LVAL[ch] || 1) : '';
+            tile.querySelector('.tile-spice-tag').hidden = !(ch && spicy === ch && !isCenter);
+            tile.querySelector('.center-infinity').hidden = !(isCenter && ch && solveMode);
+
+            const pips = tile.querySelector('.tile-pips');
+            if (ch && !isCenter) {
+                const left = solveMode ? (uses[ch] ?? MAX_USES) : MAX_USES;
+                pips.innerHTML = Array.from({length: MAX_USES}, (_, p) =>
+                    `<span class="pip${p < left ? '' : ' spent'}"></span>`).join('');
+            } else {
+                pips.innerHTML = '';
+            }
+
+            if (ch) {
+                const left = isCenter ? null : (solveMode ? (uses[ch] ?? MAX_USES) : MAX_USES);
+                tile.setAttribute('aria-label', isCenter
+                    ? `Center letter ${ch.toUpperCase()}, unlimited uses`
+                    : `${ch.toUpperCase()}, ${LVAL[ch] || 1} points, ${left} of ${MAX_USES} uses left`
+                      + (spicy === ch ? ', spicy, double points' : '') + (left === 0 ? ', smushed flat' : ''));
+            }
+        }
+    }
+
+    function renderStatus() {
+        document.getElementById('chip-score').textContent = score;
+        document.getElementById('chip-played').textContent = played.length;
+        document.getElementById('chip-spicy').innerHTML =
+            spicy ? `🌶 Spicy: <b>${spicy.toUpperCase()}</b>` : '🌶 Spicy: <b>tap a tile</b>';
+        const pchip = document.getElementById('chip-pangram');
+        if (!solveMode) { pchip.style.display = 'none'; return; }
+        pchip.style.display = 'inline-block';
+        if (iceCold) {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!' : '🧊 Ice Cold: no pangram by design';
+        } else {
+            pchip.textContent = pangramStatus === 'found' ? '★ Pangram found!'
+                              : pangramStatus === 'affordable' ? '★ Pangram available'
+                              : pangramStatus === 'out_of_reach' ? '🫥 Pangram out of reach'
+                              : 'No pangram in our word list';
+        }
+        const banner = document.getElementById('pangram-banner');
+        if (iceCold && pangramStatus !== 'found') {
+            banner.className = 'pangram-banner gone';
+            banner.textContent = '🧊 Ice Cold mode: skipping the pangram on purpose - it always touches the ' +
+                                 'spicy letter, which would break the ×5 bonus.';
+        } else if (!iceCold && pangramStatus === 'out_of_reach') {
+            banner.className = 'pangram-banner gone';
+            banner.textContent = '🫥 The pangram is out of reach with your remaining letter uses.';
+        } else {
+            banner.className = 'pangram-banner';
+            banner.textContent = '';
+        }
+    }
+
+    function renderPlayed() {
+        const section = document.getElementById('played-section');
+        section.classList.toggle('visible', played.length > 0);
+        document.getElementById('played-pile').innerHTML = played.map(p =>
+            `<span class="played-chip">${p.word.toUpperCase()} <small>+${p.pts}</small></span>`).join('');
+
+        const rejSection = document.getElementById('rejected-section');
+        rejSection.classList.toggle('visible', rejected.length > 0);
+        const pile = document.getElementById('rejected-pile');
+        pile.innerHTML = rejected.map(w =>
+            `<button type="button" class="rejected-chip" data-restore="${w}"
+                     aria-label="Restore ${w.toUpperCase()} to the results">${w.toUpperCase()}</button>`).join('');
+        pile.querySelectorAll('.rejected-chip').forEach(chip =>
+            chip.addEventListener('click', () => restoreRejected(chip.dataset.restore)));
+    }
+
+    /* ---------- solving ---------- */
+    function afterStateChange() {
+        suggestBox.classList.toggle('visible', solveMode);
+        renderBoard();
+        renderControls();
+        renderStatus();
+        renderPlayed();
+        renderEntry();
+        persist();
+        refreshImport();
+        scheduleFetch();
+    }
+
+    function scheduleFetch() {
+        if (!solveMode) return;
+        clearTimeout(fetchTimer);
+        // Bump the sequence now so a response already in flight for the old
+        // state can't render during the debounce window.
+        const seq = ++fetchSeq;
+        resultsContainer.innerHTML = '<div class="loading">Crunching the letters…</div>';
+        fetchTimer = setTimeout(() => fetchResults(seq), 250);
+    }
+
+    function fetchResults(seq) {
+        const outerUses = {};
+        letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
+        clearTimeout(pollTimer);
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                center: letters[CENTER],
+                outer_uses: outerUses,
+                spicy: spicy,
+                first_word: played.length === 0,
+                rejected: rejected,
+                played: played.map(p => p.word),
+                plan: sortMode === 'all8',
+                ice_cold: iceCold
+            })
+        })
+        .then(r => {
+            // A 400/500 from the route still carries a JSON body, so parsing it
+            // would leave results undefined and render as "no words playable".
+            if (!r.ok) throw new Error('solve failed: ' + r.status);
+            return r.json();
+        })
+        .then(data => {
+            if (seq !== fetchSeq) return;   // a newer request superseded this one
+            lastResults = data.results || [];
+            planData = data.plan || null;
+            totalPlayable = data.total_playable || 0;
+            pangramStatus = data.pangram_status || 'none';
+            visibleCount = WORDS_STEP;
+            renderStatus();
+            renderResults();
+            // The board's first ICE COLD plan takes a minute to build; ask
+            // again quietly (no "Crunching" flash) until it's ready.
+            if (planData && planData.mode === 'ice_cold' && planData.status === 'building') {
+                pollTimer = setTimeout(() => { if (solveMode) fetchResults(++fetchSeq); }, BUILD_POLL_MS);
+            }
+        })
+        .catch(() => {
+            if (seq !== fetchSeq) return;
+            resultsContainer.innerHTML = '<div class="no-results">Error loading results - try again</div>';
+        });
+    }
+
+    function sortedResults() {
+        let r = lastResults.slice();
+        if (sortMode === 'pan') {
+            // Pangrams-only view. lastResults is already points-desc from the
+            // server and only holds affordable words, so no extra sort needed.
+            r = r.filter(w => w.pangram);
+        } else if (sortMode === 'eff') {
+            r.sort((a, b) => (b.efficiency - a.efficiency) || (b.pts - a.pts));
+        }
+        return r;
+    }
+
+    function bonusBadges(r) {
+        const bits = [];
+        if (r.spicy_uses > 0) bits.push('🌶' + (r.spicy_uses > 1 ? '×' + r.spicy_uses : ''));
+        if (r.smushes > 0) bits.push('🥞' + (r.smushes > 1 ? '×' + r.smushes : ''));
+        if (r.pangram) bits.push(played.length === 0 ? '★★' : '★');
+        if (r.mult > 1) bits.push('×' + r.mult);
+        return bits.join(' ');
+    }
+
+    function sortChipsHtml() {
+        const chips = [['all8', '🥞 All 8'], ['pan', '★ Pangrams'], ['pts', 'Points'], ['eff', 'Pts per use']];
+        return `<span class="sort-chips" role="group" aria-label="Sort results">`
+            + chips.map(([k, label]) =>
+                `<button type="button" class="sort-chip ${sortMode === k ? 'active' : ''}" data-sort="${k}">${label}</button>`).join('')
+            + `</span>`;
+    }
+
+    function isRare(w) { return typeof w.pop === 'number' && w.pop < 2; }
+
+    function wordRowHtml(w) {
+        const breakdown = w.mult > 1 ? `${w.base} base × ${w.mult}` : `${w.base} base`;
+        const rareFlag = isRare(w)
+            ? `<button type="button" class="rare-flag" data-rare="${w.word}"
+                       title="Rare word - Smush may not accept it"
+                       aria-label="${w.word.toUpperCase()} is rare - Smush may not accept it, tap for details">⚠</button> ` : '';
+        // ✗ sits last, with ↗ between it and ✓ Played, so a slipped tap on
+        // Played can't report a word the player meant to play.
+        return `
+            <div class="word-result${w.pangram ? ' pangram-word' : ''}" data-word="${w.word}" title="${breakdown}">
+                <span class="word-text">${w.word.toUpperCase()}</span>
+                <span class="word-bonuses">${rareFlag}${bonusBadges(w)}</span>
+                <span class="word-pts">${w.pts}</span>
+                <span class="word-eff" title="Points per tile use - pick the highest to maximize your final score">${w.efficiency}/use</span>
+                <button type="button" class="played-btn" data-play="${w.word}" aria-label="Mark ${w.word.toUpperCase()} as played">✓ Played</button>
+                <a class="define-link"
+                   href="https://en.wiktionary.org/wiki/${w.word}"
+                   target="_blank" rel="noopener noreferrer"
+                   title="View definition" aria-label="View definition of ${w.word.toUpperCase()}"
+                   onclick="event.stopPropagation()">↗</a>
+                <button type="button" class="reject-btn" data-reject="${w.word}" title="Smush didn't accept this word - hide it (costs nothing) and let us know" aria-label="Hide ${w.word.toUpperCase()}, not accepted by Smush">✗</button>
+                <div class="copy-feedback">Copied!</div>
+            </div>`;
+    }
+
+    function wireResults() {
+        resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
+            chip.addEventListener('click', () => {
+                sortMode = chip.dataset.sort;
+                visibleCount = WORDS_STEP;
+                try { localStorage.setItem(SORT_KEY, sortMode); } catch (_) {}
+                // The All 8 plan is only computed when asked for, so entering
+                // that mode without one in hand means a refetch.
+                if (sortMode === 'all8' && !planData) scheduleFetch();
+                else renderResults();
+            }));
+        resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
+        resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
+            btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+        // The rare tag must explain itself on tap: mobile players have no
+        // hover, and letting the tap fall through would copy the word.
+        resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toast(`⚠ ${btn.dataset.rare.toUpperCase()} is a rare word - Smush may refuse it. ` +
+                      `If it does, hit ✗: no letters are spent and the plan reroutes.`);
+            }));
+        resultsContainer.querySelectorAll('.word-result').forEach(el =>
+            el.addEventListener('click', () => copyWord(el)));
+    }
+
+    function esc(text) {
+        return String(text ?? '').replace(/[&<>"']/g, ch =>
+            ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[ch]);
+    }
+
+    /* The ICE COLD plan. The server plays the game against a random spice for
+       the most expected points, so there's no fixed word list to show: just
+       the best word for wherever the 🌶 is now - or for each tile it could be
+       on, before it's tapped - the expected final score, the chance of a
+       clean finish, and the words worth saving for the end. Every ✓ or ✗
+       re-plans. */
+    function renderIcePlan() {
+        const p = planData;
+        const pct = v => `${Math.round((v || 0) * 100)}%`;
+        // ICE COLD x5s everything: the points so far plus the plan's expected rest.
+        const finalScore = v => Math.round(5 * (score + (v || 0))).toLocaleString();
+        const HOARD = 13;
+        let html = `
+            <div class="results-header">
+                <span class="results-count">🧊 ICE COLD plan</span>
+                ${sortChipsHtml()}
+            </div>`;
+        if (p.status === 'building') {
+            html += `<div class="ice-card">🧊 Building this board's ICE COLD plan - the first one each day takes
+                     about ${p.eta || 45} seconds, and it shows up here by itself. Don't play yet if you want the
+                     clean finish: the first words matter most.</div>`;
+        } else if (p.status === 'failed' || p.status === 'capped') {
+            html += `<div class="ice-card bad">${esc(p.reason)}</div>`;
+        } else if (p.status === 'done') {
+            html += `<div class="ice-card">🥞 Every letter is smushed flat. If no word touched the spice, that's
+                     ICE COLD plus the Clean Plate.</div>`;
+        } else if (p.status === 'impossible') {
+            html += `<div class="ice-card bad">🫥 Nothing left avoids the 🌶. ${esc(p.reason || '')}
+                     <br>Your ICE COLD ×5 is safe if you stop here: end the game with Smush's <em>stuck?</em>
+                     link - it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
+        } else {
+            const hoard = played.length >= HOARD
+                ? `Word Hoard ✓ (${played.length} words)`
+                : `Word Hoard: ${played.length}/${HOARD} words`;
+            html += `<div class="ice-card${p.p_success > 0 ? '' : ' bad'}">
+                <div class="ice-chance">≈ ${finalScore(p.expected_points)}<small>expected final score</small></div>
+                ${pct(p.p_success)} chance of a clean ICE COLD finish · ${hoard}
+                ${p.p_success > 0 ? '' : `<br>🫥 No clean finish is left: ${esc(p.reason)}
+                    Playing for the most ICE COLD points instead.`}
+                <br><small>Counts the 🌶's luck, Smush taking our words and the ×5. Speed, streak, rank and
+                Long Boy bonuses come on top. The plan changes every turn: play the word for the tile that's
+                spicy right now, then hit ✓&nbsp;Played - or ✗ if Smush refuses it.</small>
+            </div>`;
+            if (p.spice === 'unknown') {
+                html += `<div class="ice-label">Where's the 🌶 now? Play that tile's word</div>`;
+                letters.forEach((ch, i) => {
+                    if (!ch || i === CENTER || (uses[ch] ?? MAX_USES) === 0) return;
+                    const w = (p.by_spice || {})[ch];
+                    html += `<div class="spice-row"><span class="spice-tile">${ch.toUpperCase()}</span>`;
+                    html += w ? `${wordRowHtml(w)}<span class="spice-chance" title="expected final score · clean-finish chance">≈${finalScore(w.exp)}<br>${pct(w.p)}</span>`
+                              : `<span class="spice-chance" style="text-align:left">nothing avoids the 🌶 there</span>`;
+                    html += `</div>`;
+                });
+            } else {
+                const label = p.spice === null
+                    ? 'No spice now - the last tile is free. Finish with'
+                    : `Play now (🌶 on ${String(p.spice).toUpperCase()})`;
+                html += `<div class="ice-label">${label}</div>`;
+                (p.next || []).slice(0, 1).forEach(w => { html += wordRowHtml(w); });
+                if ((p.next || []).length > 1) {
+                    html += `<div class="ice-label">If Smush refuses it, try</div>`;
+                    p.next.slice(1).forEach(w => { html += wordRowHtml(w); });
+                }
+            }
+            if ((p.finish_words || []).length) {
+                html += `<div class="ice-card ice-finish">Save for the finish:
+                         <b>${p.finish_words.map(w => esc(w).toUpperCase()).join(', ')}</b> - the words the
+                         plan expects to end on, so don't spend them early.</div>`;
+            }
+            html += `<div class="ice-source">${p.source === 'exact'
+                        ? 'Solved exactly for your remaining letters and words'
+                        : "From today's full-board table"}${p.sim_win_rate == null ? ''
+                        : ` · won ${pct(p.sim_win_rate)} of 24 simulated games if Smush takes every word`}</div>`;
+        }
+        resultsContainer.innerHTML = html;
+        wireResults();
+    }
+
+    /* The All 8 view: a set of words whose letter costs together spend every
+       remaining use, smushing the whole board flat. The server orders it for
+       play - pangram first, then riskiest (least popular) words - so a
+       refusal lands while there are still letters left to re-plan around;
+       every ✓ or ✗ refetches with the rejected/played lists, which
+       recalculates the plan. */
+    function renderPlan() {
+        if (!planData) { scheduleFetch(); return; }
+        if (planData.mode === 'ice_cold') { renderIcePlan(); return; }
+        const words = planData.words || [];
+        const leftover = Object.entries(planData.leftover || {})
+            .map(([l, n]) => `${l.toUpperCase()}×${n}`).join(', ');
+        const risky = words.filter(isRare).length;
+        const riskNote = words.length === 0 ? ''
+            : risky === 0 ? ' Every word here is a common one Smush should accept.'
+            : ` ⚠ ${risky} of these ${risky === 1 ? 'is a rare word' : 'are rare words'} Smush may refuse.`;
+        let count, banner, partial = false;
+        if (planData.complete && words.length === 0) {
+            count = 'Board smushed flat';
+            banner = '🥞 Every letter is already smushed flat - board complete!';
+        } else if (planData.complete) {
+            count = `${words.length}-word plan`;
+            if (words[0].pangram && played.length === 0) {
+                banner = `★ Play the pangram FIRST, then the rest top to bottom, and every letter ends smushed flat. ` +
+                         `Pangram first + clean plate is Smush's PERFECT bonus - your final score is doubled.` +
+                         riskNote + ` The riskiest words come early, while there's still room to re-plan - ` +
+                         `if Smush refuses one, hit ✗ and a new plan is calculated.`;
+            } else {
+                banner = `🥞 Play these ${words.length} top to bottom and every letter ends smushed flat` +
+                         `${words[0].pangram ? ' (pangram included)' : ''}.` + riskNote +
+                         ` The riskiest words come early, while there's still room to re-plan - ` +
+                         `if Smush refuses one, hit ✗ and a new plan is calculated.`;
+            }
+        } else {
+            partial = true;
+            count = `${words.length}-word plan (best effort)`;
+            banner = `🫥 No combination in our dictionary smushes everything flat - this plan leaves ${leftover || 'nothing else'} stranded. ` +
+                     `It recalculates after every ✓ or ✗.`;
+        }
+        let html = `
+            <div class="results-header">
+                <span class="results-count">${count}</span>
+                ${sortChipsHtml()}
+            </div>
+            <div class="plan-banner${partial ? ' partial' : ''}">${banner}</div>`;
+        words.forEach(w => { html += wordRowHtml(w); });
+        resultsContainer.innerHTML = html;
+        wireResults();
+    }
+
+    function renderResults() {
+        if (!solveMode) { resultsContainer.innerHTML = ''; return; }
+        if (sortMode === 'all8') { renderPlan(); return; }
+        if (lastResults.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No playable words left with these letters</div>';
+            return;
+        }
+
+        const r = sortedResults();
+
+        let countLabel;
+        if (sortMode === 'pan') {
+            countLabel = `${r.length} pangram${r.length === 1 ? '' : 's'}`;
+        } else {
+            const capped = totalPlayable > lastResults.length;
+            countLabel = `${totalPlayable} playable word${totalPlayable === 1 ? '' : 's'}${capped ? ` (top ${lastResults.length} shown)` : ''}`;
+        }
+
+        let html = `
+            <div class="results-header">
+                <span class="results-count">${countLabel}</span>
+                ${sortChipsHtml()}
+            </div>`;
+
+        // Pangrams view with none to show: keep the header (and its chips) so
+        // the player can switch back, and explain why the list is empty.
+        if (r.length === 0) {
+            const msg = pangramStatus === 'found'
+                    ? '★ You already played the pangram - nice!'
+                : pangramStatus === 'out_of_reach'
+                    ? 'The pangram is out of reach with your remaining letter uses'
+                    : 'No pangram in our word list for these letters';
+            html += `<div class="no-results">${msg}</div>`;
+            resultsContainer.innerHTML = html;
+            wireResults();
+            return;
+        }
+
+        r.slice(0, visibleCount).forEach(w => { html += wordRowHtml(w); });
+
+        resultsContainer.innerHTML = html;
+
+        const remaining = r.length - visibleCount;
+        if (remaining > 0) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'show-more-btn';
+            btn.textContent = `Show ${Math.min(WORDS_STEP, remaining)} more (${remaining} remaining)`;
+            btn.addEventListener('click', () => { visibleCount += WORDS_STEP; renderResults(); });
+            resultsContainer.appendChild(btn);
+        }
+
+        wireResults();
+    }
+
+    /* ---------- playing words ---------- */
+    function snapshot() {
+        return JSON.stringify({uses, spicy, played, score});
+    }
+
+    /* Bank a word's points and spend its letters. Shared by the results
+       list's ✓ Played button and the type-it-in box, so a word recorded
+       either way moves the game state identically. */
+    function recordPlay(r) {
+        history.push(snapshot());
+        score += r.pts;
+        played.push({word: r.word, pts: r.pts});
+        for (const [l, n] of Object.entries(r.cost)) {
+            uses[l] = Math.max(0, (uses[l] ?? MAX_USES) - n);
+        }
+        spicy = '';
+        selected = -1;
+        if (fixMode) setFixMode(false);   // next tap should place the new 🌶
+        const alive = letters.filter((ch, i) => ch && i !== CENTER && (uses[ch] ?? MAX_USES) > 0);
+        // Under ICE COLD the last tile left was the spicy one, so the game's
+        // spice is gone and that tile is free to finish.
+        const next = alive.length === 0 ? 'board smushed flat!'
+                   : (iceCold && alive.length === 1) ? `only ${alive[0].toUpperCase()} is left - no spice now`
+                   : iceCold ? "the 🌶 moved - play its tile's word below, or tap it"
+                   : 'the 🌶 moved - tap the new spicy tile';
+        toast(`${r.word.toUpperCase()} +${r.pts} · ${next}`);
+        afterStateChange();
+    }
+
+    function markPlayed(word) {
+        // Plan words can sit below the ranked list's cutoff, so check both.
+        // An ICE COLD plan offers its words per spicy tile instead of as a list.
+        const planWords = planData
+            ? [...(planData.words || []), ...(planData.next || []), ...Object.values(planData.by_spice || {})]
+            : [];
+        const r = lastResults.find(x => x.word === word) || planWords.find(x => x.word === word);
+        if (!r) return;
+        recordPlay(r);
+    }
+
+    /* The game refused this word: hide it from results without spending
+       letters, scoring, or moving the spicy letter - and tell the server,
+       which fixes the word list once enough players agree. */
+    function markRejected(word) {
+        if (rejected.includes(word)) return;
+        rejected.push(word);
+        if (isFirstReject()) {
+            toast(`${word.toUpperCase()} hidden - no letters spent. Thanks, we'll take your report ` +
+                  `into account. Use ✗ only when Smush refuses a word.`, false, 6000);
+        } else {
+            toast(`${word.toUpperCase()} hidden - no letters spent. Tap it below to restore.`);
+        }
+        postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
+        afterStateChange();
+    }
+
+    function restoreRejected(word) {
+        rejected = rejected.filter(w => w !== word);
+        postVote({action: 'restore', word: word}).catch(() => {});
+        afterStateChange();
+    }
+
+    /* ---------- crowd corrections ---------- */
+    /* Players are never told how many reports a change takes, or when theirs
+       tipped a word over: the server doesn't say, and nothing on this page
+       hints at it. */
+    function boardLetters() {
+        return {center: letters[CENTER],
+                outer: letters.filter((_, i) => i !== CENTER).join('')};
+    }
+
+    function postVote(payload) {
+        return fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.assign(payload, boardLetters()))
+        }).then(r => {
+            if (!r.ok) throw new Error('vote failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    // True only the first time this browser hides a word. Storage can throw
+    // when a browser blocks site data; the explainer then just shows again.
+    function isFirstReject() {
+        try {
+            if (localStorage.getItem('smushDevRejectExplained')) return false;
+            localStorage.setItem('smushDevRejectExplained', '1');
+        } catch (_) {}
+        return true;
+    }
+
+    const SUGGEST_MESSAGES = {
+        recorded: "Thanks! We'll take your suggestion into account.",
+        already_listed: 'That word is already in our list.',
+        not_in_puzzle: "That word doesn't fit these letters."
+    };
+
+    function submitSuggestion() {
+        const w = (suggestInput.value || '').trim().toLowerCase();
+        const center = letters[CENTER];
+        // The same checks the server makes, answered here without a round trip.
+        let problem = '';
+        if (!/^[a-z]+$/.test(w)) problem = 'Letters only, please.';
+        else if (w.length < 3) problem = 'Smush words are at least 3 letters.';
+        else if (!w.includes(center)) problem = `Every Smush word has to use the gold ${center.toUpperCase()}.`;
+        else if (!Array.from(w).every(ch => letters.includes(ch))) problem = SUGGEST_MESSAGES.not_in_puzzle;
+        else if (rejected.includes(w)) problem = `You hid ${w.toUpperCase()} with ✗ - tap it in the hidden list to bring it back.`;
+        if (problem) { suggestStatus.textContent = problem; return; }
+
+        suggestBtn.disabled = true;
+        suggestStatus.textContent = 'Sending...';
+        postVote({action: 'suggest_missing', word: w})
+            .then(data => {
+                const result = data && data.result;
+                suggestStatus.textContent = SUGGEST_MESSAGES[result] || SUGGEST_MESSAGES.recorded;
+                if (result === 'recorded') suggestInput.value = '';
+            })
+            .catch(() => { suggestStatus.textContent = 'Could not send that. Please try again.'; })
+            .finally(() => { suggestBtn.disabled = false; });
+    }
+
+    function undoLast() {
+        if (!history.length) return;
+        const s = JSON.parse(history.pop());
+        uses = s.uses; spicy = s.spicy; played = s.played; score = s.score;
+        selected = -1;
+        afterStateChange();
+    }
+
+    /* ---------- typing in a word you already played ---------- */
+    /* The ranked list is capped and our dictionary isn't Smush's, so a word a
+       player already used can be nowhere on the page. Re-implementing the
+       server's scoring here lets any board-legal word be recorded, which is
+       the only practical way to catch the solver up on a game in progress. */
+    function scoreTyped(w) {
+        const center = letters[CENTER];
+        const cost = {};
+        for (const ch of w) { if (ch !== center) cost[ch] = (cost[ch] || 0) + 1; }
+        const smushes = Object.entries(cost)
+            .filter(([l, n]) => (uses[l] ?? MAX_USES) > 0 && n === (uses[l] ?? MAX_USES)).length;
+        const spicyUses = spicy ? (cost[spicy] || 0) : 0;
+        // Callers reject any letter that isn't on the board first, so hitting
+        // nine distinct letters is the same test as the server's set equality.
+        const pangram = new Set(w).size === letters.length;
+        const base = Array.from(w).reduce((s, ch) => s + (LVAL[ch] || 1), 0);
+        const mult = 1 + spicyUses + smushes + (pangram ? (played.length === 0 ? 4 : 2) : 0);
+        return {word: w, base, mult, pts: base * mult,
+                spicy_uses: spicyUses, smushes, pangram, cost};
+    }
+
+    /* -> {word, ok, scored} for a recordable word, or {word, msg} naming the
+       first rule it breaks. */
+    function checkTyped(raw) {
+        const w = (raw || '').toLowerCase().replace(/[^a-z]/g, '');
+        if (!w) return {word: ''};
+        if (w.length < 3) return {word: w, msg: 'Smush words are at least 3 letters.'};
+        // Longer than the /smush route accepts back in the played list.
+        if (w.length > 15) return {word: w, msg: 'Too long to track - 15 letters max.'};
+        const center = letters[CENTER];
+        if (!w.includes(center)) {
+            return {word: w, msg: `Every Smush word has to use the gold ${center.toUpperCase()}.`};
+        }
+        const offBoard = Array.from(new Set(w)).filter(ch => !letters.includes(ch));
+        if (offBoard.length) {
+            return {word: w, msg: `${offBoard.join(', ').toUpperCase()} ${offBoard.length > 1 ? 'are' : 'is'} not on this board.`};
+        }
+        if (played.some(p => p.word === w)) {
+            return {word: w, msg: `${w.toUpperCase()} is already in your played words.`};
+        }
+        const scored = scoreTyped(w);
+        const short = Object.entries(scored.cost)
+            .filter(([l, n]) => n > (uses[l] ?? MAX_USES))
+            .map(([l, n]) => `${l.toUpperCase()} needs ${n}, ${uses[l] ?? MAX_USES} left`);
+        if (short.length) {
+            return {word: w, msg: `Not enough uses left - ${short.join('; ')}. `
+                                + `If the board is off, fix it with ✏️ Fix a tile.`};
+        }
+        return {word: w, ok: true, scored};
+    }
+
+    function renderEntry() {
+        const res = checkTyped(weInput.value);
+        weBtn.disabled = !res.ok;
+        if (!res.word) {
+            weStatus.textContent = '';
+            weStatus.className = 'we-status';
+        } else if (!res.ok) {
+            weStatus.textContent = res.msg;
+            weStatus.className = 'we-status bad';
+        } else {
+            const badges = bonusBadges(res.scored);
+            weStatus.textContent = `${res.word.toUpperCase()} · ${res.scored.pts} pts`
+                + (badges ? ` · ${badges}` : '') + ' · hit ✓ Played to spend its letters';
+            weStatus.className = 'we-status good';
+        }
+    }
+
+    function addTyped() {
+        const res = checkTyped(weInput.value);
+        if (!res.ok) { if (res.msg) toast(res.msg, true); return; }
+        // Clear first: recordPlay re-renders this box through afterStateChange.
+        weInput.value = '';
+        recordPlay(res.scored);
+        weInput.focus();   // keep the keyboard up for the next word
+    }
+
+    /* Collapsed by default - the strip between the board and the word list is
+       the page's most valuable space, and catching up on already-played words
+       is usually a once-a-session job. Stays open across adds so a player
+       resuming a game can log word after word. */
+    function setEntryOpen(open) {
+        if (open && fixMode) setFixMode(false);   // see setFixMode: one at a time
+        weWrap.classList.toggle('visible', open);
+        weToggle.classList.toggle('active', open);
+        weToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            weInput.focus();
+        } else {
+            weInput.value = '';
+            renderEntry();
+        }
+    }
+
+    /* ---------- reset & persistence ---------- */
+    function resetBoard(e) {
+        e && e.preventDefault();
+        if (solveMode && !confirm('Reset the board and clear your tracked game?')) return;
+        letters = Array(9).fill('');
+        uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
+        solveMode = false; selected = -1; fixMode = false;
+        lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
+        clearTimeout(pollTimer);
+        board.classList.remove('solve-mode');
+        boardTools.classList.remove('visible');
+        fixBtn.classList.remove('active');
+        fixBtn.setAttribute('aria-pressed', 'false');
+        document.getElementById('smush-status').style.display = 'none';
+        document.getElementById('pangram-banner').className = 'pangram-banner';
+        boardHint.textContent = 'Enter the gold center letter first, then the eight around it.';
+        tiles.forEach(t => { const inp = t.querySelector('input'); inp.value = ''; inp.classList.remove('editing'); });
+        resultsContainer.innerHTML = '';
+        setEntryOpen(false);
+        suggestBox.classList.remove('visible');
+        suggestInput.value = '';
+        suggestStatus.textContent = '';
+        renderControls(); renderStatus(); renderPlayed(); renderBoard();
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        refreshImport();
+        inputOf(CENTER).focus();
+    }
+
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(
+                {letters, uses, spicy, played, rejected, score, history, solveMode,
+                 savedAt: Date.now()}));
+        } catch (_) {}
+    }
+
+    /* A save from a previous calendar day is a finished puzzle: daily players
+       should land on a fresh entry board. The age floor keeps a game that
+       straddles midnight alive. */
+    const STALE_FLOOR_HOURS = 6;
+    function isStale(s) {
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        const savedDay = new Date(s.savedAt).toDateString();
+        return savedDay !== new Date().toDateString() && ageHours > STALE_FLOOR_HOURS;
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.letters) || s.letters.length !== 9) return false;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.solveMode) toast("Cleared yesterday's board - enter today's letters 🥞");
+            return false;
+        }
+        letters = s.letters.map(l => (typeof l === 'string' ? l : ''));
+        uses = s.uses || {}; spicy = s.spicy || '';
+        // renderPlayed() calls .toUpperCase() on these, and restore() runs during
+        // boot outside any try/catch - one bad entry would abort the board setup.
+        played = (Array.isArray(s.played) ? s.played : [])
+            .filter(p => p && typeof p.word === 'string');
+        rejected = (Array.isArray(s.rejected) ? s.rejected : [])
+            .filter(w => typeof w === 'string');
+        score = s.score || 0; history = Array.isArray(s.history) ? s.history : [];
+        letters.forEach((ch, i) => { inputOf(i).value = ch.toUpperCase(); });
+        if (s.solveMode && letters.every(l => l)) {
+            enterSolveMode();
+        } else {
+            renderBoard();
+        }
+        return true;
+    }
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn, ms) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'smush-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        // Hold onto this element: clearTimeout can't reach the inner fade timer,
+        // so a toast raised mid-fade would otherwise be removed by the old one.
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, ms || 2600);
+    }
+
+    /* ---------- wiring ---------- */
+    document.getElementById('reset-btn').addEventListener('click', resetBoard);
+    document.getElementById('undo-btn').addEventListener('click', undoLast);
+    fixBtn.addEventListener('click', () => setFixMode(!fixMode));
+    iceColdBtn.addEventListener('click', () => {
+        iceCold = !iceCold;
+        iceColdBtn.classList.toggle('active', iceCold);
+        iceColdBtn.setAttribute('aria-pressed', String(iceCold));
+        try { localStorage.setItem(ICE_COLD_KEY, iceCold); } catch (_) {}
+        toast(iceCold
+            ? '🧊 Ice Cold on: 🥞 All 8 plans a clean ICE COLD finish, and the word lists skip the spicy letter.'
+            : '🧊 Ice Cold off: 🥞 All 8 is the regular plan, same as /smush.', false, 4000);
+        if (solveMode) scheduleFetch();
+    });
+
+    /* ---------- copying a game from /smush ---------- */
+    /* /smush's own save is only read here, never written. */
+    const importBtn = document.getElementById('import-btn');
+    function smushSave() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(SMUSH_STORAGE_KEY)); } catch (_) {}
+        return s && Array.isArray(s.letters) && s.letters.length === 9 && !isStale(s) ? s : null;
+    }
+    function refreshImport() {
+        importBtn.classList.toggle('visible', !solveMode && !!smushSave());
+    }
+    importBtn.addEventListener('click', () => {
+        const s = smushSave();
+        if (!s) { refreshImport(); return; }
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+        if (restore()) toast('Copied your /smush game here - /smush keeps its own.');
+        refreshImport();
+    });
+
+    weToggle.addEventListener('click', () => setEntryOpen(!weWrap.classList.contains('visible')));
+    weInput.addEventListener('input', renderEntry);
+    weInput.addEventListener('keydown', (e) => {
+        // Enter is the natural way to log word after word while catching up.
+        if (e.key === 'Enter') { e.preventDefault(); addTyped(); }
+    });
+    weBtn.addEventListener('click', addTyped);
+
+    suggestBtn.addEventListener('click', submitSuggestion);
+    suggestInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); submitSuggestion(); }
+    });
+
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('smushDevInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('smushDevInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    // Restore the player's last sort/filter before restore() below, so a
+    // resumed board's first fetch already knows whether to build the All 8 plan.
+    try {
+        const savedSort = localStorage.getItem(SORT_KEY);
+        if (SORT_MODES.includes(savedSort)) sortMode = savedSort;
+    } catch (_) {}
+    // On unless this browser turned it off here: ICE COLD is what the page is for.
+    try { iceCold = localStorage.getItem(ICE_COLD_KEY) !== 'false'; } catch (_) {}
+    iceColdBtn.classList.toggle('active', iceCold);
+    iceColdBtn.setAttribute('aria-pressed', String(iceCold));
+
+    function copyWord(element) {
+        const word = element.dataset.word.toUpperCase();
+        const textarea = document.createElement('textarea');
+        textarea.value = word;
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        try {
+            document.execCommand('copy');
+            element.classList.add('copied');
+            const feedback = element.querySelector('.copy-feedback');
+            feedback.classList.add('show');
+            setTimeout(() => {
+                element.classList.remove('copied');
+                feedback.classList.remove('show');
+            }, 1500);
+        } catch (_) {}
+        document.body.removeChild(textarea);
+    }
+
+    if (!restore()) {
+        renderBoard();
+        inputOf(CENTER).focus();
+    }
+    refreshImport();
+});
+</script>
+
+{% endblock %}

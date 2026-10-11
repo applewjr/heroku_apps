@@ -322,6 +322,15 @@
     color: #02484d;
     font-weight: bold;
 }
+
+.pop-rare {
+    color: #b00020;
+    font-weight: bold;
+}
+
+.pop-none {
+    color: #999;
+}
 </style>
 
 {% macro pager(p) %}
@@ -335,6 +344,15 @@
     <span class="crowd-note">Page {{ p.page }} of {{ p.pages }}</span>
 </nav>
 {% endif %}
+{% endmacro %}
+
+{# How common the word is: the Zipf score the Smush solver ranks by (see
+   data.word_pop). Below 2 is what the solver tags rare; a word missing from
+   the frequency list counts as 0 there. #}
+{% macro pop_cell(word) %}
+{% set pop = word_pop.get(word) %}
+{% if pop is none %}<td class="pop-none">none</td>
+{% else %}<td class="{{ 'pop-rare' if pop < 2 else '' }}">{{ '%.1f' % pop }}</td>{% endif %}
 {% endmacro %}
 
 <div class="admin-container">
@@ -397,6 +415,7 @@
         <button type="submit" class="btn btn-primary">Search</button>
         {% if query %}<a href="{{ clear_url }}">Clear search</a>{% endif %}
     </form>
+    <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Smush solver tags rare; "none" means it isn't in the frequency list at all.</p>
 
     <div class="tab-container">
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
@@ -409,7 +428,7 @@
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         <h2>Player Reports, last {{ crowd_window_days }} days</h2>
         <p class="crowd-note">"invalid" is an Invalid tick on a result (Blossom rejected it). "missing" is the box under the results (Blossom accepted a word we don't list).
-            A word is removed once {{ crowd_remove_votes }} different players flag it, and added once {{ crowd_add_votes }} suggest it.
+            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily Invalid limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
         <p class="crowd-note">
@@ -425,10 +444,13 @@
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Report</th>
                     <th>Players</th>
+                    <th>Needed</th>
                     <th>First / last report</th>
                     <th>Board (letters)</th>
+                    <th>Board date</th>
                     <th>Result</th>
                     <th>Action</th>
                 </tr>
@@ -437,8 +459,10 @@
                 {% for r in reports %}
                 <tr>
                     <td><strong>{{ r[0] }}</strong></td>
+                    {{ pop_cell(r[0]) }}
                     <td>{{ r[1] }}</td>
                     <td>{{ r[2] }}</td>
+                    <td>{{ votes_needed(r[0], r[1]) }}</td>
                     <td class="report-dates">
                         {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
                         {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
@@ -450,6 +474,7 @@
                         <span class="crowd-note">not recorded</span>
                         {% endfor %}
                     </td>
+                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
                     <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
                     <td>
                         {% if r[4] == 'waiting' %}
@@ -497,13 +522,14 @@
     <!-- Removed Words Tab -->
     <div id="invalid-tab" class="tab-content{% if active_tab == 'invalid' %} active{% endif %}">
         <h2>Removed Words (Hidden from Results)</h2>
-        <p class="crowd-note">"Crowd" rows were applied automatically after {{ crowd_remove_votes }} different players flagged the word. Undo puts the word back and resets its votes.</p>
+        <p class="crowd-note">"Crowd" rows were applied automatically once enough different players flagged the word ({{ crowd_remove_rare }} to {{ crowd_remove_bands[0][1] }}, depending on its popularity). Undo puts the word back and resets its votes.</p>
         {% if invalid_words %}
         <div class="table-wrap">
         <table class="words-table">
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Added Date</th>
                     <th>By</th>
                     <th>Action</th>
@@ -513,6 +539,7 @@
                 {% for word_data in invalid_words %}
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>
@@ -544,6 +571,7 @@
             <thead>
                 <tr>
                     <th>Word</th>
+                    <th>Popularity</th>
                     <th>Added Date</th>
                     <th>By</th>
                     <th>Action</th>
@@ -553,6 +581,7 @@
                 {% for word_data in added_words %}
                 <tr>
                     <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
                     <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
                     <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
                     <td>

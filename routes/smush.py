@@ -9,8 +9,9 @@ import time
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from crowd import CROWD_ADD_VOTES, CROWD_REMOVE_VOTES, CROWD_WINDOW_DAYS
-from data import words
+from crowd import (CROWD_ADD_VOTES, CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
+                   CROWD_WINDOW_DAYS)
+from data import word_pop, words
 from extensions import auth, db_cursor
 from helpers import ValidationError, parse_letters
 
@@ -178,7 +179,9 @@ def smush_admin():
         view = SMUSH_CROWD.admin_view(request.args.to_dict(), request.path)
         return render_template('smush_admin.html',
                                **view,
-                               crowd_remove_votes=CROWD_REMOVE_VOTES,
+                               word_pop=word_pop,
+                               crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
+                               crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
                                crowd_add_votes=CROWD_ADD_VOTES,
                                crowd_window_days=CROWD_WINDOW_DAYS)
     except Exception as e:
