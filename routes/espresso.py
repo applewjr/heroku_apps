@@ -1,5 +1,12 @@
 """Espresso optimizer routes. GET and POST share one code path: POSTed form
-values override the defaults via request.form.get (form is empty on GET)."""
+values override the defaults via request.form.get (form is empty on GET).
+
+Every page is behind the admin password (James, 2026-10-11). It's a personal
+tool, and its POSTs are the heaviest work the app does: the recommendation
+loads scikit-learn and SciPy (42 MB just to import, measured 2026-10-11, and
+more once a model is fitted), which stay resident until the next restart, and
+the plots render matplotlib figures. The password keeps visitors and bots from
+triggering either."""
 
 import base64
 import io
@@ -9,7 +16,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 
 import config
 from data import espresso_points
-from extensions import cache
+from extensions import auth, cache
 from functions import espresso
 from helpers import ValidationError, parse_choice, parse_float, parse_int
 
@@ -66,16 +73,19 @@ def validate_password():
 
 
 @bp.route('/espresso/home/', methods=['GET', 'POST'])
+@auth.login_required
 def espresso_home():
     return render_template('espresso_home.html')
 
 
 @bp.route('/espresso')
+@auth.login_required
 def espresso_home_redirect():
     return redirect(url_for('espresso.espresso_home'))
 
 
 @bp.route('/espresso/recommendation/', methods=['GET', 'POST'])
+@auth.login_required
 def espresso_recommendation():
 
     # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
@@ -108,6 +118,7 @@ def espresso_recommendation():
 
 
 @bp.route('/espresso/plot/', methods=['GET', 'POST'])
+@auth.login_required
 def espresso_plot():
 
     # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
@@ -171,6 +182,7 @@ EXPLORE_DEFAULTS = {
 
 
 @bp.route('/espresso/explore/', methods=['GET', 'POST'])
+@auth.login_required
 def espresso_explore():
 
     # Bot gate: GET renders a cheap "click to continue" page and runs nothing.
@@ -225,6 +237,7 @@ def espresso_explore():
 
 
 @bp.route('/espresso/baseline/', methods=['GET', 'POST'])
+@auth.login_required
 def espresso_baseline():
 
     roast_options = ["Light", "Medium", "Medium Dark", "Dark"]

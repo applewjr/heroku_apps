@@ -113,25 +113,70 @@ def test_common_denominator_post_junk_numeric_returns_400(client, field):
     assert resp.status_code == 400
 
 
-def test_espresso_baseline_junk_dose_returns_400(client):
-    resp = client.post("/espresso/baseline/", data={"roast": "Medium", "dose": "2)--"})
+ESPRESSO_PAGES = ["/espresso", "/espresso/home/", "/espresso/recommendation/",
+                  "/espresso/plot/", "/espresso/explore/", "/espresso/baseline/"]
+
+
+@pytest.fixture
+def espresso_client(client, monkeypatch):
+    """The test client, logged in with the admin password."""
+    import base64
+    import config
+    monkeypatch.setattr(config, "GOOGLE_FORM_PASS", "test-pass")
+    token = base64.b64encode(b"james:test-pass").decode()
+    client.environ_base["HTTP_AUTHORIZATION"] = f"Basic {token}"
+    return client
+
+
+@pytest.mark.parametrize("path", ESPRESSO_PAGES)
+def test_espresso_needs_the_admin_password(client, monkeypatch, path):
+    # The heavy work (Sheets pull, scikit-learn, matplotlib) must be
+    # unreachable without the password: a 401 before any of it runs.
+    import routes.espresso as esp
+
+    def explode():
+        raise AssertionError("an unauthenticated request reached the Sheets pull")
+
+    monkeypatch.setattr(esp, "get_espresso_data", explode)
+    assert client.get(path).status_code == 401
+    # 405 for /espresso, which only redirects: refused before any code runs.
+    assert client.post(path, data={"roast": "Medium", "dose": "2"}).status_code in (401, 405)
+
+
+def test_espresso_rejects_a_wrong_password(client, monkeypatch):
+    import base64
+    import config
+    monkeypatch.setattr(config, "GOOGLE_FORM_PASS", "test-pass")
+    token = base64.b64encode(b"james:wrong").decode()
+    resp = client.get("/espresso/baseline/", headers={"Authorization": f"Basic {token}"})
+    assert resp.status_code == 401
+
+
+def test_espresso_pages_open_with_the_password(espresso_client):
+    for path in ESPRESSO_PAGES:
+        resp = espresso_client.get(path)
+        assert resp.status_code in (200, 302, 308), (path, resp.status_code)
+
+
+def test_espresso_baseline_junk_dose_returns_400(espresso_client):
+    resp = espresso_client.post("/espresso/baseline/", data={"roast": "Medium", "dose": "2)--"})
     assert resp.status_code == 400
 
 
-def test_espresso_explore_oversized_grid_returns_400(client):
+def test_espresso_explore_oversized_grid_returns_400(espresso_client):
     # The grid cap rejects a hostile huge-range/tiny-step request before the
     # meshgrid (and before the Google Sheets pull, which keeps this hermetic).
-    resp = client.post("/espresso/explore/", data={
+    resp = espresso_client.post("/espresso/explore/", data={
         "distance_grind_min": "0", "distance_grind_max": "1000000",
         "distance_grind_granularity": "0.001",
     })
     assert resp.status_code == 400
 
 
-def test_espresso_explore_oversized_total_grid_returns_400(client):
+def test_espresso_explore_oversized_total_grid_returns_400(espresso_client):
     # Each axis alone is a modest 100 steps, but the *product* is 10^6 cells:
     # the budget is on the total, not per-dimension.
-    resp = client.post("/espresso/explore/", data={
+    resp = espresso_client.post("/espresso/explore/", data={
         "distance_grind_min": "0", "distance_grind_max": "99",
         "distance_grind_granularity": "1",
         "distance_coffee_g_min": "0", "distance_coffee_g_max": "99",
@@ -142,10 +187,10 @@ def test_espresso_explore_oversized_total_grid_returns_400(client):
     assert resp.status_code == 400
 
 
-def test_espresso_explore_overflowing_ratio_returns_400(client):
+def test_espresso_explore_overflowing_ratio_returns_400(espresso_client):
     # Finite inputs whose range/granularity ratio overflows float to inf:
     # the budget check must reject this as too large, not crash on it.
-    resp = client.post("/espresso/explore/", data={
+    resp = espresso_client.post("/espresso/explore/", data={
         "distance_grind_min": "0", "distance_grind_max": "1e308",
         "distance_grind_granularity": "1e-300",
     })
@@ -153,10 +198,10 @@ def test_espresso_explore_overflowing_ratio_returns_400(client):
 
 
 @pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
-def test_espresso_explore_non_finite_returns_400(client, bad):
+def test_espresso_explore_non_finite_returns_400(espresso_client, bad):
     # nan compares False against every guard (gran <= 0, mx < mn, step caps),
     # so parse_float must reject non-finite values outright.
-    resp = client.post("/espresso/explore/", data={"distance_grind_min": bad})
+    resp = espresso_client.post("/espresso/explore/", data={"distance_grind_min": bad})
     assert resp.status_code == 400
 
 
@@ -591,29 +636,29 @@ def test_parse_choice_does_not_substitute_a_default_for_junk():
 
 
 @pytest.mark.parametrize("payload", ["98766", "1'", '1"', "1)", "1')", "1 UNION SELECT 1,2,3"])
-def test_espresso_baseline_400s_on_scanner_junk(client, payload):
+def test_espresso_baseline_400s_on_scanner_junk(espresso_client, payload):
     # Regression, 2026-09-29. roast went straight into
     # espresso_points['roast_variable'][roast], so an unrecognised value was a
     # KeyError -> 500. A scanner walking this route produced eight http_500
     # alerts and eight rows in vw_prod_errors, none of them a real fault.
-    assert client.post("/espresso/baseline/",
+    assert espresso_client.post("/espresso/baseline/",
                        data={"roast": payload, "dose": "2"}).status_code == 400
-    assert client.post("/espresso/baseline/",
+    assert espresso_client.post("/espresso/baseline/",
                        data={"roast": "Medium", "dose": payload}).status_code == 400
 
 
-def test_espresso_baseline_still_serves_every_real_option(client):
+def test_espresso_baseline_still_serves_every_real_option(espresso_client):
     for roast in ["Light", "Medium", "Medium Dark", "Dark"]:
         for dose in ["1", "2", "3"]:
-            resp = client.post("/espresso/baseline/", data={"roast": roast, "dose": dose})
+            resp = espresso_client.post("/espresso/baseline/", data={"roast": roast, "dose": dose})
             assert resp.status_code == 200, (roast, dose)
 
 
-def test_espresso_baseline_get_uses_the_defaults(client):
-    assert client.get("/espresso/baseline/").status_code == 200
+def test_espresso_baseline_get_uses_the_defaults(espresso_client):
+    assert espresso_client.get("/espresso/baseline/").status_code == 200
 
 
-def test_espresso_plot_400s_before_it_reaches_google_sheets(client, monkeypatch):
+def test_espresso_plot_400s_before_it_reaches_google_sheets(espresso_client, monkeypatch):
     # The x/y/z values are DataFrame column names, so an unknown one was a
     # KeyError -> 500 the same way. Validating before get_espresso_data also
     # means junk never triggers the Sheets pull.
@@ -623,7 +668,7 @@ def test_espresso_plot_400s_before_it_reaches_google_sheets(client, monkeypatch)
         raise AssertionError("junk input must never reach the Sheets pull")
 
     monkeypatch.setattr(esp, "get_espresso_data", explode)
-    resp = client.post("/espresso/plot/", data={"espresso_x_col": "1' OR '1'='1"})
+    resp = espresso_client.post("/espresso/plot/", data={"espresso_x_col": "1' OR '1'='1"})
     assert resp.status_code == 400
 
 
