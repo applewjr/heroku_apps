@@ -155,22 +155,22 @@
 .gtp-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ---------- board ---------- */
-/* Rows break the way the game's board does, not by screen width: at most
-   --cols characters a row, counting one space per word break (ROW_CHARS in
-   the script). Tiles shrink to fit a phone, and JS raises --cols for a
-   single word longer than a row. */
+/* The game's board, in proportion: tiles 30 wide, 4 between letters, 14
+   between words, rows up to 360 wide (BOARD in the script breaks the rows).
+   --cols is the board's width in tiles, 12 unless a single word is wider;
+   tiles shrink from 30px to fit a phone. */
 .gtp-board {
-    --cols: 11;
-    --tile: min(32px, calc((100vw - 40px) / var(--cols) - 3px));
+    --cols: 12;
+    --tile: min(30px, calc((100vw - 40px) / var(--cols)));
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--tile) * 0.33);
     margin: 18px auto 0;
     padding: 0 8px;
 }
-.gtp-line { display: flex; justify-content: center; gap: calc(var(--tile) * 0.5); }
-.gtp-word { display: flex; gap: 3px; }
+.gtp-line { display: flex; justify-content: center; gap: calc(var(--tile) * 14 / 30); }
+.gtp-word { display: flex; gap: calc(var(--tile) * 4 / 30); }
 .gtp-tile {
     width: var(--tile);
     height: calc(var(--tile) * 1.2);
@@ -591,7 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const STORAGE_KEY = 'gtpSolverState_v1';
     const MAX_WORDS = 12, MAX_WORD_LEN = 20, MAX_TILES = 68;
-    const ROW_CHARS = 11;         // board row width, as in the game (see boardLines)
+    // The game's board proportions, in its pixels (see boardLines).
+    const BOARD = {tile: 30, letterGap: 4, wordGap: 14, rowWidth: 360};
     const ROWS_STEP = 10;
     const VOWELS = 'AEIOU';
 
@@ -701,19 +702,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ---------- rendering ---------- */
-    // The board's rows, as lists of word indexes: greedy, at most ROW_CHARS
-    // characters a row with one space per word break. 11 matches the game:
-    // a 7-letter and a 3-letter word share a row (7+1+3), an 8 and a 3 don't.
+    // How wide a row of these words is on the game's board.
+    function rowWidth(words) {
+        const letters = words.reduce((a, w) => a + lengths[w], 0);
+        return letters * BOARD.tile + (letters - words.length) * BOARD.letterGap
+            + (words.length - 1) * BOARD.wordGap;
+    }
+
+    // The board's rows, as lists of word indexes, filled left to right the
+    // way the game's board wraps. Measured, not counted: a word gap is much
+    // narrower than a tile. From the game's own boards, 7+3 (346 wide) and
+    // 4+2+4 (356) each share a row; 8+3 (380) doesn't.
     function boardLines() {
         const lines = [];
-        let line = [], used = 0;
+        let line = [];
         lengths.forEach((n, w) => {
-            if (line.length && used + 1 + n > ROW_CHARS) {
+            if (line.length && rowWidth(line.concat(w)) > BOARD.rowWidth) {
                 lines.push(line);
                 line = [];
-                used = 0;
             }
-            used += (line.length ? 1 : 0) + n;
             line.push(w);
         });
         if (line.length) lines.push(line);
@@ -722,8 +729,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderBoard() {
         boardEl.innerHTML = '';
-        boardEl.style.setProperty('--cols', Math.max(ROW_CHARS, ...lengths));
-        boardLines().forEach(line => {
+        const lines = boardLines();
+        const widest = Math.max(BOARD.rowWidth, ...lines.map(rowWidth));
+        boardEl.style.setProperty('--cols', widest / BOARD.tile);
+        lines.forEach(line => {
             const lineEl = document.createElement('div');
             lineEl.className = 'gtp-line';
             line.forEach(w => {
