@@ -4,7 +4,7 @@ Writes the four files functions/phrase_solver.py and routes/guess_the_phrase.py 
 
     datasets/phrase_bank.tsv.gz     match key, category tags, popularity, display form
     datasets/phrase_words.tsv.gz    fallback vocabulary: word, zipf
-    datasets/phrase_bigrams.tsv.gz  word pair, log10 web count
+    datasets/phrase_bigrams.tsv.gz  word pair, log10 P(second word | first word)
     datasets/phrase_blocklist.txt   hashed offensive terms, for players' added phrases
 
 Build-time only. It downloads public data into a cache folder outside the
@@ -14,7 +14,8 @@ recorded in datasets/PHRASE_BANK.md:
     Wikidata (CC0), queried through the QLever SPARQL endpoint
     WordNet 3.0 (Princeton WordNet licence)
     Wiktionary category listings (CC BY-SA 4.0)
-    Peter Norvig's count_1w / count_2w (Google Web Trillion Word Corpus)
+    wordfreq (CC BY-SA 4.0), for word frequencies
+    ENABLE word list (public domain), via datasets/all_words_blossom.csv
     LDNOOBW bad-words list (CC BY 4.0), used only as a filter
 
 Run manually to regenerate:
@@ -52,8 +53,6 @@ from functions.phrase_solver import TAGS, blocklist_hash, phrase_key  # noqa: E4
 QLEVER = 'https://qlever.dev/api/wikidata'
 WIKTIONARY = 'https://en.wiktionary.org/w/api.php'
 WORDNET = 'https://wordnetcode.princeton.edu/3.0/WNdb-3.0.tar.gz'
-NORVIG_1W = 'https://www.norvig.com/ngrams/count_1w.txt'
-NORVIG_2W = 'https://www.norvig.com/ngrams/count_2w.txt'
 BADWORDS = ('https://raw.githubusercontent.com/LDNOOBW/'
             'List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en')
 
@@ -421,44 +420,43 @@ def wordnet_entries(pair_pop, word_pop):
 
 # --- popularity ----------------------------------------------------------
 
-def load_norvig():
-    one = {}
-    for line in fetch(NORVIG_1W, 'count_1w.txt').decode().splitlines():
-        w, c = line.split('\t')
-        one[w] = int(c)
-    total = sum(one.values())
-    zipf = {w: round(math.log10(c / total * 1e9), 2) for w, c in one.items()}
-    two = {}
-    for line in fetch(NORVIG_2W, 'count_2w.txt').decode('latin-1').splitlines():
-        pair, c = line.split('\t')
-        a, b = pair.lower().split(' ')
-        if a.isalpha() and b.isalpha() and a.isascii() and b.isascii():
-            k = f'{a} {b}'
-            two[k] = two.get(k, 0) + int(c)
-    return zipf, two
+def load_zipf():
+    """word -> Zipf frequency (log10 per billion words) from wordfreq's large
+    English list. wordfreq's data is CC BY-SA 4.0 and commercial use is
+    allowed; see datasets/PHRASE_BANK.md for the credits it requires. Until
+    2026-10-11 this used Peter Norvig's count_1w/count_2w, whose data has no
+    stated license (it derives from an LDC-distributed Google corpus)."""
+    from wordfreq import get_frequency_dict  # build-time only, like build_word_popularity.py
+    return {w: round(math.log10(f * 1e9), 2)
+            for w, f in get_frequency_dict('en', wordlist='large').items() if f > 0}
 
 
-def make_pop(zipf, two, dict_pop):
+def make_pop(zipf):
     def word_pop(w):
-        return zipf.get(w, dict_pop.get(w, 0.0))
+        return zipf.get(w, 0.0)
 
     def pair_pop(text):
-        """Familiarity of a multiword phrase from web counts of its word pairs.
-
-        Every adjacent pair seen on the web -> scored by the rarest pair.
-        Otherwise a floor from the words' own frequencies, well below.
-        """
+        """Familiarity of a multiword phrase: as familiar as its rarest word,
+        on the same scale as a single word's popularity."""
         key = phrase_key(clean_name(text) or '')
         words = key.lower().split(' ') if key else []
         if not words:
             return 0.0
-        if len(words) == 1:
-            return 6 * word_pop(words[0]) - 6
-        counts = [two.get(f'{a} {b}') for a, b in zip(words, words[1:])]
-        if all(counts):
-            return 6 * math.log10(min(counts)) - 15
-        return 2 * (sum(word_pop(w) for w in words) / len(words))
+        return 6 * min(word_pop(w) for w in words) - 6
     return word_pop, pair_pop
+
+
+def pair_model(keys, min_count=2):
+    """log10 P(next word | word), counted over the bank's own phrases (each
+    phrase once). Pairs seen fewer than min_count times are dropped: most
+    are one title's words, and they would double the file."""
+    pair, first = collections.Counter(), collections.Counter()
+    for key in keys:
+        words = key.split(' ')
+        for a, b in zip(words, words[1:]):
+            pair[(a, b)] += 1
+            first[a] += 1
+    return {f'{a} {b}': math.log10(c / first[a]) for (a, b), c in pair.items() if c >= min_count}
 
 
 # --- build ---------------------------------------------------------------
@@ -471,12 +469,10 @@ def load_badwords():
 def build(out_dir):
     import pandas as pd
 
+    # The ENABLE word list (public domain).
     dict_words = set(pd.read_csv(os.path.join(DATA, 'all_words_blossom.csv'))['0'].astype(str))
-    pop_df = pd.read_csv(os.path.join(DATA, 'word_popularity.csv'))
-    dict_pop = dict(zip(pop_df['word'], pop_df['zipf']))
-    log('norvig...')
-    zipf, two = load_norvig()
-    word_pop, pair_pop = make_pop(zipf, two, dict_pop)
+    log('wordfreq...')
+    word_pop, pair_pop = make_pop(load_zipf())
     bad = load_badwords()
     # The app checks players' added phrases against the same list. It ships
     # as hashes, so the repo doesn't carry the words themselves.
@@ -550,12 +546,12 @@ def build(out_dir):
             fh.write(f'{w.upper()}\t{word_pop(w):.2f}\n')
     log(f'vocab: {len(vocab)} words')
 
-    pairs = {k: c for k, c in two.items() if all(w in vocab for w in k.split(' '))}
+    pairs = pair_model(key for key, _ in rows)
     with gzip.open(os.path.join(out_dir, 'phrase_bigrams.tsv.gz'), 'wt', encoding='utf-8',
                    compresslevel=9) as fh:
-        fh.write('pair\tlog10\n')
-        for k in sorted(pairs, key=lambda k: -pairs[k]):
-            fh.write(f'{k.upper()}\t{math.log10(pairs[k]):.2f}\n')
+        fh.write('pair\tlogp\n')
+        for k in sorted(pairs, key=lambda k: (-pairs[k], k)):
+            fh.write(f'{k}\t{pairs[k]:.2f}\n')
     log(f'bigrams: {len(pairs)} pairs')
 
 

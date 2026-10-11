@@ -9,8 +9,9 @@ Three static files back it (built by scripts/build_phrase_bank.py):
   phrase_bank     known phrases, bucketed by length, e.g. a 20-character board
                   only ever scans 20-character phrases
   phrase_words    fallback vocabulary when no known phrase fits
-  phrase_bigrams  web counts of word pairs, so the fallback prefers words that
-                  go together ("HOTEL CALIFORNIA") over words that merely fit
+  phrase_bigrams  how often one word follows another across the known
+                  phrases, so the fallback prefers words that go together
+                  ("HOTEL CALIFORNIA") over words that merely fit
 
 Buckets hold fixed-width records in one string, so a regex scans a whole
 bucket in one call and a match's index is just its offset // record width.
@@ -59,9 +60,9 @@ FALLBACK_SLOT_LIMIT = 300
 FALLBACK_BEAM = 200
 # Words per board word that solve() hands back for the word-by-word hints.
 SLOT_SHOW = 10
-# Stupid-backoff bigram model, all log10. Norvig's corpus is ~5.9e11 words,
-# so a word's log10 count is its Zipf + 2.77.
-_LOG_TOTAL_MINUS_9 = 2.77
+# Stupid-backoff bigram model, all log10: a pair the phrase list has seen
+# scores its P(next | word); an unseen one, a tenth of the next word's
+# overall frequency (its Zipf is log10 per billion words, hence the -9).
 _BACKOFF = -1.0
 
 
@@ -326,18 +327,19 @@ class WordList:
 
 
 class Bigrams:
-    """log10 web counts of word pairs, one sorted array of 64-bit ints.
+    """log10 P(next word | word) for pairs seen in the phrase list, as one
+    sorted array of 64-bit ints.
 
-    Each int packs a 47-bit hash of the pair over the count in hundredths
-    (16 bits), so a lookup is one bisect. A false hit needs two of ~250k
-    pairs to share 47 bits of hash: about 1 in 2,000,000 per lookup.
+    Each int packs a 47-bit hash of the pair over -log10 P in hundredths
+    (16 bits), so a lookup is one bisect. A false hit needs two pairs to
+    share 47 bits of hash: about 1 in a million per lookup.
     """
     _VAL_BITS = 16
     _HASH_MASK = (1 << 47) - 1
 
     def __init__(self, rows):
         self.keys = array('q', sorted(
-            ((hash(p) & self._HASH_MASK) << self._VAL_BITS) | min(65535, round(c * 100))
+            ((hash(p) & self._HASH_MASK) << self._VAL_BITS) | min(65535, round(-c * 100))
             for p, c in rows))
 
     @classmethod
@@ -354,15 +356,13 @@ class Bigrams:
         h = hash(f'{a} {b}') & self._HASH_MASK
         i = bisect_left(self.keys, h << self._VAL_BITS)
         if i < len(self.keys) and self.keys[i] >> self._VAL_BITS == h:
-            return (self.keys[i] & 0xFFFF) / 100
+            return -(self.keys[i] & 0xFFFF) / 100
         return None
 
 
-def _bigram_logp(bigrams, prev, prev_zipf, word, zipf):
-    c = bigrams.get(prev, word) if bigrams else None
-    if c is not None:
-        return c - (prev_zipf + _LOG_TOTAL_MINUS_9)
-    return _BACKOFF + zipf - 9
+def _bigram_logp(bigrams, prev, word, zipf):
+    logp = bigrams.get(prev, word) if bigrams else None
+    return logp if logp is not None else _BACKOFF + zipf - 9
 
 
 def fallback_phrases(slots, bigrams, beam=FALLBACK_BEAM, top=20):
@@ -372,17 +372,17 @@ def fallback_phrases(slots, bigrams, beam=FALLBACK_BEAM, top=20):
     """
     if not slots or any(not s for s in slots):
         return []
-    states = [((w,), z - 9, z) for w, z in slots[0]]
+    states = [((w,), z - 9) for w, z in slots[0]]
     states = heapq.nlargest(beam, states, key=lambda s: s[1])
     for cands in slots[1:]:
         # A generator: nlargest keeps `beam` states, never all beam x slot
         # extensions (60k a step) at once.
         states = heapq.nlargest(
             beam,
-            ((words + (w,), score + _bigram_logp(bigrams, words[-1], last_z, w, z), z)
-             for words, score, last_z in states for w, z in cands),
+            ((words + (w,), score + _bigram_logp(bigrams, words[-1], w, z))
+             for words, score in states for w, z in cands),
             key=lambda s: s[1])
-    return [(' '.join(words), score) for words, score, _ in states[:top]]
+    return [(' '.join(words), score) for words, score in states[:top]]
 
 
 # --- letter advice --------------------------------------------------------

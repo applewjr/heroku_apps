@@ -100,6 +100,23 @@ def test_faq_structured_data_parses_and_matches_the_visible_faq(client, gtp_db):
         assert q['acceptedAnswer']['text'] in visible
 
 
+def test_page_says_unofficial_and_credits_every_source(client, gtp_db):
+    # The disclaimer and the credits the sources' licences ask for
+    # (datasets/PHRASE_BANK.md has the reasons for each one).
+    html = client.get('/guess_the_phrase').get_data(as_text=True)
+    for required in (
+        'Not affiliated with or endorsed by Bored Panda',
+        'Wikidata', 'creativecommons.org/publicdomain/zero/1.0',
+        'WordNet 3.0 Copyright 2006 by Princeton University',
+        'Wiktionary contributors', 'creativecommons.org/licenses/by-sa/4.0',
+        'wordfreq', 'Robyn Speer', 'SUBTLEX', 'Brysbaert', 'freely available', 'OpenSubtitles',
+        'Google Books Ngrams', 'List of Dirty, Naughty, Obscene, and Otherwise Bad Words',
+        'creativecommons.org/licenses/by/4.0',
+    ):
+        assert required in html, required
+    assert 'wheel of fortune solver' not in html.lower()
+
+
 def test_page_never_touches_the_database(client, gtp_db):
     db = gtp_db(fail='SELECT')
     assert client.get('/guess_the_phrase').status_code == 200

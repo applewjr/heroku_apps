@@ -168,7 +168,7 @@ def test_fallback_when_no_known_phrase_fits():
     # MOTEL is the more common word alone, but HOTEL CALIFORNIA is a pair
     # seen on the web, and the bigram model prefers words that go together.
     words = [('MOTEL', 4.6), ('HOTEL', 4.5), ('CALIFORNIA', 5.0)]
-    data = Data(bank(('STAR WARS', [], 40)), words, [('HOTEL CALIFORNIA', 6.0)])
+    data = Data(bank(('STAR WARS', [], 40)), words, [('HOTEL CALIFORNIA', -0.3)])
     res = ps.solve(data, '?OTEL CALIFORNIA', mashup='no')
     assert res['total'] == 0
     assert res['fallback'][0][0] == 'HOTEL CALIFORNIA'
@@ -182,7 +182,8 @@ def test_fully_shown_word_is_its_own_candidate():
 
 
 def test_bigrams_lookup():
-    b = ps.Bigrams([('HOTEL CALIFORNIA', 6.0), ('FIRE TRUCK', 5.5)])
-    assert b.get('HOTEL', 'CALIFORNIA') == 6.0
-    assert b.get('FIRE', 'TRUCK') == 5.5
+    b = ps.Bigrams([('HOTEL CALIFORNIA', -0.3), ('FIRE TRUCK', -1.25), ('OF THE', 0.0)])
+    assert b.get('HOTEL', 'CALIFORNIA') == -0.3
+    assert b.get('FIRE', 'TRUCK') == -1.25
+    assert b.get('OF', 'THE') == 0.0
     assert b.get('CALIFORNIA', 'HOTEL') is None

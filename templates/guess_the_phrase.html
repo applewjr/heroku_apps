@@ -5,7 +5,7 @@
 {% block meta %}
 <meta name="description" content="Free Guess The Phrase solver with spoiler-free hints: the best letter to call next, when to buy a vowel, and possible answers revealed one letter at a time.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/guess_the_phrase">
-<meta name="keywords" content="guess the phrase solver, guess the phrase answer, guess the phrase hint, bored panda guess the phrase, guess the phrase today, daily phrase puzzle, wheel of fortune solver, phrase puzzle helper">
+<meta name="keywords" content="guess the phrase solver, guess the phrase answer, guess the phrase hint, bored panda guess the phrase, guess the phrase today, daily phrase puzzle, phrase puzzle helper">
 <meta property="og:title" content="Guess The Phrase Solver - Hints for the Daily Phrase Puzzle">
 <meta property="og:description" content="Stuck on Bored Panda's Guess The Phrase? Enter the board and get spoiler-free help: the best letter to call next, whether to buy a vowel, and possible answers revealed one letter at a time. Works for today's puzzle and every past one.">
 <meta property="og:url" content="https://www.jamesapplewhite.com/guess_the_phrase">
@@ -90,7 +90,7 @@
       "name": "About this tool",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by Bored Panda. Phrase data comes from Wikidata (CC0), WordNet (Princeton University) and Wiktionary (CC BY-SA 4.0). Play the real game at boredpanda.com."
+        "text": "This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Bored Panda, which makes the game. Phrases come from Wikidata, WordNet 3.0 and Wiktionary, and word frequencies from wordfreq: see Data sources and licences below. Play the real game at boredpanda.com."
       }
     }
   ]
@@ -102,6 +102,7 @@
 <style>
 /* ---------- setup ---------- */
 .gtp-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.gtp-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
 .gtp-notice {
     max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
     background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
@@ -477,6 +478,7 @@
 {% else %}
 <div class="gtp-notice" role="alert">The phrase list is unavailable right now. Please try again in a few minutes.</div>
 {% endif %}
+<p class="gtp-unofficial">Unofficial helper. Not affiliated with or endorsed by Bored Panda.</p>
 
 <div class="instructions collapsed" id="instructions-panel">
     <div class="instructions-header" id="instructions-toggle">
@@ -627,9 +629,18 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. Not affiliated with or endorsed by Bored Panda. Phrase data comes from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (CC0), <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet</a> (Princeton University) and <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>). Play the real game at <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">boredpanda.com</a>.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Bored Panda, which makes the game. Phrases come from Wikidata, WordNet 3.0 and Wiktionary, and word frequencies from wordfreq: see <a href="#gtp-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below. Play the real game at <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">boredpanda.com</a>.</p>
     </div>
   </div>
+</section>
+
+<section id="gtp-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">Guess The Phrase is a game by <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Bored Panda</a>. This helper is not affiliated with, endorsed by or sponsored by Bored Panda. Its phrase list is built from the public sources below, plus phrases players add after solving, not from Bored Panda's puzzles.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Phrases.</strong> Titles, names, places and other items from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>). Everyday terms from <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a>: WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>. Proverbs, idioms and phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>. Fallback words also come from the public-domain ENABLE word list.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Filtering.</strong> Offensive phrases are kept off this page with the <a href="https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">List of Dirty, Naughty, Obscene, and Otherwise Bad Words</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY 4.0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">The phrase data built from these sources (filtered, upper-cased and scored) is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
 </section>
 <br>
 <br>
