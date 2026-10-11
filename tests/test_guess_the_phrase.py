@@ -84,6 +84,22 @@ def test_page_shows_the_list_and_every_category(client, gtp_db):
         assert f'value="{cid}"' in html
 
 
+def test_faq_structured_data_parses_and_matches_the_visible_faq(client, gtp_db):
+    # The FAQ is written twice: as JSON-LD for search engines and as the
+    # visible section. A stray quote breaks the JSON; an edit to one copy
+    # only makes them disagree.
+    import json
+    import re
+    html = client.get('/guess_the_phrase').get_data(as_text=True)
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    faq = next(d for d in map(json.loads, blocks) if d.get('@type') == 'FAQPage')
+    visible = re.sub(r'<[^>]+>', '', re.sub(r'<script.*?</script>', '', html, flags=re.S))
+    visible = ' '.join(visible.split())
+    for q in faq['mainEntity']:
+        assert q['name'] in visible
+        assert q['acceptedAnswer']['text'] in visible
+
+
 def test_page_never_touches_the_database(client, gtp_db):
     db = gtp_db(fail='SELECT')
     assert client.get('/guess_the_phrase').status_code == 200

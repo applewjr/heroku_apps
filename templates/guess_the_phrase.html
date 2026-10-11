@@ -42,7 +42,7 @@
       "name": "How do I enter the board?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type how many letters each word has, for example 3 3 4, and press Set board. Or type the board as it looks, with a ? for each blank. Count letter tiles only and skip apostrophes and other punctuation. Then tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it."
+        "text": "Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it."
       }
     },
     {
@@ -107,7 +107,7 @@
     background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
 }
 .gtp-setup {
-    max-width: 560px;
+    max-width: 360px;
     margin: 16px auto 0;
     padding: 0 12px;
     display: grid;
@@ -131,6 +131,50 @@
 .gtp-field select:focus, .gtp-field input:focus, .gtp-add-row input:focus { outline: 3px solid #02484d; outline-offset: 1px; }
 .gtp-shape-row, .gtp-add-row { display: flex; gap: 8px; }
 .gtp-shape-row input { flex: 1; min-width: 0; }
+#gtp-type-row { max-width: 360px; margin: 6px auto 0; padding: 0 12px; }
+#gtp-type-row[hidden] { display: none; }   /* .gtp-shape-row's flex would beat [hidden] */
+
+/* Word-length keypad: one tap per word, no separators to type. */
+.gtp-pad {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 52px));
+    justify-content: center;
+    gap: 6px;
+    margin: 10px auto 0;
+    padding: 0 8px;
+}
+.gtp-pad-key {
+    height: 50px;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gtp-pad-key:hover { background-color: #eef4f4; }
+.gtp-pad-key:active { background-color: #cdd8d7; }
+.gtp-pad-key.alt { background-color: #f8f9fa; color: #495057; font-size: 15px; }
+.gtp-pad-key.span2 { grid-column: span 2; }
+.gtp-pad-key.span4 { grid-column: span 4; }
+.gtp-build-actions { margin: 12px auto 0; min-height: 44px; }
+.gtp-link {
+    display: block;
+    margin: 8px auto 0;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+}
 
 .gtp-btn {
     background-color: #fff;
@@ -190,7 +234,7 @@
     transition: background-color 0.12s ease;
 }
 .gtp-tile.filled { background-color: #02484d; border: 2px solid #02484d; }
-.gtp-tile.selected { box-shadow: 0 0 0 3px #ffd700; }
+.gtp-tile.selected, .gtp-tile.word-selected { box-shadow: 0 0 0 3px #ffd700; }
 .gtp-tile:focus-visible { outline: 3px solid #e0a800; outline-offset: 2px; }
 .gtp-empty { color: #6b7280; font-size: 14px; font-style: italic; margin: 18px auto 0; max-width: 480px; }
 
@@ -414,9 +458,6 @@
 }
 .gtp-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
 
-@media (min-width: 560px) {
-    .gtp-setup { grid-template-columns: 1fr 1.4fr; }
-}
 @media (max-width: 480px) {
     .gtp-card { margin: 10px 8px; padding: 12px; }
     .gtp-masked { font-size: 15px; letter-spacing: 1.5px; }
@@ -446,10 +487,11 @@
         <strong>1. Pick the category.</strong> Choose the closest match to the game's category clue,
         or <strong>Not sure / other</strong>.
         <br><br>
-        <strong>2. Build the board.</strong> Type how many letters each word has, like
-        <strong>3 3 4</strong>, and press <strong>Set board</strong>. Or type the board as it
-        looks, with <strong>?</strong> for each blank. Count letter tiles only: skip apostrophes
-        and other punctuation.
+        <strong>2. Build the board.</strong> Tap each word's length in order: for a board of 3,
+        3 and 4 letters, tap <strong>3</strong>, <strong>3</strong>, <strong>4</strong>. The board
+        wraps into rows like the game's, so you can check yours matches. Tap a word to change it,
+        <strong>⌫</strong> removes one, then tap <strong>Done</strong>. Count letter tiles only:
+        skip apostrophes and other punctuation.
         <br><br>
         <strong>3. Copy what the game shows.</strong> Tap a tile, then a letter. A called letter
         shows up everywhere it is in the answer, so fill in <strong>every</strong> tile that shows
@@ -471,18 +513,24 @@
             {% endfor %}
         </select>
     </div>
-    <div class="gtp-field">
-        <label for="gtp-shape">Letters in each word</label>
-        <div class="gtp-shape-row">
-            <input type="text" id="gtp-shape" autocomplete="off" autocapitalize="characters"
-                   spellcheck="false" placeholder="e.g. 3 3 4  or  TH? B?G ?AME" maxlength="80">
-            <button type="button" class="gtp-btn primary" id="gtp-set">Set board</button>
-        </div>
-    </div>
 </div>
 
 <div id="gtp-board" class="gtp-board" aria-label="Puzzle board"></div>
-<p class="gtp-empty" id="gtp-empty">Enter the number of letters in each word above to build the board.</p>
+<p class="gtp-empty" id="gtp-empty">Your board builds here as you tap, in rows like the game's.</p>
+
+<div id="gtp-build">
+    <p class="gtp-hint" id="gtp-build-hint"></p>
+    <div id="gtp-pad" class="gtp-pad" role="group" aria-label="Word lengths"></div>
+    <div class="gtp-build-actions">
+        <button type="button" class="gtp-btn primary" id="gtp-done" hidden>✓ Done, start filling</button>
+    </div>
+    <button type="button" class="gtp-link" id="gtp-type-toggle">or type the board as it looks</button>
+    <div class="gtp-shape-row" id="gtp-type-row" hidden>
+        <input type="text" id="gtp-shape" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" placeholder="TH? B?G ?AME" maxlength="80" aria-label="The board as it looks">
+        <button type="button" class="gtp-btn primary" id="gtp-set">Set board</button>
+    </div>
+</div>
 
 <div id="gtp-entry" hidden>
     <div class="gtp-modes" role="group" aria-label="Keyboard mode">
@@ -491,6 +539,7 @@
     </div>
     <p class="gtp-hint" id="gtp-hint"></p>
     <div id="solver-keyboard" aria-label="Letter keyboard"></div>
+    <button type="button" class="gtp-link" id="gtp-reshape">✏️ Change the board's shape</button>
 </div>
 
 <div id="gtp-results" aria-live="polite" hidden>
@@ -554,7 +603,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type how many letters each word has, for example 3 3 4, and press Set board. Or type the board as it looks, with a ? for each blank. Count letter tiles only and skip apostrophes and other punctuation. Then tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Which letter should I call first?</p>
@@ -601,6 +650,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let letters = [];             // one per tile: '' or 'A'-'Z'
     let misses = new Set();       // letters the game said aren't there
     let category = 'any';
+    let phase = 'build';          // 'build' (tapping word lengths) | 'fill'
+    let selectedWord = -1;        // word picked on the board while building
+    let padPage = 0;              // keypad page: 0 = 1 to 9, 1 = 10 to 15
     let selected = -1;            // selected tile index
     let mode = 'fill';            // 'fill' | 'miss'
     let answersOpen = false;
@@ -618,6 +670,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const hintEl = document.getElementById('gtp-hint');
     const keyboard = document.getElementById('solver-keyboard');
     const shapeInput = document.getElementById('gtp-shape');
+    const buildEl = document.getElementById('gtp-build');
+    const padEl = document.getElementById('gtp-pad');
+    const buildHint = document.getElementById('gtp-build-hint');
+    const doneBtn = document.getElementById('gtp-done');
+    const typeRow = document.getElementById('gtp-type-row');
     const categoryEl = document.getElementById('gtp-category');
     const answersBody = document.getElementById('gtp-answers-body');
     const answersToggle = document.getElementById('gtp-answers-toggle');
@@ -666,10 +723,98 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Each word's letters, so a shape edit keeps what's already filled in.
+    function wordParts() {
+        return lengths.map((n, w) => letters.slice(wordStart(w), wordStart(w) + n));
+    }
+
+    function setParts(parts) {
+        if (parts.length > MAX_WORDS || parts.reduce((a, p) => a + p.length, 0) > MAX_TILES) {
+            toast('That board is longer than any puzzle - check the word lengths', true);
+            return false;
+        }
+        lengths = parts.map(p => p.length);
+        letters = parts.flat();
+        if (!lengths.length) last = null;
+        reveals = {};
+        rowsShown = ROWS_STEP;
+        wordTab = -1;
+        return true;
+    }
+
+    // A keypad number: the next word's length, or the picked word's new one.
+    function padNumber(n) {
+        const parts = wordParts();
+        if (selectedWord >= 0) {
+            const old = parts[selectedWord];
+            parts[selectedWord] = old.slice(0, n).concat(Array(Math.max(0, n - old.length)).fill(''));
+        } else {
+            parts.push(Array(n).fill(''));
+        }
+        if (!setParts(parts)) return;
+        selectedWord = -1;
+        padPage = 0;
+        renderBuild();
+        changed();
+    }
+
+    // Keypad back: removes the picked word, or else the last one.
+    function padBack() {
+        if (!lengths.length) return;
+        const parts = wordParts();
+        parts.splice(selectedWord >= 0 ? selectedWord : parts.length - 1, 1);
+        setParts(parts);
+        selectedWord = -1;
+        renderBuild();
+        changed();
+    }
+
+    function padKey(label, action, cls, aria) {
+        const key = document.createElement('button');
+        key.type = 'button';
+        key.className = 'gtp-pad-key' + (cls ? ' ' + cls : '');
+        key.textContent = label;
+        if (aria) key.setAttribute('aria-label', aria);
+        key.addEventListener('click', () => { key.blur(); action(); });
+        padEl.appendChild(key);
+    }
+
+    function renderBuild() {
+        padEl.innerHTML = '';
+        if (padPage === 0) {
+            for (let n = 1; n <= 9; n++) padKey(String(n), () => padNumber(n));
+            padKey('10+', () => { padPage = 1; renderBuild(); }, 'alt', 'Words of 10 or more letters');
+        } else {
+            for (let n = 10; n <= 15; n++) padKey(String(n), () => padNumber(n));
+            padKey('‹ 1 to 9', () => { padPage = 0; renderBuild(); }, 'alt span4', 'Back to 1 to 9');
+        }
+        padKey('⌫', padBack, 'alt span2', selectedWord >= 0 ? 'Remove the picked word' : 'Remove the last word');
+        const tiles = letters.length;
+        buildHint.textContent = selectedWord >= 0
+            ? 'Word ' + (selectedWord + 1) + ' picked: tap its new length, or ⌫ to remove it.'
+            : !lengths.length
+                ? "Tap each word's length, in order."
+                : lengths.length + ' word' + (lengths.length === 1 ? '' : 's') + ', ' + tiles +
+                  ' letters. Check the rows match the game; tap a word to change it.';
+        doneBtn.hidden = !lengths.length;
+    }
+
+    // 'build' shows the keypad, 'fill' the letter keyboard. No board, no fill.
+    function setPhase(p) {
+        phase = lengths.length ? p : 'build';
+        selectedWord = -1;
+        padPage = 0;
+        selected = phase === 'fill' ? letters.indexOf('') : -1;
+        typeRow.hidden = true;
+        render();
+        renderBuild();
+        save();
+    }
+
     function setBoard() {
         const shape = parseShape(shapeInput.value);
         if (!shape) {
-            toast('Type the letters in each word, like 3 3 4', true);
+            toast('Type the board as it looks, like TH? B?G ?AME', true);
             return;
         }
         if (shape.lengths.length > MAX_WORDS || shape.letters.length > MAX_TILES) {
@@ -682,10 +827,9 @@ document.addEventListener('DOMContentLoaded', () => {
         reveals = {};
         rowsShown = ROWS_STEP;
         wordTab = -1;
-        selected = letters.indexOf('');
         shapeInput.value = '';
         shapeInput.blur();
-        render();
+        setPhase('fill');
         schedule();
     }
 
@@ -696,9 +840,8 @@ document.addEventListener('DOMContentLoaded', () => {
         answersOpen = false; last = null; tab = 'phrases';
         document.getElementById('gtp-add-input').value = '';
         setMode('fill');
-        render();
-        save();
-        shapeInput.focus();
+        setPhase('build');
+        document.querySelector('.gtp-setup').scrollIntoView({block: 'start', behavior: 'smooth'});
     }
 
     /* ---------- rendering ---------- */
@@ -741,11 +884,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let k = 0, i = wordStart(w); k < lengths[w]; k++, i++) {
                     const tile = document.createElement('button');
                     tile.type = 'button';
-                    tile.className = 'gtp-tile' + (letters[i] ? ' filled' : '') + (i === selected ? ' selected' : '');
+                    tile.className = 'gtp-tile' + (letters[i] ? ' filled' : '') + (i === selected ? ' selected' : '')
+                        + (w === selectedWord ? ' word-selected' : '');
                     tile.textContent = letters[i];
                     tile.dataset.i = i;
                     tile.setAttribute('aria-label', 'Word ' + (w + 1) + ', letter ' + (k + 1) + ': ' + (letters[i] || 'blank'));
                     tile.addEventListener('click', () => {
+                        if (phase === 'build') {
+                            selectedWord = selectedWord === w ? -1 : w;
+                            renderBoard();
+                            renderBuild();
+                            return;
+                        }
                         selected = +tile.dataset.i;
                         if (mode === 'miss') setMode('fill');
                         renderBoard();
@@ -758,7 +908,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const has = lengths.length > 0;
         emptyEl.hidden = has;
-        entryEl.hidden = !has;
+        buildEl.hidden = phase !== 'build';
+        entryEl.hidden = phase !== 'fill';
         if (!has) disarmNew();
         newBtn.hidden = !has;
         resultsEl.hidden = !has || !last;
@@ -1000,6 +1151,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         const t = e.target;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if (phase === 'build') {
+            // Digits add words, Backspace removes one, Enter is Done. Words
+            // of 10+ letters use the keypad's 10+ key.
+            if (/^[1-9]$/.test(e.key)) { e.preventDefault(); padNumber(+e.key); }
+            else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); padBack(); }
+            else if (e.key === 'Enter' && lengths.length) { e.preventDefault(); setPhase('fill'); }
+            else if (e.key === 'Escape' && selectedWord >= 0) { selectedWord = -1; renderBoard(); renderBuild(); }
+            return;
+        }
         if (!lengths.length) return;
         if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); placeLetter(e.key.toUpperCase()); }
         else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); clearTile(false); }
@@ -1011,6 +1171,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mode-fill').addEventListener('click', () => setMode('fill'));
     document.getElementById('mode-miss').addEventListener('click', () => setMode('miss'));
     document.getElementById('gtp-set').addEventListener('click', setBoard);
+    doneBtn.addEventListener('click', () => setPhase('fill'));
+    document.getElementById('gtp-reshape').addEventListener('click', () => setPhase('build'));
+    document.getElementById('gtp-type-toggle').addEventListener('click', () => {
+        typeRow.hidden = !typeRow.hidden;
+        if (!typeRow.hidden) shapeInput.focus();
+    });
     shapeInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setBoard(); } });
     // Two taps to wipe the board: the first arms the button for a few
     // seconds, so a stray tap can't lose a puzzle in progress. The button
@@ -1109,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                lengths, letters, misses: [...misses], category, answersOpen, reveals, savedAt: Date.now()
+                lengths, letters, misses: [...misses], category, answersOpen, reveals, phase, savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1131,7 +1297,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         answersOpen = s.answersOpen === true;
         reveals = (s.reveals && typeof s.reveals === 'object') ? s.reveals : {};
-        selected = letters.indexOf('');
+        // Saves from before the keypad have no phase: they were filling.
+        phase = s.phase === 'build' ? 'build' : 'fill';
+        selected = phase === 'fill' ? letters.indexOf('') : -1;
         return true;
     }
 
@@ -1165,9 +1333,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- boot ---------- */
     restore();
+    if (!lengths.length) phase = 'build';
     categoryEl.value = category;
     setMode('fill');
     render();
+    renderBuild();
     schedule();
 });
 </script>
