@@ -241,8 +241,8 @@
 
 .gtp-modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px auto 0; }
 
-/* New puzzle sits with Play and Feedback, away from the board, and wipes
-   the board only on a second tap: the first one arms it. */
+/* New puzzle sits with Play and Feedback, away from the board, and asks
+   before it wipes the board, the way /smush's Reset Board does. */
 .gtp-new-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -259,7 +259,6 @@
     -webkit-tap-highlight-color: transparent;
 }
 .gtp-new-btn:hover { background-color: #e9ecef; }
-.gtp-new-btn.armed { background-color: #fbf0f0; border-color: #e55555; color: #a55; font-weight: 600; }
 .gtp-new-btn[hidden] { display: none; }
 .gtp-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 480px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
 
@@ -691,9 +690,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const answersToggle = document.getElementById('gtp-answers-toggle');
     const listEl = document.getElementById('gtp-answer-list');
     const newBtn = document.getElementById('gtp-new');
-    const NEW_LABEL = newBtn.textContent;
-    const NEW_ARMED_MS = 4000;
-    let newArmed = null;          // timer while New puzzle waits for its second tap
 
     const HINTS = {
         fill: 'Tap a tile, then a letter. Fill in every tile that shows a called letter.',
@@ -921,7 +917,6 @@ document.addEventListener('DOMContentLoaded', () => {
         emptyEl.hidden = has;
         buildEl.hidden = phase !== 'build';
         entryEl.hidden = phase !== 'fill';
-        if (!has) disarmNew();
         newBtn.hidden = !has;
         resultsEl.hidden = !has || !last;
         renderKeys();
@@ -1189,29 +1184,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!typeRow.hidden) shapeInput.focus();
     });
     shapeInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setBoard(); } });
-    // Two taps to wipe the board: the first arms the button for a few
-    // seconds, so a stray tap can't lose a puzzle in progress. The button
-    // keeps its width while armed: if it moved, a quick second tap could
-    // land on Give Feedback instead.
-    function disarmNew() {
-        clearTimeout(newArmed);
-        newArmed = null;
-        newBtn.classList.remove('armed');
-        newBtn.textContent = NEW_LABEL;
-        newBtn.style.minWidth = '';
-        newBtn.style.minHeight = '';
-    }
+    // Same confirmation as /smush's Reset Board. The button only shows
+    // while there's a board, so there is always something to lose.
     newBtn.addEventListener('click', () => {
-        if (!newArmed) {
-            const box = newBtn.getBoundingClientRect();
-            newBtn.style.minWidth = box.width + 'px';
-            newBtn.style.minHeight = box.height + 'px';
-            newBtn.classList.add('armed');
-            newBtn.textContent = 'Sure? Tap again';
-            newArmed = setTimeout(disarmNew, NEW_ARMED_MS);
-            return;
-        }
-        disarmNew();
+        if (!confirm('Start a new puzzle and clear this board?')) return;
         newPuzzle();
     });
     categoryEl.addEventListener('change', () => {
