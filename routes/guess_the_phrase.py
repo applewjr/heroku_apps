@@ -5,8 +5,8 @@ hands a board to solve_request here, and an added phrase to handle_vote.
 
 Self-contained (James, 2026-10-11): the phrase list ships in datasets/ (see
 datasets/PHRASE_BANK.md) and nothing is fetched at runtime. Bored Panda's
-answers are never fetched or stored. The only phrases added at runtime are
-ones players type in after solving.
+answers are never fetched. The only phrases stored or added at runtime are
+ones players type in after solving (gtp_word_votes, gtp_added_words).
 """
 
 import os
@@ -182,8 +182,9 @@ GTP_CROWD = crowd.CrowdList('gtp', on_change=_forget_overlay, window_days=GTP_WI
 
 
 def _puzzle_tag(category, patterns):
-    """Which puzzle a phrase came from, without a date: category and word
-    lengths, e.g. 'song:4-1-7-5', so votes on an old puzzle still match."""
+    """Which puzzle a phrase came from, without a date: the category id, a
+    colon, then each word's length joined by dashes, so votes on an old
+    puzzle still match."""
     return f"{category}:{'-'.join(str(len(p)) for p in patterns)}"
 
 

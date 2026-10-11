@@ -24,7 +24,7 @@ CREATE TABLE gtp_word_votes (
     word        VARCHAR(80)  NOT NULL,
     vote        VARCHAR(16)  NOT NULL,   -- 'missing' (players); 'invalid' is admin-only
     voter_hash  CHAR(32)     NOT NULL,
-    puzzle      VARCHAR(64)  NULL,       -- category:word lengths, e.g. 'song:4-1-7-5'
+    puzzle      VARCHAR(64)  NULL,       -- category id, a colon, then each word's length joined by dashes
     created_at  DATETIME     NOT NULL,   -- Pacific time, stamped in Python
     PRIMARY KEY (id),
     UNIQUE KEY uq_word_vote_voter (word, vote, voter_hash),
@@ -63,7 +63,7 @@ CREATE TABLE gtp_vote_log (
     word        VARCHAR(80)   NOT NULL,
     vote        VARCHAR(16)   NULL,      -- 'missing' or 'invalid'
     voter_hash  CHAR(32)      NULL,      -- NULL for admin and crowd events
-    puzzle      VARCHAR(64)   NULL,      -- category:word lengths, e.g. 'song:4-1-7-5'
+    puzzle      VARCHAR(64)   NULL,      -- category id, a colon, then each word's length joined by dashes
     players     SMALLINT      NULL,      -- counted players for (word, vote) right after the event
     needed      TINYINT       NULL,      -- players that change needed at that moment
     popularity  DECIMAL(4,2)  NULL,      -- always NULL here: phrases have no word popularity
