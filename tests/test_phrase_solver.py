@@ -94,6 +94,38 @@ def test_category_ranks_in_category_phrases_first():
     assert [d for d, _, _ in res['candidates']] == ['JAZZ SONG', 'JAZZ BAND']
 
 
+def test_search_top_counts_every_fit_but_builds_only_k():
+    b = bank(*[(f'{c}AT', [], 10 + i) for i, c in enumerate('BCFHMPRSV')])
+    total, rows = b.search_top(ps.parse_board('?AT'), {'A', 'T'}, 0, 3)
+    assert total == 9
+    assert [k for k, _, _ in rows] == ['VAT', 'SAT', 'RAT']
+
+
+def test_search_top_keeps_the_best_of_each_group():
+    # BAT is last in popularity order but in the category: 30 beats HAT's
+    # 50 - 25 = 25. Keeping just the first k matches would have lost it.
+    b = bank(('BAT', ['ANIMAL'], 30), ('CAT', [], 60), ('HAT', [], 50), ('MAT', [], 45))
+    total, rows = b.search_top(ps.parse_board('?AT'), {'A', 'T'}, ps.TAG_BIT['ANIMAL'], 2)
+    assert total == 4
+    assert [k for k, _, _ in rows] == ['CAT', 'BAT']
+
+
+def test_overlay_search_top_applies_added_and_removed():
+    base = bank(('CAT', [], 40), ('HAT', [], 30))
+    ob = ps.OverlayBank(base, added=['MAT'], removed=['CAT'])
+    total, rows = ob.search_top(ps.parse_board('?AT'), {'A', 'T'}, 0, 10)
+    assert total == 2
+    assert [k for k, _, _ in rows] == ['MAT', 'HAT']
+
+
+def test_total_is_every_fit_even_past_the_advice_pool(monkeypatch):
+    monkeypatch.setattr(ps, 'ADVICE_POOL', 2)
+    data = Data(bank(*[(f'{c}AT', [], 10 + i) for i, c in enumerate('BCFHMPRSV')]))
+    res = ps.solve(data, '?AT', mashup='no')
+    assert res['total'] == 9
+    assert len(res['candidates']) == 2
+
+
 # --- solve() ----------------------------------------------------------------
 
 def test_solve_counts_fits_and_blanks():

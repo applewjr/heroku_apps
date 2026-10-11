@@ -20,7 +20,7 @@ from crowd import CROWD_ADD_VOTES
 from data import data_folder
 from extensions import auth, db_cursor
 from functions import phrase_solver as ps
-from helpers import ValidationError
+from helpers import ValidationError, release_memory
 from monitoring import alerts
 
 bp = Blueprint('guess_the_phrase', __name__)
@@ -73,6 +73,9 @@ def _load_static():
                                      os.path.join(data_folder, 'phrase_bigrams.tsv.gz'))
                 data.blocklist = ps.load_blocklist(os.path.join(data_folder, 'phrase_blocklist.txt'))
                 _static['data'] = data
+                # Loading parses ~1M lines; glibc keeps what they freed
+                # unless asked (about 5 MB on Linux, measured 2026-10-11).
+                release_memory()
             except Exception as e:
                 _static['failed_at'] = time.time()
                 alerts.alert_throttled('gtp_bank_failed', sev='crit', exc=type(e).__name__, msg=e)

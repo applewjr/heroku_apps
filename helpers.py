@@ -1,11 +1,24 @@
 """Small shared helpers used across route blueprints."""
 
+import ctypes
 import ipaddress
 import math
 from datetime import datetime, timezone
 
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
+
+
+def release_memory():
+    """Give freed memory back to the OS. Dropping a large structure frees it,
+    but on Linux (the dyno) glibc keeps freed blocks for reuse, so the
+    process only shrinks once malloc_trim hands them back. Does nothing where
+    there's no glibc (Windows, macOS)."""
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except OSError:
+        return
+    libc.malloc_trim(0)
 
 
 class ValidationError(ValueError):

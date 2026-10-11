@@ -46,8 +46,11 @@ _SPLIT = re.compile(r'[\s\-&/]+')
 # as if it were 10^(25/20) ~ 18x less famous.
 CATEGORY_PENALTY = 25.0
 MASHUP_PENALTY = 12.0
-MASHUP_SIDE_LIMIT = 4000
-ADVICE_POOL = 5000
+# Per-request memory bounds (measured 2026-10-11 under 8 threads: holding
+# every match instead of these caps cost ~20 MB more at the plateau, with no
+# change in results on the benchmark).
+MASHUP_SIDE_LIMIT = 2000
+ADVICE_POOL = 2000
 # How far letter advice trusts known phrases over the per-word fallback when
 # both exist (the answer may not be in the bank at all).
 BANK_TRUST = 0.8
@@ -195,6 +198,37 @@ class PhraseBank:
         bank._finish()
         return bank
 
+    def search_top(self, patterns, exclude, tag_mask, k):
+        """(how many phrases fit, the best k as (key, display, score)).
+
+        In-category phrases score their popularity, the rest CATEGORY_PENALTY
+        less. A bucket is sorted by popularity, so each group's first k are
+        its best: every other fit is only counted, never built. A blank
+        board can fit 20k+ phrases, and a list of them all is what used to
+        make a request cost megabytes.
+        """
+        bucket = self.buckets.get(sum(map(len, patterns)) + len(patterns) - 1)
+        if bucket is None:
+            return 0, []
+        allowed = _allowed_class(exclude)
+        rx = re.compile('^' + ' '.join(_word_regex(p, allowed) for p in patterns) + '$', re.M)
+        total, inside, outside, w = 0, [], [], bucket.width
+        for m in rx.finditer(bucket.blob):
+            total += 1
+            i = m.start() // w
+            if not tag_mask or bucket.tags[i] & tag_mask:
+                if len(inside) < k:
+                    inside.append(i)
+            elif len(outside) < k:
+                outside.append(i)
+        rows = []
+        for idx, penalty in ((inside, 0.0), (outside, CATEGORY_PENALTY)):
+            for i in idx:
+                key = bucket.blob[i * w:(i + 1) * w - 1]
+                rows.append((key, bucket.display(i, key), bucket.pop[i] / _POP_SCALE - penalty))
+        rows.sort(key=lambda r: -r[2])
+        return total, rows[:k]
+
     def search(self, patterns, exclude, limit=None):
         """Phrases fitting the patterns, most popular first.
 
@@ -213,16 +247,6 @@ class PhraseBank:
             if limit and len(out) >= limit:
                 break
         return out
-
-
-def _rank(matches, tag_mask):
-    """(key, display, score), in-category first via a score penalty."""
-    ranked = []
-    for key, display, pop, mask in matches:
-        score = pop if not tag_mask or mask & tag_mask else pop - CATEGORY_PENALTY
-        ranked.append((key, display, score))
-    ranked.sort(key=lambda t: -t[2])
-    return ranked
 
 
 def mashups(bank, patterns, exclude, limit=MASHUP_SIDE_LIMIT):
@@ -351,11 +375,13 @@ def fallback_phrases(slots, bigrams, beam=FALLBACK_BEAM, top=20):
     states = [((w,), z - 9, z) for w, z in slots[0]]
     states = heapq.nlargest(beam, states, key=lambda s: s[1])
     for cands in slots[1:]:
-        nxt = []
-        for words, score, last_z in states:
-            for w, z in cands:
-                nxt.append((words + (w,), score + _bigram_logp(bigrams, words[-1], last_z, w, z), z))
-        states = heapq.nlargest(beam, nxt, key=lambda s: s[1])
+        # A generator: nlargest keeps `beam` states, never all beam x slot
+        # extensions (60k a step) at once.
+        states = heapq.nlargest(
+            beam,
+            ((words + (w,), score + _bigram_logp(bigrams, words[-1], last_z, w, z), z)
+             for words, score, last_z in states for w, z in cands),
+            key=lambda s: s[1])
     return [(' '.join(words), score) for words, score, _ in states[:top]]
 
 
@@ -433,16 +459,18 @@ def solve(data, board, tried=(), tags=(), mashup='also', limit=50):
     for t in tags:
         tag_mask |= TAG_BIT[t]
 
-    ranked = [] if mashup == 'only' else _rank(data.bank.search(patterns, exclude), tag_mask)
+    total, ranked = (0, []) if mashup == 'only' else data.bank.search_top(
+        patterns, exclude, tag_mask, ADVICE_POOL)
     if mashup != 'no' and len(patterns) >= 3:
         penalty = 0.0 if mashup == 'only' else MASHUP_PENALTY
         have = {k for k, _, _ in ranked}
-        ranked += [(k, d, s - penalty) for k, d, s in mashups(data.bank, patterns, exclude)
-                   if k not in have]
-        ranked.sort(key=lambda t: -t[2])
+        extra = [(k, d, s - penalty) for k, d, s in mashups(data.bank, patterns, exclude)
+                 if k not in have]
+        total += len(extra)
+        ranked = sorted(ranked + extra, key=lambda t: -t[2])[:ADVICE_POOL]
 
     blanks = sum(p.count('?') for p in patterns)
-    result = {'total': len(ranked), 'blanks': blanks, 'fallback': [], 'candidates': []}
+    result = {'total': total, 'blanks': blanks, 'fallback': [], 'candidates': []}
 
     slots = [data.words.match(p, exclude) for p in patterns]
     result['slots'] = [[w for w, _ in s[:SLOT_SHOW]] for s in slots]
@@ -542,6 +570,24 @@ class OverlayBank:
             if limit:
                 out = out[:limit]
         return out
+
+    def search_top(self, patterns, exclude, tag_mask, k):
+        """As PhraseBank.search_top. Added phrases are in every category.
+        A removed phrase outside the base bank's best k is still counted in
+        the total: it is never shown, and finding it would mean building
+        every match again."""
+        total, rows = self.base.search_top(patterns, exclude, tag_mask, k)
+        if self.removed:
+            kept = [r for r in rows if r[0] not in self.removed]
+            total -= len(rows) - len(kept)
+            rows = kept
+        if self.extra.size:
+            have = {r[0] for r in rows}
+            _, extra = self.extra.search_top(patterns, exclude, 0, k)
+            extra = [r for r in extra if r[0] not in have]
+            total += len(extra)
+            rows = sorted(rows + extra, key=lambda r: -r[2])[:k]
+        return total, rows
 
     def __contains__(self, key):
         patterns = tuple(key.split(' '))

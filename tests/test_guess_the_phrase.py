@@ -114,6 +114,20 @@ def test_page_says_when_the_list_is_unavailable(client, no_list):
     assert 'unavailable right now' in html
 
 
+def test_loading_the_list_gives_freed_memory_back(monkeypatch):
+    # Parsing the files frees ~1M temporary strings; glibc keeps that memory
+    # unless malloc_trim hands it back.
+    import routes.guess_the_phrase as g
+    calls = []
+    monkeypatch.setattr(g, '_static', {'data': None, 'failed_at': 0.0})
+    monkeypatch.setattr(g.ps, 'SolverData', lambda *paths: _Static())
+    monkeypatch.setattr(g.ps, 'load_blocklist', lambda path: frozenset())
+    monkeypatch.setattr(g, 'release_memory', lambda: calls.append(1))
+    assert g._load_static() is not None
+    g._load_static()
+    assert calls == [1]   # once, on the load itself
+
+
 # --- solving ----------------------------------------------------------------
 
 def test_solve_returns_hints_for_the_board(client, gtp_db):
