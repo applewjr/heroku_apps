@@ -7,6 +7,7 @@ tests stub the DB cursor so the path is hermetic.
 """
 
 import re
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -137,8 +138,10 @@ def _fake_db_cursor():
 def blossom_client(client, monkeypatch):
     # Stub the DB so the POST path is hermetic (no real MySQL): invalid/added
     # word lists come back empty and the solver runs on the in-memory list.
+    # The word-list memo starts empty, so no other test's list leaks in.
     import routes.blossom as blossom
     monkeypatch.setattr(blossom, "db_cursor", _fake_db_cursor)
+    monkeypatch.setattr(blossom, "_blossom_words", {"value": None, "expires": 0.0})
     return client
 
 
@@ -431,13 +434,13 @@ def crowd_db(monkeypatch):
 
 
 @pytest.fixture
-def fresh_word_cache():
-    # The vote paths read the word list through the 12-hour cache. Start each
-    # test empty so the scripted DB builds it, and never leave a fake behind.
-    from extensions import cache
-    cache.delete("blossom_filtered_words")
-    yield cache
-    cache.delete("blossom_filtered_words")
+def fresh_word_cache(monkeypatch):
+    # The vote paths read the word list through its 12-hour module memo.
+    # Start each test empty so the scripted DB builds it, and never leave a
+    # fake behind (monkeypatch puts the real memo back). Yields the module.
+    import routes.blossom as blossom
+    monkeypatch.setattr(blossom, "_blossom_words", {"value": None, "expires": 0.0})
+    return blossom
 
 
 def _flag(client, word):
@@ -512,7 +515,33 @@ def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fre
     assert ("DELETE FROM blossom_word_votes WHERE word = %s AND vote = %s",
             ("nastier", "missing")) in db.executed
     # The next solve rebuilds the list rather than serving the cached one.
-    assert fresh_word_cache.get("blossom_filtered_words") is None
+    assert fresh_word_cache._blossom_words["expires"] == 0.0
+
+
+def test_solves_share_one_word_list(fresh_word_cache, monkeypatch):
+    # The memo hands every solve the same set: no per-request copy (the
+    # SimpleCache it replaced unpickled ~9 MB of strings per solve). With no
+    # corrections that set is data.py's list itself.
+    import data
+    monkeypatch.setattr(fresh_word_cache, "db_cursor", _fake_db_cursor)
+    first = fresh_word_cache.get_filtered_blossom_words()
+    assert fresh_word_cache.get_filtered_blossom_words() is first
+    assert first is data.words_blossom
+
+
+def test_a_db_blip_keeps_the_last_good_list(fresh_word_cache, monkeypatch):
+    good = {"corrected"}
+    fresh_word_cache._blossom_words.update(value=good, expires=0.0)   # due a refresh
+
+    @contextmanager
+    def down():
+        raise RuntimeError("db down")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(fresh_word_cache, "db_cursor", down)
+    assert fresh_word_cache.get_filtered_blossom_words() is good
+    # ...and retries in 5 minutes, not 12 hours.
+    assert fresh_word_cache._blossom_words["expires"] < time.time() + 301
 
 
 def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_cache):
@@ -553,12 +582,12 @@ def test_only_a_result_on_this_board_gets_a_vote(client, crowd_db, fresh_word_ca
 def test_unticking_the_deciding_vote_puts_the_word_back(client, crowd_db, fresh_word_cache):
     with client.session_transaction() as sess:
         sess["invalid_words"] = ["nastier"]
-    fresh_word_cache.set("blossom_filtered_words", {"stale"})
+    fresh_word_cache._blossom_words.update(value={"stale"}, expires=time.time() + 3600)
     from crowd import remove_votes_needed
     db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))     # what's left once this vote is gone
     _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
-    assert fresh_word_cache.get("blossom_filtered_words") is None
+    assert fresh_word_cache._blossom_words["expires"] == 0.0
 
 
 def test_a_player_crossing_words_off_does_not_count(client, crowd_db, fresh_word_cache):
@@ -588,7 +617,7 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     assert sorted(params[0] for _sql, params in put_back) == ["nastier", "retains"]
     assert not db.statements("INSERT INTO blossom_invalid_words")
     # The list the next solve sees is rebuilt, not the cached one.
-    assert fresh_word_cache.get("blossom_filtered_words") is None
+    assert fresh_word_cache._blossom_words["expires"] == 0.0
 
 
 def test_only_invalid_counts_apply_the_daily_limit(client, crowd_db, fresh_word_cache):

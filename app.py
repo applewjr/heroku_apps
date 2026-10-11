@@ -31,8 +31,13 @@ if config.IS_HEROKU:
         stream=sys.stdout
     )
 
+# First, before data.py and pandas load: stops glibc holding freed memory,
+# the cause of the dyno's +9-13 MB/hour staircase (helpers.py has the detail).
+from helpers import ValidationError, pin_malloc_thresholds
+
+pin_malloc_thresholds()
+
 from extensions import NOT_FOUND_LIMITS, cache, limiter, log_page_visit
-from helpers import ValidationError
 from monitoring import alerts
 from routes import blossom, dashboards, espresso, guess_the_phrase, misc, smush, smush_dev, wordgames
 
