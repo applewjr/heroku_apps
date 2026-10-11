@@ -34,7 +34,7 @@ if config.IS_HEROKU:
 from extensions import NOT_FOUND_LIMITS, cache, limiter, log_page_visit
 from helpers import ValidationError
 from monitoring import alerts
-from routes import blossom, dashboards, espresso, misc, smush, smush_dev, wordgames
+from routes import blossom, dashboards, espresso, guess_the_phrase, misc, smush, smush_dev, wordgames
 
 app = Flask(__name__)
 
@@ -72,6 +72,7 @@ app.register_blueprint(wordgames.bp)
 app.register_blueprint(blossom.bp)
 app.register_blueprint(smush.bp)
 app.register_blueprint(smush_dev.bp)
+app.register_blueprint(guess_the_phrase.bp)
 app.register_blueprint(espresso.bp)
 app.register_blueprint(dashboards.bp)
 

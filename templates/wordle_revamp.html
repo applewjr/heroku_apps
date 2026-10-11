@@ -327,41 +327,6 @@
     text-align: center;
 }
 
-.related-solvers {
-    margin-top: 20px;
-}
-.related-solvers-label {
-    font-size: 13px;
-    color: #888;
-    margin-bottom: 12px;
-}
-.pill-grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px;
-    max-width: 300px;
-    margin: 0 auto;
-}
-.pill-button {
-    background-color: #f8f9fa;
-    color: #495057;
-    border: 1px solid #e9ecef;
-    padding: 8px 16px;
-    border-radius: 6px;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 13px;
-    transition: background-color 0.2s ease;
-    flex: 0 0 calc(50% - 2px);
-    text-align: center;
-    box-sizing: border-box;
-}
-.pill-button:hover {
-    background-color: #e9ecef;
-    color: #495057;
-}
-
 .suggestion-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -579,17 +544,7 @@
         <a href="/wordle" class="btn-secondary">🔄 Reset Puzzle</a>
     </div>
 
-    <div class="related-solvers">
-        <p class="related-solvers-label">Other Word Game Solvers:</p>
-        <div class="pill-grid">
-            <a href="/blossom" class="pill-button">Blossom</a>
-            <a href="/quordle" class="pill-button">Quordle</a>
-            <a href="/antiwordle" class="pill-button">Antiwordle</a>
-            <a href="/wordiply" class="pill-button">Wordiply</a>
-            <a href="/smush" class="pill-button">Smush</a>
-            <a href="/ribbit" class="pill-button">Ribbit</a>
-        </div>
-    </div>
+    {% with current='/wordle' %}{% include '_related_solvers.html' %}{% endwith %}
     <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
       <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
       <div style="border-top: 1px solid #e9ecef;">

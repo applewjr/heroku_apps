@@ -160,12 +160,16 @@ class CrowdList:
                  same visitor is a different player in each game
     on_change -- called after any change to the two word tables, to drop
                  that game's cached word list
+    window_days -- how long a vote keeps counting. Guess The Phrase uses
+                 30, not 7: its players work through old puzzles, so two
+                 who solve the same one can be weeks apart.
     """
 
-    def __init__(self, game, on_change):
+    def __init__(self, game, on_change, window_days=CROWD_WINDOW_DAYS):
         if game not in CROWD_GAMES:
             raise ValueError(f'not a crowd game: {game!r}')
         self.game = game
+        self.window_days = window_days
         self.votes_table = f'{game}_word_votes'
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
@@ -212,7 +216,7 @@ class CrowdList:
         """
         sql = (f"SELECT COUNT(*) FROM {self.votes_table} v "
                "WHERE v.word = %s AND v.vote = %s AND v.created_at >= %s")
-        params = [word, kind, _pst_days_ago(CROWD_WINDOW_DAYS)]
+        params = [word, kind, _pst_days_ago(self.window_days)]
         if kind == 'invalid':
             sql += (f" AND (SELECT COUNT(*) FROM {self.votes_table} d"
                     " WHERE d.voter_hash = v.voter_hash AND d.vote = 'invalid'"
@@ -450,7 +454,7 @@ class CrowdList:
         newest board first. board_date is the estimated day that board was
         presented, not just the last vote's date."""
         with db_cursor() as (conn, cursor):
-            cursor.execute(report_sql(self.game, CROWD_WINDOW_DAYS))
+            cursor.execute(report_sql(self.game, self.window_days))
             return cursor.fetchall()
 
     def admin_view(self, args, path, tabs=('reports', 'invalid', 'added')):

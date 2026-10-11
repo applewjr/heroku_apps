@@ -8,6 +8,7 @@ from data import df, word_pop, words
 from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
+from routes import guess_the_phrase as gtp
 from routes import smush as smush_crowd
 from routes.smush import get_smush_words
 
@@ -459,6 +460,28 @@ def run_ribbit():
     else:
         log_page_visit('ribbit.html')
         return render_template("ribbit.html", schema_data=schema_data)
+
+
+@bp.route("/guess_the_phrase", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
+def run_guess_the_phrase():
+
+    schema_data = make_schema_data(
+        "Guess The Phrase Solver - Hints for the Daily Phrase Puzzle",
+        "Stuck on Bored Panda's Guess The Phrase? Enter the board and get spoiler-free help: the best letter to call next, whether to buy a vowel, and possible answers revealed one letter at a time. Works for today's puzzle and every past one.",
+        "https://www.jamesapplewhite.com/guess_the_phrase"
+    )
+
+    if request.method == "POST":
+        data = request.get_json()
+        if not isinstance(data, dict):
+            raise ValidationError('expected a JSON object')
+        if 'action' in data:
+            return gtp.handle_vote(data)
+        return gtp.solve_request(data)
+    else:
+        log_page_visit('guess_the_phrase.html')
+        return render_template("guess_the_phrase.html", schema_data=schema_data, **gtp.page_context())
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])

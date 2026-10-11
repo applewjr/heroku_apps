@@ -16,6 +16,7 @@ GET_OK = [
     "/wordiply",
     "/smush",
     "/ribbit",
+    "/guess_the_phrase",
     "/any_word",
     "/fixer",
     "/common_denominator",
