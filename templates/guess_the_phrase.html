@@ -155,17 +155,22 @@
 .gtp-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ---------- board ---------- */
+/* Rows break the way the game's board does, not by screen width: at most
+   --cols characters a row, counting one space per word break (ROW_CHARS in
+   the script). Tiles shrink to fit a phone, and JS raises --cols for a
+   single word longer than a row. */
 .gtp-board {
-    --tile: clamp(22px, 7vw, 38px);
+    --cols: 11;
+    --tile: min(32px, calc((100vw - 40px) / var(--cols) - 3px));
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px calc(var(--tile) * 0.6);
-    max-width: 620px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     margin: 18px auto 0;
     padding: 0 8px;
 }
-.gtp-word { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+.gtp-line { display: flex; justify-content: center; gap: calc(var(--tile) * 0.5); }
+.gtp-word { display: flex; gap: 3px; }
 .gtp-tile {
     width: var(--tile);
     height: calc(var(--tile) * 1.2);
@@ -189,7 +194,28 @@
 .gtp-tile:focus-visible { outline: 3px solid #e0a800; outline-offset: 2px; }
 .gtp-empty { color: #6b7280; font-size: 14px; font-style: italic; margin: 18px auto 0; max-width: 480px; }
 
-.gtp-modes, .gtp-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px auto 0; }
+.gtp-modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px auto 0; }
+
+/* New puzzle sits with Play and Feedback, away from the board, and wipes
+   the board only on a second tap: the first one arms it. */
+.gtp-new-btn {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: inline-block;
+    margin: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.gtp-new-btn:hover { background-color: #e9ecef; }
+.gtp-new-btn.armed { background-color: #fbf0f0; border-color: #e55555; color: #a55; font-weight: 600; }
+.gtp-new-btn[hidden] { display: none; }
 .gtp-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 480px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
 
 /* ---------- keyboard ---------- */
@@ -465,9 +491,6 @@
     </div>
     <p class="gtp-hint" id="gtp-hint"></p>
     <div id="solver-keyboard" aria-label="Letter keyboard"></div>
-    <div class="gtp-controls">
-        <button type="button" class="gtp-btn" id="gtp-new">🔄 New puzzle</button>
-    </div>
 </div>
 
 <div id="gtp-results" aria-live="polite" hidden>
@@ -513,6 +536,7 @@
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
         border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
         transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    <button type="button" class="gtp-new-btn" id="gtp-new" hidden>🔄 New puzzle</button>
 </div>
 
 {% with current='/guess_the_phrase' %}{% include '_related_solvers.html' %}{% endwith %}
@@ -567,6 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const STORAGE_KEY = 'gtpSolverState_v1';
     const MAX_WORDS = 12, MAX_WORD_LEN = 20, MAX_TILES = 68;
+    const ROW_CHARS = 11;         // board row width, as in the game (see boardLines)
     const ROWS_STEP = 10;
     const VOWELS = 'AEIOU';
 
@@ -596,6 +621,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const answersBody = document.getElementById('gtp-answers-body');
     const answersToggle = document.getElementById('gtp-answers-toggle');
     const listEl = document.getElementById('gtp-answer-list');
+    const newBtn = document.getElementById('gtp-new');
+    const NEW_LABEL = newBtn.textContent;
+    const NEW_ARMED_MS = 4000;
+    let newArmed = null;          // timer while New puzzle waits for its second tap
 
     const HINTS = {
         fill: 'Tap a tile, then a letter. Fill in every tile that shows a called letter.',
@@ -672,31 +701,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ---------- rendering ---------- */
+    // The board's rows, as lists of word indexes: greedy, at most ROW_CHARS
+    // characters a row with one space per word break. 11 matches the game:
+    // a 7-letter and a 3-letter word share a row (7+1+3), an 8 and a 3 don't.
+    function boardLines() {
+        const lines = [];
+        let line = [], used = 0;
+        lengths.forEach((n, w) => {
+            if (line.length && used + 1 + n > ROW_CHARS) {
+                lines.push(line);
+                line = [];
+                used = 0;
+            }
+            used += (line.length ? 1 : 0) + n;
+            line.push(w);
+        });
+        if (line.length) lines.push(line);
+        return lines;
+    }
+
     function renderBoard() {
         boardEl.innerHTML = '';
-        let i = 0;
-        lengths.forEach((n, w) => {
-            const word = document.createElement('div');
-            word.className = 'gtp-word';
-            for (let k = 0; k < n; k++, i++) {
-                const tile = document.createElement('button');
-                tile.type = 'button';
-                tile.className = 'gtp-tile' + (letters[i] ? ' filled' : '') + (i === selected ? ' selected' : '');
-                tile.textContent = letters[i];
-                tile.dataset.i = i;
-                tile.setAttribute('aria-label', 'Word ' + (w + 1) + ', letter ' + (k + 1) + ': ' + (letters[i] || 'blank'));
-                tile.addEventListener('click', () => {
-                    selected = +tile.dataset.i;
-                    if (mode === 'miss') setMode('fill');
-                    renderBoard();
-                });
-                word.appendChild(tile);
-            }
-            boardEl.appendChild(word);
+        boardEl.style.setProperty('--cols', Math.max(ROW_CHARS, ...lengths));
+        boardLines().forEach(line => {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'gtp-line';
+            line.forEach(w => {
+                const word = document.createElement('div');
+                word.className = 'gtp-word';
+                for (let k = 0, i = wordStart(w); k < lengths[w]; k++, i++) {
+                    const tile = document.createElement('button');
+                    tile.type = 'button';
+                    tile.className = 'gtp-tile' + (letters[i] ? ' filled' : '') + (i === selected ? ' selected' : '');
+                    tile.textContent = letters[i];
+                    tile.dataset.i = i;
+                    tile.setAttribute('aria-label', 'Word ' + (w + 1) + ', letter ' + (k + 1) + ': ' + (letters[i] || 'blank'));
+                    tile.addEventListener('click', () => {
+                        selected = +tile.dataset.i;
+                        if (mode === 'miss') setMode('fill');
+                        renderBoard();
+                    });
+                    word.appendChild(tile);
+                }
+                lineEl.appendChild(word);
+            });
+            boardEl.appendChild(lineEl);
         });
         const has = lengths.length > 0;
         emptyEl.hidden = has;
         entryEl.hidden = !has;
+        if (!has) disarmNew();
+        newBtn.hidden = !has;
         resultsEl.hidden = !has || !last;
         renderKeys();
     }
@@ -948,7 +1003,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mode-miss').addEventListener('click', () => setMode('miss'));
     document.getElementById('gtp-set').addEventListener('click', setBoard);
     shapeInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setBoard(); } });
-    document.getElementById('gtp-new').addEventListener('click', newPuzzle);
+    // Two taps to wipe the board: the first arms the button for a few
+    // seconds, so a stray tap can't lose a puzzle in progress. The button
+    // keeps its width while armed: if it moved, a quick second tap could
+    // land on Give Feedback instead.
+    function disarmNew() {
+        clearTimeout(newArmed);
+        newArmed = null;
+        newBtn.classList.remove('armed');
+        newBtn.textContent = NEW_LABEL;
+        newBtn.style.minWidth = '';
+        newBtn.style.minHeight = '';
+    }
+    newBtn.addEventListener('click', () => {
+        if (!newArmed) {
+            const box = newBtn.getBoundingClientRect();
+            newBtn.style.minWidth = box.width + 'px';
+            newBtn.style.minHeight = box.height + 'px';
+            newBtn.classList.add('armed');
+            newBtn.textContent = 'Sure? Tap again';
+            newArmed = setTimeout(disarmNew, NEW_ARMED_MS);
+            return;
+        }
+        disarmNew();
+        newPuzzle();
+    });
     categoryEl.addEventListener('change', () => {
         category = categoryEl.value;
         rowsShown = ROWS_STEP;
