@@ -155,14 +155,15 @@ def test_votes_go_to_the_crowd_list(dev, monkeypatch):
     import routes.smush as smush
     seen = []
 
-    def record(data):
-        seen.append(data)
+    def record(data, dev=False):
+        seen.append((data, dev))
         return {"status": "success"}
 
     monkeypatch.setattr(smush, "handle_vote", record)
     resp = dev.post({"action": "reject", "word": "glum", "center": CENTER, "outer": "mguoaecf"})
     assert resp.status_code == 200
-    assert seen and seen[0]["word"] == "glum"
+    # Tagged as this page's, so the vote log can tell James's votes apart.
+    assert seen and seen[0][0]["word"] == "glum" and seen[0][1] is True
 
 
 def test_without_ice_cold_the_plan_is_the_one_smush_gives(dev):

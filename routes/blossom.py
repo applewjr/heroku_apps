@@ -417,6 +417,14 @@ def _puzzle_tag(center, petals):
     return center + ':' + ''.join(sorted(petals))
 
 
+def _vote_mode(data):
+    """'normal' or 'helper' (the page's Helper Mode, which masks the words but
+    keeps the Invalid box), for the vote log only. None when the page didn't
+    say - never a reason to refuse the vote."""
+    mode = data.get('mode')
+    return mode if mode in ('normal', 'helper') else None
+
+
 def _toggle_invalid(data):
     """Tick or untick a word's Invalid box: the player says Blossom rejected it."""
     word = _parse_word(data.get('word'))
@@ -427,13 +435,13 @@ def _toggle_invalid(data):
     flagged = session['invalid_words']
     if word in flagged:
         flagged.remove(word)
-        BLOSSOM_CROWD.retract_vote(word, 'invalid')
+        BLOSSOM_CROWD.retract_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data))
     else:
         flagged.append(word)
         # Only a word actually on offer, on a board it fits: anything else is
         # not a result this player could have been shown.
         if word in get_filtered_blossom_words() and _fits_puzzle(word, center, petals):
-            BLOSSOM_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, petals))
+            BLOSSOM_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data))
     session.modified = True
     # Same reply whether or not this vote removed the word (see crowd.py).
     return jsonify({'status': 'success', 'invalid_words': flagged})
@@ -448,5 +456,5 @@ def _suggest_missing(data):
     if word in get_filtered_blossom_words():
         return jsonify({'status': 'success', 'result': 'already_listed'})
     # 'recorded' whether or not this vote added the word (see crowd.py).
-    BLOSSOM_CROWD.record_vote(word, 'missing', _puzzle_tag(center, petals))
+    BLOSSOM_CROWD.record_vote(word, 'missing', _puzzle_tag(center, petals), _vote_mode(data))
     return jsonify({'status': 'success', 'result': 'recorded'})

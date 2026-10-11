@@ -285,7 +285,7 @@ def smush_dev():
     # ✗, restoring a hidden word and the "Smush accepted a word" box: the
     # same crowd votes /smush records - a refusal here is a real refusal.
     if 'action' in data:
-        return smush_crowd.handle_vote(data)
+        return smush_crowd.handle_vote(data, dev=True)
 
     center, outer_uses, spicy, first_word, rejected, played, want_plan, ice_cold = _parse_solve(data)
     smush_words = get_smush_words()

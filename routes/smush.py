@@ -126,35 +126,52 @@ def _puzzle_tag(center, outer):
 
 
 SMUSH_VOTE_ACTIONS = ('reject', 'restore', 'suggest_missing')
+# The results tabs, as SORT_MODES in smush.html and smush_dev.html. A ✗ on
+# the All 8 tab also re-plans, so some of those are steering, not refusals.
+SMUSH_RESULT_TABS = ('pts', 'eff', 'all8', 'pan')
 
 
-def handle_vote(data):
-    """A crowd vote posted to /smush. Every reply is the same whether or not
-    the vote changed the list (see crowd.py)."""
+def _vote_mode(data, dev):
+    """The tab the player voted from, for the vote log only: 'dev_<tab>'
+    from /smush_dev, plus '_ice' with Ice Cold on. None when the page didn't
+    say (one loaded before it started saying) or said something else - never
+    a reason to refuse the vote."""
+    tab = data.get('mode')
+    if tab not in SMUSH_RESULT_TABS:
+        return None
+    if dev:
+        return 'dev_' + tab + ('_ice' if data.get('ice_cold') is True else '')
+    return tab
+
+
+def handle_vote(data, dev=False):
+    """A crowd vote posted to /smush, or to /smush_dev with `dev`. Every reply
+    is the same whether or not the vote changed the list (see crowd.py)."""
     action = data.get('action')
     if action not in SMUSH_VOTE_ACTIONS:
         raise ValidationError('unknown action')
     word = _parse_word(data.get('word'))
     center, outer = _parse_board(data)
+    mode = _vote_mode(data, dev)
 
     if action == 'reject':
         # Only a word actually on offer, on a board it fits: anything else is
         # not a result this player could have been shown.
         if _fits_board(word, center, outer) and word in get_smush_words():
-            SMUSH_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, outer))
+            SMUSH_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, outer), mode)
         return jsonify({'status': 'success'})
 
     if action == 'restore':
         # Tapping a hidden word back: takes back this player's ✗, if it
         # counted.
-        SMUSH_CROWD.retract_vote(word, 'invalid')
+        SMUSH_CROWD.retract_vote(word, 'invalid', _puzzle_tag(center, outer), mode)
         return jsonify({'status': 'success'})
 
     if not _fits_board(word, center, outer):
         return jsonify({'status': 'success', 'result': 'not_in_puzzle'})
     if word in get_smush_words():
         return jsonify({'status': 'success', 'result': 'already_listed'})
-    SMUSH_CROWD.record_vote(word, 'missing', _puzzle_tag(center, outer))
+    SMUSH_CROWD.record_vote(word, 'missing', _puzzle_tag(center, outer), mode)
     return jsonify({'status': 'success', 'result': 'recorded'})
 
 
