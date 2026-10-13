@@ -1,0 +1,17 @@
+{# "Other Word Game Solvers": one list for every solver page, so a new
+   solver is added here once. Set `current` to the page's own path to leave
+   it out:
+     {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
+   min-height holds the space before the links paint, so Auto Ads don't
+   shift the page. #}
+{% set solvers = [('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle'),
+                  ('/blossom', 'Blossom'), ('/smush', 'Smush'), ('/ribbit', 'Ribbit'),
+                  ('/wordiply', 'Wordiply'), ('/guess_the_phrase', 'Guess The Phrase')] %}
+<div style="margin-top: 20px; min-height: 100px;">
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 400px; margin: 0 auto;">
+        {% for path, name in solvers if path != current %}
+        <a href="{{ path }}" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">{{ name }}</a>
+        {% endfor %}
+    </div>
+</div>

@@ -222,9 +222,11 @@ def gather_feedback(cursor):
 # crowd.CROWD_WINDOW_DAYS, repeated because this job can't import crowd.py
 # (it pulls in `extensions`; see the module docstring). A test keeps them equal.
 CROWD_WINDOW_DAYS = 7
+# routes/guess_the_phrase.py GTP_WINDOW_DAYS, repeated for the same reason.
+GTP_WINDOW_DAYS = 30
 
 
-def gather_crowd(cursor, game):
+def gather_crowd(cursor, game, window_days=CROWD_WINDOW_DAYS):
     """What players did to one game's word list in the last day. FYI only.
 
     Corrections apply on their own once enough different players agree (see
@@ -236,7 +238,7 @@ def gather_crowd(cursor, game):
     section must never be the reason the digest does not arrive.
     """
     try:
-        columns, rows = _rows(cursor, report_sql(game, CROWD_WINDOW_DAYS, recent_days=1))
+        columns, rows = _rows(cursor, report_sql(game, window_days, recent_days=1))
         return columns, rows, None
     except Exception as e:
         return [], [], '{}: {}'.format(type(e).__name__, e)
@@ -248,6 +250,10 @@ def gather_blossom_crowd(cursor):
 
 def gather_smush_crowd(cursor):
     return gather_crowd(cursor, 'smush')
+
+
+def gather_gtp_crowd(cursor):
+    return gather_crowd(cursor, 'gtp', GTP_WINDOW_DAYS)
 
 
 def gather_dashboard(cursor):
@@ -320,7 +326,7 @@ def _table(columns, rows, limit=MAX_ROWS_PER_PANEL):
 
 
 def render(now, health, latency, storage, feedback, panels, blossom=((), (), None),
-           smush=((), (), None)):
+           smush=((), (), None), gtp=((), (), None)):
     total_mb, tables = storage
     ok = sum(1 for r in health if r[1] == 'ok')
     bad = sum(1 for r in health if r[1] == 'FAIL')
@@ -382,9 +388,10 @@ def render(now, health, latency, storage, feedback, panels, blossom=((), (), Non
         h.append('<pre>{}</pre>'.format(_esc(body_text)))
 
     for title, admin, (cr_cols, cr_rows, cr_error) in (
-            ('Blossom', '/blossom_admin', blossom),
-            ('Smush', '/smush_admin', smush)):
-        h.append('<h2>{} word fixes by players, last 24 hours ({})</h2>'.format(title, len(cr_rows)))
+            ('Blossom word', '/blossom_admin', blossom),
+            ('Smush word', '/smush_admin', smush),
+            ('Guess The Phrase phrase', '/guess_the_phrase_admin', gtp)):
+        h.append('<h2>{} fixes by players, last 24 hours ({})</h2>'.format(title, len(cr_rows)))
         h.append('<p class="sub">Applied on their own once enough different players '
                  'agree. Nothing to do here; Remove in {} undoes any of it.</p>'.format(admin))
         if cr_error:
@@ -432,6 +439,7 @@ def build(now):
         # costs a section gathered after it. Each guards itself.
         blossom = gather_blossom_crowd(cursor)
         smush = gather_smush_crowd(cursor)
+        gtp = gather_gtp_crowd(cursor)
     finally:
         cursor.close()
         conn.close()
@@ -441,7 +449,7 @@ def build(now):
     latency = gather_latency()
 
     html, ok, bad, total_mb = render(now, health, latency, storage, feedback, panels,
-                                     blossom, smush)
+                                     blossom, smush, gtp)
     # The summary goes in the subject so the phone notification is the report.
     # Most days that is the only part read, and it should be enough.
     subject = 'JJ daily {} - {} ok, {} alert{}, {} MB'.format(

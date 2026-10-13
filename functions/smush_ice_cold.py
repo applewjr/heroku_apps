@@ -65,7 +65,6 @@ word pool. Tables nobody has used for IDLE_RELEASE_SECONDS are dropped
 (IdleSweeper), so a finished game gives its memory back.
 """
 
-import ctypes
 import hashlib
 import math
 import random
@@ -76,6 +75,9 @@ from dataclasses import dataclass
 from datetime import date
 
 import numpy as np
+
+# Imported under this name so callers and tests reach it as ice.release_memory.
+from helpers import release_memory  # noqa: F401
 
 N_LETTERS = 8
 FULL_ROOT = (5,) * N_LETTERS
@@ -750,18 +752,6 @@ def plan_payload(table, pool, L, s, letters, rollouts=24):
 
 def states_below(L):
     return math.prod(l + 1 for l in L)
-
-
-def release_memory():
-    """Give freed memory back to the OS. Dropping a table frees its arrays,
-    but on Linux (the dyno) glibc keeps freed blocks for reuse, so the
-    process only shrinks once malloc_trim hands them back. Does nothing where
-    there's no glibc (Windows, macOS)."""
-    try:
-        libc = ctypes.CDLL("libc.so.6")
-    except OSError:
-        return
-    libc.malloc_trim(0)
 
 
 class TableCache:

@@ -1,11 +1,55 @@
 """Small shared helpers used across route blueprints."""
 
+import ctypes
 import ipaddress
 import math
 from datetime import datetime, timezone
 
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
+
+
+# glibc mallopt parameter numbers (malloc.h).
+_M_TRIM_THRESHOLD = -1
+_M_MMAP_THRESHOLD = -3
+MALLOC_THRESHOLD = 128 * 1024
+
+
+def pin_malloc_thresholds():
+    """Stop glibc holding freed memory: call once, at startup, before the
+    big imports. The cause of the dyno's creep (2026-10-10 diagnosis):
+
+    glibc raises its mmap threshold (up to 32 MB) each time a large block is
+    freed, and its trim threshold to twice that. After a 4.8 MB MTG page or
+    a 5.4 MB matplotlib canvas is freed, each of gunicorn's 8 thread arenas
+    keeps that much free memory, which malloc_trim can't reach. It ratchets
+    up to the largest block freed so far: the +9-13 MB/hour staircase.
+
+    Pinning both at 128 KB (glibc's own default) also turns off that
+    dynamic adjustment, so blocks of 128 KB or more are mmapped and go
+    straight back to the OS when freed. In a WSL replay of 5,000 requests,
+    this plus the module memos (no per-request unpickling) cut RSS growth
+    from +107-120 MB to +8 MB, with no slowdown. Does nothing without glibc
+    (Windows, macOS).
+    """
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except OSError:
+        return
+    libc.mallopt(_M_TRIM_THRESHOLD, MALLOC_THRESHOLD)
+    libc.mallopt(_M_MMAP_THRESHOLD, MALLOC_THRESHOLD)
+
+
+def release_memory():
+    """Give freed memory back to the OS. Dropping a large structure frees it,
+    but on Linux (the dyno) glibc keeps freed blocks for reuse, so the
+    process only shrinks once malloc_trim hands them back. Does nothing where
+    there's no glibc (Windows, macOS)."""
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+    except OSError:
+        return
+    libc.malloc_trim(0)
 
 
 class ValidationError(ValueError):

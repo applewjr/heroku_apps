@@ -1,0 +1,1332 @@
+{% extends 'base.html' %}
+
+{% block title %}Guess The Phrase Solver - Hints for the Daily Phrase Puzzle{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Free Guess The Phrase solver with spoiler-free hints: the best letter to call next, when to buy a vowel, and possible answers revealed one letter at a time.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/guess_the_phrase">
+<meta name="keywords" content="guess the phrase solver, guess the phrase hint, bored panda guess the phrase, daily phrase puzzle, phrase puzzle helper">
+<meta property="og:title" content="Guess The Phrase Solver - Hints for the Daily Phrase Puzzle">
+<meta property="og:description" content="Stuck on Bored Panda's Guess The Phrase? Enter the board and get spoiler-free help: the best letter to call next, whether to buy a vowel, and possible answers revealed one letter at a time. Works for today's puzzle and every past one.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/guess_the_phrase">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Guess The Phrase?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Guess The Phrase is Bored Panda's daily word puzzle in the style of Wheel of Fortune. Each day has one hidden phrase and a category clue. You spin a wheel to set a point value, call consonants, buy vowels for 250 points, and solve the phrase as early as you can for a bigger bonus. Landing on the flame burns your banked points."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this solver help without spoiling the answer?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. If you are still stuck, Show possible answers lists phrases that fit your board with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I enter the board?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which letter should I call first?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The classic opening is R, S, T, L, N and E, the most common letters in English phrases. The solver does better than a fixed order: it checks every known phrase that fits your word lengths and category, and suggests the consonant most likely to be in yours, along with how many tiles it should uncover."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it worth buying a vowel?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A vowel costs 250 points, so it pays when it is likely to land. The solver shows the vowel most likely to be in the answer and its chance. A vowel with a high chance can break a tricky board open, so buy one early if it gives you the anchor words you need."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is a Phrase Mashup?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A Phrase Mashup joins two phrases that share a word, the way Before and After puzzles do: FIRE TRUCK and TRUCK STOP become FIRE TRUCK STOP. Choose Phrase mashup as the category and the solver builds these combinations from its phrase list."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use it for older puzzles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The solver only needs the board in front of you, so it works the same for today's puzzle and for any earlier one you are catching up on in Bored Panda's archive."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why isn't my answer in the list?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The phrase list is built from public data: movie, song, TV and book titles, famous people, places, landmarks, animals, food, proverbs and idioms. Puns, song lyrics and made-up phrases may not be in it. When nothing fits, the solver builds guesses word by word instead, and once you have solved the puzzle you can add the answer for the next player."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Bored Panda, which makes the game. Phrases come from Wikidata, WordNet 3.0 and Wiktionary, and word frequencies from wordfreq: see Data sources and licences below. Play the real game at boredpanda.com."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- setup ---------- */
+.gtp-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.gtp-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
+.gtp-notice {
+    max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
+    background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
+}
+.gtp-setup {
+    max-width: 360px;
+    margin: 16px auto 0;
+    padding: 0 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    text-align: left;
+}
+.gtp-field label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.gtp-field select, .gtp-field input, .gtp-add-row input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 16px;   /* 16px keeps iOS from zooming on focus */
+    color: #1f2937;
+    background-color: #fff;
+}
+.gtp-field select:focus, .gtp-field input:focus, .gtp-add-row input:focus { outline: 3px solid #02484d; outline-offset: 1px; }
+.gtp-shape-row, .gtp-add-row { display: flex; gap: 8px; }
+.gtp-shape-row input { flex: 1; min-width: 0; }
+#gtp-type-row { max-width: 360px; margin: 6px auto 0; padding: 0 12px; }
+#gtp-type-row[hidden] { display: none; }   /* .gtp-shape-row's flex would beat [hidden] */
+
+/* Word-length keypad: one tap per word, no separators to type. */
+.gtp-pad {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 52px));
+    justify-content: center;
+    gap: 6px;
+    margin: 10px auto 0;
+    padding: 0 8px;
+}
+.gtp-pad-key {
+    height: 50px;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gtp-pad-key:hover { background-color: #eef4f4; }
+.gtp-pad-key:active { background-color: #cdd8d7; }
+.gtp-pad-key.alt { background-color: #f8f9fa; color: #495057; font-size: 15px; }
+.gtp-pad-key.span2 { grid-column: span 2; }
+.gtp-pad-key.span4 { grid-column: span 4; }
+.gtp-build-actions { margin: 12px auto 0; min-height: 44px; }
+.gtp-link {
+    display: block;
+    margin: 8px auto 0;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.gtp-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.gtp-btn:hover { background-color: #eef4f4; }
+.gtp-btn.primary { background-color: #02484d; border-color: #02484d; color: #fff; }
+.gtp-btn.primary:hover { background-color: #03595f; }
+.gtp-btn.active { background-color: #02484d; border-color: #02484d; color: #fff; }
+.gtp-btn.miss.active { background-color: #e55555; border-color: #e55555; }
+.gtp-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---------- board ---------- */
+/* The game's board, in proportion: tiles 30 wide, 4 between letters, 14
+   between words, rows up to 360 wide (BOARD in the script breaks the rows).
+   --cols is the board's width in tiles, 12 unless a single word is wider;
+   tiles shrink from 30px to fit a phone. */
+.gtp-board {
+    --cols: 12;
+    --tile: min(30px, calc((100vw - 40px) / var(--cols)));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--tile) * 0.33);
+    margin: 18px auto 0;
+    padding: 0 8px;
+}
+.gtp-line { display: flex; justify-content: center; gap: calc(var(--tile) * 14 / 30); }
+.gtp-word { display: flex; gap: calc(var(--tile) * 4 / 30); }
+.gtp-tile {
+    width: var(--tile);
+    height: calc(var(--tile) * 1.2);
+    border-radius: 5px;
+    border: 2px dashed #9fbcbc;
+    background-color: #eef4f4;
+    color: #fff;
+    font-family: inherit;
+    font-size: calc(var(--tile) * 0.62);
+    font-weight: 700;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.12s ease;
+}
+.gtp-tile.filled { background-color: #02484d; border: 2px solid #02484d; }
+.gtp-tile.selected, .gtp-tile.word-selected { box-shadow: 0 0 0 3px #ffd700; }
+.gtp-tile:focus-visible { outline: 3px solid #e0a800; outline-offset: 2px; }
+.gtp-empty { color: #6b7280; font-size: 14px; font-style: italic; margin: 18px auto 0; max-width: 480px; }
+
+.gtp-modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px auto 0; }
+
+/* New puzzle sits with Play and Feedback, away from the board, and asks
+   before it wipes the board, the way /smush's Reset Board does. */
+.gtp-new-btn {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #e9ecef;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: inline-block;
+    margin: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.gtp-new-btn:hover { background-color: #e9ecef; }
+.gtp-new-btn[hidden] { display: none; }
+.gtp-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 480px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
+
+/* ---------- keyboard ---------- */
+#solver-keyboard {
+    max-width: 500px;
+    margin: 12px auto 0;
+    padding: 6px 8px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#solver-keyboard.miss-mode { border-color: #ecd3d3; background-color: #fdf6f6; }
+.kb-row { display: flex; justify-content: center; gap: 5px; margin-bottom: 6px; }
+.kb-key {
+    flex: 1;
+    max-width: 44px;
+    height: 50px;
+    border: none;
+    border-radius: 4px;
+    background-color: #e9ecef;
+    color: #1f2937;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+.kb-key:active { background-color: #cdd8d7; }
+.kb-key.kb-wide { max-width: 66px; flex: 1.5; font-size: 18px; }
+.kb-key.on-board { background-color: #02484d; color: #fff; }
+.kb-key.missed { background-color: #fbf0f0; color: #a55; text-decoration: line-through; box-shadow: inset 0 0 0 1px #ecd3d3; }
+
+/* ---------- status, cards ---------- */
+.gtp-status { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 18px auto 4px; max-width: 560px; }
+.status-chip {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #374151;
+}
+.status-chip b { color: #02484d; }
+.gtp-card {
+    max-width: 600px;
+    margin: 12px auto;
+    padding: 14px 16px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    text-align: left;
+    box-sizing: border-box;
+}
+.gtp-card-title { font-size: 15px; font-weight: 700; color: #02484d; margin-bottom: 8px; }
+.gtp-note { font-size: 13px; color: #6b7280; margin: 8px 0 0; line-height: 1.5; }
+
+.gtp-advice-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.gtp-advice-label { font-size: 13px; color: #374151; min-width: 82px; }
+.gtp-letter {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+.gtp-letter b { font-size: 20px; color: #02484d; line-height: 1; }
+.gtp-letter .pct { font-size: 14px; font-weight: 700; color: #1f2937; }
+.gtp-letter .tiles { font-size: 12px; color: #6b7280; }
+.gtp-letter.best { background-color: #ffd700; border-color: #e0a800; }
+.gtp-letter.best .tiles { color: #374151; }
+
+/* ---------- answers ---------- */
+.gtp-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 6px; }
+.sort-chip {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    min-height: 32px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.gtp-row {
+    background-color: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+}
+.gtp-masked {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #1f2937;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+}
+.gtp-share { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7280; flex-shrink: 0; }
+.gtp-bar { width: 52px; height: 6px; border-radius: 3px; background-color: #e9ecef; overflow: hidden; }
+.gtp-bar span { display: block; height: 100%; background-color: #e0a800; }
+.gtp-row-btn {
+    flex-shrink: 0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 36px;
+    cursor: pointer;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    color: #02484d;
+}
+.gtp-row-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.gtp-row.revealed .gtp-masked { color: #02484d; }
+@media (max-width: 560px) {
+    /* The phrase gets its own line; squeezed beside the buttons it broke
+       mid-word. The bar and buttons share the line below. */
+    .gtp-masked { flex-basis: 100%; }
+    .gtp-share { margin-right: auto; }
+}
+.show-more-btn {
+    display: block;
+    margin: 12px auto 2px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.show-more-btn:hover { background-color: #03595f; }
+.gtp-add-row input { flex: 1; min-width: 0; text-transform: uppercase; }
+
+/* ---------- shared bits ---------- */
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+
+.gtp-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+.gtp-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .gtp-card { margin: 10px 8px; padding: 12px; }
+    .gtp-masked { font-size: 15px; letter-spacing: 1.5px; }
+    .kb-key { height: 46px; font-size: 14px; }
+    .gtp-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<center>
+<br>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Guess The Phrase Solver &amp; Hints</h1>
+{% if bank_size %}
+<p class="gtp-sub" id="gtp-bank-ok">Spoiler-free help for Bored Panda's daily phrase puzzle, from {{ '{:,}'.format(bank_size) }} known phrases. Letter hints first; answers only when you ask.</p>
+{% else %}
+<div class="gtp-notice" role="alert">The phrase list is unavailable right now. Please try again in a few minutes.</div>
+{% endif %}
+<p class="gtp-unofficial">Unofficial helper. Not affiliated with or endorsed by Bored Panda.</p>
+
+<div class="instructions collapsed" id="instructions-panel">
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Pick the category.</strong> Choose the closest match to the game's category clue,
+        or <strong>Not sure / other</strong>.
+        <br><br>
+        <strong>2. Build the board.</strong> Tap each word's length in order: for a board of 3,
+        3 and 4 letters, tap <strong>3</strong>, <strong>3</strong>, <strong>4</strong>. The board
+        wraps into rows like the game's, so you can check yours matches. Tap a word to change it,
+        <strong>⌫</strong> removes one, then tap <strong>Done</strong>. Count letter tiles only:
+        skip apostrophes and other punctuation.
+        <br><br>
+        <strong>3. Copy what the game shows.</strong> Tap a tile, then a letter. A called letter
+        shows up everywhere it is in the answer, so fill in <strong>every</strong> tile that shows
+        it. Switch to <strong>✗ Mark misses</strong> and tap each letter the game said isn't there.
+        <br><br>
+        <strong>4. Get a hint.</strong> <strong>Best next letter</strong> shows the consonant most
+        likely to be in the answer, and whether a vowel is worth buying. Still stuck? Open
+        <strong>Show possible answers</strong>: each one stays hidden until you tap
+        <strong>Show letter</strong> or <strong>Reveal</strong>. Works for older puzzles too.
+    </div>
+</div>
+
+<div class="gtp-setup">
+    <div class="gtp-field">
+        <label for="gtp-category">Category</label>
+        <select id="gtp-category">
+            {% for cid, label in categories %}
+            <option value="{{ cid }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div id="gtp-board" class="gtp-board" aria-label="Puzzle board"></div>
+<p class="gtp-empty" id="gtp-empty">Your board builds here as you tap, in rows like the game's.</p>
+
+<div id="gtp-build">
+    <p class="gtp-hint" id="gtp-build-hint"></p>
+    <div id="gtp-pad" class="gtp-pad" role="group" aria-label="Word lengths"></div>
+    <div class="gtp-build-actions">
+        <button type="button" class="gtp-btn primary" id="gtp-done" hidden>✓ Done, start filling</button>
+    </div>
+    <button type="button" class="gtp-link" id="gtp-type-toggle">or type the board as it looks</button>
+    <div class="gtp-shape-row" id="gtp-type-row" hidden>
+        <input type="text" id="gtp-shape" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" placeholder="TH? B?G ?AME" maxlength="80" aria-label="The board as it looks">
+        <button type="button" class="gtp-btn primary" id="gtp-set">Set board</button>
+    </div>
+</div>
+
+<div id="gtp-entry" hidden>
+    <div class="gtp-modes" role="group" aria-label="Keyboard mode">
+        <button type="button" class="gtp-btn active" id="mode-fill">✏️ Fill tiles</button>
+        <button type="button" class="gtp-btn miss" id="mode-miss">✗ Mark misses</button>
+    </div>
+    <p class="gtp-hint" id="gtp-hint"></p>
+    <div id="solver-keyboard" aria-label="Letter keyboard"></div>
+    <button type="button" class="gtp-link" id="gtp-reshape">✏️ Change the board's shape</button>
+</div>
+
+<div id="gtp-results" aria-live="polite" hidden>
+    <div class="gtp-status">
+        <span class="status-chip" id="chip-fits"></span>
+        <span class="status-chip">Hidden tiles: <b id="chip-blanks">0</b></span>
+    </div>
+
+    <div class="gtp-card" id="gtp-advice">
+        <div class="gtp-card-title">Best next letter</div>
+        <div id="gtp-advice-body"></div>
+    </div>
+
+    <div class="gtp-card" id="gtp-answers">
+        <button type="button" class="gtp-btn" id="gtp-answers-toggle">👀 Show possible answers</button>
+        <div id="gtp-answers-body" hidden>
+            <div class="gtp-tabs" role="tablist">
+                <button type="button" class="sort-chip active" data-tab="phrases" role="tab">Whole answer</button>
+                <button type="button" class="sort-chip" data-tab="words" role="tab">Word by word</button>
+            </div>
+            <div id="gtp-answer-list"></div>
+        </div>
+    </div>
+
+    <div class="gtp-card" id="gtp-add">
+        <div class="gtp-card-title">Solved it, and the answer wasn't listed?</div>
+        <div class="gtp-add-row">
+            <input type="text" id="gtp-add-input" autocomplete="off" autocapitalize="characters"
+                   spellcheck="false" placeholder="Type the answer" maxlength="80" aria-label="The answer">
+            <button type="button" class="gtp-btn primary" id="gtp-add-btn">Add</button>
+        </div>
+        <p class="gtp-note">Add it so the next player gets it. Reports are checked against your board.</p>
+    </div>
+</div>
+
+<br>
+<div style="margin: 20px 0; text-align: center; min-height: 51px;">
+    <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="
+        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
+        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🎡 Play Guess The Phrase</a>
+    <a href="/feedback" style="
+        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
+        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    <button type="button" class="gtp-new-btn" id="gtp-new" hidden>🔄 New puzzle</button>
+</div>
+
+{% with current='/guess_the_phrase' %}{% include '_related_solvers.html' %}{% endwith %}
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Guess The Phrase?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Guess The Phrase is Bored Panda's daily word puzzle in the style of Wheel of Fortune. Each day has one hidden phrase and a category clue. You spin a wheel to set a point value, call consonants, buy vowels for 250 points, and solve the phrase as early as you can for a bigger bonus. Landing on the flame burns your banked points.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the answer?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. If you are still stuck, Show possible answers lists phrases that fit your board with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Which letter should I call first?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The classic opening is R, S, T, L, N and E, the most common letters in English phrases. The solver does better than a fixed order: it checks every known phrase that fits your word lengths and category, and suggests the consonant most likely to be in yours, along with how many tiles it should uncover.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is it worth buying a vowel?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">A vowel costs 250 points, so it pays when it is likely to land. The solver shows the vowel most likely to be in the answer and its chance. A vowel with a high chance can break a tricky board open, so buy one early if it gives you the anchor words you need.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is a Phrase Mashup?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">A Phrase Mashup joins two phrases that share a word, the way Before and After puzzles do: FIRE TRUCK and TRUCK STOP become FIRE TRUCK STOP. Choose Phrase mashup as the category and the solver builds these combinations from its phrase list.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can I use it for older puzzles?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. The solver only needs the board in front of you, so it works the same for today's puzzle and for any earlier one you are catching up on in Bored Panda's archive.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why isn't my answer in the list?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The phrase list is built from public data: movie, song, TV and book titles, famous people, places, landmarks, animals, food, proverbs and idioms. Puns, song lyrics and made-up phrases may not be in it. When nothing fits, the solver builds guesses word by word instead, and once you have solved the puzzle you can add the answer for the next player.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Bored Panda's Guess The Phrase, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Bored Panda, which makes the game. Phrases come from Wikidata, WordNet 3.0 and Wiktionary, and word frequencies from wordfreq: see <a href="#gtp-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below. Play the real game at <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">boredpanda.com</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="gtp-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">Guess The Phrase is a game by <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Bored Panda</a>. This helper is not affiliated with, endorsed by or sponsored by Bored Panda. Its phrase list is built from the public sources below, plus phrases players add after solving, not from Bored Panda's puzzles.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Phrases.</strong> Titles, names, places and other items from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>). Everyday terms from <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a>: WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>. Proverbs, idioms and phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>. Fallback words also come from the public-domain ENABLE word list.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Filtering.</strong> Offensive phrases are kept off this page with the <a href="https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">List of Dirty, Naughty, Obscene, and Otherwise Bad Words</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY 4.0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">The phrase data built from these sources (filtered, upper-cased and scored) is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+</section>
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const STORAGE_KEY = 'gtpSolverState_v1';
+    const MAX_WORDS = 12, MAX_WORD_LEN = 20, MAX_TILES = 68;
+    // The game's board proportions, in its pixels (see boardLines).
+    const BOARD = {tile: 30, letterGap: 4, wordGap: 14, rowWidth: 360};
+    const ROWS_STEP = 10;
+    const VOWELS = 'AEIOU';
+
+    /* ---------- state ---------- */
+    let lengths = [];             // letters per word
+    let letters = [];             // one per tile: '' or 'A'-'Z'
+    let misses = new Set();       // letters the game said aren't there
+    let category = 'any';
+    let phase = 'build';          // 'build' (tapping word lengths) | 'fill'
+    let selectedWord = -1;        // word picked on the board while building
+    let padPage = 0;              // keypad page: 0 = 1 to 9, 1 = 10 to 15
+    let selected = -1;            // selected tile index
+    let mode = 'fill';            // 'fill' | 'miss'
+    let answersOpen = false;
+    let tab = 'phrases';
+    let wordTab = -1;             // board word shown in "Word by word"
+    let reveals = {};             // row text -> hidden letters shown (Infinity = all)
+    let rowsShown = ROWS_STEP;
+    let last = null;              // last solver response
+    let fetchTimer = null, fetchSeq = 0;
+
+    const boardEl = document.getElementById('gtp-board');
+    const emptyEl = document.getElementById('gtp-empty');
+    const entryEl = document.getElementById('gtp-entry');
+    const resultsEl = document.getElementById('gtp-results');
+    const hintEl = document.getElementById('gtp-hint');
+    const keyboard = document.getElementById('solver-keyboard');
+    const shapeInput = document.getElementById('gtp-shape');
+    const buildEl = document.getElementById('gtp-build');
+    const padEl = document.getElementById('gtp-pad');
+    const buildHint = document.getElementById('gtp-build-hint');
+    const doneBtn = document.getElementById('gtp-done');
+    const typeRow = document.getElementById('gtp-type-row');
+    const categoryEl = document.getElementById('gtp-category');
+    const answersBody = document.getElementById('gtp-answers-body');
+    const answersToggle = document.getElementById('gtp-answers-toggle');
+    const listEl = document.getElementById('gtp-answer-list');
+    const newBtn = document.getElementById('gtp-new');
+
+    const HINTS = {
+        fill: 'Tap a tile, then a letter. Fill in every tile that shows a called letter.',
+        miss: 'Tap each letter the game said is not in the answer. Tap again to undo.'
+    };
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const pct = p => p >= 0.995 ? '100%' : p < 0.01 ? '<1%' : Math.round(p * 100) + '%';
+    const onBoard = () => new Set(letters.filter(Boolean));
+    const wordStart = w => lengths.slice(0, w).reduce((a, b) => a + b, 0);
+
+    function boardString() {
+        const out = [];
+        let i = 0;
+        lengths.forEach(n => {
+            let w = '';
+            for (let k = 0; k < n; k++, i++) w += letters[i] || '?';
+            out.push(w);
+        });
+        return out.join(' ');
+    }
+
+    /* ---------- building the board ---------- */
+    // "3 3 4" -> lengths; anything with letters or ? -> the board as typed.
+    function parseShape(text) {
+        const t = text.trim().toUpperCase();
+        if (!t) return null;
+        if (/^[\d\s,\-]+$/.test(t)) {
+            const lens = t.split(/[\s,\-]+/).filter(Boolean).map(Number);
+            if (!lens.length || lens.some(n => !Number.isInteger(n) || n < 1 || n > MAX_WORD_LEN)) return null;
+            return {lengths: lens, letters: lens.flatMap(n => Array(n).fill(''))};
+        }
+        const words = t.replace(/['’.,!:;"]/g, '').split(/[\s\-&\/]+/).filter(Boolean);
+        if (!words.length || words.some(w => !/^[A-Z?_*]+$/.test(w) || w.length > MAX_WORD_LEN)) return null;
+        return {
+            lengths: words.map(w => w.length),
+            letters: words.join('').split('').map(c => /[A-Z]/.test(c) ? c : '')
+        };
+    }
+
+    // Each word's letters, so a shape edit keeps what's already filled in.
+    function wordParts() {
+        return lengths.map((n, w) => letters.slice(wordStart(w), wordStart(w) + n));
+    }
+
+    function setParts(parts) {
+        if (parts.length > MAX_WORDS || parts.reduce((a, p) => a + p.length, 0) > MAX_TILES) {
+            toast('That board is longer than any puzzle - check the word lengths', true);
+            return false;
+        }
+        lengths = parts.map(p => p.length);
+        letters = parts.flat();
+        if (!lengths.length) last = null;
+        reveals = {};
+        rowsShown = ROWS_STEP;
+        wordTab = -1;
+        return true;
+    }
+
+    // A keypad number: the next word's length, or the picked word's new one.
+    function padNumber(n) {
+        const parts = wordParts();
+        if (selectedWord >= 0) {
+            const old = parts[selectedWord];
+            parts[selectedWord] = old.slice(0, n).concat(Array(Math.max(0, n - old.length)).fill(''));
+        } else {
+            parts.push(Array(n).fill(''));
+        }
+        if (!setParts(parts)) return;
+        selectedWord = -1;
+        padPage = 0;
+        renderBuild();
+        changed();
+    }
+
+    // Keypad back: removes the picked word, or else the last one.
+    function padBack() {
+        if (!lengths.length) return;
+        const parts = wordParts();
+        parts.splice(selectedWord >= 0 ? selectedWord : parts.length - 1, 1);
+        setParts(parts);
+        selectedWord = -1;
+        renderBuild();
+        changed();
+    }
+
+    function padKey(label, action, cls, aria) {
+        const key = document.createElement('button');
+        key.type = 'button';
+        key.className = 'gtp-pad-key' + (cls ? ' ' + cls : '');
+        key.textContent = label;
+        if (aria) key.setAttribute('aria-label', aria);
+        key.addEventListener('click', () => { key.blur(); action(); });
+        padEl.appendChild(key);
+    }
+
+    function renderBuild() {
+        padEl.innerHTML = '';
+        if (padPage === 0) {
+            for (let n = 1; n <= 9; n++) padKey(String(n), () => padNumber(n));
+            padKey('10+', () => { padPage = 1; renderBuild(); }, 'alt', 'Words of 10 or more letters');
+        } else {
+            for (let n = 10; n <= 15; n++) padKey(String(n), () => padNumber(n));
+            padKey('‹ 1 to 9', () => { padPage = 0; renderBuild(); }, 'alt span4', 'Back to 1 to 9');
+        }
+        padKey('⌫', padBack, 'alt span2', selectedWord >= 0 ? 'Remove the picked word' : 'Remove the last word');
+        const tiles = letters.length;
+        buildHint.textContent = selectedWord >= 0
+            ? 'Word ' + (selectedWord + 1) + ' picked: tap its new length, or ⌫ to remove it.'
+            : !lengths.length
+                ? "Tap each word's length, in order."
+                : lengths.length + ' word' + (lengths.length === 1 ? '' : 's') + ', ' + tiles +
+                  ' letters. Check the rows match the game; tap a word to change it.';
+        doneBtn.hidden = !lengths.length;
+    }
+
+    // 'build' shows the keypad, 'fill' the letter keyboard. No board, no fill.
+    function setPhase(p) {
+        phase = lengths.length ? p : 'build';
+        selectedWord = -1;
+        padPage = 0;
+        selected = phase === 'fill' ? letters.indexOf('') : -1;
+        typeRow.hidden = true;
+        render();
+        renderBuild();
+        save();
+    }
+
+    function setBoard() {
+        const shape = parseShape(shapeInput.value);
+        if (!shape) {
+            toast('Type the board as it looks, like TH? B?G ?AME', true);
+            return;
+        }
+        if (shape.lengths.length > MAX_WORDS || shape.letters.length > MAX_TILES) {
+            toast('That board is longer than any puzzle - check the word lengths', true);
+            return;
+        }
+        lengths = shape.lengths;
+        letters = shape.letters;
+        onBoard().forEach(c => misses.delete(c));
+        reveals = {};
+        rowsShown = ROWS_STEP;
+        wordTab = -1;
+        shapeInput.value = '';
+        shapeInput.blur();
+        setPhase('fill');
+        schedule();
+    }
+
+    function newPuzzle() {
+        lengths = []; letters = []; misses = new Set();
+        category = 'any'; categoryEl.value = 'any';
+        selected = -1; reveals = {}; rowsShown = ROWS_STEP; wordTab = -1;
+        answersOpen = false; last = null; tab = 'phrases';
+        document.getElementById('gtp-add-input').value = '';
+        setMode('fill');
+        setPhase('build');
+        document.querySelector('.gtp-setup').scrollIntoView({block: 'start', behavior: 'smooth'});
+    }
+
+    /* ---------- rendering ---------- */
+    // How wide a row of these words is on the game's board.
+    function rowWidth(words) {
+        const letters = words.reduce((a, w) => a + lengths[w], 0);
+        return letters * BOARD.tile + (letters - words.length) * BOARD.letterGap
+            + (words.length - 1) * BOARD.wordGap;
+    }
+
+    // The board's rows, as lists of word indexes, filled left to right the
+    // way the game's board wraps. Measured, not counted: a word gap is much
+    // narrower than a tile. From the game's own boards, 7+3 (346 wide) and
+    // 4+2+4 (356) each share a row; 8+3 (380) doesn't.
+    function boardLines() {
+        const lines = [];
+        let line = [];
+        lengths.forEach((n, w) => {
+            if (line.length && rowWidth(line.concat(w)) > BOARD.rowWidth) {
+                lines.push(line);
+                line = [];
+            }
+            line.push(w);
+        });
+        if (line.length) lines.push(line);
+        return lines;
+    }
+
+    function renderBoard() {
+        boardEl.innerHTML = '';
+        const lines = boardLines();
+        const widest = Math.max(BOARD.rowWidth, ...lines.map(rowWidth));
+        boardEl.style.setProperty('--cols', widest / BOARD.tile);
+        lines.forEach(line => {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'gtp-line';
+            line.forEach(w => {
+                const word = document.createElement('div');
+                word.className = 'gtp-word';
+                for (let k = 0, i = wordStart(w); k < lengths[w]; k++, i++) {
+                    const tile = document.createElement('button');
+                    tile.type = 'button';
+                    tile.className = 'gtp-tile' + (letters[i] ? ' filled' : '') + (i === selected ? ' selected' : '')
+                        + (w === selectedWord ? ' word-selected' : '');
+                    tile.textContent = letters[i];
+                    tile.dataset.i = i;
+                    tile.setAttribute('aria-label', 'Word ' + (w + 1) + ', letter ' + (k + 1) + ': ' + (letters[i] || 'blank'));
+                    tile.addEventListener('click', () => {
+                        if (phase === 'build') {
+                            selectedWord = selectedWord === w ? -1 : w;
+                            renderBoard();
+                            renderBuild();
+                            return;
+                        }
+                        selected = +tile.dataset.i;
+                        if (mode === 'miss') setMode('fill');
+                        renderBoard();
+                    });
+                    word.appendChild(tile);
+                }
+                lineEl.appendChild(word);
+            });
+            boardEl.appendChild(lineEl);
+        });
+        const has = lengths.length > 0;
+        emptyEl.hidden = has;
+        buildEl.hidden = phase !== 'build';
+        entryEl.hidden = phase !== 'fill';
+        newBtn.hidden = !has;
+        resultsEl.hidden = !has || !last;
+        renderKeys();
+    }
+
+    function renderKeys() {
+        const shown = onBoard();
+        keyboard.querySelectorAll('.kb-key[data-key]').forEach(k => {
+            k.classList.toggle('on-board', shown.has(k.dataset.key));
+            k.classList.toggle('missed', misses.has(k.dataset.key));
+        });
+    }
+
+    function render() {
+        renderBoard();
+        renderResults();
+    }
+
+    function adviceChip(letter, p, e, best) {
+        const tiles = e >= 0.95 ? '~' + e.toFixed(1) + ' tiles' : '';
+        return '<span class="gtp-letter' + (best ? ' best' : '') + '"><b>' + esc(letter) + '</b>' +
+            '<span class="pct">' + pct(p) + '</span>' + (tiles ? '<span class="tiles">' + tiles + '</span>' : '') + '</span>';
+    }
+
+    function renderAdvice() {
+        const body = document.getElementById('gtp-advice-body');
+        if (!last) { body.innerHTML = ''; return; }
+        if (last.blanks === 0) {
+            body.innerHTML = '<p class="gtp-note">Every tile is filled - time to solve!</p>';
+            return;
+        }
+        const cons = last.advice.filter(a => !VOWELS.includes(a[0])).slice(0, 3);
+        const vowel = last.advice.find(a => VOWELS.includes(a[0]));
+        let html = '';
+        if (cons.length) {
+            html += '<div class="gtp-advice-row"><span class="gtp-advice-label">Call</span>' +
+                cons.map((a, k) => adviceChip(a[0], a[1], a[2], k === 0)).join('') + '</div>';
+        }
+        if (vowel) {
+            html += '<div class="gtp-advice-row"><span class="gtp-advice-label">Buy a vowel</span>' +
+                adviceChip(vowel[0], vowel[1], vowel[2], false) + '</div>';
+        }
+        if (!html) html = '<p class="gtp-note">No letter left that could fit. Check the board and misses match the game.</p>';
+        html += '<p class="gtp-note">' + (last.total
+            ? 'Chance the letter is in the answer, from the ' + last.total.toLocaleString() + ' known phrase' + (last.total === 1 ? '' : 's') + ' that fit.'
+            : 'No known phrase fits, so these come from likely words for each blank.') + '</p>';
+        body.innerHTML = html;
+    }
+
+    // The row's text with letters the board doesn't show yet masked, except
+    // the first `count` of them. `known` gives the board letter for each of
+    // the text's letters, in order.
+    function masked(text, known, count) {
+        let li = 0, hidden = 0, out = '';
+        for (const ch of text) {
+            if (/[A-Z]/.test(ch)) {
+                if (known[li] || hidden++ < count) out += ch;
+                else out += '_';
+                li++;
+            } else out += ch;
+        }
+        return out;
+    }
+
+    function hiddenCount(text, known) {
+        let li = 0, n = 0;
+        for (const ch of text) if (/[A-Z]/.test(ch)) { if (!known[li]) n++; li++; }
+        return n;
+    }
+
+    function rowHtml(text, share, known, idx) {
+        const count = reveals[text] || 0;
+        const left = hiddenCount(text, known);
+        const done = count >= left;
+        let html = '<div class="gtp-row' + (done ? ' revealed' : '') + '">' +
+            '<span class="gtp-masked">' + esc(masked(text, known, count)) + '</span>';
+        if (share !== null) {
+            html += '<span class="gtp-share" title="Estimated chance this is the answer"><span class="gtp-bar"><span style="width:' +
+                Math.max(2, Math.round(share * 100)) + '%"></span></span>' + pct(share) + '</span>';
+        }
+        if (!done) {
+            html += '<button type="button" class="gtp-row-btn" data-act="letter" data-idx="' + idx + '">Show letter</button>' +
+                '<button type="button" class="gtp-row-btn" data-act="all" data-idx="' + idx + '">Reveal</button>';
+        }
+        return html + '</div>';
+    }
+
+    let rowTexts = [];   // the texts behind the current list's buttons
+
+    function renderAnswers() {
+        answersBody.hidden = !answersOpen;
+        answersToggle.textContent = answersOpen ? '🙈 Hide possible answers' : '👀 Show possible answers';
+        document.querySelectorAll('.gtp-tabs .sort-chip').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        if (!answersOpen || !last) { listEl.innerHTML = ''; return; }
+        rowTexts = [];
+        let html = '';
+        if (tab === 'phrases') {
+            const rows = last.total ? last.phrases : last.guesses;
+            if (!last.total) {
+                html += '<p class="gtp-note">No phrase in our list fits this board' +
+                    (rows.length ? '. These guesses are built word by word:' : '. Check the board and misses match the game.') + '</p>';
+            }
+            const known = letters;
+            rows.slice(0, rowsShown).forEach(([text, share]) => {
+                rowTexts.push([text, known]);
+                html += rowHtml(text, share, known, rowTexts.length - 1);
+            });
+            if (rows.length > rowsShown) html += '<button type="button" class="show-more-btn" id="gtp-more">Show more</button>';
+        } else {
+            const open = lengths.map((n, w) => w).filter(w => letters.slice(wordStart(w), wordStart(w) + lengths[w]).includes(''));
+            if (!open.includes(wordTab)) wordTab = open.length ? open[0] : -1;
+            if (wordTab < 0) {
+                html += '<p class="gtp-note">Every word is filled in.</p>';
+            } else {
+                html += '<div class="gtp-tabs">' + open.map(w =>
+                    '<button type="button" class="sort-chip' + (w === wordTab ? ' active' : '') + '" data-word="' + w + '">Word ' + (w + 1) + '</button>'
+                ).join('') + '</div>';
+                const start = wordStart(wordTab);
+                const known = letters.slice(start, start + lengths[wordTab]);
+                const words = (last.words[wordTab] || []);
+                if (!words.length) html += '<p class="gtp-note">No common word fits this one.</p>';
+                words.forEach(word => {
+                    rowTexts.push([word, known]);
+                    html += rowHtml(word, null, known, rowTexts.length - 1);
+                });
+                html += '<p class="gtp-note">The most common words that fit, on their own.</p>';
+            }
+        }
+        listEl.innerHTML = html;
+    }
+
+    function renderResults() {
+        resultsEl.hidden = !lengths.length || !last;
+        if (!last) return;
+        document.getElementById('chip-fits').innerHTML = last.total
+            ? 'Known phrases that fit: <b>' + last.total.toLocaleString() + '</b>'
+            : 'No known phrase fits';
+        document.getElementById('chip-blanks').textContent = last.blanks;
+        renderAdvice();
+        renderAnswers();
+    }
+
+    /* ---------- answers interactions ---------- */
+    answersToggle.addEventListener('click', () => {
+        answersOpen = !answersOpen;
+        renderAnswers();
+        save();
+    });
+    document.querySelectorAll('.gtp-tabs .sort-chip[data-tab]').forEach(b => b.addEventListener('click', () => {
+        tab = b.dataset.tab;
+        renderAnswers();
+    }));
+    listEl.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.id === 'gtp-more') { rowsShown += ROWS_STEP; renderAnswers(); return; }
+        if (btn.dataset.word !== undefined) { wordTab = +btn.dataset.word; renderAnswers(); return; }
+        const row = rowTexts[+btn.dataset.idx];
+        if (!row) return;
+        const [text, known] = row;
+        reveals[text] = btn.dataset.act === 'all' ? hiddenCount(text, known) : (reveals[text] || 0) + 1;
+        renderAnswers();
+        save();
+    });
+
+    /* ---------- entry ---------- */
+    function setMode(m) {
+        mode = m;
+        document.getElementById('mode-fill').classList.toggle('active', m === 'fill');
+        document.getElementById('mode-miss').classList.toggle('active', m === 'miss');
+        keyboard.classList.toggle('miss-mode', m === 'miss');
+        hintEl.textContent = HINTS[m];
+        if (m === 'miss') { selected = -1; renderBoard(); }
+    }
+
+    function placeLetter(L) {
+        if (!lengths.length) return;
+        if (mode === 'miss') { toggleMiss(L); return; }
+        if (misses.has(L)) { toast(L + ' is marked as a miss. Undo it in Mark misses first.', true); return; }
+        if (selected < 0) selected = Math.max(0, letters.indexOf(''));
+        letters[selected] = L;
+        if (selected < letters.length - 1) selected++;
+        changed();
+    }
+
+    function toggleMiss(L) {
+        if (onBoard().has(L)) { toast(L + ' is on the board, so it is in the answer.', true); return; }
+        misses.has(L) ? misses.delete(L) : misses.add(L);
+        changed();
+    }
+
+    function clearTile(advance) {
+        if (!lengths.length || mode === 'miss') return;
+        if (selected < 0) selected = letters.length - 1;
+        if (!advance && !letters[selected] && selected > 0) selected--;
+        letters[selected] = '';
+        if (advance && selected < letters.length - 1) selected++;
+        changed();
+    }
+
+    function moveSelection(d) {
+        if (!lengths.length) return;
+        selected = Math.min(letters.length - 1, Math.max(0, (selected < 0 ? 0 : selected + d)));
+        renderBoard();
+    }
+
+    function changed() {
+        renderBoard();
+        save();
+        schedule();
+    }
+
+    ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].forEach((line, n, layout) => {
+        const row = document.createElement('div');
+        row.className = 'kb-row';
+        line.split('').forEach(L => {
+            const key = document.createElement('button');
+            key.type = 'button';
+            key.className = 'kb-key';
+            key.dataset.key = L;
+            key.textContent = L;
+            key.addEventListener('click', () => { key.blur(); placeLetter(L); });
+            row.appendChild(key);
+        });
+        if (n === layout.length - 1) {
+            const back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'kb-key kb-wide';
+            back.setAttribute('aria-label', 'Clear tile');
+            back.innerHTML = '&#9003;';
+            back.addEventListener('click', () => { back.blur(); clearTile(false); });
+            row.appendChild(back);
+        }
+        keyboard.appendChild(row);
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if (phase === 'build') {
+            // Digits add words, Backspace removes one, Enter is Done. Words
+            // of 10+ letters use the keypad's 10+ key.
+            if (/^[1-9]$/.test(e.key)) { e.preventDefault(); padNumber(+e.key); }
+            else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); padBack(); }
+            else if (e.key === 'Enter' && lengths.length) { e.preventDefault(); setPhase('fill'); }
+            else if (e.key === 'Escape' && selectedWord >= 0) { selectedWord = -1; renderBoard(); renderBuild(); }
+            return;
+        }
+        if (!lengths.length) return;
+        if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); placeLetter(e.key.toUpperCase()); }
+        else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); clearTile(false); }
+        else if (e.key === '?' || e.key === '_' || e.key === ' ') { e.preventDefault(); clearTile(true); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); moveSelection(-1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); moveSelection(1); }
+    });
+
+    document.getElementById('mode-fill').addEventListener('click', () => setMode('fill'));
+    document.getElementById('mode-miss').addEventListener('click', () => setMode('miss'));
+    document.getElementById('gtp-set').addEventListener('click', setBoard);
+    doneBtn.addEventListener('click', () => setPhase('fill'));
+    document.getElementById('gtp-reshape').addEventListener('click', () => setPhase('build'));
+    document.getElementById('gtp-type-toggle').addEventListener('click', () => {
+        typeRow.hidden = !typeRow.hidden;
+        if (!typeRow.hidden) shapeInput.focus();
+    });
+    shapeInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setBoard(); } });
+    // Same confirmation as /smush's Reset Board. The button only shows
+    // while there's a board, so there is always something to lose.
+    newBtn.addEventListener('click', () => {
+        if (!confirm('Start a new puzzle and clear this board?')) return;
+        newPuzzle();
+    });
+    categoryEl.addEventListener('change', () => {
+        category = categoryEl.value;
+        rowsShown = ROWS_STEP;
+        save();
+        schedule();
+    });
+
+    /* ---------- solving ---------- */
+    function schedule() {
+        clearTimeout(fetchTimer);
+        if (!lengths.length) return;
+        fetchTimer = setTimeout(solve, 250);
+    }
+
+    async function solve() {
+        const seq = ++fetchSeq;
+        try {
+            const resp = await fetch('/guess_the_phrase', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({board: boardString(), tried: [...misses].join(''), category})
+            });
+            const data = await resp.json();
+            if (seq !== fetchSeq) return;
+            if (!resp.ok) { toast(data.error || 'Something went wrong - try again', true); return; }
+            last = data;
+            renderResults();
+        } catch (_) {
+            if (seq === fetchSeq) toast('Could not reach the solver - check your connection', true);
+        }
+    }
+
+    /* ---------- adding a missing answer ---------- */
+    function fitsBoard(text) {
+        const words = text.toUpperCase().replace(/['’.,!:;"?]/g, '').split(/[\s\-&\/]+/).filter(Boolean);
+        if (words.length !== lengths.length || words.some((w, k) => w.length !== lengths[k] || !/^[A-Z]+$/.test(w))) return false;
+        const flat = words.join('');
+        const shown = onBoard();
+        return flat.split('').every((c, k) => letters[k] ? letters[k] === c : !shown.has(c) && !misses.has(c));
+    }
+
+    async function addAnswer() {
+        const input = document.getElementById('gtp-add-input');
+        const phrase = input.value.trim();
+        if (!phrase || !lengths.length) return;
+        if (!fitsBoard(phrase)) { toast("That doesn't fit the board as entered", true); return; }
+        try {
+            const resp = await fetch('/guess_the_phrase', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'suggest_missing', phrase, board: boardString(),
+                                      tried: [...misses].join(''), category})
+            });
+            const data = await resp.json();
+            if (!resp.ok) { toast(data.error || 'Something went wrong - try again', true); return; }
+            if (data.result === 'already_listed') toast("It's already in our list - check the board matches the game");
+            else if (data.result === 'not_on_board') toast("That doesn't fit the board as entered", true);
+            else { toast('Thanks! Added to our reports.'); input.value = ''; }
+        } catch (_) {
+            toast('Could not reach the solver - check your connection', true);
+        }
+    }
+    document.getElementById('gtp-add-btn').addEventListener('click', addAnswer);
+    document.getElementById('gtp-add-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addAnswer(); }
+    });
+
+    /* ---------- saving ---------- */
+    // No expiry by date: players work through old puzzles too. New puzzle clears it.
+    function save() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                lengths, letters, misses: [...misses], category, answersOpen, reveals, phase, savedAt: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.lengths) || !Array.isArray(s.letters)) return false;
+        const lens = s.lengths.filter(n => Number.isInteger(n) && n >= 1 && n <= MAX_WORD_LEN);
+        const total = lens.reduce((a, b) => a + b, 0);
+        if (!lens.length || lens.length !== s.lengths.length || lens.length > MAX_WORDS
+            || total > MAX_TILES || s.letters.length !== total) return false;
+        lengths = lens;
+        letters = s.letters.map(c => (typeof c === 'string' && /^[A-Z]$/.test(c)) ? c : '');
+        misses = new Set((Array.isArray(s.misses) ? s.misses : []).filter(c => typeof c === 'string' && /^[A-Z]$/.test(c)));
+        onBoard().forEach(c => misses.delete(c));
+        if (typeof s.category === 'string' && [...categoryEl.options].some(o => o.value === s.category)) {
+            category = s.category;
+        }
+        answersOpen = s.answersOpen === true;
+        reveals = (s.reveals && typeof s.reveals === 'object') ? s.reveals : {};
+        // Saves from before the keypad have no phase: they were filling.
+        phase = s.phase === 'build' ? 'build' : 'fill';
+        selected = phase === 'fill' ? letters.indexOf('') : -1;
+        return true;
+    }
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'gtp-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('gtpInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('gtpInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- boot ---------- */
+    restore();
+    if (!lengths.length) phase = 'build';
+    categoryEl.value = category;
+    setMode('fill');
+    render();
+    renderBuild();
+    schedule();
+});
+</script>
+
+{% endblock %}

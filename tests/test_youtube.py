@@ -1,8 +1,10 @@
-"""Tests for the YouTube dashboard's pure logic: number formatting, the stats
-query transforms (driven by a fake cursor, so no database is needed), and the
-trending JSON-LD builder. These import ``functions`` / ``helpers`` directly and
-touch no external services, so they run in CI without MySQL.
+"""Tests for the YouTube dashboard: number formatting, the stats query
+transforms (driven by a fake cursor, so no database is needed), the trending
+JSON-LD builder, and the route's render memo (DB, stats and plots stubbed).
+None of it touches an external service, so it runs in CI without MySQL.
 """
+
+import pytest
 
 from functions import youtube_stats, youtube_revamp_stats
 from helpers import make_trending_jsonld
@@ -197,3 +199,88 @@ def test_make_trending_jsonld_structure():
     assert first["position"] == 1
     assert first["url"] == "https://www.youtube.com/watch?v=aaa"
     assert first["name"] == "Vid A"
+
+
+# --- the /youtube_trending render memo ---------------------------------------
+# One module-level render serves while the ETL day is unchanged, and is the
+# fallback when MySQL is down. It replaced SimpleCache, whose pickling copied
+# the 1-3 MB page on every view (part of the dyno's memory creep).
+
+@pytest.fixture
+def yt(monkeypatch):
+    """The route with the DB, stats, plots and template stubbed out. Returns
+    a controller: set .version (or .db_down) and count .renders."""
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    import routes.dashboards as dashboards
+
+    ctl = SimpleNamespace(version="2026-10-11", db_down=False, render_fails=False, renders=0)
+    monkeypatch.setattr(dashboards, "_youtube", {"render": None})
+
+    @contextmanager
+    def fake_db():
+        if ctl.db_down:
+            raise RuntimeError("db down")
+        cursor = SimpleNamespace(execute=lambda *a, **k: None, fetchone=lambda: (ctl.version,))
+        yield None, cursor
+
+    def fake_render(template, **kw):
+        if ctl.render_fails:
+            raise RuntimeError("render failed")
+        ctl.renders += 1
+        return f"page for {kw['data_version']} #{ctl.renders}"
+
+    nothing = lambda *a, **k: []  # noqa: E731
+    monkeypatch.setattr(dashboards, "db_cursor", fake_db)
+    monkeypatch.setattr(dashboards, "render_template", fake_render)
+    monkeypatch.setattr(dashboards, "youtube_stats", SimpleNamespace(
+        get_prev_date=nothing, get_top_videos_30d=nothing, get_top_channels_30d=nothing,
+        get_top_categories_30d=nothing, get_kpis=nothing, get_trending_age_buckets=nothing))
+    monkeypatch.setattr(dashboards, "youtube_revamp_stats", SimpleNamespace(get_surface_today=nothing))
+    monkeypatch.setattr(dashboards, "plot_viz", SimpleNamespace(
+        fig_to_data_uri=lambda fig: "data:,", yt_video_scatter=nothing, yt_chnl_scatter=nothing,
+        yt_stacked_bar_plot=nothing))
+    monkeypatch.setattr(dashboards, "make_trending_jsonld", nothing)
+    return ctl
+
+
+def test_youtube_same_day_serves_the_held_render(client, yt):
+    first = client.get("/youtube_trending").get_data(as_text=True)
+    second = client.get("/youtube_trending").get_data(as_text=True)
+    assert first == second == "page for 2026-10-11 #1"
+    assert yt.renders == 1
+
+
+def test_youtube_new_etl_day_renders_again(client, yt):
+    client.get("/youtube_trending")
+    yt.version = "2026-10-12"
+    assert client.get("/youtube_trending").get_data(as_text=True) == "page for 2026-10-12 #2"
+
+
+def test_youtube_db_down_serves_the_last_render(client, yt):
+    client.get("/youtube_trending")
+    yt.db_down = True
+    resp = client.get("/youtube_trending")
+    assert resp.status_code == 200
+    assert resp.get_data(as_text=True) == "page for 2026-10-11 #1"
+
+
+def test_youtube_db_down_with_nothing_held_is_a_503(client, yt):
+    yt.db_down = True
+    assert client.get("/youtube_trending").status_code == 503
+
+
+def test_youtube_failed_render_falls_back_to_the_last_one(client, yt):
+    client.get("/youtube_trending")
+    yt.version, yt.render_fails = "2026-10-12", True
+    assert client.get("/youtube_trending").get_data(as_text=True) == "page for 2026-10-11 #1"
+
+
+def test_youtube_held_render_expires(client, yt, monkeypatch):
+    import routes.dashboards as dashboards
+    client.get("/youtube_trending")
+    version, html, _ = dashboards._youtube["render"]
+    dashboards._youtube["render"] = (version, html, 0.0)   # 48h backstop passed
+    yt.db_down = True
+    assert client.get("/youtube_trending").status_code == 503

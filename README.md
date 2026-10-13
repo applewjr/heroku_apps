@@ -74,3 +74,6 @@
 - **Reliability**: Automated monitoring, error handling, and notification systems
 - **User Experience**: Clean interfaces optimized for practical utility
 - **Real Impact**: Applications serving actual users with measurable engagement
+
+## Licensing
+The code is MIT licensed (`LICENSE`). The Guess The Phrase data files in `datasets/` (`phrase_*`) are not: they carry their sources' licences (CC BY-SA 4.0, CC BY 4.0 and the WordNet 3.0 licence), listed in `datasets/PHRASE_BANK.md`.

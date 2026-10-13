@@ -1,6 +1,7 @@
 """Blossom solver, admin word management, and feedback routes."""
 
 import smtplib
+import time
 from datetime import datetime
 from email.mime.text import MIMEText
 
@@ -14,7 +15,7 @@ from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_P
                    CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
                    CROWD_WINDOW_DAYS)
 from data import word_pop, words_blossom
-from extensions import (INTERACTIVE_LIMITS, auth, cache, db_cursor, enqueue_write,
+from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
 from functions import all_words
 from helpers import ValidationError, make_schema_data, parse_int, parse_letters
@@ -323,44 +324,52 @@ View admin panel: https://jamesapplewhite.com/blossom_admin
         return render_template("blossom_feedback.html")
 
 
+# Memoized in the module, not SimpleCache: SimpleCache pickles, so every
+# solve unpickled the ~1 MB set into ~9 MB of fresh strings (49 ms of CPU,
+# measured 2026-10-10), and that churn fragmented memory: one of the two
+# causes of the dyno's creep. Same pattern as routes/smush.py. Holds no copy
+# of the word list at all while Blossom's corrections are empty.
+_blossom_words = {'value': None, 'expires': 0.0}
+
+
+def _forget_blossom_words():
+    """Make the next get_filtered_blossom_words() re-read the corrections."""
+    _blossom_words['expires'] = 0.0
+
+
 def get_filtered_blossom_words():
-    """Get word list with invalid words removed and missing words added, using cache for performance"""
+    """Blossom's word list with its corrections applied: words removed by
+    players or /blossom_admin taken out, words added put in.
 
-    # Check cache first
-    cached_words = cache.get('blossom_filtered_words')
-    if cached_words is not None:
-        return cached_words
+    Refreshed every 12 hours, or straight away after a change. Callers share
+    one set, so they must only read it. A DB blip keeps serving the last good
+    list (the raw one if there has never been one) and retries in 5 minutes.
+    """
+    if _blossom_words['value'] is not None and time.time() < _blossom_words['expires']:
+        return _blossom_words['value']
 
-    # Get invalid and added words from database
-    invalid_words = set()
-    added_words = set()
-    db_ok = True
     try:
         with db_cursor() as (conn, cursor):
             cursor.execute("SELECT word FROM blossom_invalid_words")
             invalid_words = {row[0].lower() for row in cursor.fetchall()}
-
             cursor.execute("SELECT word FROM blossom_added_words")
             added_words = {row[0].lower() for row in cursor.fetchall()}
     except Exception as e:
         print(f"Error fetching word lists: {e}")
-        # If database error, use original word list
-        db_ok = False
-        invalid_words = set()
-        added_words = set()
+        fallback = _blossom_words['value'] if _blossom_words['value'] is not None else words_blossom
+        _blossom_words['value'] = fallback
+        _blossom_words['expires'] = time.time() + 300
+        return fallback
 
-    # Ensure both word lists are lowercase for proper comparison
-    words_blossom_lower = {str(word).lower() for word in words_blossom}
-
-    # Remove invalid words and add missing words
-    filtered_words_lower = (words_blossom_lower - invalid_words) | added_words
-
-    # Cache the filtered list for 12 hours - but only for 5 minutes when the
-    # DB read failed, so a blip doesn't serve the uncorrected list all day.
-    cache.set('blossom_filtered_words', filtered_words_lower,
-              timeout=43200 if db_ok else 300)
-
-    return filtered_words_lower
+    # data.py's list is already lowercase; only build a corrected copy when
+    # there is something to correct.
+    if invalid_words or added_words:
+        filtered = (words_blossom - invalid_words) | added_words
+    else:
+        filtered = words_blossom
+    _blossom_words['value'] = filtered
+    _blossom_words['expires'] = time.time() + 43200
+    return filtered
 
 
 ##### crowd corrections #####
@@ -383,7 +392,7 @@ def get_filtered_blossom_words():
 # cross off words they played. With ~150 players a day on one puzzle, 5 to
 # remove holds until about 3% of them do it.
 
-BLOSSOM_CROWD = crowd.CrowdList('blossom', on_change=lambda: cache.delete('blossom_filtered_words'))
+BLOSSOM_CROWD = crowd.CrowdList('blossom', on_change=_forget_blossom_words)
 voter_hash = BLOSSOM_CROWD.voter_hash
 
 

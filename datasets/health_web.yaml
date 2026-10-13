@@ -49,6 +49,14 @@ smush:
     expect: "Smush Solver"
     sev: crit
 
+# The marker only renders once the phrase list has loaded, so a page whose
+# data files fail still answers 200 but fails this probe.
+guess_the_phrase:
+    path: "/guess_the_phrase"
+    max_ms: 4000
+    expect: 'id="gtp-bank-ok"'
+    sev: crit
+
 wordle:
     path: "/wordle"
     max_ms: 3000

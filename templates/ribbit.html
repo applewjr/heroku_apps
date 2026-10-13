@@ -580,17 +580,7 @@
         transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
 </div>
 
-<div style="margin-top: 20px; min-height: 100px;">
-    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
-    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 400px; margin: 0 auto;">
-        <a href="/smush" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Smush</a>
-        <a href="/blossom" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Blossom</a>
-        <a href="/wordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordle</a>
-        <a href="/quordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Quordle</a>
-        <a href="/antiwordle" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Antiwordle</a>
-        <a href="/wordiply" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">Wordiply</a>
-    </div>
-</div>
+{% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
 
 <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
   <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>

@@ -14,20 +14,15 @@ from types import SimpleNamespace
 import pytest
 
 import routes.dashboards as dashboards
-from extensions import cache
 
 
 # --- fixtures / helpers ----------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def _isolate_mtg_cache(flask_app):
-    """SimpleCache lives for the whole session, so clear our key around each test."""
-    def _clear():
-        with flask_app.app_context():
-            cache.delete(dashboards.MTG_CACHE_KEY)
-    _clear()
-    yield
-    _clear()
+def _isolate_mtg_cache(monkeypatch):
+    """The render memo lives for the whole session: give each test an empty
+    one (monkeypatch puts the real one back afterwards)."""
+    monkeypatch.setattr(dashboards, "_mtg", {"entry": None, "expires": 0.0})
 
 
 @pytest.fixture
