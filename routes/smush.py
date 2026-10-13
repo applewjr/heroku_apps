@@ -188,6 +188,11 @@ def _admin_form():
 NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
 
 
+def _back(**message):
+    """Back to /smush_admin as the admin left it, with a message."""
+    return redirect(crowd.admin_return_url('/smush_admin', request.form, **message))
+
+
 @bp.route('/smush_admin')
 @auth.login_required
 def smush_admin():
@@ -212,16 +217,16 @@ def smush_add_word():
     """Remove a word from Smush's list ('invalid') or add one ('missing')."""
     word, kind = _admin_form()
     if kind is None:
-        return redirect(f'/smush_admin?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not word.isalpha():
-        return redirect('/smush_admin?error=Word must be letters only')
+        return _back(error='Word must be letters only')
     try:
         SMUSH_CROWD.admin_set(word, kind)
     except Exception as e:
         print(f"Error adding smush word: {e}")
-        return redirect('/smush_admin?error=Database error')
+        return _back(error='Database error')
     done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
-    return redirect(f'/smush_admin?success={word} {done}')
+    return _back(success=f'{word} {done}')
 
 
 @bp.route('/smush_admin/remove_word', methods=['POST'])
@@ -230,12 +235,12 @@ def smush_remove_word():
     """Undo an entry in either list, and reset that word's votes."""
     word, kind = _admin_form()
     if kind is None:
-        return redirect(f'/smush_admin?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not word.isalpha():
-        return redirect('/smush_admin?error=Word must be letters only')
+        return _back(error='Word must be letters only')
     try:
         SMUSH_CROWD.admin_remove(word, kind)
     except Exception as e:
         print(f"Error removing smush word: {e}")
-        return redirect('/smush_admin?error=Database error')
-    return redirect(f'/smush_admin?success={word} undone')
+        return _back(error='Database error')
+    return _back(success=f'{word} undone')

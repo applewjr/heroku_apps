@@ -346,10 +346,10 @@ def check_web(results, probes):
                 continue
 
             if ms > spec['max_ms']:
-                # Measure twice before calling it slow. The dyno is restarted
-                # twice a day by .github/workflows/restart-dyno.yml, and the
-                # first request after a boot pays for data.py loading its CSVs,
-                # so a single slow sample is a cold start rather than evidence.
+                # Measure twice before calling it slow. Heroku restarts the
+                # dyno at least daily (and on every deploy), and the first
+                # request after a boot pays for data.py loading its CSVs, so
+                # a single slow sample is a cold start rather than evidence.
                 try:
                     response, ms = _fetch(url)
                 except Exception as e:

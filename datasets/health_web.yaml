@@ -25,8 +25,8 @@
 # couple of weeks of history in Papertrail, tighten them to something measured -
 # the same way blossom_idle's 240 was set from a replay rather than a guess.
 #
-# A latency breach is measured twice before it alerts (see check_web). The
-# GitHub Action restarts the dyno at 3am and 3pm PST, and the first request
+# A latency breach is measured twice before it alerts (see check_web). Heroku
+# restarts the dyno at least daily (and on every deploy), and the first request
 # after a boot pays for data.py loading its CSVs, so a single slow sample is
 # not evidence of a slow site.
 

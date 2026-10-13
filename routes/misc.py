@@ -2,8 +2,8 @@
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
-from extensions import NOT_FOUND_LIMITS, db_cursor, limiter, log_page_visit
-from helpers import MIN_SUBMIT_SECONDS, issue_form_token, submitted_too_fast
+from extensions import FEEDBACK_POST_LIMITS, NOT_FOUND_LIMITS, db_cursor, limiter, log_page_visit
+from helpers import bot_reason, client_ip, feedback_flooded, issue_form_token, log_dropped
 from monitoring import alerts
 
 # Namespaces the signature, so a token minted for this form cannot be replayed
@@ -59,6 +59,7 @@ def privacy_policy():
 
 
 @bp.route("/feedback", methods=["POST", "GET"])
+@limiter.limit(FEEDBACK_POST_LIMITS, key_func=client_ip, methods=["POST"])
 def feedback():
     if request.method == "POST":
 
@@ -66,26 +67,24 @@ def feedback():
         feedback_body = request.form['feedback_body']
         referrer = request.form['referrer']
 
-        # Honeypot: a field hidden from people, so only something filling the
-        # form blind fills it. Read with .get() rather than [] on purpose - an
-        # older cached copy of the page has no such field, and a visitor on one
-        # must not get a 400 for it.
-        #
-        # This deliberately does NOT reject. Nothing here may ever cost a real
-        # person their feedback, and no detection is good enough to bet
-        # someone's message on, so a tripped honeypot still writes the row and
-        # only declines to send the notification. The daily digest lists every
-        # row from the last 24 hours, so a suppressed submission is still in
-        # front of you within a day - it just cannot flood the inbox.
-        looks_automated = bool(request.form.get('feedback_extra', '').strip())
-
-        # Second, independent signal, on the same never-reject terms. The
-        # honeypot catches anything that fills every field it finds; this
-        # catches anything that reads the form first and skips hidden inputs,
-        # because it still cannot spend two seconds pretending to type. A
-        # missing or unverifiable token counts as no signal, never suspicion.
-        too_fast = submitted_too_fast(request.form.get('feedback_token'),
-                                      salt=FEEDBACK_TOKEN_SALT)
+        # A bot's post is dropped, not stored (helpers.bot_reason has the
+        # checks and the 2026-10-13 scanner that prompted them). It still
+        # gets the thank-you page, so it learns nothing.
+        reason = bot_reason(request.form, 'feedback_extra', 'feedback_token',
+                            FEEDBACK_TOKEN_SALT)
+        if reason == 'stale':
+            # No usable token: a person on an old copy of the page or a tab
+            # left open past a day. Show the form again with their text.
+            return render_template(
+                "feedback.html", resubmit=True, referrer=referrer,
+                feedback_header=feedback_header, feedback_body=feedback_body,
+                feedback_token=issue_form_token(FEEDBACK_TOKEN_SALT, resubmit=True))
+        if reason is None and feedback_flooded(db_cursor, 'feedback'):
+            reason = 'flood'
+            alerts.alert_throttled('feedback_flood', referrer=referrer)
+        if reason:
+            log_dropped('feedback', reason, f'{feedback_header} | {feedback_body}')
+            return render_template("feedback_received.html")
 
         # log inputs. Written inline rather than through the write-behind
         # queue: feedback arrives every week or two and matters, so it is
@@ -110,21 +109,14 @@ def feedback():
         else:
             # Notify on write rather than by polling the table: instant, and
             # with no "which rows have I already seen" bookkeeping to get wrong.
-            if looks_automated or too_fast:
-                # Plain line, no token: a flood of these is precisely what the
-                # honeypot exists to keep out of the inbox.
-                print("feedback suppressed: {}".format(
-                    'honeypot filled' if looks_automated
-                    else 'submitted in under {}s'.format(MIN_SUBMIT_SECONDS)),
-                    flush=True)
-            elif not alerts.alert_throttled('feedback_new', sev='info',
-                                            header=feedback_header,
-                                            referrer=referrer):
-                # A second bound that does not depend on detection working.
-                # Even a bot that avoids the honeypot cannot turn one form into
-                # an inbox full, and real feedback arrives every week or two,
-                # so two genuine submissions inside one throttle window is not
-                # a case worth optimising for - the digest carries both anyway.
+            if not alerts.alert_throttled('feedback_new', sev='info',
+                                          header=feedback_header,
+                                          referrer=referrer):
+                # A bound that does not depend on detection working. Even a
+                # bot that passes every check cannot turn one form into an
+                # inbox full, and real feedback arrives every week or two, so
+                # two genuine submissions inside one throttle window is not a
+                # case worth optimising for - the digest carries both anyway.
                 print("feedback alert throttled", flush=True)
 
         return render_template("feedback_received.html")

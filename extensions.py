@@ -49,6 +49,11 @@ INTERACTIVE_LIMITS = "120 per minute; 1500 per hour; 6000 per day"
 # of 404 keeps dead URLs alive in the index, so keep this loose.
 NOT_FOUND_LIMITS = "60 per minute; 600 per hour"
 
+# POSTs to the two feedback forms, per visitor: keyed on helpers.client_ip,
+# not the shared edge IP above, so one scanner can't spend everyone's budget.
+# The busiest genuine minute on record had 2 submissions.
+FEEDBACK_POST_LIMITS = "3 per minute; 10 per day"
+
 ##### logins #####
 
 auth = HTTPBasicAuth()
@@ -69,9 +74,10 @@ def custom_error():
 # The pool is built on first use, not at import. MySQLConnectionPool's
 # constructor eagerly opens pool_size connections, so building it at import
 # meant a JawsDB outage during a dyno boot took the entire app down rather
-# than just the database-backed pages - and restart-dyno.yml restarts the web
-# dyno twice a day, so that window is real. Lazily, a failed build leaves
-# _cnxpool None and the next request retries, so a blip self-heals.
+# than just the database-backed pages - and Heroku restarts the web dyno at
+# least daily and on every deploy, so that window is real. Lazily, a failed
+# build leaves _cnxpool None and the next request retries, so a blip
+# self-heals.
 _cnxpool = None
 _cnxpool_lock = threading.Lock()
 
@@ -312,8 +318,8 @@ def flush_log_queue(timeout=3.0):
         # Checked before pulling a batch, not after writing one. _drain_batch
         # can block on connect() for connection_timeout seconds, so testing
         # only afterwards lets a shutdown overshoot the budget by a whole
-        # attempt - and Heroku allows 30s after SIGTERM, with restart-dyno.yml
-        # firing twice a day. Checking first also means a batch is never
+        # attempt - and Heroku allows 30s after SIGTERM, which it sends at
+        # least daily. Checking first also means a batch is never
         # pulled off the queue and then abandoned unwritten.
         if time.monotonic() >= deadline:
             return _log_queue.empty()
@@ -331,8 +337,8 @@ def flush_log_queue(timeout=3.0):
             return False
 
 
-# A dyno restart (twice daily via restart-dyno.yml, plus Heroku's own cycling)
-# would otherwise discard whatever the daemon thread still held.
+# A dyno restart (Heroku's daily cycling, deploys, config changes) would
+# otherwise discard whatever the daemon thread still held.
 atexit.register(flush_log_queue)
 
 

@@ -805,6 +805,35 @@ def test_admin_rejects_a_non_word(client, crowd_db, monkeypatch):
     assert not db.executed
 
 
+def test_admin_board_search_and_green_reports(client, crowd_db, monkeypatch):
+    # The shared mechanics are tested in full in test_smush_crowd.py; this
+    # pins Blossom's wiring of them.
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    crowd_db(rows={
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, "f:egilnu"),
+                                      (NOT_LISTED, "missing", 1, when, "waiting", when, "f:egilnu"),
+                                      ("tisane", "invalid", 1, when, "waiting", when, "t:aeinrs")],
+    })
+    html = client.get("/blossom_admin?q=f:egilnu", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>nastier</strong>" in html and "<strong>tisane</strong>" not in html
+    assert '<td class="report-missing">missing</td>' in html
+    assert '<td class="">invalid</td>' in html
+    assert html.count('<input type="hidden" name="q" value="f:egilnu">') == 3   # top form + 2 rows
+
+
+def test_admin_actions_keep_the_search(client, crowd_db, monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+    crowd_db()
+    resp = client.post("/add_word", headers=_admin_headers(monkeypatch),
+                       data={"word": "nastier", "word_type": "invalid", "q": "f:egilnu", "tab": "reports"})
+    assert resp.status_code == 302
+    location = urlsplit(resp.headers["Location"])
+    assert location.path == "/blossom_admin"
+    assert parse_qs(location.query) == {"q": ["f:egilnu"], "tab": ["reports"],
+                                        "success": ["nastier removed from the word list"]}
+
+
 # The vote log. The mechanics are crowd.py's, shared with /smush and tested
 # in full in test_smush_crowd.py; these pin Blossom's own wiring.
 

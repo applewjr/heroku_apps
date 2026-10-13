@@ -230,6 +230,47 @@ NO_CHOICE = 'Choose Remove phrase or Add phrase first'
 ADMIN = '/guess_the_phrase_admin'
 
 
+def _back(**message):
+    """Back to the admin page as the admin left it, with a message."""
+    return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
+
+
+def _phrase_status(query):
+    """Where the phrase typed in the admin search box stands: is it in the
+    solver's list, and where from. None for a search that isn't a phrase
+    (empty, a board tag with a colon, or not letters).
+
+    Read from the solver itself, so 'offered' is exactly what players get.
+    """
+    if not query or ':' in query:
+        return None
+    key = ps.phrase_key(query)
+    if not key:
+        return None
+    solver = get_solver()
+    if solver is None:
+        return {'key': key, 'unavailable': True}
+    patterns = tuple(key.split(' '))
+    shipped = next((r for r in _load_static().bank.search(patterns, set(), limit=1)
+                    if r[0] == key), None)
+    status = {
+        'key': key,
+        'offered': key in solver.bank,
+        'removed': key in solver.bank.removed,
+        'added': any(r[0] == key for r in solver.bank.extra.search(patterns, set(), limit=1)),
+        'shipped': None,
+    }
+    if shipped:
+        _, display, pop, tags = shipped
+        # Not 'pop': in the template, shipped.pop would be the dict's method.
+        status['shipped'] = {
+            'display': display if display != key else None,
+            'popularity': pop,
+            'tags': [t.lower() for t in ps.TAGS if tags & ps.TAG_BIT[t]],
+        }
+    return status
+
+
 @bp.route(ADMIN)
 @auth.login_required
 def gtp_admin():
@@ -237,6 +278,7 @@ def gtp_admin():
     try:
         view = GTP_CROWD.admin_view(request.args.to_dict(), request.path)
         return render_template('guess_the_phrase_admin.html', **view,
+                               phrase=_phrase_status(view['query']),
                                crowd_add_votes=CROWD_ADD_VOTES,
                                crowd_window_days=GTP_WINDOW_DAYS)
     except Exception as e:
@@ -250,16 +292,23 @@ def gtp_add_word():
     """Take a phrase out of the list ('invalid') or put one in ('missing')."""
     key, kind = _admin_form()
     if kind is None:
-        return redirect(f'{ADMIN}?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not key:
-        return redirect(f'{ADMIN}?error=Phrase must be letters and spaces')
+        return _back(error='Phrase must be letters and spaces')
+    if kind == 'missing':
+        status = _phrase_status(key)
+        # Adding a shipped phrase isn't a no-op: the added copy scores
+        # ADDED_POP in every category, so it would also surface in
+        # categories the phrase isn't tagged for.
+        if status and status.get('shipped') and not status['removed']:
+            return _back(error=f'{key} is already in the shipped phrase list - nothing changed')
     try:
         GTP_CROWD.admin_set(key, kind)
     except Exception as e:
         print(f"Error adding guess the phrase phrase: {e}")
-        return redirect(f'{ADMIN}?error=Database error')
+        return _back(error='Database error')
     done = 'added to the phrase list' if kind == 'missing' else 'removed from the phrase list'
-    return redirect(f'{ADMIN}?success={key} {done}')
+    return _back(success=f'{key} {done}')
 
 
 @bp.route(ADMIN + '/remove_word', methods=['POST'])
@@ -268,12 +317,12 @@ def gtp_remove_word():
     """Undo an entry in either list, and reset that phrase's votes."""
     key, kind = _admin_form()
     if kind is None:
-        return redirect(f'{ADMIN}?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not key:
-        return redirect(f'{ADMIN}?error=Phrase must be letters and spaces')
+        return _back(error='Phrase must be letters and spaces')
     try:
         GTP_CROWD.admin_remove(key, kind)
     except Exception as e:
         print(f"Error removing guess the phrase phrase: {e}")
-        return redirect(f'{ADMIN}?error=Database error')
-    return redirect(f'{ADMIN}?success={key} undone')
+        return _back(error='Database error')
+    return _back(success=f'{key} undone')
