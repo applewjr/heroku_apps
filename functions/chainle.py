@@ -37,11 +37,16 @@ TOP = 10
 
 # Ranking. A word linked to every clue counts as a likely reviewed answer
 # with this chance: rising from LINK_P0 (its weakest link's weight) over
-# LINK_P_SPAN, capped at LINK_P_MAX. A common compound weighs ~2.5-5 (its
-# Zipf frequency), so one with every clue all but settles it.
+# LINK_P_SPAN, capped at LINK_P_MAX.
+#
+# The cap is low on purpose: a tie-breaker, not a deciding vote. Rounds
+# logged on /chainle_admin (2026-10-14) showed the game's answers are mostly
+# related in meaning, not compounds, and the words picked for their phrases
+# scored worst: a phrase can join a word to a clue it's otherwise far from,
+# and the game scores the weakest clue hardest.
 LINK_P0 = 0.75
 LINK_P_SPAN = 2.0
-LINK_P_MAX = 0.95
+LINK_P_MAX = 0.25
 # Each clue past the second: a word that compounds with all three is far
 # less likely by chance than one that compounds with two.
 LINK_EXTRA_CLUE = 0.75
@@ -54,7 +59,7 @@ SYN_P = 0.7
 SYN_ANCHORS = 5
 # The game scores broad words (thing, good, great) lower in bridge rounds.
 BROAD_FACTOR = 0.6
-# A candidate built on a clue (FOOTBALL for FOOT) isn't a bridge.
+# A word built on a clue, or inside one, is too close (see _too_close).
 CONTAINS_MIN = 3
 
 # flags bits
@@ -329,9 +334,17 @@ def _shown(data, i, allowed):
     return best
 
 
-def _builds_on_clue(word, clues):
-    return any(len(c) >= CONTAINS_MIN and word != c and (word.startswith(c) or word.endswith(c))
-               for c in clues)
+def _too_close(word, clues):
+    """True if word is built on a clue or sits inside one (FOOTBALL for
+    FOOT, PHOTOGRAPH for PHOTO, PHONE for TELEPHONE): the game turns those
+    down as too close."""
+    for c in clues:
+        if word == c:
+            continue
+        long_, short = (word, c) if len(word) > len(c) else (c, word)
+        if len(short) >= CONTAINS_MIN and (long_.startswith(short) or long_.endswith(short)):
+            return True
+    return False
 
 
 def _phrase(clue, word, form):
@@ -355,7 +368,7 @@ def bridge(data, clue_ids, top=TOP):
     clues = [data.word(c) for c in clue_ids]
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 20):
-        if _builds_on_clue(data.word(i), clues) or _same_answer(data, i, seen):
+        if _too_close(data.word(i), clues) or _same_answer(data, i, seen):
             continue
         # A linked word stays as linked (its phrases name it); a word that's
         # only close in meaning shows in its base form.
@@ -378,9 +391,10 @@ def closest(data, clue_id, top=TOP):
     """Words nearest in meaning to one clue: [{word, type, score}], type
     'synonym' (WordNet) or 'meaning' (word vectors). Opposites are left out."""
     score, is_syn, allowed = _closest_scores(data, clue_id)
+    clue = [data.word(clue_id)]
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 3):
-        if _same_answer(data, i, seen):
+        if _too_close(data.word(i), clue) or _same_answer(data, i, seen):
             continue
         j = _shown(data, i, allowed)
         out.append({'word': data.word(j).upper(),

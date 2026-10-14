@@ -41,6 +41,9 @@ _V = {
     'police': [0, .1, 0, .3, 0, .9],
     'station': [.1, .1, 0, .2, 0, .95],
     'cat': [0, 0, 0, 0, 0, 1],
+    'photo': [0, 0, .3, 0, .3, .9],
+    'photograph': [0, 0, .3, 0, .3, .91],   # built on the clue: too close
+    'picture': [0, 0, .25, 0, .35, .9],
 }
 _LINKS = [
     ('snow', 'ball', 3.3, True), ('foot', 'ball', 5.0, True), ('basket', 'ball', 4.5, True),
@@ -55,7 +58,8 @@ def _arrays():
     return ch.pack(
         _V, zipf={w: 4.0 for w in _V}, answer=set(_V) - {'the'}, broad={'thing'},
         bases={'feet': {'foot'}, 'hospitals': {'hospital'}}, links=_LINKS,
-        synonyms={'big': {'large', 'huge'}, 'large': {'big', 'huge'}},
+        synonyms={'big': {'large', 'huge'}, 'large': {'big', 'huge'},
+                  'photo': {'photograph', 'picture'}},
         antonyms={'big': {'small', 'little'}, 'large': {'small'}},
         pos={'big': ch.ADJ, 'large': ch.ADJ, 'huge': ch.ADJ, 'small': ch.ADJ, 'little': ch.ADJ,
              'tiny': ch.ADJ, 'cat': ch.NOUN})
@@ -87,15 +91,30 @@ def test_unknown_clues_are_reported_not_guessed(data):
 
 # --- bridge rounds --------------------------------------------------------------
 
-def test_a_bridge_finds_the_word_that_compounds_with_both(data):
+def _find(res, word):
+    return next(s for s in res['suggestions'] if s['word'] == word)
+
+
+def test_a_compound_with_every_clue_says_so(data):
     res = ch.solve(data, ['snow', 'foot'], 'bridge')
-    top = res['suggestions'][0]
-    assert top['word'] == 'BALL'
-    assert top['type'] == 'link'
-    assert top['phrases'] == ['SNOWBALL', 'FOOTBALL']
-    assert top['patterns'] == ['SNOW____', 'FOOT____']
-    assert top['strength'] == 1.0
+    ball = _find(res, 'BALL')
+    assert ball['type'] == 'link'
+    assert ball['phrases'] == ['SNOWBALL', 'FOOTBALL']
+    assert ball['patterns'] == ['SNOW____', 'FOOT____']
+    assert res['suggestions'][0]['strength'] == 1.0
     assert all(0 <= s['strength'] <= 1 for s in res['suggestions'])
+
+
+def test_closeness_leads_and_a_link_breaks_ties(data):
+    # MAN is closer in meaning to both clues than BALL, and the game scores
+    # closeness, so it leads. The compounds still lift BALL above where
+    # closeness alone puts it.
+    words = _words(ch.solve(data, ['snow', 'foot'], 'bridge', top=30))
+    assert words[0] == 'MAN'
+    unlinked = ch.Data(**ch.pack(_V, zipf={w: 4.0 for w in _V}, answer=set(_V) - {'the'},
+                                 broad={'thing'}, bases={'feet': {'foot'}}))
+    alone = _words(ch.solve(unlinked, ['snow', 'foot'], 'bridge', top=30))
+    assert words.index('BALL') < alone.index('BALL')
 
 
 def test_a_third_clue_narrows_the_links(data):
@@ -109,14 +128,12 @@ def test_a_third_clue_narrows_the_links(data):
 
 
 def test_phrases_read_in_the_right_order_open_or_closed(data):
-    top = ch.solve(data, ['room', 'game'], 'bridge')['suggestions'][0]
-    assert top['word'] == 'BALL'
-    assert top['phrases'] == ['BALLROOM', 'BALL GAME']
-    assert top['patterns'] == ['____ROOM', '____ GAME']
-    top = ch.solve(data, ['fire', 'police'], 'bridge')['suggestions'][0]
-    assert top['word'] == 'STATION'
-    assert top['phrases'] == ['FIRE STATION', 'POLICE STATION']
-    assert top['patterns'] == ['FIRE _______', 'POLICE _______']
+    ball = _find(ch.solve(data, ['room', 'game'], 'bridge', top=30), 'BALL')
+    assert ball['phrases'] == ['BALLROOM', 'BALL GAME']
+    assert ball['patterns'] == ['____ROOM', '____ GAME']
+    station = _find(ch.solve(data, ['fire', 'police'], 'bridge', top=30), 'STATION')
+    assert station['phrases'] == ['FIRE STATION', 'POLICE STATION']
+    assert station['patterns'] == ['FIRE _______', 'POLICE _______']
 
 
 def test_never_suggests_a_clue_its_inflections_or_words_built_on_it(data):
@@ -158,6 +175,13 @@ def test_closest_meaning_prefers_synonyms_and_drops_opposites(data):
     assert 'BIG' not in words
 
 
+def test_closest_meaning_skips_a_word_built_on_the_clue(data):
+    # The game turns PHOTOGRAPH down for PHOTO as too close.
+    words = _words(ch.solve(data, ['photo'], 'meaning', top=30))
+    assert words[0] == 'PICTURE'
+    assert 'PHOTOGRAPH' not in words
+
+
 def test_closest_meaning_keeps_to_the_clues_part_of_speech(data):
     words = _words(ch.solve(data, ['big'], 'meaning', top=30))
     assert 'CAT' not in words        # a noun, for an adjective
@@ -168,9 +192,9 @@ def test_closest_meaning_keeps_to_the_clues_part_of_speech(data):
 
 def test_assess_reports_the_top_pick_and_each_words_rank(data):
     got = ch.assess(data, ['snow', 'foot'], 'bridge', ['ball', 'man', 'zzzz', ''])
-    assert got['top'] == 'BALL'
-    assert got['ranks']['BALL'] == 1
-    assert got['ranks']['MAN'] == 3
+    assert got['top'] == 'MAN'
+    assert got['ranks']['MAN'] == 1
+    assert got['ranks']['BALL'] == 2
     assert got['ranks']['ZZZZ'] is None
     assert ch.assess(data, ['snow', 'zzzz'], 'bridge', ['ball']) is None
 
@@ -179,7 +203,8 @@ def test_the_arrays_survive_a_round_trip_through_a_file(tmp_path):
     path = tmp_path / 'tiny.npz'
     np.savez_compressed(path, **_arrays())
     loaded = ch.Data.from_file(str(path))
-    assert _words(ch.solve(loaded, ['snow', 'foot'], 'bridge'))[0] == 'BALL'
+    for clues, kind in ((['snow', 'foot'], 'bridge'), (['big'], 'meaning')):
+        assert ch.solve(loaded, clues, kind) == ch.solve(ch.Data(**_arrays()), clues, kind)
 
 
 # --- the shipped data ---------------------------------------------------------------
@@ -193,11 +218,11 @@ def shipped():
 
 
 @pytest.mark.parametrize('clues,answer', [
-    (['snow', 'foot'], 'BALL'),
     (['bed', 'bath'], 'ROOM'),
     (['tooth', 'hair', 'paint'], 'BRUSH'),
-], ids=['snow-foot', 'bed-bath', 'tooth-hair-paint'])
-def test_the_shipped_data_bridges_classic_compounds(shipped, clues, answer):
+    (['doctor', 'nurse'], 'HOSPITAL'),
+], ids=['bed-bath', 'tooth-hair-paint', 'doctor-nurse'])
+def test_the_shipped_data_finds_classic_bridges(shipped, clues, answer):
     assert answer in _words(ch.solve(shipped, clues, 'bridge'))[:3]
 
 

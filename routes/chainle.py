@@ -111,6 +111,8 @@ def solve_request(data):
 
 ADMIN = '/chainle_admin'
 SITES = ('chainle.io', 'chaindle.org', 'other')
+# The day's puzzle, or one of the game's unlimited ones.
+MODES = ('daily', 'unlimited')
 # The daily game's rounds: 1-3 two-word bridges, 4 a three-word bridge, 5 the
 # closest meaning. The form can override the kind for a site that differs.
 ROUND_KIND = {1: 'bridge', 2: 'bridge', 3: 'bridge', 4: 'bridge', 5: 'meaning'}
@@ -120,10 +122,15 @@ MAX_WORD_LEN = 40
 MAX_NOTES = 200
 FIRST_DAY = date(2026, 1, 1)
 
-UPSERT_ROUND = """
-INSERT INTO chainle_rounds (played_on, site, round_no, kind, clues, answer, guess, score, notes, created_at)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
-ON DUPLICATE KEY UPDATE kind = new.kind, clues = new.clues, answer = new.answer,
+# A row is one round, keyed by the day played, site, round and clues
+# (mysql_tables/chainle_rounds_unlimited.sql): saving the same round again
+# replaces it, and another puzzle the same day adds a row.
+ROUND_COLUMNS = ('played_on', 'site', 'mode', 'round_no', 'kind', 'clues', 'answer', 'guess',
+                 'score', 'notes', 'created_at')
+UPSERT_ROUND = f"""
+INSERT INTO chainle_rounds ({', '.join(ROUND_COLUMNS)})
+VALUES ({', '.join(['%s'] * len(ROUND_COLUMNS))}) AS new
+ON DUPLICATE KEY UPDATE mode = new.mode, kind = new.kind, answer = new.answer,
     guess = new.guess, score = new.score, notes = new.notes, created_at = new.created_at
 """
 
@@ -163,8 +170,9 @@ def _word(form, field, label):
 
 
 def parse_round(form):
-    """The INSERT's values for a round from the admin form, or raise
-    ValidationError with a message for the page."""
+    """A round from the admin form, as {column: value} (ROUND_COLUMNS), or
+    raise ValidationError with a message for the page. The date is the day
+    it was played: unlimited puzzles have no date of their own."""
     raw_day = form.get('played_on', '').strip()
     try:
         played_on = datetime.strptime(raw_day, '%Y-%m-%d').date() if raw_day else _today()
@@ -175,6 +183,9 @@ def parse_round(form):
     site = form.get('site', '')
     if site not in SITES:
         raise ValidationError('Choose the site you played on')
+    mode = form.get('mode') or 'daily'
+    if mode not in MODES:
+        raise ValidationError('Choose daily or unlimited')
     try:
         round_no = int(form.get('round_no', ''))
     except ValueError:
@@ -195,8 +206,11 @@ def parse_round(form):
     if raw_score and not (raw_score.isdigit() and int(raw_score) <= 1000):
         raise ValidationError('Score must be a whole number from 0 to 1000')
     notes = form.get('notes', '').strip()[:MAX_NOTES] or None
-    return (played_on.isoformat(), site, round_no, kind, ' '.join(c.upper() for c in clues),
-            answer, guess, int(raw_score) if raw_score else None, notes, pst_now_str())
+    return {
+        'played_on': played_on.isoformat(), 'site': site, 'mode': mode, 'round_no': round_no,
+        'kind': kind, 'clues': ' '.join(c.upper() for c in clues), 'answer': answer, 'guess': guess,
+        'score': int(raw_score) if raw_score else None, 'notes': notes, 'created_at': pst_now_str(),
+    }
 
 
 # How the solver rates each logged round, by (kind, clues, answer, guess):
@@ -225,10 +239,10 @@ def assess_rounds(data, rows):
     """The admin page's rows and summary: for each logged round, where the
     solver ranks the game's answer and your guess, and its own first pick."""
     rounds, tally, scores = [], {}, []
-    for rid, played_on, site, round_no, kind, clues, answer, guess, score, notes in rows:
+    for rid, played_on, site, mode, round_no, kind, clues, answer, guess, score, notes in rows:
         got = _assess(data, kind, clues, answer, guess) if data is not None else None
         r = {
-            'id': rid, 'played_on': str(played_on), 'site': site, 'round_no': round_no,
+            'id': rid, 'played_on': str(played_on), 'site': site, 'mode': mode, 'round_no': round_no,
             'type': _round_type(kind, clues.split()), 'clues': clues.split(), 'answer': answer,
             'guess': guess, 'score': score, 'notes': notes, 'known': got is not None,
             'top': got['top'] if got else None,
@@ -260,8 +274,8 @@ def chainle_admin():
             cursor.execute("SELECT COUNT(*) FROM chainle_rounds")
             total = cursor.fetchone()[0]
             cursor.execute(
-                "SELECT id, played_on, site, round_no, kind, clues, answer, guess, score, notes "
-                "FROM chainle_rounds ORDER BY played_on DESC, round_no DESC, id DESC LIMIT %s",
+                "SELECT id, played_on, site, mode, round_no, kind, clues, answer, guess, score, notes "
+                "FROM chainle_rounds ORDER BY played_on DESC, created_at DESC, id DESC LIMIT %s",
                 (SHOW_ROUNDS,))
             rows = cursor.fetchall()
     except Exception as e:
@@ -270,7 +284,7 @@ def chainle_admin():
     data = get_data()
     form_date, form_round = _form_defaults(request.args)
     return render_template('chainle_admin.html', total=total, form_date=form_date,
-                           form_round=form_round, sites=SITES, round_clues=ROUND_CLUES,
+                           form_round=form_round, sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
                            data_ok=data is not None, shown=SHOW_ROUNDS, **assess_rounds(data, rows))
 
 
@@ -280,21 +294,20 @@ def chainle_log_round():
     """Save a round. Logging the same date, site and round again replaces it."""
     keep = {'date': request.form.get('played_on'), 'round': request.form.get('round_no')}
     try:
-        values = parse_round(request.form)
+        row = parse_round(request.form)
     except ValidationError as e:
         return _back(error=str(e), **keep)
     try:
         with db_cursor() as (conn, cursor):
-            cursor.execute(UPSERT_ROUND, values)
+            cursor.execute(UPSERT_ROUND, tuple(row[c] for c in ROUND_COLUMNS))
             conn.commit()
     except Exception as e:
         print(f"Error logging chainle round: {e}")
         return _back(error='Database error', **keep)
-    played_on, round_no = values[0], values[2]
-    if round_no < max(ROUND_KIND):
-        return _back(success=f'Saved round {round_no} of {played_on}', date=played_on,
-                     round=round_no + 1)
-    return _back(success=f'Saved round {round_no} of {played_on}: that was the last one')
+    saved = f"Saved round {row['round_no']} ({row['mode']})"
+    if row['round_no'] < max(ROUND_KIND):
+        return _back(success=saved, date=row['played_on'], round=row['round_no'] + 1)
+    return _back(success=f'{saved}: that was the last one')
 
 
 @bp.route(ADMIN + '/delete_round', methods=['POST'])

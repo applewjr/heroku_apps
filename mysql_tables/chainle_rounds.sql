@@ -13,10 +13,11 @@
 SET SESSION lock_wait_timeout = 5;
 
 -- Logging the same date, site and round again replaces the row
--- (INSERT ... ON DUPLICATE KEY UPDATE on uq_round).
+-- (INSERT ... ON DUPLICATE KEY UPDATE on uq_round). chainle_rounds_unlimited.sql
+-- later adds `mode` and the clues to that key.
 CREATE TABLE chainle_rounds (
     id          INT           NOT NULL AUTO_INCREMENT,
-    played_on   DATE          NOT NULL,  -- the puzzle's day
+    played_on   DATE          NOT NULL,  -- the day it was played (chainle_rounds_unlimited.sql)
     site        VARCHAR(32)   NOT NULL,  -- where it was played: routes/chainle.py SITES
     round_no    TINYINT       NOT NULL,  -- 1 to 5
     kind        VARCHAR(8)    NOT NULL,  -- 'bridge' or 'meaning'

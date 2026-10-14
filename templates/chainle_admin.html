@@ -134,13 +134,19 @@
         <form method="POST" action="/chainle_admin/log_round" id="round-form">
             <div class="form-grid">
                 <div class="form-group">
-                    <label for="played_on">Puzzle date</label>
+                    <label for="played_on">Date played</label>
                     <input type="date" id="played_on" name="played_on" value="{{ form_date }}" required>
                 </div>
                 <div class="form-group">
                     <label for="site">Site</label>
                     <select id="site" name="site">
                         {% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mode">Game</label>
+                    <select id="mode" name="mode">
+                        {% for m in modes %}<option value="{{ m }}">{{ m | capitalize }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="form-group wide">
@@ -232,7 +238,7 @@
         {% for r in rounds %}
         <div class="round-card">
             <div>
-                <div class="round-meta">{{ r.played_on }} &middot; {{ r.site }} &middot; round {{ r.round_no }} &middot; {{ r.type }}</div>
+                <div class="round-meta">{{ r.played_on }} &middot; {{ r.site }} &middot; {{ r.mode }} &middot; round {{ r.round_no }} &middot; {{ r.type }}</div>
                 <div class="round-clues">{{ r.clues | join(' + ') }}{% if r.answer %} &rarr; <span class="answer">{{ r.answer }}</span>{% endif %}</div>
             </div>
             <form method="POST" action="/chainle_admin/delete_round" onsubmit="return confirm('Delete this round?');">
@@ -382,12 +388,14 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (count.value === '1') { count.value = '2'; showClues(2); }
     });
 
-    // Remember the site between visits: it rarely changes.
-    try {
-        const saved = localStorage.getItem('chainleAdminSite');
-        if (saved && [...site.options].some(o => o.value === saved)) site.value = saved;
-    } catch (_) {}
-    site.addEventListener('change', () => { try { localStorage.setItem('chainleAdminSite', site.value); } catch (_) {} });
+    // Remember the site and game between visits: they rarely change.
+    [[site, 'chainleAdminSite'], [document.getElementById('mode'), 'chainleAdminMode']].forEach(([el, key]) => {
+        try {
+            const saved = localStorage.getItem(key);
+            if (saved && [...el.options].some(o => o.value === saved)) el.value = saved;
+        } catch (_) {}
+        el.addEventListener('change', () => { try { localStorage.setItem(key, el.value); } catch (_) {} });
+    });
 
     // After a save the server picks the same day's next round.
     setRound(+form.querySelector('input[name="round_no"]:checked').value);

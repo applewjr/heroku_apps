@@ -223,33 +223,43 @@ def load_glove(dims, wanted):
 
 # --- word relations -------------------------------------------------------------
 
-def word_forms(vocab, lemmas, exceptions):
-    """({word: its base forms in the vocabulary}, {word: part-of-speech bits}).
+POS_BITS = {'noun': chainle.NOUN, 'verb': chainle.VERB, 'adj': chainle.ADJ, 'adv': chainle.ADV}
 
-    Base forms come from WordNet's morphy, plus plural and verb endings for
-    words WordNet doesn't list. A word's parts of speech are those it is a
-    WordNet lemma of, or an inflection of one (RUNNING: a verb)."""
+
+def forms_of(w, lemmas, exceptions, every, known):
+    """(the base forms w inflects, its part-of-speech bits).
+
+    Base forms come from WordNet's morphy, plus plural and verb endings
+    (onto a word in `known`) for words WordNet doesn't list. Its parts of
+    speech are those it is a WordNet lemma of, or an inflection of one
+    (RUNNING: a verb)."""
+    found, tags = set(), 0
+    for p, rules in MORPHY.items():
+        here = set(exceptions[p].get(w, ()))
+        for end, base_end in rules:
+            if w.endswith(end) and len(w) > len(end):
+                base = w[:-len(end)] + base_end
+                if base in lemmas[p]:
+                    here.add(base)
+        if here or w in lemmas[p]:
+            tags |= POS_BITS[p]
+        found |= here
+    if w not in every:
+        for end, base_end in FALLBACK:
+            base = w[:-len(end)] + base_end
+            if w.endswith(end) and len(base) >= 3 and base in known:
+                found.add(base)
+    found.discard(w)
+    return found, tags
+
+
+def word_forms(vocab, lemmas, exceptions):
+    """({word: its base forms in the vocabulary}, {word: part-of-speech bits})."""
     every = set().union(*lemmas.values())
-    bits = {'noun': chainle.NOUN, 'verb': chainle.VERB, 'adj': chainle.ADJ, 'adv': chainle.ADV}
     bases, pos = {}, {}
     for w in vocab:
-        found, tags = set(), 0
-        for p, rules in MORPHY.items():
-            here = set(exceptions[p].get(w, ()))
-            for end, base_end in rules:
-                if w.endswith(end) and len(w) > len(end):
-                    base = w[:-len(end)] + base_end
-                    if base in lemmas[p]:
-                        here.add(base)
-            if here or w in lemmas[p]:
-                tags |= bits[p]
-            found |= here
-        if w not in every:
-            for end, base_end in FALLBACK:
-                base = w[:-len(end)] + base_end
-                if w.endswith(end) and len(base) >= 3 and base in vocab:
-                    found.add(base)
-        found = {b for b in found if b in vocab and b != w}
+        found, tags = forms_of(w, lemmas, exceptions, every, vocab)
+        found &= vocab
         if found:
             bases[w] = found
         if tags:
@@ -299,18 +309,24 @@ def synonyms_antonyms(synsets):
     return syn, ant
 
 
-def compound_links(enable, vocab, zipf, vectors):
+def compound_links(enable, vocab, zipf, vectors, lemmas, exceptions):
     """(a, b, weight, closed=True) for dictionary words made of two known
     words (SNOWBALL = SNOW + BALL), weighted by how common the compound is.
 
-    A split that has nothing to do with its parts (CARPET = CAR + PET) counts
-    for less: the compound's vector sits far from both parts'."""
+    Only base forms are split: BATHERS is BATHER plus an ending, not BATH +
+    ERS (SNOWBALLS adds nothing SNOWBALL doesn't). A split that has nothing
+    to do with its parts (CARPET = CAR + PET) counts for less: the
+    compound's vector sits far from both parts'."""
+    every = set().union(*lemmas.values())
+    known = vocab | enable
     def unit(w):
         v = vectors.get(w)
         return v / (np.linalg.norm(v) or 1) if v is not None else None
 
     for word in enable:
         if not (5 <= len(word) <= MAX_LEN) or zipf.get(word, 0.0) < COMPOUND_ZIPF:
+            continue
+        if forms_of(word, lemmas, exceptions, every, known)[0]:
             continue
         for i in range(2, len(word) - 1):
             a, b = word[:i], word[i:]
@@ -368,6 +384,8 @@ def canaries(data):
         'small an antonym of large': lambda: i('small') in data.antonyms(i('large')).tolist(),
         'feet -> foot': lambda: i('foot') in data.bases(i('feet')),
         'running -> run': lambda: i('run') in data.bases(i('running')),
+        'no ending split off a plural (BATH + ERS)':
+            lambda: data.id('ers') < 0 or data.link(i('bath'), data.id('ers')) is None,
     }
     failed = []
     for name, check in checks.items():
@@ -396,12 +414,15 @@ def build(dims, out_dir):
     vocab = set(vectors)
     log(f'vocabulary: {len(vocab)} of {len(words)} candidate words have vectors')
 
-    answer = {w for w in vocab if zipf.get(w, 0.0) >= ANSWER_ZIPF and len(w) >= ANSWER_MIN_LEN
-              and w not in STOPWORDS and (w in enable or w in common)}
     bases, pos = word_forms(vocab, lemmas, exceptions)
+    # Not an inflection of a two-letter word either (ERS, ESS): no game
+    # takes those as words.
+    answer = {w for w in vocab if zipf.get(w, 0.0) >= ANSWER_ZIPF and len(w) >= ANSWER_MIN_LEN
+              and w not in STOPWORDS and (w in enable or w in common)
+              and all(len(b) >= ANSWER_MIN_LEN for b in bases.get(w, ()))}
     syn, ant = synonyms_antonyms(synsets)
 
-    links = list(compound_links(enable, vocab, zipf, vectors))
+    links = list(compound_links(enable, vocab, zipf, vectors, lemmas, exceptions))
     n_closed = len(links)
     links += bank_links(vocab)
     log(f'links: {n_closed} from compound words, {len(links) - n_closed} from two-word phrases')

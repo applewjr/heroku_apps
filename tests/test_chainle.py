@@ -141,9 +141,10 @@ def test_a_bridge_round_returns_the_linking_word(client, tiny):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body['clues'] == ['SNOW', 'FOOT']
-    top = body['suggestions'][0]
-    assert top['word'] == 'BALL'
-    assert top['patterns'] == ['SNOW____', 'FOOT____']
+    assert body['suggestions'][0]['word'] == 'MAN'
+    ball = next(s for s in body['suggestions'] if s['word'] == 'BALL')
+    assert ball['type'] == 'link'
+    assert ball['patterns'] == ['SNOW____', 'FOOT____']
 
 
 def test_a_closest_meaning_round(client, tiny):
@@ -190,9 +191,10 @@ def test_solving_without_the_data_is_a_503(client, no_data):
 # --- the admin's round log -----------------------------------------------------------
 
 ROWS = [
-    (1, date(2026, 10, 14), 'chainle.io', 1, 'bridge', 'SNOW FOOT', 'BALL', 'BALL', 1000, None),
-    (2, date(2026, 10, 14), 'chainle.io', 5, 'meaning', 'BIG', 'HUGE', 'LARGE', 950, 'took a while'),
-    (3, date(2026, 10, 13), 'other', 2, 'bridge', 'SNOW QWXZ', 'BALL', None, None, None),
+    (1, date(2026, 10, 14), 'chainle.io', 'daily', 1, 'bridge', 'SNOW FOOT', 'MAN', 'BALL', 1000, None),
+    (2, date(2026, 10, 14), 'chainle.io', 'unlimited', 5, 'meaning', 'BIG', 'HUGE', 'LARGE', 950,
+     'took a while'),
+    (3, date(2026, 10, 13), 'other', 'daily', 2, 'bridge', 'SNOW QWXZ', 'BALL', None, None, None),
 ]
 
 
@@ -204,7 +206,7 @@ def _admin(tiny, monkeypatch, rows=ROWS, fail=None):
 
 def _round_form(**changes):
     import routes.chainle as rc
-    form = {'played_on': rc._today().isoformat(), 'site': 'chainle.io', 'round_no': '4',
+    form = {'played_on': rc._today().isoformat(), 'site': 'chainle.io', 'mode': 'unlimited', 'round_no': '4',
             'kind': 'bridge', 'clue1': 'snow', 'clue2': 'Foot', 'clue3': 'basket',
             'answer': 'ball', 'guess': 'Ball', 'score': '1000', 'notes': ''}
     form.update(changes)
@@ -222,11 +224,13 @@ def test_admin_page_rates_each_logged_round(client, tiny, monkeypatch):
     resp = client.get('/chainle_admin', headers=headers)
     html = resp.get_data(as_text=True)
     assert resp.status_code == 200
-    assert 'SNOW + FOOT' in html and 'BALL' in html
-    assert '<span class="rank hit">#1</span>' in html       # BALL is its first pick
+    assert 'SNOW + FOOT' in html and 'MAN' in html
+    assert '<span class="rank hit">#1</span>' in html       # MAN is its first pick
+    assert 'Your guess BALL (1000):' in html
     assert '<span class="rank near">#2</span>' in html      # HUGE comes after LARGE
     assert "a clue word isn't in its list" in html          # QWXZ
     assert 'Two-word bridge' in html and 'Closest meaning' in html
+    assert '&middot; unlimited &middot; round 5' in html
     assert 'Your average score: <b>975</b>' in html
 
 
@@ -237,8 +241,11 @@ def test_logging_a_round_saves_it_cleaned_up(client, tiny, monkeypatch):
     assert resp.status_code == 302
     [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
     assert 'ON DUPLICATE KEY UPDATE' in sql
-    assert params[:9] == (rc._today().isoformat(), 'chainle.io', 4, 'bridge', 'SNOW FOOT BASKET',
-                          'BALL', 'BALL', 1000, None)
+    saved = dict(zip(rc.ROUND_COLUMNS, params))
+    del saved['created_at']
+    assert saved == {'played_on': rc._today().isoformat(), 'site': 'chainle.io', 'mode': 'unlimited',
+                     'round_no': 4, 'kind': 'bridge', 'clues': 'SNOW FOOT BASKET', 'answer': 'BALL',
+                     'guess': 'BALL', 'score': 1000, 'notes': None}
     assert db.commits == 1
     # Back to the form for the same day's next round.
     where = resp.headers['Location']
@@ -271,25 +278,29 @@ def test_the_form_ignores_junk_defaults(client, tiny, monkeypatch):
 
 def test_a_meaning_round_takes_one_clue_and_blank_extras(client, tiny, monkeypatch):
     db, headers = _admin(tiny, monkeypatch)
-    form = _round_form(round_no='5', kind='', clue1='big', clue2='', clue3='', score='')
+    import routes.chainle as rc
+    form = _round_form(round_no='5', kind='', clue1='big', clue2='', clue3='', score='', mode='')
     client.post('/chainle_admin/log_round', data=form, headers=headers)
     [(_, params)] = db.statements('INSERT INTO chainle_rounds')
-    assert params[2:5] == (5, 'meaning', 'BIG')
-    assert params[7] is None
+    saved = dict(zip(rc.ROUND_COLUMNS, params))
+    assert (saved['round_no'], saved['kind'], saved['clues']) == (5, 'meaning', 'BIG')
+    assert saved['score'] is None
+    assert saved['mode'] == 'daily'     # the default
 
 
 @pytest.mark.parametrize('changes', [
     {'played_on': '14/10/2026'},
     {'played_on': '2025-06-01'},
     {'site': 'example.com'},
+    {'mode': 'weekly'},
     {'round_no': '6'},
     {'clue2': '', 'clue3': ''},
     {'clue1': 'sn0w'},
     {'guess': 'two words'},
     {'score': '1001'},
     {'score': '-5'},
-], ids=['date-format', 'date-range', 'site', 'round', 'one-clue-bridge', 'digit', 'guess', 'score-high',
-        'score-negative'])
+], ids=['date-format', 'date-range', 'site', 'mode', 'round', 'one-clue-bridge', 'digit', 'guess',
+        'score-high', 'score-negative'])
 def test_a_bad_round_is_refused_not_saved(client, tiny, monkeypatch, changes):
     db, headers = _admin(tiny, monkeypatch)
     resp = client.post('/chainle_admin/log_round', data=_round_form(**changes), headers=headers)
