@@ -140,15 +140,16 @@
 /* ---------- clues ---------- */
 .chn-clues {
     display: flex;
-    flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-    max-width: 440px;
+    max-width: 520px;
     margin: 14px auto 0;
     padding: 0 12px;
 }
+/* Too long to sit side by side (fitClues in the script): one per row. */
+.chn-clues.stacked { flex-direction: column; align-items: stretch; max-width: 420px; }
 .chn-clue {
-    flex: 1 1 100px;
+    flex: 1 1 0;
     min-width: 0;
     max-width: 200px;
     box-sizing: border-box;
@@ -168,6 +169,7 @@
 .chn-clue::placeholder { color: #8a7a20; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .chn-clue:focus { outline: 3px solid #02484d; outline-offset: 1px; }
 .chn-clue[hidden] { display: none; }
+.chn-clues.stacked .chn-clue { flex: 0 0 auto; max-width: none; }
 .chn-hint-line { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 480px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
 
 /* ---------- cards ---------- */
@@ -500,7 +502,25 @@ document.addEventListener('DOMContentLoaded', () => {
         hintLine.textContent = left
             ? (r.type === 'meaning' ? 'Type the clue word.' : 'Type the ' + need(r) + ' clue words.')
             : '';
+        fitClues();
     }
+
+    // Clues sit side by side while the longest fits its box, else one per
+    // row. The font can't shrink to fit instead: under 16px, iPhones zoom in.
+    const cluesBox = document.getElementById('chn-clues');
+    const ruler = document.createElement('canvas').getContext('2d');
+    function fitClues() {
+        const shown = clueEls.slice(0, need(round()));
+        cluesBox.classList.remove('stacked');
+        const longest = shown.reduce((a, el) => el.value.length > a.length ? el.value : a, '');
+        if (shown.length < 2 || !longest) return;
+        const st = getComputedStyle(shown[0]);
+        ruler.font = st.fontWeight + ' ' + st.fontSize + ' ' + st.fontFamily;
+        const text = ruler.measureText(longest.toUpperCase()).width + (parseFloat(st.letterSpacing) || 0) * longest.length;
+        const room = shown[0].clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+        if (text > room) cluesBox.classList.add('stacked');
+    }
+    window.addEventListener('resize', fitClues);
 
     function hintHtml() {
         const r = round();
