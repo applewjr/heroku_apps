@@ -1,0 +1,293 @@
+"""Chainle solver data, the solve request, and the admin's round log.
+
+The solver route itself is run_chainle in routes/wordgames.py; it hands a
+round to solve_request here.
+
+Self-contained: the word data ships in datasets/ (see datasets/CHAINLE_DATA.md)
+and nothing is fetched at runtime. The solver never contacts any Chainle site.
+
+/chainle_admin keeps a log of rounds the admin plays, to tune the ranking in
+functions/chainle.py against. Logged rounds stay in the database: the solver
+never shows them and never uses them as answers.
+"""
+
+import os
+import re
+import threading
+import time
+from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
+
+import pytz
+from flask import Blueprint, jsonify, redirect, render_template, request
+
+from data import data_folder
+from extensions import auth, db_cursor, pst_now_str
+from functions import chainle as ch
+from helpers import ValidationError, release_memory
+from monitoring import alerts
+
+bp = Blueprint('chainle', __name__)
+
+# Chainle's clues are single words: a bridge round has two or three, the
+# closest-meaning round one.
+CLUES_PER_KIND = {'bridge': (2, 3), 'meaning': (1, 1)}
+MAX_CLUE_LEN = 20
+_CLUE = re.compile(r'[A-Za-z]{1,%d}' % MAX_CLUE_LEN)
+
+
+##### solver data #####
+
+# A module memo, not SimpleCache: SimpleCache pickles, so every get would
+# copy ~14 MB of arrays (see routes/guess_the_phrase.py).
+_static = {'data': None, 'failed_at': 0.0}
+_load_lock = threading.Lock()
+# After a failed load, wait this long before trying again, so a broken file
+# costs one attempt per window rather than one per request.
+LOAD_RETRY_SECONDS = 300
+
+
+def get_data():
+    """The shipped word data, read once per process (~0.1 s, ~14 MB). None
+    if it won't load; the page then says the solver is unavailable."""
+    if _static['data'] is not None:
+        return _static['data']
+    with _load_lock:
+        if _static['data'] is None and time.time() - _static['failed_at'] > LOAD_RETRY_SECONDS:
+            try:
+                _static['data'] = ch.Data.from_file(os.path.join(data_folder, 'chainle_data.npz'))
+                # Decompressing the file goes through buffers glibc would
+                # otherwise keep.
+                release_memory()
+            except Exception as e:
+                _static['failed_at'] = time.time()
+                alerts.alert_throttled('chainle_data_failed', sev='crit', exc=type(e).__name__, msg=e)
+    return _static['data']
+
+
+def page_context():
+    """What the page template needs besides the SEO blob. Rendering the page
+    never touches the database."""
+    data = get_data()
+    return {'vocab_size': data.size if data is not None else None}
+
+
+##### solving #####
+
+def _clue_list(raw, kind):
+    """The clue words, lower case, or raise ValidationError."""
+    lo, hi = CLUES_PER_KIND[kind]
+    if not isinstance(raw, list) or not lo <= len(raw) <= hi:
+        count = f'{lo} or {hi} words' if lo != hi else f'{lo} word'
+        raise ValidationError(f'a {kind} round takes {count}')
+    clues = []
+    for clue in raw:
+        if not isinstance(clue, str) or not _CLUE.fullmatch(clue.strip()):
+            raise ValidationError(f'each clue must be one word of at most {MAX_CLUE_LEN} letters')
+        clues.append(clue.strip().lower())
+    if len(set(clues)) != len(clues):
+        raise ValidationError('the clues must be different words')
+    return clues
+
+
+def parse_request(data):
+    """(clues, kind) from a POST body."""
+    kind = data.get('kind', 'bridge')
+    if kind not in CLUES_PER_KIND:
+        raise ValidationError('kind must be bridge or meaning')
+    return _clue_list(data.get('clues'), kind), kind
+
+
+def solve_request(data):
+    """The JSON the page renders for one round."""
+    clues, kind = parse_request(data)
+    solver = get_data()
+    if solver is None:
+        return jsonify(error='The solver is unavailable right now.'), 503
+    return jsonify(ch.solve(solver, clues, kind))
+
+
+##### admin: the round log #####
+
+ADMIN = '/chainle_admin'
+SITES = ('chainle.io', 'chaindle.org', 'other')
+# The daily game's rounds: 1-3 two-word bridges, 4 a three-word bridge, 5 the
+# closest meaning. The form can override the kind for a site that differs.
+ROUND_KIND = {1: 'bridge', 2: 'bridge', 3: 'bridge', 4: 'bridge', 5: 'meaning'}
+ROUND_CLUES = {1: 2, 2: 2, 3: 2, 4: 3, 5: 1}
+SHOW_ROUNDS = 100
+MAX_WORD_LEN = 40
+MAX_NOTES = 200
+FIRST_DAY = date(2026, 1, 1)
+
+UPSERT_ROUND = """
+INSERT INTO chainle_rounds (played_on, site, round_no, kind, clues, answer, guess, score, notes, created_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
+ON DUPLICATE KEY UPDATE kind = new.kind, clues = new.clues, answer = new.answer,
+    guess = new.guess, score = new.score, notes = new.notes, created_at = new.created_at
+"""
+
+
+def _today():
+    return datetime.now(pytz.timezone('America/Los_Angeles')).date()
+
+
+def _back(**message):
+    """Back to the admin page, with a success or error message."""
+    return redirect(ADMIN + ('?' + urlencode(message) if message else ''))
+
+
+def _word(form, field, label):
+    """An optional single word from the form, upper case, or None."""
+    value = form.get(field, '').strip()
+    if not value:
+        return None
+    if not re.fullmatch(r'[A-Za-z]{1,%d}' % MAX_WORD_LEN, value):
+        raise ValidationError(f'{label} must be one word, letters only')
+    return value.upper()
+
+
+def parse_round(form):
+    """The INSERT's values for a round from the admin form, or raise
+    ValidationError with a message for the page."""
+    raw_day = form.get('played_on', '').strip()
+    try:
+        played_on = datetime.strptime(raw_day, '%Y-%m-%d').date() if raw_day else _today()
+    except ValueError:
+        raise ValidationError('Date must look like 2026-10-14')
+    if not FIRST_DAY <= played_on <= _today() + timedelta(days=1):
+        raise ValidationError('Date is out of range')
+    site = form.get('site', '')
+    if site not in SITES:
+        raise ValidationError('Choose the site you played on')
+    try:
+        round_no = int(form.get('round_no', ''))
+    except ValueError:
+        round_no = 0
+    if round_no not in ROUND_KIND:
+        raise ValidationError('Round must be 1 to 5')
+    kind = form.get('kind') or ROUND_KIND[round_no]
+    if kind not in CLUES_PER_KIND:
+        raise ValidationError('Unknown round type')
+    clues = [form.get(f'clue{n}', '').strip() for n in (1, 2, 3)]
+    try:
+        clues = _clue_list([c for c in clues if c], kind)
+    except ValidationError as e:
+        raise ValidationError(str(e).capitalize())
+    answer = _word(form, 'answer', "The game's answer")
+    guess = _word(form, 'guess', 'Your guess')
+    raw_score = form.get('score', '').strip()
+    if raw_score and not (raw_score.isdigit() and int(raw_score) <= 1000):
+        raise ValidationError('Score must be a whole number from 0 to 1000')
+    notes = form.get('notes', '').strip()[:MAX_NOTES] or None
+    return (played_on.isoformat(), site, round_no, kind, ' '.join(c.upper() for c in clues),
+            answer, guess, int(raw_score) if raw_score else None, notes, pst_now_str())
+
+
+# How the solver rates each logged round, by (kind, clues, answer, guess):
+# the rows don't change, so the admin page only pays for new ones. Cleared
+# when full; the data itself only changes on a deploy.
+_assessed = {}
+ASSESS_MEMO_MAX = 1000
+
+
+def _assess(data, kind, clues, answer, guess):
+    key = (kind, clues, answer, guess)
+    if key not in _assessed:
+        if len(_assessed) >= ASSESS_MEMO_MAX:
+            _assessed.clear()
+        _assessed[key] = ch.assess(data, clues.lower().split(), kind, [answer, guess])
+    return _assessed[key]
+
+
+def _round_type(kind, clues):
+    if kind == 'meaning':
+        return 'Closest meaning'
+    return 'Three-word bridge' if len(clues) == 3 else 'Two-word bridge'
+
+
+def assess_rounds(data, rows):
+    """The admin page's rows and summary: for each logged round, where the
+    solver ranks the game's answer and your guess, and its own first pick."""
+    rounds, tally, scores = [], {}, []
+    for rid, played_on, site, round_no, kind, clues, answer, guess, score, notes in rows:
+        got = _assess(data, kind, clues, answer, guess) if data is not None else None
+        r = {
+            'id': rid, 'played_on': str(played_on), 'site': site, 'round_no': round_no,
+            'type': _round_type(kind, clues.split()), 'clues': clues.split(), 'answer': answer,
+            'guess': guess, 'score': score, 'notes': notes, 'known': got is not None,
+            'top': got['top'] if got else None,
+            'rank': got['ranks'].get(answer) if got and answer else None,
+            'guess_rank': got['ranks'].get(guess) if got and guess else None,
+        }
+        rounds.append(r)
+        if score is not None:
+            scores.append(score)
+        if got and answer:
+            t = tally.setdefault(r['type'], {'rounds': 0, 'top1': 0, 'top3': 0, 'top10': 0})
+            t['rounds'] += 1
+            for name, cut in (('top1', 1), ('top3', 3), ('top10', 10)):
+                t[name] += r['rank'] is not None and r['rank'] <= cut
+    order = ('Two-word bridge', 'Three-word bridge', 'Closest meaning')
+    return {
+        'rounds': rounds,
+        'summary': [(name, tally[name]) for name in order if name in tally],
+        'avg_score': round(sum(scores) / len(scores)) if scores else None,
+    }
+
+
+@bp.route(ADMIN)
+@auth.login_required
+def chainle_admin():
+    """The round log: a form to add a round, and how the solver rates each."""
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM chainle_rounds")
+            total = cursor.fetchone()[0]
+            cursor.execute(
+                "SELECT id, played_on, site, round_no, kind, clues, answer, guess, score, notes "
+                "FROM chainle_rounds ORDER BY played_on DESC, round_no DESC, id DESC LIMIT %s",
+                (SHOW_ROUNDS,))
+            rows = cursor.fetchall()
+    except Exception as e:
+        print(f"Error loading chainle admin: {e}")
+        return render_template('error.html', return_type='Admin Error'), 500
+    data = get_data()
+    return render_template('chainle_admin.html', total=total, today=_today().isoformat(),
+                           sites=SITES, round_clues=ROUND_CLUES, data_ok=data is not None,
+                           shown=SHOW_ROUNDS, **assess_rounds(data, rows))
+
+
+@bp.route(ADMIN + '/log_round', methods=['POST'])
+@auth.login_required
+def chainle_log_round():
+    """Save a round. Logging the same date, site and round again replaces it."""
+    try:
+        values = parse_round(request.form)
+    except ValidationError as e:
+        return _back(error=str(e))
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute(UPSERT_ROUND, values)
+            conn.commit()
+    except Exception as e:
+        print(f"Error logging chainle round: {e}")
+        return _back(error='Database error')
+    return _back(success=f'Saved round {values[2]} of {values[0]}')
+
+
+@bp.route(ADMIN + '/delete_round', methods=['POST'])
+@auth.login_required
+def chainle_delete_round():
+    try:
+        rid = int(request.form.get('id', ''))
+    except ValueError:
+        return _back(error='No round chosen')
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("DELETE FROM chainle_rounds WHERE id = %s", (rid,))
+            conn.commit()
+    except Exception as e:
+        print(f"Error deleting chainle round: {e}")
+        return _back(error='Database error')
+    return _back(success='Round deleted')

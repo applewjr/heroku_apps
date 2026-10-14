@@ -18,14 +18,15 @@ SELECT
     SUM(CASE WHEN page_name = 'smush.html' THEN 1 ELSE 0 END) AS smush,
     SUM(CASE WHEN page_name = 'ribbit.html' THEN 1 ELSE 0 END) AS ribbit,
     SUM(CASE WHEN page_name = 'wordiply.html' THEN 1 ELSE 0 END) AS wordiply,
-    SUM(CASE WHEN page_name = 'guess_the_phrase.html' THEN 1 ELSE 0 END) AS guess_the_phrase
+    SUM(CASE WHEN page_name = 'guess_the_phrase.html' THEN 1 ELSE 0 END) AS guess_the_phrase,
+    SUM(CASE WHEN page_name = 'chainle.html' THEN 1 ELSE 0 END) AS chainle
 FROM app_visits
-WHERE page_name IN ('blossom.html', 'wordle_revamp.html', 'antiwordle_revamp.html', 'quordle.html', 'smush.html', 'ribbit.html', 'wordiply.html', 'guess_the_phrase.html')
+WHERE page_name IN ('blossom.html', 'wordle_revamp.html', 'antiwordle_revamp.html', 'quordle.html', 'smush.html', 'ribbit.html', 'wordiply.html', 'guess_the_phrase.html', 'chainle.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'
-    -- run_checks fetches /blossom, /smush, /wordle and /guess_the_phrase every
-    -- hour, and those GETs write app_visits rows like any other. Counting them
-    -- would add 24 a day to four of these columns and quietly overstate real
-    -- usage.
+    -- run_checks fetches /blossom, /smush, /wordle, /guess_the_phrase and
+    -- /chainle every hour, and those GETs write app_visits rows like any other.
+    -- Counting them would add 24 a day to five of these columns and quietly
+    -- overstate real usage.
     AND user_agent <> 'jj-healthcheck'
 GROUP BY date
 ORDER BY date DESC
