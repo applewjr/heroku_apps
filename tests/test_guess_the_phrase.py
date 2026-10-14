@@ -304,6 +304,7 @@ def test_admin_page_shows_lists_and_reports(client, gtp_db, monkeypatch):
     assert resp.status_code == 200
     assert 'STAR WARS' in html and 'MOTEL CALIFORNIA' in html and 'song:5-10' in html
     assert 'last 30 days' in html
+    assert '<td class="report-missing">missing</td>' in html
 
 
 def test_admin_remove_takes_a_phrase_out_by_its_key(client, gtp_db, monkeypatch):
@@ -321,6 +322,72 @@ def test_admin_without_a_choice_changes_nothing(client, gtp_db, monkeypatch):
                        data={'word': 'STAR WARS'})
     assert 'error=' in resp.headers['Location']
     assert not db.statements('INSERT')
+
+
+def _admin_text(client, monkeypatch, query):
+    """The admin page for a search, as text with whitespace collapsed."""
+    resp = client.get('/guess_the_phrase_admin', query_string={'q': query},
+                      headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 200
+    return ' '.join(resp.get_data(as_text=True).split())
+
+
+def test_admin_search_says_a_shipped_phrase_is_listed(client, gtp_db, monkeypatch):
+    gtp_db()
+    text = _admin_text(client, monkeypatch, 'Hotel California')
+    assert ("<strong>HOTEL CALIFORNIA</strong> is in the solver's list: "
+            "shipped, tagged song, popularity 40.0.") in text
+    assert 'Add it' not in text
+
+
+def test_admin_search_offers_to_add_an_unlisted_phrase(client, gtp_db, monkeypatch):
+    gtp_db()
+    text = _admin_text(client, monkeypatch, "Motel California!")
+    assert "<strong>MOTEL CALIFORNIA</strong> is not in the solver's list." in text
+    assert '<input type="hidden" name="word" value="MOTEL CALIFORNIA">' in text
+    # The Add button carries the search, so the page comes back to it.
+    assert '<input type="hidden" name="q" value="Motel California!">' in text
+
+
+def test_admin_search_shows_added_and_removed_phrases(client, gtp_db, monkeypatch):
+    gtp_db(rows={'SELECT word FROM gtp_invalid_words': [('STAR WARS',)],
+                 'SELECT word FROM gtp_added_words': [('MOTEL CALIFORNIA',)]})
+    text = _admin_text(client, monkeypatch, 'motel california')
+    assert "<strong>MOTEL CALIFORNIA</strong> is in the solver's list: added (see Added Phrases)." in text
+    text = _admin_text(client, monkeypatch, 'star wars')
+    assert "<strong>STAR WARS</strong> is removed from the shipped list, so players don't see it." in text
+
+
+def test_admin_search_for_a_board_or_nothing_says_nothing(client, gtp_db, monkeypatch):
+    gtp_db()
+    for query in ('song:', 'song:5-10', '', '123'):
+        assert 'class="phrase-status"' not in _admin_text(client, monkeypatch, query)
+
+
+def test_admin_add_refuses_a_shipped_phrase(client, gtp_db, monkeypatch):
+    # Not a harmless duplicate: an added copy scores ADDED_POP in every
+    # category, not just the ones the phrase is tagged for.
+    from urllib.parse import parse_qs, urlsplit
+    db = gtp_db()
+    resp = client.post('/guess_the_phrase_admin/add_word', headers=_admin_headers(monkeypatch),
+                       data={'word': 'Hotel California', 'word_type': 'missing', 'q': 'hotel'})
+    args = parse_qs(urlsplit(resp.headers['Location']).query)
+    assert args['error'] == ['HOTEL CALIFORNIA is already in the shipped phrase list - nothing changed']
+    assert args['q'] == ['hotel']
+    assert not db.statements('INSERT')
+
+
+def test_admin_add_takes_an_unlisted_or_removed_phrase(client, gtp_db, monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+    db = gtp_db(rows={'SELECT word FROM gtp_invalid_words': [('STAR WARS',)]})
+    for phrase in ('Motel California', 'Star Wars'):
+        resp = client.post('/guess_the_phrase_admin/add_word', headers=_admin_headers(monkeypatch),
+                           data={'word': phrase, 'word_type': 'missing', 'q': 'x', 'tab': 'added'})
+        args = parse_qs(urlsplit(resp.headers['Location']).query)
+        assert args == {'q': ['x'], 'tab': ['added'],
+                        'success': [f'{phrase.upper()} added to the phrase list']}
+    assert [p for _sql, p in db.statements('INSERT INTO gtp_added_words')] == [
+        ('MOTEL CALIFORNIA',), ('STAR WARS',)]
 
 
 # --- the shipped files ------------------------------------------------------

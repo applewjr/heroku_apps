@@ -679,9 +679,9 @@ def test_web_probe_fails_on_missing_content(capsys, monkeypatch):
 
 
 def test_web_probe_retries_before_calling_a_page_slow(capsys, monkeypatch):
-    # restart-dyno.yml restarts the dyno twice a day, and the first request
-    # after a boot pays for data.py loading its CSVs. One slow sample is a cold
-    # start, not a slow site.
+    # Heroku restarts the dyno at least daily, and the first request after a
+    # boot pays for data.py loading its CSVs. One slow sample is a cold start,
+    # not a slow site.
     results, left = _run_probe(
         monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
         [(_Resp(), 4000), (_Resp(), 150)])

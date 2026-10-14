@@ -99,7 +99,7 @@ manual dispatch, so it can run the moment prod is verified.
 | `monitoring/` | New package. Alert emission, the job wrapper, and the hourly checks. |
 | `datasets/health_checks.yaml` | The checks themselves. SQL inline rather than in views, so a check deploys atomically with the code and needs no manual DDL step. |
 | `app.py` | The 500 handler calls `log_page_visit` and emits a throttled `http_500` alert. The 404 handler deliberately does not log - see `routes/misc.py`. |
-| `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. |
+| `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. Since 2026-10-13 a bot's post is dropped, not stored: it leaves a plain `feedback dropped (<reason>)` log line (`blossom feedback dropped` for /blossom_feedback), and `feedback_flood` / `blossom_feedback_flood` fires if a form reaches its hourly or daily cap (`helpers.FEEDBACK_MAX_PER_*`). |
 | `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. |
 
 Three alerts come out of the write-behind path itself, none of them in the
@@ -137,7 +137,7 @@ existed already on `/blossom`:
 - **`extensions.py`** builds the connection pool lazily.
   `MySQLConnectionPool`'s constructor eagerly opens connections, so building
   it at import meant a JawsDB outage during a dyno boot took the entire app
-  down, and `restart-dyno.yml` restarts twice daily. A failed build is now
+  down, and Heroku restarts the dyno at least daily. A failed build is now
   remembered for `_POOL_RETRY_SECONDS` (20). Without that, every request
   during an outage retries the whole build, and because those retries
   serialise on one lock the eighth waiting thread sits eight
@@ -478,8 +478,8 @@ arrived inside `max_ms`:
 | 200 but content missing | It served a page that did not render. A solver whose template loads while its engine returns nothing answers 200 all day. |
 | 200, correct, but slow | The only performance signal in the system. Nothing else measures how long anything takes, so a page that gets ten times slower is otherwise indistinguishable from a healthy one. |
 
-A latency breach is measured twice before it alerts. `restart-dyno.yml`
-restarts the dyno at 3am and 3pm PST and the first request after a boot pays
+A latency breach is measured twice before it alerts. Heroku restarts the dyno
+at least daily (and on every deploy) and the first request after a boot pays
 for `data.py` loading its CSVs, so one slow sample is a cold start rather than
 evidence.
 
@@ -581,13 +581,13 @@ day until it is fixed - the same alert-fatigue failure that `only_between_pst`
 exists to prevent. If R14 ever fires for real, throttle that alert rather than
 reading past it.
 
-**Watch for R12 from your own restarts.** `.github/workflows/restart-dyno.yml`
-cycles the web dyno twice a day. If gunicorn does not exit within 30s of
-SIGTERM, Heroku emits `Error R12 (Exit timeout)`, which `"Error R"` catches -
-twice a day, looking like an incident. Unverified either way: no web dyno
-restart appeared in the window pulled on 2026-09-29, which covered 22:00 UTC
-when the cron is set to fire. If R12 shows up at 3am and 3pm PST, that is the
-restart, not a fault.
+**Watch for R12 around restarts.** Heroku cycles the web dyno about once a
+day and on every deploy. If gunicorn does not exit within 30s of SIGTERM,
+Heroku emits `Error R12 (Exit timeout)`, which `"Error R"` catches, looking
+like an incident. If R12 lines up with a daily cycle or a deploy, that is the
+restart, not a fault. (The twice-daily `restart-dyno.yml` workflow was removed
+on 2026-10-13, after the memory-creep fix in `helpers.pin_malloc_thresholds`
+shipped.)
 
 #### Three channels, and what each one survives
 
@@ -891,7 +891,7 @@ That is 6-15x headroom, which is too loose to catch a page that merely doubled.
 Every run now prints `ms=` per probe, so after a couple of weeks of history in
 Papertrail these should be tightened to something measured - the same way
 `blossom_idle`'s 240 and `site_idle`'s 180 were set from a replay rather than a
-guess. Leave room for the cold start after the twice-daily dyno restart; the
+guess. Leave room for the cold start after Heroku's daily dyno restart; the
 two-measurement retry absorbs it, but only if the ceiling is not absurdly
 tight.
 

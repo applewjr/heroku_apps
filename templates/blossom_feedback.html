@@ -15,7 +15,9 @@
     }
 
     function setReferrer() {
-      document.forms["form1"]["referrer"].value = document.referrer;
+      // A re-shown form already carries the page the visitor came from.
+      var field = document.forms["form1"]["referrer"];
+      if (!field.value) field.value = document.referrer;
     }
 
     function updateFormText() {
@@ -42,7 +44,17 @@
 
 {% block content %}
   <form name="form1" action="/blossom_feedback" method="post" onsubmit="return validateForm()">
-    <input type="hidden" name="referrer" value="">
+    <input type="hidden" name="referrer" value="{{ referrer or '' }}">
+    {# Bot screening, as on /feedback (see the notes in feedback.html and
+       helpers.bot_reason): a signed render time, and an off-screen honeypot
+       with a meaningless name that a password manager won't fill. #}
+    <input type="hidden" name="feedback_token" value="{{ feedback_token }}">
+    <div aria-hidden="true"
+         style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
+      <label for="feedback_extra">Leave this field empty</label>
+      <input type="text" id="feedback_extra" name="feedback_extra"
+             tabindex="-1" autocomplete="off" value="">
+    </div>
     <center>
       <br>
       <h1 style="text-align: center">Report Words</h1>
@@ -50,18 +62,23 @@
       <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 0 auto;">
         Help to improve the Blossom solver! Report words that should be removed or added.
       </p>
+      {% if resubmit %}
+      <p class="pad_lr_30" style="text-align: center; max-width: 600px; margin: 12px auto 0; color: #02484d; font-weight: bold;">
+        This page had been open a while. Your report is still below - please press Submit Report again to send it.
+      </p>
+      {% endif %}
       <br>
       
       <!-- Report Type Selection -->
       <div style="margin: 20px 0;">
         <h5 style="margin-bottom: 10px;">What would you like to report?</h5>
         <label style="display: inline-block; margin: 0 20px; cursor: pointer;">
-          <input type="radio" name="report_type" value="invalid" onchange="updateFormText()" style="margin-right: 8px;" checked>
+          <input type="radio" name="report_type" value="invalid" onchange="updateFormText()" style="margin-right: 8px;"{% if report_type != 'missing' %} checked{% endif %}>
           <span style="color: #dc3545; font-weight: bold;">Invalid Word (Needs Removal)</span>
           <br><small style="color: #666;">Words our solver shows but Blossom rejects</small>
         </label>
         <label style="display: inline-block; margin: 0 20px; cursor: pointer;">
-          <input type="radio" name="report_type" value="missing" onchange="updateFormText()" style="margin-right: 8px;">
+          <input type="radio" name="report_type" value="missing" onchange="updateFormText()" style="margin-right: 8px;"{% if report_type == 'missing' %} checked{% endif %}>
           <span style="color: #28a745; font-weight: bold;">Missing Word (Needs Adding)</span>
           <br><small style="color: #666;">Words Blossom accepts but our solver doesn't show</small>
         </label>
@@ -70,7 +87,7 @@
       
       <h5 class="pad_lr_30" style="text-align: center;" id="words-label">Invalid or Missing Word</h5>
       <textarea name="feedback_body" style="width: 500px; max-width: 90%;" maxlength="500" rows="4" 
-                placeholder="Enter word(s) that weren't accepted by Blossom. One word per line."></textarea>
+                placeholder="Enter word(s) that weren't accepted by Blossom. One word per line.">{{ feedback_body or '' }}</textarea>
       <br>
       <br>
       <input type="submit" value="Submit Report" style="

@@ -1258,7 +1258,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* ---------- saving ---------- */
-    // No expiry by date: players work through old puzzles too. New puzzle clears it.
     function save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -1267,10 +1266,27 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) {}
     }
 
+    /* A save from a previous calendar day is a finished puzzle: daily players
+       should land on a fresh board, as on Smush (James, 2026-10-13). The age
+       floor keeps a game that straddles midnight alive. Someone working
+       through an old puzzle just enters it again the next day. */
+    const STALE_FLOOR_HOURS = 6;
+    function isStale(s) {
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        const savedDay = new Date(s.savedAt).toDateString();
+        return savedDay !== new Date().toDateString() && ageHours > STALE_FLOOR_HOURS;
+    }
+
     function restore() {
         let s = null;
         try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
         if (!s || !Array.isArray(s.lengths) || !Array.isArray(s.letters)) return false;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.lengths.length) toast("Cleared yesterday's board - enter today's puzzle");
+            return false;
+        }
         const lens = s.lengths.filter(n => Number.isInteger(n) && n >= 1 && n <= MAX_WORD_LEN);
         const total = lens.reduce((a, b) => a + b, 0);
         if (!lens.length || lens.length !== s.lengths.length || lens.length > MAX_WORDS

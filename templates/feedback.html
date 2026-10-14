@@ -85,6 +85,16 @@
         text-align: center;
         margin-top: 0.5rem;
     }
+    .feedback-notice {
+        font-size: 0.95rem;
+        color: #02484d;
+        background: #eef6f6;
+        border: 1px solid #cfe3e3;
+        border-radius: 8px;
+        padding: 0.7rem 0.85rem;
+        margin: 0 0 1.25rem;
+        text-align: center;
+    }
 </style>
 {% endblock %}
 
@@ -93,26 +103,27 @@
     <div class="feedback-card">
         <h1>Feedback</h1>
         <p class="feedback-intro">This site is a personal project, and I appreciate everyone who takes the time to use it. If you have any feedback, suggestions, feature requests, or constructive criticism, I'd be glad to hear it. Thank you.</p>
+        {% if resubmit %}
+        <p class="feedback-notice">This page had been open a while. Your message is still below - please press Submit again to send it.</p>
+        {% endif %}
         <form name="form1" action="#" method="post">
-            <input type="hidden" name="referrer" id="referrer" value="">
+            <input type="hidden" name="referrer" id="referrer" value="{{ referrer or '' }}">
             {#
-              Signed render timestamp. The POST handler flags submissions that
-              arrive within a couple of seconds of this being minted - a bot
-              that reads the form and skips the honeypot below still cannot
-              spend two seconds pretending to type.
-
-              Like the honeypot, it never rejects: it only suppresses the
-              notification. And a missing or unverifiable token counts as no
-              signal at all, so an older cached copy of this page, a rotated
-              secret, or a tab left open overnight all submit normally.
+              Signed render timestamp. A submission that arrives within a
+              couple of seconds of this being minted is dropped as a bot
+              (helpers.bot_reason) - something that reads the form and skips
+              the honeypot below still cannot spend two seconds pretending to
+              type. A missing, unverifiable or expired token is not dropped:
+              the form comes back with the visitor's text and a fresh token,
+              so an older cached copy of this page or a tab left open overnight
+              costs a person one extra click, never their message.
             #}
             <input type="hidden" name="feedback_token" value="{{ feedback_token }}">
             {#
-              Honeypot. Hidden from people, so only a form-filling bot fills it.
-              Never a rejection: a tripped honeypot still saves the feedback and
-              only declines to send the notification, because nothing here may
-              cost a real person their message. The daily digest lists every row
-              from the last 24 hours, so anything suppressed is still seen.
+              Honeypot. Hidden from people, so only a form-filling bot fills it,
+              and a filled one is dropped (the scanners of 2026-09-29 and
+              2026-10-13 filled every field). The drop leaves a log line with
+              the start of the message, in case a person ever trips it.
 
               Positioned off-screen rather than display:none or type=hidden -
               both are trivially skipped by anything that reads the DOM. The
@@ -130,11 +141,11 @@
             </div>
             <div class="feedback-field">
                 <label for="feedback_header">Topic</label>
-                <input type="text" id="feedback_header" name="feedback_header" maxlength="255" required>
+                <input type="text" id="feedback_header" name="feedback_header" maxlength="255" required value="{{ feedback_header or '' }}">
             </div>
             <div class="feedback-field">
                 <label for="feedback_body">Your Input</label>
-                <textarea id="feedback_body" name="feedback_body" maxlength="2000" rows="5" required></textarea>
+                <textarea id="feedback_body" name="feedback_body" maxlength="2000" rows="5" required>{{ feedback_body or '' }}</textarea>
             </div>
             <div class="feedback-actions">
                 <button type="submit" class="feedback-submit">Submit</button>
@@ -144,6 +155,9 @@
 </div>
 
 <script>
-    document.getElementById('referrer').value = document.referrer;
+    // A re-shown form already carries the page the visitor came from; its
+    // own document.referrer would just be this page.
+    var referrerInput = document.getElementById('referrer');
+    if (!referrerInput.value) referrerInput.value = document.referrer;
 </script>
 {% endblock %}

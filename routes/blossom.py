@@ -1,24 +1,21 @@
 """Blossom solver, admin word management, and feedback routes."""
 
-import smtplib
 import time
-from datetime import datetime
-from email.mime.text import MIMEText
 
-import pytz
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
-import config
 import crowd
 # The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
 from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
                    CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
                    CROWD_WINDOW_DAYS)
 from data import word_pop, words_blossom
-from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
+from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
 from functions import all_words
-from helpers import ValidationError, make_schema_data, parse_int, parse_letters
+from helpers import (ValidationError, bot_reason, client_ip, feedback_flooded, issue_form_token,
+                     log_dropped, make_schema_data, parse_int, parse_letters)
+from monitoring import alerts
 
 bp = Blueprint('blossom', __name__)
 
@@ -185,6 +182,11 @@ def _admin_form():
 NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
 
 
+def _back(**message):
+    """Back to /blossom_admin as the admin left it, with a message."""
+    return redirect(crowd.admin_return_url('/blossom_admin', request.form, **message))
+
+
 @bp.route('/blossom_admin')
 @auth.login_required
 def blossom_admin():
@@ -226,16 +228,16 @@ def add_word():
     """Remove a word from Blossom's list ('invalid') or add one ('missing')."""
     word, kind = _admin_form()
     if kind is None:
-        return redirect(f'/blossom_admin?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not word.isalpha():
-        return redirect('/blossom_admin?error=Word must be letters only')
+        return _back(error='Word must be letters only')
     try:
         BLOSSOM_CROWD.admin_set(word, kind)
     except Exception as e:
         print(f"Error adding word: {e}")
-        return redirect('/blossom_admin?error=Database error')
+        return _back(error='Database error')
     done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
-    return redirect(f'/blossom_admin?success={word} {done}')
+    return _back(success=f'{word} {done}')
 
 
 @bp.route('/remove_word', methods=['POST'])
@@ -244,26 +246,53 @@ def remove_word():
     """Undo an entry in either list, and reset that word's votes."""
     word, kind = _admin_form()
     if kind is None:
-        return redirect(f'/blossom_admin?error={NO_CHOICE}')
+        return _back(error=NO_CHOICE)
     if not word.isalpha():
-        return redirect('/blossom_admin?error=Word must be letters only')
+        return _back(error='Word must be letters only')
     try:
         BLOSSOM_CROWD.admin_remove(word, kind)
     except Exception as e:
         print(f"Error removing word: {e}")
-        return redirect('/blossom_admin?error=Database error')
-    return redirect(f'/blossom_admin?success={word} undone')
+        return _back(error='Database error')
+    return _back(success=f'{word} undone')
+
+
+# Namespaces this form's token, as FEEDBACK_TOKEN_SALT does /feedback's.
+BLOSSOM_FEEDBACK_TOKEN_SALT = 'blossom-feedback'
 
 
 @bp.route("/blossom_feedback", methods=["POST", "GET"])
+@limiter.limit(FEEDBACK_POST_LIMITS, key_func=client_ip, methods=["POST"])
 def blossom_feedback():
     if request.method == "POST":
         report_type = request.form['report_type']
         feedback_body = request.form['feedback_body']
         referrer = request.form['referrer']
 
-        # Log inputs to new feedback_blossom table
-        feedback_id = None
+        # Same screening as /feedback (helpers.bot_reason): a bot's post is
+        # dropped, not stored, and still gets the thank-you page. On
+        # 2026-10-13 a scanner put 21 rows in here within seconds.
+        reason = bot_reason(request.form, 'feedback_extra', 'feedback_token',
+                            BLOSSOM_FEEDBACK_TOKEN_SALT)
+        if reason == 'stale':
+            # No usable token: an old copy of the page or a tab left open.
+            return render_template(
+                "blossom_feedback.html", resubmit=True, referrer=referrer,
+                report_type=report_type, feedback_body=feedback_body,
+                feedback_token=issue_form_token(BLOSSOM_FEEDBACK_TOKEN_SALT, resubmit=True))
+        if reason is None and report_type not in ('invalid', 'missing'):
+            # The page's radios send nothing else; all 6 blank ones in the
+            # table came from the 2026-10-13 scanner.
+            reason = 'report type'
+        if reason is None and feedback_flooded(db_cursor, 'feedback_blossom'):
+            reason = 'flood'
+            alerts.alert_throttled('blossom_feedback_flood', referrer=referrer)
+        if reason:
+            log_dropped('blossom feedback', reason, f'{report_type} | {feedback_body}')
+            return render_template("blossom_feedback_received.html", report_type=report_type)
+
+        # Stored only: no email since 2026-10-13 (James). The reports are on
+        # /blossom_admin's Recent Feedback tab.
         try:
             with db_cursor() as (conn, cursor):
                 query = """
@@ -272,56 +301,17 @@ def blossom_feedback():
                 """
                 cursor.execute(query, (referrer, report_type, feedback_body))
                 conn.commit()
-                feedback_id = cursor.lastrowid  # Get the ID of the inserted record
         except Exception as err:
-            # Broad on purpose: feedback_id stays None and the notification
-            # email below still goes out, so a database problem costs the row
-            # but never the report - and never a 500 for the reporter.
-            print("Error:", err)
-
-        # Send email notification
-        if config.BLOSSOM_EMAIL_FLAG == 1:
-            try:
-                pst = pytz.timezone('America/Los_Angeles')
-                current_time = datetime.now(pst).strftime("%Y-%m-%d %H:%M:%S PST")
-
-                report_type_display = "Invalid Words" if report_type == 'invalid' else "Missing Words"
-
-                email_body = f"""New Blossom Word Report Received
-
-Report Type: {report_type_display}
-Submission Time: {current_time}
-Referrer: {referrer}
-Feedback ID: {feedback_id}
-
-Reported Words:
-{feedback_body}
-
----
-View admin panel: https://jamesapplewhite.com/blossom_admin
-"""
-
-                gmail_subject = f'Blossom {report_type_display} Report'
-
-                msg = MIMEText(email_body)
-                msg['Subject'] = gmail_subject
-                msg['From'] = config.GMAIL_SENDER_EMAIL
-                msg['To'] = config.GMAIL_RECEIVER_EMAIL
-
-                with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                    server.starttls()
-                    server.login(config.GMAIL_SENDER_EMAIL, config.GMAIL_PASS)
-                    server.sendmail(config.GMAIL_SENDER_EMAIL, config.GMAIL_RECEIVER_EMAIL, msg.as_string())
-                    print(f'Blossom feedback email sent for {report_type} report')
-
-            except Exception as e:
-                print(f"Failed to send email notification: {e}")
-        else:
-            print("Blossom feedback submitted, email is not configured to send")
+            # Broad on purpose: the reporter is thanked either way, so this
+            # must never be a 500. The words go to the log so the report
+            # isn't lost with the row.
+            print(f"Blossom feedback not saved ({err}): {report_type} | {feedback_body[:200]!r}",
+                  flush=True)
 
         return render_template("blossom_feedback_received.html", report_type=report_type)
     else:
-        return render_template("blossom_feedback.html")
+        return render_template("blossom_feedback.html",
+                               feedback_token=issue_form_token(BLOSSOM_FEEDBACK_TOKEN_SALT))
 
 
 # Memoized in the module, not SimpleCache: SimpleCache pickles, so every

@@ -42,7 +42,6 @@ if IS_HEROKU:
     MTG_PATH = os.environ.get('MTG_PATH')
     SESSION_KEY = os.environ.get('SESSION_KEY')
     GMAIL_PASS = os.environ.get('GMAIL_PASS')
-    BLOSSOM_EMAIL_FLAG = int(os.environ.get('BLOSSOM_EMAIL_FLAG', '1'))
 else:
     # Running locally or in CI. Prefer secret_pass.py on a developer machine; if
     # it is absent (e.g. CI), fall back to environment variables so the app can be
@@ -77,7 +76,6 @@ else:
     MTG_PATH = _secret('MTG_PATH')
     SESSION_KEY = _secret('SESSION_KEY')
     GMAIL_PASS = _secret('GMAIL_PASS')
-    BLOSSOM_EMAIL_FLAG = int(_secret('BLOSSOM_EMAIL_FLAG', 1))
 
 GMAIL_SENDER_EMAIL = 'james.r.applewhite@gmail.com'
 GMAIL_RECEIVER_EMAIL = 'james.r.applewhite@gmail.com'

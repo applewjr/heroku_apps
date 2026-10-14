@@ -112,6 +112,14 @@ def _admin_url(path, args, **changes):
     return path + ('?' + urlencode(query) if query else '')
 
 
+def admin_return_url(path, form, **message):
+    """Where an admin action sends you back to: the page as you left it (the
+    search, tab, settled toggle and pages each form carries in hidden fields,
+    see admin_view's 'keep'), plus the success or error message. A search
+    stays until you press Clear search."""
+    return _admin_url(path, form, **message)
+
+
 def _pager(path, args, tab, param, page, pages):
     """Prev / numbers / Next for one list. `param` is the query arg holding
     this list's page number, so each tab pages on its own."""
@@ -139,10 +147,22 @@ def _paginate(rows, page):
     return rows[start:start + ADMIN_PAGE_SIZE], page, pages
 
 
-def _matching(rows, query):
-    """Rows whose word (first column) contains `query`, case-blind."""
+def _matching(rows, query, board_col=None):
+    """Rows an admin search keeps, case-blind.
+
+    A query with a colon is a board tag - a whole one, or just the center
+    and colon for every board around that center - so it matches the
+    `board_col` column, and a list with no board column has nothing to show.
+    Anything else matches the word (first column). Words never contain a
+    colon, and without the colon rule a short search like "ab" would also
+    hit every board with A and B side by side in its sorted letters.
+    """
     if not query:
         return rows
+    if ':' in query:
+        if board_col is None:
+            return []
+        return [row for row in rows if query in (row[board_col] or '').lower()]
     return [row for row in rows if query in row[0].lower()]
 
 
@@ -460,10 +480,11 @@ class CrowdList:
     def admin_view(self, args, path, tabs=('reports', 'invalid', 'added')):
         """What an admin page shows of this game's lists, from its query args.
 
-        q filters every list by word. settled=1 shows the reports
-        SETTLED_RESULTS hides. rpage / ipage / apage pick a page of the
-        reports, removed and added lists. tab is the tab to open, if it is one
-        of `tabs`. `path` is the admin page's own path, for the links.
+        q filters every list by word, or with a colon the reports by board
+        (see _matching). settled=1 shows the reports SETTLED_RESULTS hides.
+        rpage / ipage / apage pick a page of the reports, removed and added
+        lists. tab is the tab to open, if it is one of `tabs`. `path` is the
+        admin page's own path, for the links.
         """
         query = (args.get('q') or '').strip().lower()
         show_settled = args.get('settled') == '1'
@@ -473,16 +494,20 @@ class CrowdList:
         reports_all = self.recent_reports()
         settled = [r for r in reports_all if r[4] in SETTLED_RESULTS]
         open_reports = [r for r in reports_all if r[4] not in SETTLED_RESULTS]
+        # Column 6 of a report row is its board (see recent_reports).
         reports, reports_page, reports_pages = _paginate(
-            _matching(reports_all if show_settled else open_reports, query), args.get('rpage'))
+            _matching(reports_all if show_settled else open_reports, query, board_col=6),
+            args.get('rpage'))
         invalid_words, invalid_page, invalid_pages = _paginate(
             _matching(invalid_all, query), args.get('ipage'))
         added_words, added_page, added_pages = _paginate(
             _matching(added_all, query), args.get('apage'))
 
         # Normally a word is in one list only (each change clears the other).
-        # If one ever is in both, the solver still plays it, because the added
-        # list wins: say so, rather than let the admin page disagree with it.
+        # If one ever is in both, say so rather than let the admin page
+        # disagree with the solver: Blossom and Smush still play it (the
+        # added list wins), Guess The Phrase leaves it out (OverlayBank drops
+        # removed phrases from its added ones too).
         in_both = sorted({w for w, *_ in invalid_all} & {w for w, *_ in added_all})
 
         return {
@@ -501,6 +526,11 @@ class CrowdList:
                                       settled=None if show_settled else '1', rpage=None),
             'query': query,
             'clear_url': _admin_url(path, {'tab': active_tab, 'settled': args.get('settled')}),
+            # Hidden fields for every form that changes a list, so the page
+            # an action returns to (admin_return_url) keeps its search, tab
+            # and pages. The page's script keeps 'tab' on the tab in view.
+            'keep': {**{k: args[k] for k in _ADMIN_CARRIED_ARGS if args.get(k)},
+                     'tab': active_tab},
             'active_tab': active_tab,
             'in_both': in_both,
             'votes_needed': self.threshold,

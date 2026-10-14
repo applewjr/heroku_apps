@@ -100,60 +100,130 @@ def parse_float(value, field, default, min_value=None, max_value=None):
     return parsed
 
 
+##### bot screening for the public feedback forms #####
+
+# /feedback and /blossom_feedback drop a bot's post rather than store it
+# (James, 2026-10-13). Until then they stored everything and only held back
+# the notification, and on 2026-10-13 a SQL-injection scanner (sqlmap-style
+# probes: 1', 1"), 98766) put 21 rows into each form's table within seconds,
+# as one had into /feedback on 2026-09-29. A dropped post still gets the
+# usual thank-you page, so a bot learns nothing, and log_dropped keeps enough
+# of it to recover a person's message if a check ever misfires.
+
 # Minimum plausible gap between a form rendering and a person submitting it.
 # Two seconds sits far below any real interaction - reading two labels, typing a
 # topic and a sentence - and far above what a scanner spends: the sqlmap run on
 # 2026-09-29 put twenty submissions through inside a single second.
 MIN_SUBMIT_SECONDS = 2
 
-# Token lifetime. Deliberately generous: a form left open in a tab overnight is
-# a person, not a bot, and an expired token is read as "no signal" rather than
-# as suspicion, so a long life costs nothing and a short one would misjudge.
+# Token lifetime. Generous: a form left open in a tab overnight is a person,
+# and an expired token only re-shows the form with the visitor's text, so a
+# long life costs nothing.
 FORM_TOKEN_MAX_AGE = 60 * 60 * 24
+
+# What a re-shown form's token carries instead of 't'. Its visitor has typed
+# their message already, so pressing Submit straight away isn't too fast.
+_RESUBMIT = 'again'
+
+# Most rows a feedback form stores per rolling hour and day before it drops
+# the rest: the bound that holds even for a bot that passes every check. The
+# busiest genuine hour and day on record (2024-01 to 2026-10, the two bot
+# bursts left out) were 2 and 2 for /feedback, 3 and 3 for Blossom.
+FEEDBACK_MAX_PER_HOUR = 10
+FEEDBACK_MAX_PER_DAY = 20
 
 
 def _form_serializer(salt):
     # Signed with the app secret, which is a stable env var in production, so
-    # tokens survive the twice-daily dyno restart. In dev the key is random per
-    # boot, which invalidates tokens across a reload - harmless, because an
-    # unverifiable token is treated as no signal.
+    # tokens survive Heroku's daily dyno cycling and deploys. In dev the key is
+    # random per boot, which invalidates tokens across a reload - harmless,
+    # because an unverifiable token only re-shows the form.
     return URLSafeTimedSerializer(current_app.secret_key, salt=salt)
 
 
-def issue_form_token(salt='form'):
-    """A signed, timestamped token to embed in a form that a bot might flood."""
-    return _form_serializer(salt).dumps('t')
+def issue_form_token(salt='form', resubmit=False):
+    """A signed, timestamped token to embed in a form that a bot might flood.
+    resubmit=True for a form re-shown with the visitor's text in it."""
+    return _form_serializer(salt).dumps(_RESUBMIT if resubmit else 't')
 
 
-def submitted_too_fast(token, salt='form', min_seconds=MIN_SUBMIT_SECONDS):
-    """Did this submission arrive implausibly soon after the form rendered?
+def form_token_state(token, salt='form', min_seconds=MIN_SUBMIT_SECONDS):
+    """'ok', 'too fast' (it verifies, and came back sooner than anyone types),
+    or 'stale' (missing, unverifiable or expired).
 
-    Returns True *only* when the token verifies and the gap is under the
-    threshold. Every other outcome returns False, and that asymmetry is the
-    whole design: a missing token (a cached page, an older copy of the form), a
-    bad signature (a rotated secret), an expired one (a tab left open) and a
-    clock that ran backwards all have innocent explanations. Nothing here may
-    act against a person on a guess, so every failure mode is "no signal"
-    rather than "suspicious".
+    'stale' is never read as a bot: a cached copy of the page, a rotated
+    secret, a tab left open past FORM_TOKEN_MAX_AGE and a token from the
+    future (clock skew across a restart, which itsdangerous refuses) all have
+    innocent explanations, so the form is shown again with the visitor's text
+    and a fresh token instead. A bot that drops or mangles the token gets the
+    same page and stores nothing either way.
 
     Signed rather than a plain timestamp because an unsigned field is one a bot
-    can simply backdate. Signing costs nothing - itsdangerous already ships
-    with Flask - and makes the check worth having against something that reads
-    the form before filling it.
+    can simply backdate.
     """
     if not token:
-        return False
+        return 'stale'
     try:
-        _value, issued_at = _form_serializer(salt).loads(
+        value, issued_at = _form_serializer(salt).loads(
             token, max_age=FORM_TOKEN_MAX_AGE, return_timestamp=True)
     except Exception:
         # Broad on purpose: BadSignature, SignatureExpired, malformed base64
-        # and a missing secret key all mean the same thing here - we learned
-        # nothing, so we accuse no one.
-        return False
+        # and a missing secret key all mean the same thing here.
+        return 'stale'
+    if value == _RESUBMIT:
+        return 'ok'
     elapsed = (datetime.now(timezone.utc) - issued_at).total_seconds()
-    # A negative gap means clock skew, not speed. Treat it as no signal too.
-    return 0 <= elapsed < min_seconds
+    return 'too fast' if elapsed < min_seconds else 'ok'
+
+
+def bot_reason(form, honeypot, token_field, salt):
+    """Why this feedback post looks automated, or None if it looks like a
+    person. In order:
+
+    'honeypot' - the field hidden from people was filled in. A scanner fills
+      every field it finds.
+    'referrer' - the page's script fills referrer from document.referrer,
+      which is empty or a URL. Every row of both bot bursts had a junk one
+      ('1', "1'", '98766'); all 177 genuine rows were empty or http(s).
+    'too fast' or 'stale' - from the form token (see form_token_state). The
+      caller re-shows the form for 'stale' rather than dropping it.
+    """
+    if form.get(honeypot, '').strip():
+        return 'honeypot'
+    referrer = form.get('referrer', '')
+    if referrer and not referrer.startswith(('http://', 'https://')):
+        return 'referrer'
+    state = form_token_state(form.get(token_field), salt=salt)
+    return None if state == 'ok' else state
+
+
+def feedback_flooded(db_cursor, table):
+    """Has `table` already stored FEEDBACK_MAX_PER_HOUR rows in the last
+    hour, or FEEDBACK_MAX_PER_DAY in the last day? submit_time is Pacific.
+
+    Takes the route's db_cursor so a test's stub of it covers this too.
+    Fails open: a count that can't be read never costs a person their
+    message (the insert after it would most likely fail as well).
+    """
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute(f"""
+                SELECT COUNT(*),
+                       COALESCE(SUM(submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 1 HOUR), 0)
+                FROM {table}
+                WHERE submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 1 DAY
+            """)
+            day, hour = cursor.fetchone()
+    except Exception as e:
+        print(f"{table} flood check failed: {e}", flush=True)
+        return False
+    return hour >= FEEDBACK_MAX_PER_HOUR or day >= FEEDBACK_MAX_PER_DAY
+
+
+def log_dropped(form_name, reason, text):
+    """One plain log line per dropped post (no JJ_ALERT, so no email), with
+    enough of it to recover a person's message from Papertrail."""
+    print(f"{form_name} dropped ({reason}): {text[:60]!r}", flush=True)
 
 
 def parse_choice(value, field, options, default):

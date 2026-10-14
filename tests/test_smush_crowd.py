@@ -407,6 +407,81 @@ def test_admin_search_filters_every_list(client, smush_db, monkeypatch):
     assert "<strong>zarf</strong>" not in html
 
 
+# Another board for the search tests: center T, eight outer letters.
+OTHER_TAG = "t:abegilnr"
+
+
+def _sweep_rows():
+    from datetime import datetime
+    when = datetime(2026, 10, 4, 8, 0)
+    return {
+        "FROM smush_invalid_words": [("glop", when, "crowd")],
+        "FROM smush_added_words": [("zarf", when, "admin")],
+        "FROM smush_word_votes v": [("flagellum", "invalid", 1, when, "waiting", when, PUZZLE_TAG),
+                                    (NOT_LISTED, "missing", 1, when, "waiting", when, PUZZLE_TAG),
+                                    ("bagel", "invalid", 1, when, "waiting", when, OTHER_TAG)],
+    }
+
+
+def test_admin_search_with_a_colon_sweeps_one_board(client, smush_db, monkeypatch):
+    # James's sweep of one board: its reports, and nothing else.
+    smush_db(rows=_sweep_rows())
+    html = client.get(f"/smush_admin?q={PUZZLE_TAG}", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>flagellum</strong>" in html and f"<strong>{NOT_LISTED}</strong>" in html
+    assert "<strong>bagel</strong>" not in html
+    # Removed and Added words have no board, so a board search lists none.
+    assert "<strong>glop</strong>" not in html and "<strong>zarf</strong>" not in html
+    # Just the center and the colon: every board around that center.
+    html = client.get("/smush_admin?q=T:", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>bagel</strong>" in html and "<strong>flagellum</strong>" not in html
+
+
+def test_admin_word_search_never_matches_a_board(client, smush_db, monkeypatch):
+    # "ce" is a run of PUZZLE_TAG's sorted letters, but in none of its words.
+    smush_db(rows=_sweep_rows())
+    html = client.get("/smush_admin?q=ce", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "<strong>flagellum</strong>" not in html
+    assert 'No reports match "ce".' in html
+
+
+def test_admin_report_text_is_green_unless_invalid(client, smush_db, monkeypatch):
+    smush_db(rows=_sweep_rows())
+    html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert html.count('<td class="report-missing">missing</td>') == 1
+    assert html.count('<td class="">invalid</td>') == 2
+
+
+def test_admin_forms_carry_the_search(client, smush_db, monkeypatch):
+    smush_db(rows=_sweep_rows())
+    html = client.get(f"/smush_admin?q={PUZZLE_TAG}&settled=1",
+                      headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    # The top form plus the board's two report rows.
+    assert html.count(f'<input type="hidden" name="q" value="{PUZZLE_TAG}">') == 3
+    assert html.count('<input type="hidden" name="settled" value="1">') >= 3
+    assert html.count('<input type="hidden" name="tab" value="reports" class="keep-tab">') == 3
+
+
+def test_admin_actions_keep_the_search(client, smush_db, monkeypatch):
+    # The page an action returns to is the one it was pressed on, until
+    # Clear search.
+    from urllib.parse import parse_qs, urlsplit
+
+    def back(path, **form):
+        resp = client.post(path, data=form, headers=_admin_headers(monkeypatch))
+        assert resp.status_code == 302
+        return parse_qs(urlsplit(resp.headers["Location"]).query)
+
+    smush_db()
+    args = back("/smush_admin/add_word", word="flagellum", word_type="invalid",
+                q=PUZZLE_TAG, tab="reports", settled="1", rpage="2")
+    assert args == {"q": [PUZZLE_TAG], "tab": ["reports"], "settled": ["1"], "rpage": ["2"],
+                    "success": ["flagellum removed from the word list"]}
+    args = back("/smush_admin/remove_word", word="glop", word_type="invalid", q="gl", tab="invalid")
+    assert args == {"q": ["gl"], "tab": ["invalid"], "success": ["glop undone"]}
+    args = back("/smush_admin/add_word", word="glop", q="gl")
+    assert args["q"] == ["gl"] and args["error"][0].startswith("Choose")
+
+
 def test_admin_form_is_choose_then_submit(client, smush_db, monkeypatch):
     smush_db()
     html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
