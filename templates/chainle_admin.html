@@ -88,6 +88,26 @@
 .rank.near { background-color: #e6f2f2; color: #02484d; }
 .rank.miss { background-color: #f1f1f1; color: #6b7280; }
 .muted { color: #6b7280; font-size: 13px; }
+.picks { display: grid; gap: 6px; }
+.pick {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    background-color: #fff;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.pick:hover { background-color: #eef4f4; }
+.pick b { color: #02484d; font-size: 15px; letter-spacing: 1px; white-space: nowrap; }
+.pick span { color: #6b7280; font-size: 12px; text-align: right; overflow-wrap: anywhere; }
+.pick.chosen { border-color: #02484d; box-shadow: 0 0 0 2px #ffd700; }
 @media (max-width: 480px) {
     .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -115,7 +135,7 @@
             <div class="form-grid">
                 <div class="form-group">
                     <label for="played_on">Puzzle date</label>
-                    <input type="date" id="played_on" name="played_on" value="{{ today }}" required>
+                    <input type="date" id="played_on" name="played_on" value="{{ form_date }}" required>
                 </div>
                 <div class="form-group">
                     <label for="site">Site</label>
@@ -127,7 +147,7 @@
                     <label>Round</label>
                     <div class="round-picks">
                         {% for n in range(1, 6) %}
-                        <label><input type="radio" name="round_no" value="{{ n }}" {% if n == 1 %}checked{% endif %}><span>{{ n }}</span></label>
+                        <label><input type="radio" name="round_no" value="{{ n }}" {% if n == form_round %}checked{% endif %}><span>{{ n }}</span></label>
                         {% endfor %}
                     </div>
                 </div>
@@ -154,17 +174,21 @@
                         <input type="text" id="clue3" name="clue3" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 3">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="answer">The game's answer</label>
-                    <input type="text" id="answer" name="answer" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                <div class="form-group wide" id="picks-group" hidden>
+                    <label>Solver's picks <span class="muted" style="font-weight: normal;">(tap one to make it your guess)</span></label>
+                    <div class="picks" id="picks"></div>
                 </div>
                 <div class="form-group">
-                    <label for="guess">Your guess</label>
+                    <label for="guess">Your guess <span class="muted" style="font-weight: normal;">(the solver's pick)</span></label>
                     <input type="text" id="guess" name="guess" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
                 </div>
                 <div class="form-group">
                     <label for="score">Your score (0 to 1000)</label>
                     <input type="number" id="score" name="score" min="0" max="1000" step="1" inputmode="numeric">
+                </div>
+                <div class="form-group">
+                    <label for="answer">The game's answer</label>
+                    <input type="text" id="answer" name="answer" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
                 </div>
                 <div class="form-group">
                     <label for="notes">Notes</label>
@@ -258,7 +282,87 @@ document.addEventListener('DOMContentLoaded', () => {
             if (i >= n) el.value = '';
             el.required = i < n;
         });
+        schedulePicks();
     }
+
+    /* ---------- the solver's picks ---------- */
+    // The same solver as /chainle, so a round can be played from here: once
+    // the clues are in, list its best words and put its first pick in "Your
+    // guess". A guess typed by hand is never overwritten.
+    const guess = document.getElementById('guess');
+    const picksGroup = document.getElementById('picks-group');
+    const picksEl = document.getElementById('picks');
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    let pickTimer = null, pickSeq = 0;
+
+    const why = s => s.type === 'link' ? s.phrases.filter(Boolean).join(' / ')
+        : s.type === 'synonym' ? 'synonym' : 'close in meaning';
+
+    // A guess the solver filled in can be replaced when the clues change
+    // (data-auto="1"); one typed by hand can't.
+    function markChosen() {
+        const word = guess.value.trim().toUpperCase();
+        picksEl.querySelectorAll('.pick').forEach(b => b.classList.toggle('chosen', b.dataset.word === word));
+    }
+
+    function setGuess(word) {
+        guess.value = word;
+        guess.dataset.auto = word ? '1' : '';
+        markChosen();
+    }
+
+    function picksMessage(text) {
+        picksGroup.hidden = false;
+        picksEl.innerHTML = '<p class="muted" style="margin: 0;">' + esc(text) + '</p>';
+        if (guess.dataset.auto === '1') setGuess('');
+    }
+
+    function schedulePicks() {
+        clearTimeout(pickTimer);
+        const shown = clues.filter(el => !el.hidden).map(el => el.value.trim());
+        if (!shown.every(c => /^[A-Za-z]+$/.test(c))) {
+            pickSeq++;
+            picksGroup.hidden = true;
+            picksEl.innerHTML = '';
+            if (guess.dataset.auto === '1') setGuess('');
+            return;
+        }
+        pickTimer = setTimeout(() => fetchPicks(shown, kind.value), 300);
+    }
+
+    async function fetchPicks(shown, k) {
+        const seq = ++pickSeq;
+        try {
+            const resp = await fetch('/chainle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({clues: shown, kind: k})
+            });
+            const data = await resp.json();
+            if (seq !== pickSeq) return;
+            if (!resp.ok) { picksMessage(data.error || 'The solver is unavailable right now.'); return; }
+            if (data.unknown.length) { picksMessage("Not in the solver's word list: " + data.unknown.join(', ')); return; }
+            const top = data.suggestions.slice(0, 5);
+            if (!top.length) { picksMessage('No suggestions for these clues.'); return; }
+            picksGroup.hidden = false;
+            picksEl.innerHTML = top.map((s, i) => '<button type="button" class="pick" data-word="' + esc(s.word) + '"><b>' +
+                (i + 1) + '. ' + esc(s.word) + '</b><span>' + esc(why(s)) + '</span></button>').join('');
+            if (!guess.value || guess.dataset.auto === '1') setGuess(top[0].word);
+            else markChosen();
+        } catch (_) {
+            if (seq === pickSeq) picksMessage("Couldn't reach the solver.");
+        }
+    }
+
+    picksEl.addEventListener('click', e => {
+        const b = e.target.closest('.pick');
+        if (b) setGuess(b.dataset.word);
+    });
+    guess.addEventListener('input', () => {
+        guess.dataset.auto = '';
+        markChosen();
+    });
+    clues.forEach(el => el.addEventListener('input', schedulePicks));
 
     function setRound(n) {
         const c = ROUND_CLUES[n];
@@ -285,7 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {}
     site.addEventListener('change', () => { try { localStorage.setItem('chainleAdminSite', site.value); } catch (_) {} });
 
-    setRound(1);
+    // After a save the server picks the same day's next round.
+    setRound(+form.querySelector('input[name="round_no"]:checked').value);
 });
 </script>
 {% endblock %}

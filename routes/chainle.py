@@ -133,8 +133,23 @@ def _today():
 
 
 def _back(**message):
-    """Back to the admin page, with a success or error message."""
+    """Back to the admin page, with a success or error message (and any
+    form defaults: see _form_defaults)."""
+    message = {k: v for k, v in message.items() if v}
     return redirect(ADMIN + ('?' + urlencode(message) if message else ''))
+
+
+def _form_defaults(args):
+    """The log form's date and round. After a save it's the same day's next
+    round, so playing all five is one flow; otherwise today's round 1."""
+    day = args.get('date', '')
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
+        day = _today().isoformat()
+    try:
+        round_no = int(args.get('round', ''))
+    except ValueError:
+        round_no = 1
+    return day, round_no if round_no in ROUND_KIND else 1
 
 
 def _word(form, field, label):
@@ -253,27 +268,33 @@ def chainle_admin():
         print(f"Error loading chainle admin: {e}")
         return render_template('error.html', return_type='Admin Error'), 500
     data = get_data()
-    return render_template('chainle_admin.html', total=total, today=_today().isoformat(),
-                           sites=SITES, round_clues=ROUND_CLUES, data_ok=data is not None,
-                           shown=SHOW_ROUNDS, **assess_rounds(data, rows))
+    form_date, form_round = _form_defaults(request.args)
+    return render_template('chainle_admin.html', total=total, form_date=form_date,
+                           form_round=form_round, sites=SITES, round_clues=ROUND_CLUES,
+                           data_ok=data is not None, shown=SHOW_ROUNDS, **assess_rounds(data, rows))
 
 
 @bp.route(ADMIN + '/log_round', methods=['POST'])
 @auth.login_required
 def chainle_log_round():
     """Save a round. Logging the same date, site and round again replaces it."""
+    keep = {'date': request.form.get('played_on'), 'round': request.form.get('round_no')}
     try:
         values = parse_round(request.form)
     except ValidationError as e:
-        return _back(error=str(e))
+        return _back(error=str(e), **keep)
     try:
         with db_cursor() as (conn, cursor):
             cursor.execute(UPSERT_ROUND, values)
             conn.commit()
     except Exception as e:
         print(f"Error logging chainle round: {e}")
-        return _back(error='Database error')
-    return _back(success=f'Saved round {values[2]} of {values[0]}')
+        return _back(error='Database error', **keep)
+    played_on, round_no = values[0], values[2]
+    if round_no < max(ROUND_KIND):
+        return _back(success=f'Saved round {round_no} of {played_on}', date=played_on,
+                     round=round_no + 1)
+    return _back(success=f'Saved round {round_no} of {played_on}: that was the last one')
 
 
 @bp.route(ADMIN + '/delete_round', methods=['POST'])

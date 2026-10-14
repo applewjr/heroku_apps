@@ -231,16 +231,42 @@ def test_admin_page_rates_each_logged_round(client, tiny, monkeypatch):
 
 
 def test_logging_a_round_saves_it_cleaned_up(client, tiny, monkeypatch):
+    import routes.chainle as rc
     db, headers = _admin(tiny, monkeypatch)
     resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
     assert resp.status_code == 302
-    assert 'success=' in resp.headers['Location']
     [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
     assert 'ON DUPLICATE KEY UPDATE' in sql
-    import routes.chainle as rc
     assert params[:9] == (rc._today().isoformat(), 'chainle.io', 4, 'bridge', 'SNOW FOOT BASKET',
                           'BALL', 'BALL', 1000, None)
     assert db.commits == 1
+    # Back to the form for the same day's next round.
+    where = resp.headers['Location']
+    assert 'success=' in where and 'round=5' in where and f'date={rc._today().isoformat()}' in where
+
+
+def test_after_the_last_round_the_form_starts_over(client, tiny, monkeypatch):
+    _, headers = _admin(tiny, monkeypatch)
+    form = _round_form(round_no='5', kind='', clue1='big', clue2='', clue3='')
+    where = client.post('/chainle_admin/log_round', data=form, headers=headers).headers['Location']
+    assert 'success=' in where
+    assert 'round=' not in where and 'date=' not in where
+
+
+def test_the_form_opens_on_the_round_it_is_sent_to(client, tiny, monkeypatch):
+    _, headers = _admin(tiny, monkeypatch)
+    html = client.get('/chainle_admin?date=2026-10-13&round=3', headers=headers).get_data(as_text=True)
+    assert 'name="played_on" value="2026-10-13"' in html
+    assert 'name="round_no" value="3" checked' in html
+    assert 'id="picks-group"' in html    # the solver's picks, to play from this page
+
+
+def test_the_form_ignores_junk_defaults(client, tiny, monkeypatch):
+    import routes.chainle as rc
+    _, headers = _admin(tiny, monkeypatch)
+    html = client.get('/chainle_admin?date=<b>&round=9', headers=headers).get_data(as_text=True)
+    assert f'name="played_on" value="{rc._today().isoformat()}"' in html
+    assert 'name="round_no" value="1" checked' in html
 
 
 def test_a_meaning_round_takes_one_clue_and_blank_extras(client, tiny, monkeypatch):
@@ -269,6 +295,7 @@ def test_a_bad_round_is_refused_not_saved(client, tiny, monkeypatch, changes):
     resp = client.post('/chainle_admin/log_round', data=_round_form(**changes), headers=headers)
     assert resp.status_code == 302
     assert 'error=' in resp.headers['Location']
+    assert 'round=' in resp.headers['Location']     # back on the same round
     assert not db.statements('INSERT INTO chainle_rounds')
 
 
