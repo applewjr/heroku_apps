@@ -34,7 +34,7 @@
       "name": "How does this solver help without spoiling the answer?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, or Reveal to see the whole word."
+        "text": "Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once."
       }
     },
     {
@@ -321,6 +321,8 @@
 
 @media (max-width: 480px) {
     .chn-card { margin: 10px 8px; padding: 12px; }
+    /* Hide possible answers and Show all answers share one row on a phone. */
+    #chn-answers .chn-actions .chn-btn { flex: 1 1 0; padding: 8px 10px; }
     .chn-word { font-size: 15px; letter-spacing: 1.5px; }
     .chn-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
 }
@@ -353,7 +355,8 @@
         <strong>3. Take a hint.</strong> First you see the phrases the best word makes with each
         clue, with the word hidden, and its length. <strong>Show first letter</strong> gives a bit
         more. Still stuck? <strong>Show possible answers</strong>: each word stays hidden until you
-        tap <strong>Show letter</strong> or <strong>Reveal</strong>.
+        tap <strong>Show letter</strong> or <strong>Reveal</strong>, or <strong>Show all answers</strong>
+        to see the whole list.
     </div>
 </div>
 
@@ -376,7 +379,10 @@
         <div id="chn-hint-body"></div>
     </div>
     <div class="chn-card" id="chn-answers">
-        <button type="button" class="chn-btn" id="chn-answers-toggle">&#128064; Show possible answers</button>
+        <div class="chn-actions" style="margin-top: 0;">
+            <button type="button" class="chn-btn" id="chn-answers-toggle">&#128064; Show possible answers</button>
+            <button type="button" class="chn-btn" id="chn-reveal-all" hidden>Show all answers</button>
+        </div>
         <div id="chn-answer-list" hidden></div>
     </div>
 </div>
@@ -405,7 +411,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the answer?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, or Reveal to see the whole word.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does it find the linking word?</p>
@@ -466,6 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsEl = document.getElementById('chn-results');
     const hintBody = document.getElementById('chn-hint-body');
     const answersToggle = document.getElementById('chn-answers-toggle');
+    const revealAll = document.getElementById('chn-reveal-all');
     const listEl = document.getElementById('chn-answer-list');
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -565,6 +572,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         listEl.hidden = !r.open;
         answersToggle.innerHTML = r.open ? '&#128584; Hide possible answers' : '&#128064; Show possible answers';
+        // Shown once the list is open, until every word is out.
+        const words = last ? last.suggestions : [];
+        revealAll.hidden = !r.open || !words.length ||
+            (r.shown >= words.length && words.every(w => (r.reveals[w.word] || 0) >= w.word.length));
         if (!r.open || !last) { listEl.innerHTML = ''; return; }
         const rows = last.suggestions.slice(0, r.shown);
         let html = '';
@@ -676,6 +687,15 @@ document.addEventListener('DOMContentLoaded', () => {
     answersToggle.addEventListener('click', () => {
         const r = round();
         r.open = !r.open;
+        renderAnswers();
+        save();
+    });
+
+    revealAll.addEventListener('click', () => {
+        const r = round();
+        if (!last) return;
+        last.suggestions.forEach(w => { r.reveals[w.word] = w.word.length; });
+        r.shown = last.suggestions.length;
         renderAnswers();
         save();
     });
