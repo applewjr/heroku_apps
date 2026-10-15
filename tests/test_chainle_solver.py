@@ -41,9 +41,9 @@ _V = {
     'police': [0, .1, 0, .3, 0, .9],
     'station': [.1, .1, 0, .2, 0, .95],
     'cat': [0, 0, 0, 0, 0, 1],
-    'photo': [0, 0, .3, 0, .3, .9],
-    'photograph': [0, 0, .3, 0, .3, .91],   # built on the clue: too close
-    'picture': [0, 0, .25, 0, .35, .9],
+    'phone': [0, 0, .3, 0, .3, .9],
+    'telephone': [0, 0, .3, 0, .3, .91],    # built on the clue: too close
+    'handset': [0, 0, .25, 0, .35, .9],
 }
 _LINKS = [
     ('snow', 'ball', 3.3, True), ('foot', 'ball', 5.0, True), ('basket', 'ball', 4.5, True),
@@ -59,7 +59,7 @@ def _arrays():
         _V, zipf={w: 4.0 for w in _V}, answer=set(_V) - {'the'}, broad={'thing'},
         bases={'feet': {'foot'}, 'hospitals': {'hospital'}}, links=_LINKS,
         synonyms={'big': {'large', 'huge'}, 'large': {'big', 'huge'},
-                  'photo': {'photograph', 'picture'}},
+                  'phone': {'telephone', 'handset'}},
         antonyms={'big': {'small', 'little'}, 'large': {'small'}},
         pos={'big': ch.ADJ, 'large': ch.ADJ, 'huge': ch.ADJ, 'small': ch.ADJ, 'little': ch.ADJ,
              'tiny': ch.ADJ, 'cat': ch.NOUN})
@@ -176,10 +176,25 @@ def test_closest_meaning_prefers_synonyms_and_drops_opposites(data):
 
 
 def test_closest_meaning_skips_a_word_built_on_the_clue(data):
-    # The game turns PHOTOGRAPH down for PHOTO as too close.
-    words = _words(ch.solve(data, ['photo'], 'meaning', top=30))
-    assert words[0] == 'PICTURE'
-    assert 'PHOTOGRAPH' not in words
+    # The game turns a word built on the clue down as too close.
+    words = _words(ch.solve(data, ['phone'], 'meaning', top=30))
+    assert words[0] == 'HANDSET'
+    assert 'TELEPHONE' not in words
+
+
+def test_a_word_without_synonyms_leans_on_its_family():
+    # A rare sense's synonym (FRUMP) never comes into it: the build keeps
+    # main senses only. With no synonyms left, the clue's family (DOG: WOLF,
+    # FOX) gets a boost and anchors closeness, so WOLF beats CAT, which is
+    # a shade closer on the vectors alone.
+    vecs = {'dog': [1, .2, 0], 'wolf': [.9, .1, .3], 'fox': [.8, .1, .4], 'cat': [1, .5, 0],
+            'cab': [0, 0, 1], 'frump': [0, 1, 0]}
+    plain = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}))
+    assert _words(ch.solve(plain, ['dog'], 'meaning'))[0] == 'CAT'
+    kin = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, related={'dog': {'wolf', 'fox'}}))
+    res = ch.solve(kin, ['dog'], 'meaning')
+    assert _words(res)[0] == 'WOLF'
+    assert res['suggestions'][0]['type'] == 'related'
 
 
 def test_closest_meaning_keeps_to_the_clues_part_of_speech(data):

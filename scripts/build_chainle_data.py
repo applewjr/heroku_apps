@@ -127,6 +127,15 @@ best better worse worst awesome amazing cool okay wonderful terrible perfect
 excellent fantastic horrible lovely
 """.split())
 
+# A word's family comes from its main senses (WordNet lists senses most used
+# first): the parent of a main noun or verb sense and the parent's other
+# kinds, most common first (DOG: CANINE, WOLF, FOX). Synonyms come from every
+# sense: the game sometimes means a later one, and accepts its synonyms.
+MAIN_SENSES = 2
+FAMILY_MAX = 12
+FAMILY_ZIPF = 3.0
+FAMILY_MAX_KINDS = 80   # a parent with more kinds than this (PERSON) says little
+
 # WordNet's morphy rules (morphy(7WN)): inflected ending -> base ending.
 MORPHY = {
     'noun': [('s', ''), ('ses', 's'), ('xes', 'x'), ('zes', 'z'), ('ches', 'ch'), ('shes', 'sh'),
@@ -169,12 +178,13 @@ def load_zipf():
 
 
 def load_wordnet():
-    """(synsets, lemmas, common, exceptions).
+    """(synsets, lemmas, common, exceptions, senses).
 
     synsets     {(pos, offset): (words, pointers)}, words as written
     lemmas      {pos: lowercase single-word lemmas}
     common      single-word lemmas WordNet writes in lower case (not names)
     exceptions  {pos: {inflected: [bases]}} from the *.exc lists
+    senses      {(pos, lemma): synset offsets, most used sense first}
     """
     raw = bpb.fetch(WORDNET, 'WordNet-3.0.tar.gz')
     with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
@@ -202,7 +212,16 @@ def load_wordnet():
             parts = line.lower().split()
             if len(parts) >= 2:
                 exceptions[pos].setdefault(parts[0], []).extend(parts[1:])
-    return synsets, lemmas, common, exceptions
+    # index.<pos>: lemma pos synset_cnt p_cnt [pointers] sense_cnt tagsense_cnt offsets...
+    senses = {}
+    for pos in MORPHY:
+        for line in files[f'index.{pos}'].splitlines():
+            if line.startswith('  '):
+                continue
+            f = line.split()
+            if WORD.fullmatch(f[0]):
+                senses[(pos, f[0])] = f[-int(f[2]):]
+    return synsets, lemmas, common, exceptions, senses
 
 
 def load_glove(dims, wanted):
@@ -271,29 +290,19 @@ def word_forms(vocab, lemmas, exceptions):
     return bases, pos
 
 
-def synonyms_antonyms(synsets):
-    """({word: synonyms}, {word: antonyms}) over single words.
+def _single(words):
+    return [w.lower() for w in words if WORD.fullmatch(w.lower())]
 
-    Synonyms share a synset, or an adjective is "similar to" the other's
-    synset (BIG -> LARGE). Antonyms are WordNet's direct ones, and a
-    satellite adjective takes its head's (HUGE -> SMALL, through LARGE).
-    """
-    def single(words):
-        return [w.lower() for w in words if WORD.fullmatch(w.lower())]
 
-    syn, direct = collections.defaultdict(set), collections.defaultdict(set)
+def antonyms(synsets):
+    """{word: antonyms} over single words, every sense: WordNet's direct
+    antonyms, and a satellite adjective takes its head's (HUGE -> SMALL,
+    through LARGE)."""
+    direct = collections.defaultdict(set)
     for (pos, _), (words, pointers) in synsets.items():
-        here = single(words)
-        for w in here:
-            syn[w].update(x for x in here if x != w)
         for symbol, offset, ppos, src_tgt in pointers:
             other = synsets.get((POINTER_POS[ppos], offset))
-            if other is None:
-                continue
-            if symbol == '&' and pos == 'adj':
-                for w in here:
-                    syn[w].update(single(other[0]))
-            elif symbol == '!':
+            if symbol == '!' and other is not None:
                 s, t = int(src_tgt[:2], 16), int(src_tgt[2:], 16)
                 if s and t:
                     a, b = words[s - 1].lower(), other[0][t - 1].lower()
@@ -307,18 +316,53 @@ def synonyms_antonyms(synsets):
         for symbol, offset, ppos, _ in pointers:
             head = synsets.get((POINTER_POS[ppos], offset)) if symbol == '&' else None
             if head:
-                opposite = set().union(*(direct.get(h, set()) for h in single(head[0])))
-                for w in single(words):
+                opposite = set().union(*(direct.get(h, set()) for h in _single(head[0])))
+                for w in _single(words):
                     ant[w] |= opposite
-    return syn, ant
+    return ant
+
+
+def main_senses(synsets, senses):
+    """({word: synonyms}, {word: family}).
+
+    Synonyms share a synset with the word in any sense, or for an adjective
+    a synset it is "similar to" (BIG -> LARGE). The family comes from the
+    word's main senses (MAIN_SENSES per part of speech, most used first): a
+    noun or verb sense's parent and the parent's other kinds (DOG -> CANINE,
+    WOLF, FOX), left out when the parent is too broad to say much."""
+    syn, fam = collections.defaultdict(set), collections.defaultdict(set)
+    for (pos, w), offsets in senses.items():
+        # A sense where WordNet capitalises the word is a name (a country, a
+        # person), not what a lower-case clue means.
+        offsets = [o for o in offsets if w in synsets[(pos, o)][0]]
+        for rank, offset in enumerate(offsets):
+            words, pointers = synsets[(pos, offset)]
+            syn[w].update(_single(words))
+            for symbol, target, ppos, _ in pointers:
+                other = synsets.get((POINTER_POS[ppos], target))
+                if other is None:
+                    continue
+                if symbol == '&' and pos == 'adj':
+                    syn[w].update(_single(other[0]))
+                elif symbol in ('@', '@i') and pos in ('noun', 'verb') and rank < MAIN_SENSES:
+                    fam[w].update(_single(other[0]))
+                    kinds = [k for k in other[1] if k[0] in ('~', '~i')]
+                    if len(kinds) <= FAMILY_MAX_KINDS:
+                        for _, koff, kpos, _ in kinds:
+                            fam[w].update(_single(synsets[(POINTER_POS[kpos], koff)][0]))
+    for w in syn:
+        syn[w].discard(w)
+    for w in fam:
+        fam[w] -= syn[w] | {w}
+    return syn, fam
 
 
 def compound_links(enable, vocab, zipf, vectors, lemmas, exceptions):
     """(a, b, weight, closed=True) for dictionary words made of two known
     words (SNOWBALL = SNOW + BALL), weighted by how common the compound is.
 
-    Only base forms are split: BATHERS is BATHER plus an ending, not BATH +
-    ERS (SNOWBALLS adds nothing SNOWBALL doesn't). A split that has nothing
+    Only base forms are split: TEACHERS is TEACHER plus an ending, not
+    TEACH + ERS (SNOWBALLS adds nothing SNOWBALL doesn't). A split that has nothing
     to do with its parts (CARPET = CAR + PET) counts for less: the
     compound's vector sits far from both parts'."""
     every = set().union(*lemmas.values())
@@ -388,8 +432,9 @@ def canaries(data):
         'small an antonym of large': lambda: i('small') in data.antonyms(i('large')).tolist(),
         'feet -> foot': lambda: i('foot') in data.bases(i('feet')),
         'running -> run': lambda: i('run') in data.bases(i('running')),
-        'no ending split off a plural (BATH + ERS)':
-            lambda: data.id('ers') < 0 or data.link(i('bath'), data.id('ers')) is None,
+        'no ending split off a plural (TEACH + ERS)':
+            lambda: data.id('ers') < 0 or data.link(i('teach'), data.id('ers')) is None,
+        'wolf in the dog family': lambda: i('wolf') in data.related(i('dog')).tolist(),
     }
     failed = []
     for name, check in checks.items():
@@ -408,7 +453,7 @@ def build(dims, out_dir, force=False):
     zipf = load_zipf()
     blocked = load_blocklist(os.path.join(DATA, 'phrase_blocklist.txt'))
     log('wordnet...')
-    synsets, lemmas, common, exceptions = load_wordnet()
+    synsets, lemmas, common, exceptions, senses = load_wordnet()
 
     words = {w for w in enable | set().union(*lemmas.values())
              if MIN_LEN <= len(w) <= MAX_LEN and zipf.get(w, 0.0) >= VOCAB_ZIPF
@@ -424,14 +469,18 @@ def build(dims, out_dir, force=False):
     answer = {w for w in vocab if zipf.get(w, 0.0) >= ANSWER_ZIPF and len(w) >= ANSWER_MIN_LEN
               and w not in STOPWORDS and (w in enable or w in common)
               and all(len(b) >= ANSWER_MIN_LEN for b in bases.get(w, ()))}
-    syn, ant = synonyms_antonyms(synsets)
+    syn, fam = main_senses(synsets, senses)
+    ant = antonyms(synsets)
+    related = {w: sorted((x for x in kin if x in vocab and zipf.get(x, 0.0) >= FAMILY_ZIPF),
+                         key=lambda x: -zipf[x])[:FAMILY_MAX]
+               for w, kin in fam.items() if w in vocab}
 
     links = list(compound_links(enable, vocab, zipf, vectors, lemmas, exceptions))
     n_closed = len(links)
     links += bank_links(vocab)
     log(f'links: {n_closed} from compound words, {len(links) - n_closed} from two-word phrases')
 
-    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos)
+    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos, related)
     data = chainle.Data(**arrays)
     failed = canaries(data)
     if failed and not force:
@@ -444,8 +493,9 @@ def build(dims, out_dir, force=False):
     in_memory = sum(a.nbytes for a in arrays.values())
     log(f'wrote {path}: {os.path.getsize(path) / 1e6:.1f} MB on disk, {in_memory / 1e6:.1f} MB loaded')
     log(f'  {data.size} words ({int((arrays["flags"] & chainle.ANSWER != 0).sum())} answers), '
-        f'{len(arrays["link_ids"]) // 2} links, {len(arrays["syn_ids"])} synonym and '
-        f'{len(arrays["ant_ids"])} antonym entries, {len(arrays["base_ids"])} base forms')
+        f'{len(arrays["link_ids"]) // 2} links, {len(arrays["syn_ids"])} synonym, '
+        f'{len(arrays["rel_ids"])} family and {len(arrays["ant_ids"])} antonym entries, '
+        f'{len(arrays["base_ids"])} base forms')
 
 
 def main():

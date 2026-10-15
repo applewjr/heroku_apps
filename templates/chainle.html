@@ -557,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function why(s) {
         if (s.type === 'link') return 'Makes ' + s.phrases.filter(Boolean).join(' and ');
         if (s.type === 'synonym') return 'A dictionary synonym';
+        if (s.type === 'related') return 'A related word in the dictionary';
         return last.kind === 'meaning' ? 'Close in meaning' : 'Close in meaning to every clue';
     }
 

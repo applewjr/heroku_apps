@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pickTimer = null, pickSeq = 0;
 
     const why = s => s.type === 'link' ? s.phrases.filter(Boolean).join(' / ')
-        : s.type === 'synonym' ? 'synonym' : 'close in meaning';
+        : s.type === 'synonym' ? 'synonym' : s.type === 'related' ? 'related word' : 'close in meaning';
 
     // A guess the solver filled in can be replaced when the clues change
     // (data-auto="1"); one typed by hand can't.

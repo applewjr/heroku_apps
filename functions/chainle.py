@@ -50,18 +50,21 @@ LINK_P_MAX = 0.25
 # Each clue past the second: a word that compounds with all three is far
 # less likely by chance than one that compounds with two.
 LINK_EXTRA_CLUE = 0.75
-# A WordNet synonym of the clue, at full closeness, is a likely reviewed
-# answer in the closest-meaning round with this chance.
+# A WordNet synonym of the clue's main senses, at full closeness, is a
+# likely reviewed answer in the closest-meaning round with this chance; a
+# word from a main sense's family (DOG: WOLF, FOX) less so.
 SYN_P = 0.7
+FAMILY_P = 0.4
 # The game scores other closest-meaning answers against the clue and its
-# reviewed alternatives. The clue's synonyms nearest to it (its main sense)
-# stand in for those alternatives.
+# reviewed alternatives. The clue's synonyms nearest to it stand in for those
+# alternatives, or its family when it has no synonyms.
 SYN_ANCHORS = 5
 # The game scores broad words (thing, good, great) lower in bridge rounds.
 BROAD_FACTOR = 0.6
-# The game's answers are common words: every one logged on /chainle_admin
-# (36 rounds by 2026-10-14) had a wordfreq Zipf of 4.0 or more, so the solver
-# suggests only those. Zipf is stored as float16, hence the small allowance.
+# The game's answers are common words: almost all logged on /chainle_admin
+# had a wordfreq Zipf of 4.0 or more, so the solver suggests only those,
+# except the clue's synonyms in the closest-meaning round, which the game
+# accepts however rare. Zipf is stored as float16, hence the small allowance.
 MIN_ANSWER_ZIPF = 3.995
 # A word built on a clue, or inside one, is too close (see _too_close).
 CONTAINS_MIN = 3
@@ -77,7 +80,7 @@ FIRST = 2    # the clue is written first
 
 FIELDS = ('vocab', 'zipf', 'flags', 'pos', 'vec', 'scale', 'base_ptr', 'base_ids',
           'link_ptr', 'link_ids', 'link_w', 'link_form',
-          'syn_ptr', 'syn_ids', 'ant_ptr', 'ant_ids')
+          'syn_ptr', 'syn_ids', 'rel_ptr', 'rel_ids', 'ant_ptr', 'ant_ids')
 
 
 class Data:
@@ -123,6 +126,10 @@ class Data:
     def antonyms(self, i):
         return self._row(self.ant_ptr, self.ant_ids, i)
 
+    def related(self, i):
+        """Its main senses' family: their parent and its other kinds."""
+        return self._row(self.rel_ptr, self.rel_ids, i)
+
     def link(self, clue, i):
         """(weight, form) of the link from a clue to word i, or None."""
         s, e = self.link_ptr[clue], self.link_ptr[clue + 1]
@@ -152,7 +159,7 @@ def _pairs(size, index, mapping):
 
 
 def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synonyms=None,
-         antonyms=None, pos=None):
+         antonyms=None, pos=None, related=None):
     """The arrays Data needs, from plain Python structures.
 
     vectors   {word: sequence of floats}: every word the solver knows
@@ -163,6 +170,7 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
     links     (a, b, weight, closed): "a b" or "ab" is a phrase, a written first
     synonyms, antonyms  {word: words}
     pos       {word: part-of-speech bits (NOUN | VERB | ADJ | ADV)}
+    related   {word: its family: words of the same kind (DOG: WOLF, FOX)}
     """
     vocab = sorted(vectors)
     index = {w: i for i, w in enumerate(vocab)}
@@ -204,6 +212,7 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
 
     base_ptr, base_ids = _pairs(size, index, bases)
     syn_ptr, syn_ids = _pairs(size, index, synonyms)
+    rel_ptr, rel_ids = _pairs(size, index, related)
     ant_ptr, ant_ids = _pairs(size, index, antonyms)
     return {
         'vocab': np.array([w.encode('ascii') for w in vocab], dtype=f'S{max(map(len, vocab), default=1)}'),
@@ -213,7 +222,8 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
         'base_ptr': base_ptr, 'base_ids': base_ids,
         'link_ptr': link_ptr, 'link_ids': link_ids,
         'link_w': link_w.astype(np.float16), 'link_form': link_form.astype(np.uint8),
-        'syn_ptr': syn_ptr, 'syn_ids': syn_ids, 'ant_ptr': ant_ptr, 'ant_ids': ant_ids,
+        'syn_ptr': syn_ptr, 'syn_ids': syn_ids, 'rel_ptr': rel_ptr, 'rel_ids': rel_ids,
+        'ant_ptr': ant_ptr, 'ant_ids': ant_ids,
     }
 
 
@@ -264,10 +274,12 @@ def estimate(strengths):
     return 10 * (0.8 * gm + 0.2 * strengths.min(axis=0))
 
 
-def _candidates(data, clue_ids):
-    """Words the solver may suggest for these clues."""
-    return (((data.flags & ANSWER) != 0) & (data.zipf >= MIN_ANSWER_ZIPF)
-            & ~_repeats(data, clue_ids))
+def _candidates(data, clue_ids, spare=()):
+    """Words the solver may suggest for these clues: common ones, plus any
+    in `spare` however rare."""
+    common = data.zipf >= MIN_ANSWER_ZIPF
+    common[list(spare)] = True
+    return ((data.flags & ANSWER) != 0) & common & ~_repeats(data, clue_ids)
 
 
 def _bridge_scores(data, clue_ids):
@@ -286,12 +298,14 @@ def _bridge_scores(data, clue_ids):
 
 
 def _closest_scores(data, clue_id):
-    """(expected points, synonym mask, allowed) for every word."""
-    allowed = _candidates(data, [clue_id])
-    syn, ant = set(), set()
+    """(expected points, synonym mask, family mask, allowed) for every word."""
+    syn, fam, ant = set(), set(), set()
     for b in data.bases(clue_id):
         syn.update(data.synonyms(b).tolist())
+        fam.update(data.related(b).tolist())
         ant.update(data.antonyms(b).tolist())
+    fam -= syn
+    allowed = _candidates(data, [clue_id], spare=syn)
     # The game scores an opposite at most 100.
     allowed[list(ant)] = False
     # A synonym shares a part of speech with the clue (HARD: not COME).
@@ -301,15 +315,17 @@ def _closest_scores(data, clue_id):
     # Closeness to the clue alone favours words used alongside it (BIG ->
     # LITTLE, COMING); closeness to its synonyms' centre favours words that
     # mean the same.
-    anchors = sorted((s for s in syn if cos[0, s] > 0), key=lambda s: -cos[0, s])[:SYN_ANCHORS]
+    anchors = sorted((s for s in (syn or fam) if cos[0, s] > 0), key=lambda s: -cos[0, s])[:SYN_ANCHORS]
     if anchors:
         centre = _unit(data, [clue_id] + anchors).mean(axis=1, keepdims=True)
         cos = np.vstack([cos, _dot(data, centre / (np.linalg.norm(centre) or 1))])
     strengths = _strengths(cos, allowed)
     is_syn = np.zeros(data.size, dtype=bool)
     is_syn[list(syn)] = True
-    p = np.where(is_syn, SYN_P * strengths[0] / 100, 0.0)
-    return p * 1000 + (1 - p) * estimate(strengths), is_syn, allowed
+    is_fam = np.zeros(data.size, dtype=bool)
+    is_fam[list(fam)] = True
+    p = np.where(is_syn, SYN_P, np.where(is_fam, FAMILY_P, 0.0)) * strengths[0] / 100
+    return p * 1000 + (1 - p) * estimate(strengths), is_syn, is_fam, allowed
 
 
 def _ranked(score, allowed, limit):
@@ -346,7 +362,7 @@ def _shown(data, i, allowed):
 
 def _too_close(word, clues):
     """True if word is built on a clue or sits inside one (FOOTBALL for
-    FOOT, PHOTOGRAPH for PHOTO, PHONE for TELEPHONE): the game turns those
+    FOOT, TELEPHONE for PHONE, PHONE for TELEPHONE): the game turns those
     down as too close."""
     for c in clues:
         if word == c:
@@ -399,16 +415,18 @@ def bridge(data, clue_ids, top=TOP):
 
 def closest(data, clue_id, top=TOP):
     """Words nearest in meaning to one clue: [{word, type, score}], type
-    'synonym' (WordNet) or 'meaning' (word vectors). Opposites are left out."""
-    score, is_syn, allowed = _closest_scores(data, clue_id)
+    'synonym' (WordNet, main senses), 'related' (a main sense's family) or
+    'meaning' (word vectors). Opposites are left out."""
+    score, is_syn, is_fam, allowed = _closest_scores(data, clue_id)
     clue = [data.word(clue_id)]
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 3):
         if _too_close(data.word(i), clue) or _same_answer(data, i, seen):
             continue
         j = _shown(data, i, allowed)
-        out.append({'word': data.word(j).upper(),
-                    'type': 'synonym' if is_syn[i] or is_syn[j] else 'meaning',
+        kind = ('synonym' if is_syn[i] or is_syn[j] else
+                'related' if is_fam[i] or is_fam[j] else 'meaning')
+        out.append({'word': data.word(j).upper(), 'type': kind,
                     'score': float(score[i]), 'phrases': [], 'patterns': []})
         if len(out) >= top:
             break
