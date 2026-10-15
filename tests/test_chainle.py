@@ -91,6 +91,18 @@ def test_page_says_it_is_in_beta(client, tiny):
     assert '<span class="chn-beta"' in html and 'id="chn-beta-note"' in html
 
 
+def test_beta_note_and_search_engines_get_the_same_updated_date(client, tiny, monkeypatch):
+    # One constant dates both. Without it, make_schema_data would give search
+    # engines the day of each request. A one-digit day isn't zero-padded.
+    import routes.chainle as rc
+    monkeypatch.setattr(rc, 'ACCURACY_UPDATED', date(2026, 11, 5))
+    html = client.get('/chainle').get_data(as_text=True)
+    assert 'Updated <time datetime="2026-11-05">Nov 5, 2026</time>.' in html
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    app = next(d for d in map(json.loads, blocks) if d.get('@type') == 'WebApplication')
+    assert app['dateModified'] == '2026-11-05'
+
+
 def test_page_names_no_other_chainle_site(client, tiny):
     # The page links to the game, but doesn't name the sites that copy it.
     html = client.get('/chainle').get_data(as_text=True).lower()

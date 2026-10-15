@@ -65,11 +65,18 @@ def get_data():
     return _static['data']
 
 
+# The day the solver's accuracy last improved. The page's beta note shows it,
+# and search engines get it as dateModified. Bump it when a tuning change
+# ships, not on every deploy.
+ACCURACY_UPDATED = date(2026, 10, 15)
+
+
 def page_context():
     """What the page template needs besides the SEO blob. Rendering the page
     never touches the database."""
     data = get_data()
-    return {'vocab_size': data.size if data is not None else None}
+    return {'vocab_size': data.size if data is not None else None,
+            'accuracy_updated': ACCURACY_UPDATED}
 
 
 ##### solving #####
