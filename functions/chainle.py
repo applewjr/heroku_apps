@@ -59,6 +59,10 @@ SYN_P = 0.7
 SYN_ANCHORS = 5
 # The game scores broad words (thing, good, great) lower in bridge rounds.
 BROAD_FACTOR = 0.6
+# The game's answers are common words: every one logged on /chainle_admin
+# (36 rounds by 2026-10-14) had a wordfreq Zipf of 4.0 or more, so the solver
+# suggests only those. Zipf is stored as float16, hence the small allowance.
+MIN_ANSWER_ZIPF = 3.995
 # A word built on a clue, or inside one, is too close (see _too_close).
 CONTAINS_MIN = 3
 
@@ -260,9 +264,15 @@ def estimate(strengths):
     return 10 * (0.8 * gm + 0.2 * strengths.min(axis=0))
 
 
+def _candidates(data, clue_ids):
+    """Words the solver may suggest for these clues."""
+    return (((data.flags & ANSWER) != 0) & (data.zipf >= MIN_ANSWER_ZIPF)
+            & ~_repeats(data, clue_ids))
+
+
 def _bridge_scores(data, clue_ids):
     """(expected points, weakest link weight, allowed) for every word."""
-    allowed = ((data.flags & ANSWER) != 0) & ~_repeats(data, clue_ids)
+    allowed = _candidates(data, clue_ids)
     sem = estimate(_strengths(_cosines(data, clue_ids), allowed))
     sem = np.where((data.flags & BROAD) != 0, sem * BROAD_FACTOR, sem)
     weights = np.zeros((len(clue_ids), data.size), dtype=np.float32)
@@ -277,7 +287,7 @@ def _bridge_scores(data, clue_ids):
 
 def _closest_scores(data, clue_id):
     """(expected points, synonym mask, allowed) for every word."""
-    allowed = ((data.flags & ANSWER) != 0) & ~_repeats(data, [clue_id])
+    allowed = _candidates(data, [clue_id])
     syn, ant = set(), set()
     for b in data.bases(clue_id):
         syn.update(data.synonyms(b).tolist())
