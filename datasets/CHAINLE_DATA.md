@@ -7,12 +7,12 @@ deployed app reads it from disk and never fetches anything.
 | Arrays | What they hold |
 |---|---|
 | `vocab`, `zipf`, `flags`, `pos` | 77,435 words, sorted; each word's frequency, whether it may be suggested (52,657 may), and its parts of speech |
-| `vec`, `scale` | A word vector per word: unit length, int8 with one scale per word |
+| `vec`, `scale` | A word vector per word: cleaned up (below), unit length, int8 with one scale per word |
 | `base_ptr`, `base_ids` | Each word's base forms (FEET to FOOT), so a clue's other forms aren't suggested |
 | `link_*` | 196,859 links: compound words (SNOWBALL) and two-word phrases (FIRE STATION) joining two words, with a weight and which word comes first |
-| `syn_*`, `ant_*` | Synonyms and antonyms |
+| `syn_*`, `rel_*`, `ant_*` | Synonyms, each word's family (a main sense's parent and its other kinds), and antonyms |
 
-Built 2026-10-14: 9.7 MB on disk, about 14 MB in memory, loaded once per
+Built 2026-10-15: 24.4 MB on disk, about 31 MB in memory, loaded once per
 process on first use (about 0.1 s). `datasets/chainle_eval.tsv` holds
 hand-written test rounds for `scripts/eval_chainle.py`.
 
@@ -20,7 +20,7 @@ hand-written test rounds for `scripts/eval_chainle.py`.
 
 | Source | Licence | Used for |
 |---|---|---|
-| [GloVe](https://nlp.stanford.edu/projects/glove/) 2024 Wiki-Gigaword vectors (100 dimensions), Stanford NLP Group | [Open Data Commons Public Domain Dedication and License (PDDL) 1.0](https://opendatacommons.org/licenses/pddl/1-0/) | Word vectors: how close two words are in meaning |
+| [GloVe](https://nlp.stanford.edu/projects/glove/) 2024 Wiki-Gigaword vectors (300 dimensions), Stanford NLP Group | [Open Data Commons Public Domain Dedication and License (PDDL) 1.0](https://opendatacommons.org/licenses/pddl/1-0/) | Word vectors: how close two words are in meaning |
 | [WordNet 3.0](https://wordnet.princeton.edu) | WordNet 3.0 licence, in full in [`licenses/WordNet-3.0-LICENSE.txt`](licenses/WordNet-3.0-LICENSE.txt). "Any purpose", so commercial use is allowed | Synonyms, antonyms, base forms (its morphy rules and exception lists), parts of speech, and part of the vocabulary |
 | `phrase_bank.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): Wiktionary, WordNet 3.0 and Wikidata | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), WordNet licence, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | Two-word phrases, as links |
 | `phrase_words.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): [wordfreq](https://github.com/rspeer/wordfreq) by Robyn Speer | Data [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | Word frequencies (Zipf) |
@@ -60,6 +60,13 @@ publicly.
 
 ## How the data is chosen
 
+- **Vectors:** GloVe's 300-dimension vectors, cleaned up the "all-but-the-
+  top" way (Jiaqi Mu and Pramod Viswanath, 2018). The average vector and the
+  top 3 principal directions of the common words (Zipf 2.65 and up, about
+  32k) are removed, then each vector is scaled to unit length. Every word
+  shares those directions, and they make common words look close to
+  everything.
+
 - **Vocabulary:** ENABLE words and WordNet's single-word lemmas, 2 to 15
   letters, with a Zipf frequency of at least 1.5 and a GloVe vector.
   - A word may be suggested if its Zipf is at least 2.0, it has 3 or more
@@ -82,8 +89,14 @@ publicly.
   OUT, OVER), count for less. Those are mostly phrasal verbs, not the
   compounds a bridge means.
 - **Synonyms:**
-  - words sharing a WordNet synset;
-  - for adjectives, also the synset they're "similar to" (BIG, LARGE).
+  - words sharing a WordNet synset, in any sense;
+  - for adjectives, also the synset they're "similar to" (BIG, LARGE);
+  - senses where WordNet capitalises the word are names (a country, a
+    person), so they are skipped.
+- **Family:** for each word's first two noun or verb senses (WordNet lists
+  the most used first), the sense's parent and the parent's other kinds,
+  the 12 most common (DOG: CANINE, WOLF, FOX). A parent with more than 80
+  kinds is too broad to say much, so it is skipped.
 - **Antonyms:**
   - WordNet's direct antonyms;
   - a satellite adjective also takes its head's (HUGE, SMALL).
@@ -97,14 +110,14 @@ publicly.
 ## Rebuilding
 
 ```
-python scripts/build_chainle_data.py              # 100-dimension vectors
-python scripts/build_chainle_data.py --dims 300   # another GloVe size (50, 100, 200, 300)
+python scripts/build_chainle_data.py              # 300-dimension vectors
+python scripts/build_chainle_data.py --dims 100   # another GloVe size (50, 100, 200, 300)
 python scripts/eval_chainle.py --misses           # the hand-written test rounds
 ```
 
 Downloads are cached in the system temp folder (`chainle_data_cache`), so a
 re-run only hits the network for what's missing:
-- the GloVe file: 560 MB for 100 dimensions;
+- the GloVe file: 1.6 GB for 300 dimensions;
 - the full WordNet 3.0 release: 12 MB. It is needed for its exception lists,
   which the database-only tarball the phrase bank uses doesn't include.
 

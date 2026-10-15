@@ -86,6 +86,11 @@ def test_page_says_unofficial_and_credits_every_source(client, tiny):
         assert required in html, required
 
 
+def test_page_says_it_is_in_beta(client, tiny):
+    html = client.get('/chainle').get_data(as_text=True)
+    assert '<span class="chn-beta"' in html and 'id="chn-beta-note"' in html
+
+
 def test_page_names_no_other_chainle_site(client, tiny):
     # The page links to the game, but doesn't name the sites that copy it.
     html = client.get('/chainle').get_data(as_text=True).lower()

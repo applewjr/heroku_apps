@@ -5,7 +5,8 @@ routes/chainle.py load (arrays described in functions/chainle.py):
 
     vocab, zipf, flags   the words the solver knows, how common each is, and
                          which may be suggested
-    vec, scale           GloVe word vectors, unit length, stored as int8
+    vec, scale           GloVe word vectors, cleaned up (below), unit length,
+                         stored as int8
     base_*               each word's base forms, to spot a repeated clue
     link_*               compound words and two-word phrases joining two words
     syn_*, ant_*         WordNet synonyms and antonyms
@@ -22,8 +23,8 @@ recorded in datasets/CHAINLE_DATA.md:
 
 Run manually to regenerate:
 
-    python scripts/build_chainle_data.py              # 100-dimension vectors
-    python scripts/build_chainle_data.py --dims 300   # another GloVe size
+    python scripts/build_chainle_data.py              # 300-dimension vectors
+    python scripts/build_chainle_data.py --dims 100   # another GloVe size
 
 Set PHRASE_BANK_CONTACT (an email or URL) to add a contact to the
 User-Agent, as Wikimedia and Princeton ask of automated clients.
@@ -53,6 +54,14 @@ from functions import chainle  # noqa: E402
 from functions.phrase_solver import TAG_BIT, blocklist_hash, load_blocklist  # noqa: E402
 
 GLOVE = 'https://nlp.stanford.edu/data/wordvecs/glove.2024.wikigiga.{dims}d.zip'
+# The vectors are cleaned up the "all-but-the-top" way (Mu and Viswanath,
+# 2018): remove the average vector and the top few principal directions,
+# which every word shares and which make common words look close to
+# everything. Measured over the common words, the ~32k a game is likely to
+# use. This reproduced the closeness numbers Chainle shows after a guess
+# better than raw vectors or any other size, and ranked its answers higher.
+CLEAN_TOP = 3
+CLEAN_ZIPF = 2.65
 # The full WordNet 3.0 release: unlike the WNdb database-only tarball the
 # phrase bank uses, it carries the irregular-form lists (FEET -> FOOT).
 WORDNET = 'https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz'
@@ -222,6 +231,19 @@ def load_wordnet():
             if WORD.fullmatch(f[0]):
                 senses[(pos, f[0])] = f[-int(f[2]):]
     return synsets, lemmas, common, exceptions, senses
+
+
+def clean_vectors(vectors, zipf):
+    """{word: vector} with the mean and the top CLEAN_TOP principal
+    directions of the common words' unit vectors removed."""
+    words = sorted(vectors)
+    mat = np.array([vectors[w] for w in words], dtype=np.float32)
+    mat /= np.linalg.norm(mat, axis=1, keepdims=True)
+    common = np.array([zipf.get(w, 0.0) >= CLEAN_ZIPF for w in words])
+    mat -= mat[common].mean(axis=0)
+    _, _, top = np.linalg.svd(mat[common] - mat[common].mean(axis=0), full_matrices=False)
+    mat -= (mat @ top[:CLEAN_TOP].T) @ top[:CLEAN_TOP]
+    return {w: mat[i] for i, w in enumerate(words)}
 
 
 def load_glove(dims, wanted):
@@ -462,6 +484,8 @@ def build(dims, out_dir, force=False):
     vectors = load_glove(dims, words)
     vocab = set(vectors)
     log(f'vocabulary: {len(vocab)} of {len(words)} candidate words have vectors')
+    raw_vectors = vectors
+    vectors = clean_vectors(vectors, zipf)
 
     bases, pos = word_forms(vocab, lemmas, exceptions)
     # Not an inflection of a two-letter word either (ERS, ESS): no game
@@ -475,7 +499,7 @@ def build(dims, out_dir, force=False):
                          key=lambda x: -zipf[x])[:FAMILY_MAX]
                for w, kin in fam.items() if w in vocab}
 
-    links = list(compound_links(enable, vocab, zipf, vectors, lemmas, exceptions))
+    links = list(compound_links(enable, vocab, zipf, raw_vectors, lemmas, exceptions))
     n_closed = len(links)
     links += bank_links(vocab)
     log(f'links: {n_closed} from compound words, {len(links) - n_closed} from two-word phrases')
@@ -500,7 +524,7 @@ def build(dims, out_dir, force=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--dims', type=int, default=100, choices=(50, 100, 200, 300),
+    ap.add_argument('--dims', type=int, default=300, choices=(50, 100, 200, 300),
                     help='GloVe vector size')
     ap.add_argument('--cache', default=os.path.join(tempfile.gettempdir(), 'chainle_data_cache'))
     ap.add_argument('--out', default=DATA)
