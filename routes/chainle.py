@@ -111,8 +111,8 @@ def solve_request(data):
 
 ADMIN = '/chainle_admin'
 SITES = ('chainle.io', 'chaindle.org', 'other')
-# The day's puzzle, or one of the game's unlimited ones.
-MODES = ('daily', 'unlimited')
+# The day's puzzle, an unlimited one, or a past day's from the archive.
+MODES = ('daily', 'unlimited', 'archive')
 # The daily game's rounds: 1-3 two-word bridges, 4 a three-word bridge, 5 the
 # closest meaning. The form can override the kind for a site that differs.
 ROUND_KIND = {1: 'bridge', 2: 'bridge', 3: 'bridge', 4: 'bridge', 5: 'meaning'}
@@ -126,12 +126,13 @@ FIRST_DAY = date(2026, 1, 1)
 # (mysql_tables/chainle_rounds_unlimited.sql): saving the same round again
 # replaces it, and another puzzle the same day adds a row.
 ROUND_COLUMNS = ('played_on', 'site', 'mode', 'round_no', 'kind', 'clues', 'answer', 'guess',
-                 'score', 'notes', 'created_at')
+                 'score', 'closeness', 'game_rank', 'rank_of', 'notes', 'created_at')
 UPSERT_ROUND = f"""
 INSERT INTO chainle_rounds ({', '.join(ROUND_COLUMNS)})
 VALUES ({', '.join(['%s'] * len(ROUND_COLUMNS))}) AS new
 ON DUPLICATE KEY UPDATE mode = new.mode, kind = new.kind, answer = new.answer,
-    guess = new.guess, score = new.score, notes = new.notes, created_at = new.created_at
+    guess = new.guess, score = new.score, closeness = new.closeness, game_rank = new.game_rank,
+    rank_of = new.rank_of, notes = new.notes, created_at = new.created_at
 """
 
 
@@ -167,6 +168,37 @@ def _word(form, field, label):
     if not re.fullmatch(r'[A-Za-z]{1,%d}' % MAX_WORD_LEN, value):
         raise ValidationError(f'{label} must be one word, letters only')
     return value.upper()
+
+
+def _closeness(form, count):
+    """The game's closeness to each clue, as it shows them ('0.54 0.08'), or
+    None. One number per clue or none at all, each from 0 to 1."""
+    raw = [form.get(f'link{n}', '').strip() for n in range(1, count + 1)]
+    if not any(raw):
+        return None
+    values = []
+    for r in raw:
+        try:
+            v = float(r)
+        except ValueError:
+            v = -1.0
+        if not 0 <= v <= 1:
+            raise ValidationError('Closeness takes a number from 0 to 1 for every clue')
+        values.append(f'{v:.3f}'.rstrip('0').rstrip('.'))
+    return ' '.join(values)
+
+
+def _game_rank(form):
+    """(the guess's rank in the game's list, the list's size), either None."""
+    rank = form.get('game_rank', '').strip().lstrip('#')
+    of = form.get('rank_of', '').strip().replace(',', '')
+    for value, label in ((rank, "The game's rank"), (of, 'The word count')):
+        if value and not (value.isdigit() and int(value) >= 1):
+            raise ValidationError(f'{label} must be a whole number')
+    rank, of = (int(rank) if rank else None), (int(of) if of else None)
+    if rank and of and rank > of:
+        raise ValidationError("The game's rank can't be past its word count")
+    return rank, of
 
 
 def parse_round(form):
@@ -206,10 +238,12 @@ def parse_round(form):
     if raw_score and not (raw_score.isdigit() and int(raw_score) <= 1000):
         raise ValidationError('Score must be a whole number from 0 to 1000')
     notes = form.get('notes', '').strip()[:MAX_NOTES] or None
+    game_rank, rank_of = _game_rank(form)
     return {
         'played_on': played_on.isoformat(), 'site': site, 'mode': mode, 'round_no': round_no,
         'kind': kind, 'clues': ' '.join(c.upper() for c in clues), 'answer': answer, 'guess': guess,
-        'score': int(raw_score) if raw_score else None, 'notes': notes, 'created_at': pst_now_str(),
+        'score': int(raw_score) if raw_score else None, 'closeness': _closeness(form, len(clues)),
+        'game_rank': game_rank, 'rank_of': rank_of, 'notes': notes, 'created_at': pst_now_str(),
     }
 
 
@@ -239,12 +273,14 @@ def assess_rounds(data, rows):
     """The admin page's rows and summary: for each logged round, where the
     solver ranks the game's answer and your guess, and its own first pick."""
     rounds, tally, scores = [], {}, []
-    for rid, played_on, site, mode, round_no, kind, clues, answer, guess, score, notes in rows:
+    for (rid, played_on, site, mode, round_no, kind, clues, answer, guess, score, closeness, game_rank,
+         rank_of, notes) in rows:
         got = _assess(data, kind, clues, answer, guess) if data is not None else None
         r = {
             'id': rid, 'played_on': str(played_on), 'site': site, 'mode': mode, 'round_no': round_no,
             'type': _round_type(kind, clues.split()), 'clues': clues.split(), 'answer': answer,
-            'guess': guess, 'score': score, 'notes': notes, 'known': got is not None,
+            'guess': guess, 'score': score, 'closeness': closeness.split() if closeness else [],
+            'game_rank': game_rank, 'rank_of': rank_of, 'notes': notes, 'known': got is not None,
             'top': got['top'] if got else None,
             'rank': got['ranks'].get(answer) if got and answer else None,
             'guess_rank': got['ranks'].get(guess) if got and guess else None,
@@ -274,7 +310,8 @@ def chainle_admin():
             cursor.execute("SELECT COUNT(*) FROM chainle_rounds")
             total = cursor.fetchone()[0]
             cursor.execute(
-                "SELECT id, played_on, site, mode, round_no, kind, clues, answer, guess, score, notes "
+                "SELECT id, played_on, site, mode, round_no, kind, clues, answer, guess, score, "
+                "closeness, game_rank, rank_of, notes "
                 "FROM chainle_rounds ORDER BY played_on DESC, created_at DESC, id DESC LIMIT %s",
                 (SHOW_ROUNDS,))
             rows = cursor.fetchall()

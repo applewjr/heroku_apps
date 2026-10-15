@@ -207,9 +207,13 @@ def load_wordnet():
 
 def load_glove(dims, wanted):
     """{word: vector} for the wanted words, from the GloVe 2024 Wiki-Gigaword file."""
-    raw = bpb.fetch(GLOVE.format(dims=dims), f'glove.2024.wikigiga.{dims}d.zip')
+    name = f'glove.2024.wikigiga.{dims}d.zip'
+    path = os.path.join(bpb.CACHE, name)
+    if not os.path.exists(path):
+        bpb.fetch(GLOVE.format(dims=dims), name)   # downloads into the cache
     vectors = {}
-    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+    # Read from disk: the 300d file is 1.6 GB, too big to hold twice.
+    with zipfile.ZipFile(path) as zf:
         name = next(n for n in zf.namelist() if n.endswith('.txt'))
         with zf.open(name) as fh:
             for line in io.TextIOWrapper(fh, encoding='utf-8', errors='replace'):
@@ -399,7 +403,7 @@ def canaries(data):
     return failed
 
 
-def build(dims, out_dir):
+def build(dims, out_dir, force=False):
     enable = load_enable()
     zipf = load_zipf()
     blocked = load_blocklist(os.path.join(DATA, 'phrase_blocklist.txt'))
@@ -430,8 +434,10 @@ def build(dims, out_dir):
     arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos)
     data = chainle.Data(**arrays)
     failed = canaries(data)
-    if failed:
+    if failed and not force:
         sys.exit(f'canaries failed, nothing written: {failed}')
+    if failed:
+        log(f'canaries failed, written anyway (--force): {failed}')
 
     path = os.path.join(out_dir, 'chainle_data.npz')
     np.savez_compressed(path, **arrays)
@@ -448,6 +454,8 @@ def main():
                     help='GloVe vector size')
     ap.add_argument('--cache', default=os.path.join(tempfile.gettempdir(), 'chainle_data_cache'))
     ap.add_argument('--out', default=DATA)
+    ap.add_argument('--force', action='store_true',
+                    help='write even if canaries fail: for trial builds, never for the shipped file')
     args = ap.parse_args()
     os.makedirs(args.cache, exist_ok=True)
     bpb.CACHE = args.cache
@@ -455,7 +463,7 @@ def main():
     contact = os.environ.get('PHRASE_BANK_CONTACT')
     if contact:
         bpb.UA = f'{bpb.UA[:-1]}; {contact})'
-    build(args.dims, args.out)
+    build(args.dims, args.out, args.force)
 
 
 if __name__ == '__main__':

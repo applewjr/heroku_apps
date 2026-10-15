@@ -192,8 +192,24 @@
                     <label for="score">Your score (0 to 1000)</label>
                     <input type="number" id="score" name="score" min="0" max="1000" step="1" inputmode="numeric">
                 </div>
+                <div class="form-group wide">
+                    <label for="link1">Closeness to each clue <span class="muted" style="font-weight: normal;">(the numbers by the chains, 0 to 1)</span></label>
+                    <div class="clue-row">
+                        <input type="text" id="link1" name="link1" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 1">
+                        <input type="text" id="link2" name="link2" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 2">
+                        <input type="text" id="link3" name="link3" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 3">
+                    </div>
+                </div>
+                <div class="form-group wide">
+                    <label for="game_rank">The game's rank for your guess</label>
+                    <div class="clue-row" style="align-items: center;">
+                        <input type="text" id="game_rank" name="game_rank" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="#">
+                        <span class="muted">of</span>
+                        <input type="text" id="rank_of" name="rank_of" maxlength="9" inputmode="numeric" autocomplete="off" placeholder="words">
+                    </div>
+                </div>
                 <div class="form-group">
-                    <label for="answer">The game's answer</label>
+                    <label for="answer">The game's answer <span class="muted" style="font-weight: normal;">(its strongest link)</span></label>
                     <input type="text" id="answer" name="answer" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
                 </div>
                 <div class="form-group">
@@ -262,6 +278,13 @@
                 {% if r.guess_rank %}#{{ r.guess_rank }}{% else %}not in top 100{% endif %}
                 {% endif %}
                 {% endif %}
+                {% if r.closeness or r.game_rank %}
+                <div class="muted">The game:
+                    {% if r.closeness %}closeness {{ r.closeness | join(' / ') }}{% endif %}
+                    {% if r.closeness and r.game_rank %}&middot;{% endif %}
+                    {% if r.game_rank %}ranked #{{ '{:,}'.format(r.game_rank) }}{% if r.rank_of %} of {{ '{:,}'.format(r.rank_of) }}{% endif %}{% endif %}
+                </div>
+                {% endif %}
                 {% if r.notes %}<div class="muted">{{ r.notes }}</div>{% endif %}
             </div>
         </div>
@@ -281,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const count = document.getElementById('clue_count');
     const site = document.getElementById('site');
     const clues = [1, 2, 3].map(n => document.getElementById('clue' + n));
+    const links = [1, 2, 3].map(n => document.getElementById('link' + n));
 
     function showClues(n) {
         clues.forEach((el, i) => {
@@ -288,7 +312,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (i >= n) el.value = '';
             el.required = i < n;
         });
+        // One closeness box per clue, labelled with its clue once typed.
+        links.forEach((el, i) => {
+            el.hidden = i >= n;
+            if (i >= n) el.value = '';
+        });
+        labelLinks();
         schedulePicks();
+    }
+
+    function labelLinks() {
+        links.forEach((el, i) => { el.placeholder = clues[i].value.trim().toUpperCase() || 'Clue ' + (i + 1); });
     }
 
     /* ---------- the solver's picks ---------- */
@@ -368,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         guess.dataset.auto = '';
         markChosen();
     });
-    clues.forEach(el => el.addEventListener('input', schedulePicks));
+    clues.forEach(el => el.addEventListener('input', () => { labelLinks(); schedulePicks(); }));
 
     function setRound(n) {
         const c = ROUND_CLUES[n];
