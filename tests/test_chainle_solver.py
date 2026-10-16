@@ -106,15 +106,20 @@ def test_a_compound_with_every_clue_says_so(data):
 
 
 def test_closeness_leads_and_a_link_breaks_ties(data):
-    # MAN is closer in meaning to both clues than BALL, and the game scores
-    # closeness, so it leads. The compounds still lift BALL above where
-    # closeness alone puts it.
+    # MAN and THING are much closer in meaning to both clues than BALL, and
+    # the game scores closeness, so they lead, though only BALL makes a
+    # compound with both.
     words = _words(ch.solve(data, ['snow', 'foot'], 'bridge', top=30))
-    assert words[0] == 'MAN'
-    unlinked = ch.Data(**ch.pack(_V, zipf={w: 4.0 for w in _V}, answer=set(_V) - {'the'},
-                                 broad={'thing'}, bases={'feet': {'foot'}}))
-    alone = _words(ch.solve(unlinked, ['snow', 'foot'], 'bridge', top=30))
-    assert words.index('BALL') < alone.index('BALL')
+    assert words[:3] == ['MAN', 'THING', 'BALL']
+    # Between words equally close in meaning, a compound with every clue
+    # decides: BALL and BOARD share a vector here, and whichever is linked
+    # goes first after MAN, which is closer than both.
+    vecs = {'snow': [1, 0, 0], 'foot': [0, 1, 0], 'man': [.6, .6, .2],
+            'ball': [.3, .3, .9], 'board': [.3, .3, .9]}
+    for linked in ('ball', 'board'):
+        tie = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, answer=set(vecs),
+                                links=[('snow', linked, 3.0, True), ('foot', linked, 3.0, True)]))
+        assert _words(ch.solve(tie, ['snow', 'foot'], 'bridge'))[:2] == ['MAN', linked.upper()]
 
 
 def test_a_third_clue_narrows_the_links(data):
@@ -209,7 +214,7 @@ def test_assess_reports_the_top_pick_and_each_words_rank(data):
     got = ch.assess(data, ['snow', 'foot'], 'bridge', ['ball', 'man', 'zzzz', ''])
     assert got['top'] == 'MAN'
     assert got['ranks']['MAN'] == 1
-    assert got['ranks']['BALL'] == 2
+    assert got['ranks']['BALL'] == 3
     assert got['ranks']['ZZZZ'] is None
     assert ch.assess(data, ['snow', 'zzzz'], 'bridge', ['ball']) is None
 

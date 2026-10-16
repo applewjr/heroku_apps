@@ -17,10 +17,10 @@ Two signals, because each finds what the other misses:
   meaning  word vectors (GloVe), for answers related in meaning rather than
            through a compound.
 
-Candidates rank by the points they are expected to score: a word linked to
-every clue is likely one of the reviewed answers (the full 1,000), and
-otherwise earns its closeness estimate. The constants below are starting
-values; they get tuned against rounds logged on /chainle_admin.
+Candidates rank by the points they are expected to score: each earns its
+closeness estimate, and a word linked to every clue gets a small chance of
+being the reviewed answer (the full 1,000) on top. The constants below get
+tuned against rounds logged on /chainle_admin.
 
 The data (datasets/chainle_data.npz, built by scripts/build_chainle_data.py)
 is a few flat numpy arrays, never a Python object per word, so it costs about
@@ -35,18 +35,20 @@ import numpy as np
 CHUNK = 8192
 TOP = 10
 
-# Ranking. A word linked to every clue counts as a likely reviewed answer
-# with this chance: rising from LINK_P0 (its weakest link's weight) over
-# LINK_P_SPAN, capped at LINK_P_MAX.
+# Ranking. A word linked to every clue may be the reviewed answer, with this
+# chance: rising from LINK_P0 (its weakest link's weight) over LINK_P_SPAN,
+# capped at LINK_P_MAX.
 #
-# The cap is low on purpose: a tie-breaker, not a deciding vote. Rounds
-# logged on /chainle_admin (2026-10-14) showed the game's answers are mostly
-# related in meaning, not compounds, and the words picked for their phrases
-# scored worst: a phrase can join a word to a clue it's otherwise far from,
-# and the game scores the weakest clue hardest.
+# The cap is low on purpose: a tie-breaker, not a deciding vote. The game's
+# answers are mostly related in meaning, not compounds, and a phrase earns no
+# points beyond the word's closeness: it can join a word to a clue it's
+# otherwise far from, and the game scores the weakest clue hardest. On 68
+# bridge rounds logged on /chainle_admin (2026-10-15), 1 of the 12 linked
+# words that reached a top 10 at this cap was the answer; at 0.25, linked
+# words took the top spot in 5 rounds and none of them was the answer.
 LINK_P0 = 0.75
 LINK_P_SPAN = 2.0
-LINK_P_MAX = 0.25
+LINK_P_MAX = 0.10
 # Each clue past the second: a word that compounds with all three is far
 # less likely by chance than one that compounds with two.
 LINK_EXTRA_CLUE = 0.75

@@ -566,9 +566,6 @@ document.addEventListener('DOMContentLoaded', () => {
         html += '<div class="chn-hint"><span class="chn-hint-label">Length</span><span class="chn-pattern">' +
             (r.first ? esc(word[0]) + blanks(word.length - 1) : blanks(word.length)) + '</span>' +
             '<span class="chn-note" style="margin: 0;">' + word.length + ' letters</span></div>';
-        if (top.type !== 'link' && last.kind === 'bridge') {
-            html += '<p class="chn-note">No word we know makes a compound with every clue, so this one is close in meaning instead. Check the other possible answers too.</p>';
-        }
         html += '<div class="chn-actions">' + (r.first ? '' :
             '<button type="button" class="chn-btn" id="chn-first">&#128161; Show first letter</button>') + '</div>';
         return html;
