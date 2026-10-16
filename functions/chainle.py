@@ -10,12 +10,15 @@ how close it is to each clue, and the weakest clue counts most:
 with each strength 0-100, from word vectors. The game's own reviewed answers
 score the full 1,000.
 
-Two signals, because each finds what the other misses:
+Three signals, because each finds what the others miss:
   link     compound words and two-word phrases joining a candidate to a clue
            (SNOWBALL, FIRE STATION). Word vectors store a compound as a word
            of its own, so they rate SNOW and BALL as far apart.
   meaning  word vectors (GloVe), for answers related in meaning rather than
            through a compound.
+  part     a clue's parts and wholes in WordNet (LEG: KNEE, and TOE through
+           FOOT). A word's vector leans to its most common sense, so it can
+           miss the sense an answer shares with a clue.
 
 Candidates rank by the points they are expected to score: each earns its
 closeness estimate, and a word linked to every clue gets a small chance of
@@ -52,6 +55,15 @@ LINK_P_MAX = 0.10
 # Each clue past the second: a word that compounds with all three is far
 # less likely by chance than one that compounds with two.
 LINK_EXTRA_CLUE = 0.75
+# A clue's parts and wholes in WordNet (LEG: KNEE, and TOE through FOOT)
+# score at least PART_NEAR with it, or PART_FAR two steps away. A word's
+# vector leans to its most common sense, and the game's answers sometimes go
+# with a clue in another one. On 79 bridge rounds logged on /chainle_admin
+# (2026-10-15), this put the answer first in 2 more rounds and in the top 3
+# in 3 more; higher floors, or more of the clue's senses (PART_SENSES in
+# scripts/build_chainle_data.py), moved more answers down than up.
+PART_NEAR = 40
+PART_FAR = 25
 # A WordNet synonym of the clue's main senses, at full closeness, is a
 # likely reviewed answer in the closest-meaning round with this chance; a
 # word from a main sense's family (DOG: WOLF, FOX) less so.
@@ -82,7 +94,8 @@ FIRST = 2    # the clue is written first
 
 FIELDS = ('vocab', 'zipf', 'flags', 'pos', 'vec', 'scale', 'base_ptr', 'base_ids',
           'link_ptr', 'link_ids', 'link_w', 'link_form',
-          'syn_ptr', 'syn_ids', 'rel_ptr', 'rel_ids', 'ant_ptr', 'ant_ids')
+          'syn_ptr', 'syn_ids', 'rel_ptr', 'rel_ids', 'ant_ptr', 'ant_ids',
+          'part_ptr', 'part_ids', 'part_step')
 
 
 class Data:
@@ -132,6 +145,11 @@ class Data:
         """Its main senses' family: their parent and its other kinds."""
         return self._row(self.rel_ptr, self.rel_ids, i)
 
+    def parts(self, i):
+        """(ids, steps): its parts and wholes, 1 or 2 steps away (see PART_NEAR)."""
+        s, e = self.part_ptr[i], self.part_ptr[i + 1]
+        return self.part_ids[s:e], self.part_step[s:e]
+
     def link(self, clue, i):
         """(weight, form) of the link from a clue to word i, or None."""
         s, e = self.link_ptr[clue], self.link_ptr[clue + 1]
@@ -161,7 +179,7 @@ def _pairs(size, index, mapping):
 
 
 def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synonyms=None,
-         antonyms=None, pos=None, related=None):
+         antonyms=None, pos=None, related=None, parts=None):
     """The arrays Data needs, from plain Python structures.
 
     vectors   {word: sequence of floats}: every word the solver knows
@@ -173,6 +191,7 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
     synonyms, antonyms  {word: words}
     pos       {word: part-of-speech bits (NOUN | VERB | ADJ | ADV)}
     related   {word: its family: words of the same kind (DOG: WOLF, FOX)}
+    parts     {word: {a part or whole of it: steps away, 1 or 2}}
     """
     vocab = sorted(vectors)
     index = {w: i for i, w in enumerate(vocab)}
@@ -216,6 +235,14 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
     syn_ptr, syn_ids = _pairs(size, index, synonyms)
     rel_ptr, rel_ids = _pairs(size, index, related)
     ant_ptr, ant_ids = _pairs(size, index, antonyms)
+    p_src, p_dst, p_step = [], [], []
+    for w, found in (parts or {}).items():
+        for x, step in found.items():
+            if w in index and x in index and x != w:
+                p_src.append(index[w])
+                p_dst.append(index[x])
+                p_step.append(step)
+    part_ptr, part_ids, part_step = _csr(size, p_src, p_dst, np.array(p_step, dtype=np.uint8))
     return {
         'vocab': np.array([w.encode('ascii') for w in vocab], dtype=f'S{max(map(len, vocab), default=1)}'),
         'zipf': np.array([(zipf or {}).get(w, 0.0) for w in vocab], dtype=np.float16),
@@ -226,6 +253,7 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
         'link_w': link_w.astype(np.float16), 'link_form': link_form.astype(np.uint8),
         'syn_ptr': syn_ptr, 'syn_ids': syn_ids, 'rel_ptr': rel_ptr, 'rel_ids': rel_ids,
         'ant_ptr': ant_ptr, 'ant_ids': ant_ids,
+        'part_ptr': part_ptr, 'part_ids': part_ids, 'part_step': part_step.astype(np.uint8),
     }
 
 
@@ -287,7 +315,11 @@ def _candidates(data, clue_ids, spare=()):
 def _bridge_scores(data, clue_ids):
     """(expected points, weakest link weight, allowed) for every word."""
     allowed = _candidates(data, clue_ids)
-    sem = estimate(_strengths(_cosines(data, clue_ids), allowed))
+    strengths = _strengths(_cosines(data, clue_ids), allowed)
+    for j, c in enumerate(clue_ids):
+        ids, steps = data.parts(c)
+        strengths[j, ids] = np.maximum(strengths[j, ids], np.where(steps == 1, PART_NEAR, PART_FAR))
+    sem = estimate(strengths)
     sem = np.where((data.flags & BROAD) != 0, sem * BROAD_FACTOR, sem)
     weights = np.zeros((len(clue_ids), data.size), dtype=np.float32)
     for j, c in enumerate(clue_ids):

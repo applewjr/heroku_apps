@@ -117,7 +117,9 @@
     <h1 style="font-size: 24px; margin: 8px 0 4px;">Chainle Round Log</h1>
     <p class="muted" style="margin: 0 0 16px;">{{ total }} round{{ '' if total == 1 else 's' }} logged.
         Log each round after you play it, to tune <a href="/chainle" style="color: #02484d;">the solver</a> against.
-        Rounds stay here: the solver never shows them.</p>
+        Rounds stay here: the solver never shows them.
+        {% if version %}Solver version <b>{{ version }}</b>{% if not versioned %} (saved with each round once
+        mysql_tables/chainle_rounds_version.sql has run){% endif %}.{% endif %}</p>
 
     {% if request.args.get('success') %}
     <div class="alert alert-success">{{ request.args.get('success') }}</div>
@@ -244,6 +246,23 @@
         {% else %}
         <p class="muted" style="margin: 0;">Nothing to rate yet: log a round with the game's answer.</p>
         {% endif %}
+        {% if versions %}
+        <h3 style="font-size: 16px; margin: 18px 0 6px;">By solver version</h3>
+        <table class="summary" id="by-version">
+            <tr><th>Version</th><th>Rounds</th><th>Your avg</th><th>Its #1 right</th><th>You took #1</th></tr>
+            {% for v in versions %}
+            <tr>
+                <td>{{ v.version }}{% if v.version == version %} <span class="muted">(now)</span>{% endif %}
+                    <div class="muted">{{ v.first }}{% if v.last != v.first %} to {{ v.last }}{% endif %}</div></td>
+                <td>{{ v.rounds }}</td>
+                <td>{{ v.avg if v.avg is not none else '-' }}</td>
+                <td>{{ v.top1 }}/{{ v.judged }}</td>
+                <td>{{ v.took }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <p class="muted" style="margin: 10px 0 0;">As each version saw the round when you logged it.</p>
+        {% endif %}
     </div>
 
     <div class="admin-section">
@@ -284,6 +303,10 @@
                     {% if r.closeness and r.game_rank %}&middot;{% endif %}
                     {% if r.game_rank %}ranked #{{ '{:,}'.format(r.game_rank) }}{% if r.rank_of %} of {{ '{:,}'.format(r.rank_of) }}{% endif %}{% endif %}
                 </div>
+                {% endif %}
+                {% if r.version %}
+                <div class="muted">Logged with solver {{ r.version }}: its pick {{ r.top_then or '-' }}{% if r.answer %},
+                    answer {% if r.rank_then %}#{{ r.rank_then }}{% else %}not in top 100{% endif %}{% endif %}</div>
                 {% endif %}
                 {% if r.notes %}<div class="muted">{{ r.notes }}</div>{% endif %}
             </div>

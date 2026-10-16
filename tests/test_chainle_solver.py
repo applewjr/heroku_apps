@@ -122,6 +122,21 @@ def test_closeness_leads_and_a_link_breaks_ties(data):
         assert _words(ch.solve(tie, ['snow', 'foot'], 'bridge'))[:2] == ['MAN', linked.upper()]
 
 
+def test_a_part_of_a_clue_counts_where_the_vectors_miss_it():
+    # LEAF is close to BOOK (a page) but far from TREE in the vectors, so
+    # SHELF, middling close to both, leads. Once the dictionary lists a leaf
+    # as part of a tree, LEAF scores at least PART_NEAR with TREE and leads.
+    # ROOT is TREE's closest word.
+    vecs = {'tree': [1, 0, 0], 'book': [0, 1, 0], 'root': [.9, .05, .43],
+            'leaf': [.05, .9, .43], 'shelf': [.4, .4, .82]}
+
+    def first(parts):
+        d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, answer=set(vecs), parts=parts))
+        return _words(ch.solve(d, ['tree', 'book'], 'bridge'))[0]
+    assert first(None) == 'SHELF'
+    assert first({'tree': {'leaf': 1}}) == 'LEAF'
+
+
 def test_a_third_clue_narrows_the_links(data):
     words = _words(ch.solve(data, ['snow', 'foot', 'basket'], 'bridge'))
     assert words[0] == 'BALL'
@@ -244,6 +259,13 @@ def shipped():
 ], ids=['bed-bath', 'tooth-hair-paint', 'doctor-nurse'])
 def test_the_shipped_data_finds_classic_bridges(shipped, clues, answer):
     assert answer in _words(ch.solve(shipped, clues, 'bridge'))
+
+
+def test_the_shipped_data_knows_parts_one_and_two_steps_away(shipped):
+    ids, steps = shipped.parts(shipped.id('leg'))
+    found = dict(zip(ids.tolist(), steps.tolist()))
+    assert found[shipped.id('knee')] == 1
+    assert found[shipped.id('toe')] == 2   # through FOOT
 
 
 def test_the_shipped_data_finds_a_synonym_not_an_opposite(shipped):

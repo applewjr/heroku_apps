@@ -6,13 +6,14 @@ deployed app reads it from disk and never fetches anything.
 
 | Arrays | What they hold |
 |---|---|
-| `vocab`, `zipf`, `flags`, `pos` | 77,435 words, sorted; each word's frequency, whether it may be suggested (52,657 may), and its parts of speech |
+| `vocab`, `zipf`, `flags`, `pos` | 77,435 words, sorted; each word's frequency, whether it may be suggested (52,581 may), and its parts of speech |
 | `vec`, `scale` | A word vector per word: cleaned up (below), unit length, int8 with one scale per word |
 | `base_ptr`, `base_ids` | Each word's base forms (FEET to FOOT), so a clue's other forms aren't suggested |
-| `link_*` | 196,859 links: compound words (SNOWBALL) and two-word phrases (FIRE STATION) joining two words, with a weight and which word comes first |
+| `link_*` | 188,745 links: compound words (SNOWBALL) and two-word phrases (FIRE STATION) joining two words, with a weight and which word comes first |
 | `syn_*`, `rel_*`, `ant_*` | Synonyms, each word's family (a main sense's parent and its other kinds), and antonyms |
+| `part_*` | 344,421 entries: each word's parts and wholes, one or two steps away (LEG: KNEE, and TOE through FOOT) |
 
-Built 2026-10-15: 24.4 MB on disk, about 31 MB in memory, loaded once per
+Built 2026-10-15: 24.8 MB on disk, about 33 MB in memory, loaded once per
 process on first use (about 0.1 s). `datasets/chainle_eval.tsv` holds
 hand-written test rounds for `scripts/eval_chainle.py`.
 
@@ -21,7 +22,7 @@ hand-written test rounds for `scripts/eval_chainle.py`.
 | Source | Licence | Used for |
 |---|---|---|
 | [GloVe](https://nlp.stanford.edu/projects/glove/) 2024 Wiki-Gigaword vectors (300 dimensions), Stanford NLP Group | [Open Data Commons Public Domain Dedication and License (PDDL) 1.0](https://opendatacommons.org/licenses/pddl/1-0/) | Word vectors: how close two words are in meaning |
-| [WordNet 3.0](https://wordnet.princeton.edu) | WordNet 3.0 licence, in full in [`licenses/WordNet-3.0-LICENSE.txt`](licenses/WordNet-3.0-LICENSE.txt). "Any purpose", so commercial use is allowed | Synonyms, antonyms, base forms (its morphy rules and exception lists), parts of speech, and part of the vocabulary |
+| [WordNet 3.0](https://wordnet.princeton.edu) | WordNet 3.0 licence, in full in [`licenses/WordNet-3.0-LICENSE.txt`](licenses/WordNet-3.0-LICENSE.txt). "Any purpose", so commercial use is allowed | Synonyms, antonyms, parts and wholes, base forms (its morphy rules and exception lists), parts of speech, and part of the vocabulary |
 | `phrase_bank.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): Wiktionary, WordNet 3.0 and Wikidata | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), WordNet licence, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | Two-word phrases, as links |
 | `phrase_words.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): [wordfreq](https://github.com/rspeer/wordfreq) by Robyn Speer | Data [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | Word frequencies (Zipf) |
 | [ENABLE](https://github.com/MagicOctopusUrn/wordListsByLength) word list (`all_words_blossom.csv`) | Public domain | The vocabulary and its compound words |
@@ -97,6 +98,11 @@ publicly.
   the most used first), the sense's parent and the parent's other kinds,
   the 12 most common (DOG: CANINE, WOLF, FOX). A parent with more than 80
   kinds is too broad to say much, so it is skipped.
+- **Parts and wholes:** from each word's first two senses, what WordNet's
+  part, member and substance links reach in one step or two, both ways (LEG:
+  KNEE, and TOE through FOOT). Only words that may be suggested, with a Zipf
+  of 3.0 or more, are kept, with their inflections. A word's vector leans to
+  its most common sense, so these catch a sense the vectors miss.
 - **Antonyms:**
   - WordNet's direct antonyms;
   - a satellite adjective also takes its head's (HUGE, SMALL).
@@ -105,7 +111,8 @@ publicly.
   - KING near QUEEN, and HUGE near BIG;
   - SNOW + BALL and FIRE + STATION linked;
   - LARGE a synonym of BIG, and SMALL an antonym of LARGE;
-  - FEET to FOOT, and RUNNING to RUN.
+  - FEET to FOOT, and RUNNING to RUN;
+  - KNEE a part of LEG, and TOE two steps from it.
 
 ## Rebuilding
 

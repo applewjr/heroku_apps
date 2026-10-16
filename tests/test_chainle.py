@@ -207,19 +207,27 @@ def test_solving_without_the_data_is_a_503(client, no_data):
 
 # --- the admin's round log -----------------------------------------------------------
 
+# The last three columns are the solver version a round was logged with, its
+# first pick and its rank for the answer: NULL before
+# mysql_tables/chainle_rounds_version.sql, as here.
 ROWS = [
     (1, date(2026, 10, 14), 'chainle.io', 'daily', 1, 'bridge', 'SNOW FOOT', 'MAN', 'BALL', 1000,
-     '0.61 0.12', 150, 30000, None),
+     '0.61 0.12', 150, 30000, None, None, None, None),
     (2, date(2026, 10, 14), 'chainle.io', 'unlimited', 5, 'meaning', 'BIG', 'HUGE', 'LARGE', 950,
-     None, None, None, 'took a while'),
+     None, None, None, 'took a while', None, None, None),
     (3, date(2026, 10, 13), 'other', 'archive', 2, 'bridge', 'SNOW QWXZ', 'BALL', None, None,
-     None, None, None, None),
+     None, None, None, None, None, None, None),
 ]
 
 
-def _admin(tiny, monkeypatch, rows=ROWS, fail=None):
-    db = tiny(answers={'SELECT COUNT(*)': (len(rows),)},
-              rows={'FROM chainle_rounds ORDER BY': rows}, fail=fail)
+def _admin(tiny, monkeypatch, rows=ROWS, fail=None, versioned=False, versions=()):
+    """The admin login and a scripted database holding `rows`. versioned:
+    the version columns exist, and `versions` is the by-version summary."""
+    scripted = {'FROM chainle_rounds ORDER BY': rows}
+    if versioned:
+        scripted.update({'SHOW COLUMNS FROM chainle_rounds': [('solver_version',)],
+                         'GROUP BY solver_version': list(versions)})
+    db = tiny(answers={'SELECT COUNT(*)': (len(rows),)}, rows=scripted, fail=fail)
     return db, _admin_headers(monkeypatch)
 
 
@@ -345,6 +353,64 @@ def test_deleting_a_round(client, tiny, monkeypatch):
     assert resp.status_code == 302
     assert ('DELETE FROM chainle_rounds WHERE id = %s', (3,)) in db.executed
     assert db.commits == 1
+
+
+# --- which solver version a round was logged with -------------------------------------
+
+def test_the_solver_version_is_a_short_code_that_follows_the_data(tiny, monkeypatch):
+    import routes.chainle as rc
+    version = rc.solver_version()
+    assert re.fullmatch(r'[0-9a-f]{8}', version)
+    assert rc.solver_version() == version
+    other = ch.pack(_V, zipf={w: 4.0 for w in _V}, answer=set(_V))
+    monkeypatch.setattr(rc, '_static', {'data': ch.Data(**other), 'failed_at': 0.0})
+    assert rc.solver_version() != version
+
+
+def test_logging_works_before_the_version_columns_exist(client, tiny, monkeypatch):
+    # Prod may run this code before mysql_tables/chainle_rounds_version.sql.
+    import routes.chainle as rc
+    db, headers = _admin(tiny, monkeypatch)
+    resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
+    assert 'success=' in resp.headers['Location']
+    [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
+    assert 'solver_version' not in sql and len(params) == len(rc.ROUND_COLUMNS)
+
+
+def test_logging_saves_what_the_solver_made_of_the_round(client, tiny, monkeypatch):
+    import routes.chainle as rc
+    db, headers = _admin(tiny, monkeypatch, versioned=True)
+    client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
+    [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
+    saved = dict(zip(rc.ROUND_COLUMNS + rc.VERSION_COLUMNS, params))
+    assert 'solver_top = new.solver_top' in sql
+    # SNOW + FOOT + BASKET: BALL is its first pick, and the answer.
+    assert (saved['solver_version'], saved['solver_top'], saved['answer_rank']) == (rc.solver_version(), 'BALL', 1)
+
+
+def test_admin_page_works_before_the_version_columns_exist(client, tiny, monkeypatch):
+    db, headers = _admin(tiny, monkeypatch)
+    html = ' '.join(client.get('/chainle_admin', headers=headers).get_data(as_text=True).split())
+    assert 'once mysql_tables/chainle_rounds_version.sql has run' in html
+    assert 'id="by-version"' not in html and 'Logged with solver' not in html
+    assert db.statements('NULL, NULL, NULL FROM chainle_rounds')
+    assert not db.statements('GROUP BY solver_version')
+
+
+def test_admin_page_splits_the_rounds_by_solver_version(client, tiny, monkeypatch):
+    import routes.chainle as rc
+    now = rc.solver_version()
+    rows = [ROWS[0][:14] + (now, 'MAN', 1), ROWS[1][:14] + ('0badc0de', 'LARGE', 2)]
+    versions = [(now, 1, 1000, 1, 1, 1, 0, date(2026, 10, 14), date(2026, 10, 14)),
+                ('0badc0de', 3, 812.4, 2, 1, 2, 2, date(2026, 10, 12), date(2026, 10, 13))]
+    _, headers = _admin(tiny, monkeypatch, rows=rows, versioned=True, versions=versions)
+    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
+    assert f'Solver version <b>{now}</b>.' in html
+    table = html.split('id="by-version"')[1].split('</table>')[0]
+    assert f'{now} <span class="muted">(now)</span>' in table
+    assert '0badc0de' in table and '812' in table and '2026-10-12 to 2026-10-13' in table
+    assert f'Logged with solver {now}: its pick MAN,' in html
+    assert 'Logged with solver 0badc0de: its pick LARGE,' in html
 
 
 def test_admin_survives_a_database_error(client, tiny, monkeypatch):

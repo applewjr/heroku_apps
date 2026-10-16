@@ -11,6 +11,7 @@ functions/chainle.py against. Logged rounds stay in the database: the solver
 never shows them and never uses them as answers.
 """
 
+import hashlib
 import os
 import re
 import threading
@@ -18,6 +19,7 @@ import time
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
+import numpy as np
 import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
@@ -69,6 +71,26 @@ def get_data():
 # and search engines get it as dateModified. Bump it when a tuning change
 # ships, not on every deploy.
 ACCURACY_UPDATED = date(2026, 10, 15)
+
+
+def solver_version():
+    """A short code for the solver in this process: a hash of the engine's
+    code and its word data, so it changes whenever either does. The admin
+    saves it with each round, to tell which version made the picks. None if
+    the data won't load."""
+    data = get_data()
+    if data is None:
+        return None
+    if _static.get('version') is None:
+        h = hashlib.sha1()
+        with open(ch.__file__, 'rb') as fh:
+            h.update(fh.read())
+        for name in ch.FIELDS:
+            a = np.ascontiguousarray(getattr(data, name))
+            h.update(f'{name} {a.dtype.str} {a.shape}'.encode())
+            h.update(a)
+        _static['version'] = h.hexdigest()[:8]
+    return _static['version']
 
 
 def page_context():
@@ -134,13 +156,44 @@ FIRST_DAY = date(2026, 1, 1)
 # replaces it, and another puzzle the same day adds a row.
 ROUND_COLUMNS = ('played_on', 'site', 'mode', 'round_no', 'kind', 'clues', 'answer', 'guess',
                  'score', 'closeness', 'game_rank', 'rank_of', 'notes', 'created_at')
-UPSERT_ROUND = f"""
-INSERT INTO chainle_rounds ({', '.join(ROUND_COLUMNS)})
-VALUES ({', '.join(['%s'] * len(ROUND_COLUMNS))}) AS new
-ON DUPLICATE KEY UPDATE mode = new.mode, kind = new.kind, answer = new.answer,
-    guess = new.guess, score = new.score, closeness = new.closeness, game_rank = new.game_rank,
-    rank_of = new.rank_of, notes = new.notes, created_at = new.created_at
+ROUND_KEY = ('played_on', 'site', 'round_no', 'clues')
+# What the solver made of a round when it was logged
+# (mysql_tables/chainle_rounds_version.sql): its version (solver_version()),
+# its first pick and its rank for the game's answer. Saved and shown once
+# that SQL has run; until then the admin works as before without them.
+VERSION_COLUMNS = ('solver_version', 'solver_top', 'answer_rank')
+
+
+def _upsert(columns):
+    return (f"INSERT INTO chainle_rounds ({', '.join(columns)}) "
+            f"VALUES ({', '.join(['%s'] * len(columns))}) AS new ON DUPLICATE KEY UPDATE "
+            + ', '.join(f'{c} = new.{c}' for c in columns if c not in ROUND_KEY))
+
+
+UPSERT_ROUND = _upsert(ROUND_COLUMNS)
+UPSERT_ROUND_VERSIONED = _upsert(ROUND_COLUMNS + VERSION_COLUMNS)
+# Per solver version, newest first: rounds, your average score, rounds it
+# could be judged on, its first pick right, its answer in the top 3, and
+# rounds you took its first pick.
+VERSION_SUMMARY = """
+SELECT solver_version, COUNT(*), AVG(score), SUM(solver_top IS NOT NULL AND answer IS NOT NULL),
+    SUM(solver_top = answer), SUM(answer_rank <= 3), SUM(guess = solver_top), MIN(played_on), MAX(played_on)
+FROM chainle_rounds WHERE solver_version IS NOT NULL
+GROUP BY solver_version ORDER BY MAX(created_at) DESC LIMIT 10
 """
+
+
+def _has_version_columns(cursor):
+    """True once mysql_tables/chainle_rounds_version.sql has run."""
+    cursor.execute("SHOW COLUMNS FROM chainle_rounds LIKE 'solver_version'")
+    return bool(cursor.fetchall())
+
+
+def _versions(rows):
+    return [{'version': v, 'rounds': n, 'avg': round(avg) if avg is not None else None,
+             'judged': int(judged or 0), 'top1': int(top1 or 0), 'top3': int(top3 or 0),
+             'took': int(took or 0), 'first': str(first), 'last': str(last)}
+            for v, n, avg, judged, top1, top3, took, first, last in rows]
 
 
 def _today():
@@ -281,7 +334,7 @@ def assess_rounds(data, rows):
     solver ranks the game's answer and your guess, and its own first pick."""
     rounds, tally, scores = [], {}, []
     for (rid, played_on, site, mode, round_no, kind, clues, answer, guess, score, closeness, game_rank,
-         rank_of, notes) in rows:
+         rank_of, notes, version, top_then, rank_then) in rows:
         got = _assess(data, kind, clues, answer, guess) if data is not None else None
         r = {
             'id': rid, 'played_on': str(played_on), 'site': site, 'mode': mode, 'round_no': round_no,
@@ -291,6 +344,8 @@ def assess_rounds(data, rows):
             'top': got['top'] if got else None,
             'rank': got['ranks'].get(answer) if got and answer else None,
             'guess_rank': got['ranks'].get(guess) if got and guess else None,
+            # The version it was logged with, and what that version said.
+            'version': version, 'top_then': top_then, 'rank_then': rank_then,
         }
         rounds.append(r)
         if score is not None:
@@ -314,14 +369,20 @@ def chainle_admin():
     """The round log: a form to add a round, and how the solver rates each."""
     try:
         with db_cursor() as (conn, cursor):
+            versioned = _has_version_columns(cursor)
             cursor.execute("SELECT COUNT(*) FROM chainle_rounds")
             total = cursor.fetchone()[0]
             cursor.execute(
                 "SELECT id, played_on, site, mode, round_no, kind, clues, answer, guess, score, "
-                "closeness, game_rank, rank_of, notes "
-                "FROM chainle_rounds ORDER BY played_on DESC, created_at DESC, id DESC LIMIT %s",
+                "closeness, game_rank, rank_of, notes, "
+                + (', '.join(VERSION_COLUMNS) if versioned else 'NULL, NULL, NULL') +
+                " FROM chainle_rounds ORDER BY played_on DESC, created_at DESC, id DESC LIMIT %s",
                 (SHOW_ROUNDS,))
             rows = cursor.fetchall()
+            versions = []
+            if versioned:
+                cursor.execute(VERSION_SUMMARY)
+                versions = _versions(cursor.fetchall())
     except Exception as e:
         print(f"Error loading chainle admin: {e}")
         return render_template('error.html', return_type='Admin Error'), 500
@@ -329,7 +390,8 @@ def chainle_admin():
     form_date, form_round = _form_defaults(request.args)
     return render_template('chainle_admin.html', total=total, form_date=form_date,
                            form_round=form_round, sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
-                           data_ok=data is not None, shown=SHOW_ROUNDS, **assess_rounds(data, rows))
+                           data_ok=data is not None, shown=SHOW_ROUNDS, version=solver_version(),
+                           versioned=versioned, versions=versions, **assess_rounds(data, rows))
 
 
 @bp.route(ADMIN + '/log_round', methods=['POST'])
@@ -341,9 +403,16 @@ def chainle_log_round():
         row = parse_round(request.form)
     except ValidationError as e:
         return _back(error=str(e), **keep)
+    data = get_data()
+    got = _assess(data, row['kind'], row['clues'], row['answer'], row['guess']) if data is not None else None
+    row.update(solver_version=solver_version(), solver_top=got['top'] if got else None,
+               answer_rank=got['ranks'].get(row['answer']) if got and row['answer'] else None)
     try:
         with db_cursor() as (conn, cursor):
-            cursor.execute(UPSERT_ROUND, tuple(row[c] for c in ROUND_COLUMNS))
+            if _has_version_columns(cursor):
+                cursor.execute(UPSERT_ROUND_VERSIONED, tuple(row[c] for c in ROUND_COLUMNS + VERSION_COLUMNS))
+            else:
+                cursor.execute(UPSERT_ROUND, tuple(row[c] for c in ROUND_COLUMNS))
             conn.commit()
     except Exception as e:
         print(f"Error logging chainle round: {e}")

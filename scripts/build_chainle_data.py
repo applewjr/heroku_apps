@@ -145,6 +145,13 @@ FAMILY_MAX = 12
 FAMILY_ZIPF = 3.0
 FAMILY_MAX_KINDS = 80   # a parent with more kinds than this (PERSON) says little
 
+# A word's parts and wholes (LEG: KNEE, and TOE through FOOT): what WordNet's
+# part, member and substance links reach, both ways, from the word's first
+# PART_SENSES senses, one step out or two. The solver counts them in bridge
+# rounds (PART_NEAR in functions/chainle.py).
+PART_SENSES = 2
+PART_POINTERS = {'%p', '#p', '%m', '#m', '%s', '#s'}
+
 # WordNet's morphy rules (morphy(7WN)): inflected ending -> base ending.
 MORPHY = {
     'noun': [('s', ''), ('ses', 's'), ('xes', 'x'), ('zes', 'z'), ('ches', 'ch'), ('shes', 'sh'),
@@ -379,6 +386,41 @@ def main_senses(synsets, senses):
     return syn, fam
 
 
+def part_relations(synsets, senses, vocab, bases, keep):
+    """{word: {word in keep: steps}}: what WordNet's part-whole links reach
+    from the word's first PART_SENSES senses (or its base form's), 1 for one
+    step or a shared synset, 2 for two. A word reached counts for its
+    inflections too (KNEES with KNEE)."""
+    inflections = collections.defaultdict(set)
+    for w, found in bases.items():
+        for b in found:
+            inflections[b].add(w)
+    out = {}
+    for w in vocab:
+        starts = [(pos, o) for form in {w} | bases.get(w, set()) for pos in MORPHY
+                  for o in senses.get((pos, form), [])[:PART_SENSES]]
+        steps = dict.fromkeys(starts, 0)
+        queue = collections.deque(starts)
+        while queue:
+            s = queue.popleft()
+            if steps[s] >= 2:
+                continue
+            for symbol, offset, ppos, _ in synsets[s][1]:
+                t = (POINTER_POS[ppos], offset)
+                if symbol in PART_POINTERS and t in synsets and t not in steps:
+                    steps[t] = steps[s] + 1
+                    queue.append(t)
+        found = {}
+        for s, n in steps.items():
+            for x in _single(synsets[s][0]):
+                for v in {x} | inflections.get(x, set()):
+                    if v in keep and v != w:
+                        found[v] = min(found.get(v, 2), max(n, 1))
+        if found:
+            out[w] = found
+    return out
+
+
 def compound_links(enable, vocab, zipf, vectors, lemmas, exceptions):
     """(a, b, weight, closed=True) for dictionary words made of two known
     words (SNOWBALL = SNOW + BALL), weighted by how common the compound is.
@@ -444,6 +486,10 @@ def canaries(data):
         cos[i(word)] = -1
         return i(other) in np.argsort(-cos)[:k].tolist()
 
+    def part_steps(word, other):
+        ids, steps = data.parts(i(word))
+        return dict(zip(ids.tolist(), steps.tolist())).get(i(other))
+
     checks = {
         'queen near king': lambda: near('king', 'queen', 10),
         'huge near big': lambda: near('big', 'huge', 10),
@@ -457,6 +503,8 @@ def canaries(data):
         'no ending split off a plural (TEACH + ERS)':
             lambda: data.id('ers') < 0 or data.link(i('teach'), data.id('ers')) is None,
         'wolf in the dog family': lambda: i('wolf') in data.related(i('dog')).tolist(),
+        'knee a part of leg': lambda: part_steps('leg', 'knee') == 1,
+        'toe two steps from leg (through foot)': lambda: part_steps('leg', 'toe') == 2,
     }
     failed = []
     for name, check in checks.items():
@@ -495,16 +543,21 @@ def build(dims, out_dir, force=False):
               and all(len(b) >= ANSWER_MIN_LEN for b in bases.get(w, ()))}
     syn, fam = main_senses(synsets, senses)
     ant = antonyms(synsets)
+    # Ties in frequency go alphabetically, so a rebuild keeps the same family.
     related = {w: sorted((x for x in kin if x in vocab and zipf.get(x, 0.0) >= FAMILY_ZIPF),
-                         key=lambda x: -zipf[x])[:FAMILY_MAX]
+                         key=lambda x: (-zipf[x], x))[:FAMILY_MAX]
                for w, kin in fam.items() if w in vocab}
+    # Like a family, parts and wholes rarer than FAMILY_ZIPF are left out:
+    # the solver never suggests them.
+    parts = part_relations(synsets, senses, vocab, bases,
+                           {w for w in answer if zipf.get(w, 0.0) >= FAMILY_ZIPF})
 
     links = list(compound_links(enable, vocab, zipf, raw_vectors, lemmas, exceptions))
     n_closed = len(links)
     links += bank_links(vocab)
     log(f'links: {n_closed} from compound words, {len(links) - n_closed} from two-word phrases')
 
-    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos, related)
+    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos, related, parts)
     data = chainle.Data(**arrays)
     failed = canaries(data)
     if failed and not force:
@@ -518,8 +571,8 @@ def build(dims, out_dir, force=False):
     log(f'wrote {path}: {os.path.getsize(path) / 1e6:.1f} MB on disk, {in_memory / 1e6:.1f} MB loaded')
     log(f'  {data.size} words ({int((arrays["flags"] & chainle.ANSWER != 0).sum())} answers), '
         f'{len(arrays["link_ids"]) // 2} links, {len(arrays["syn_ids"])} synonym, '
-        f'{len(arrays["rel_ids"])} family and {len(arrays["ant_ids"])} antonym entries, '
-        f'{len(arrays["base_ids"])} base forms')
+        f'{len(arrays["rel_ids"])} family, {len(arrays["ant_ids"])} antonym and '
+        f'{len(arrays["part_ids"])} part-whole entries, {len(arrays["base_ids"])} base forms')
 
 
 def main():
