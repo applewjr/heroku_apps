@@ -1,0 +1,75 @@
+# Hand-written test rounds for the Chainle solver (scripts/eval_chainle.py).
+# Written from scratch for testing: none come from any game's puzzles.
+# group: compound / meaning (two-clue bridges), triple (three clues), closest (one clue)
+# answers: accepted answers, separated by |
+group	clues	answers
+compound	snow foot	ball
+compound	tooth hair	brush
+compound	bed bath	room
+compound	water fire	proof
+compound	star jelly	fish
+compound	cup pan	cake
+compound	mail lunch	box
+compound	head flash	light
+compound	cross pass	word
+compound	butter dragon	fly
+compound	black key	board
+compound	book shoe	store|shop
+compound	drive rail	way
+compound	apple pumpkin	pie
+compound	fire police	station|officer|department
+compound	rain snow	fall|storm|drop
+compound	sun moon	light|shine|beam
+compound	tea coffee	pot|cup|break|table
+compound	pop candy	corn
+compound	camp wild	fire
+compound	swim law	suit
+compound	green light	house
+compound	mouse key	pad
+compound	note text	book
+compound	play back	ground
+compound	wind rain	storm|fall
+meaning	doctor nurse	hospital
+meaning	king queen	crown|royal|palace|throne
+meaning	bread cheese	sandwich|toast
+meaning	guitar piano	music|instrument
+meaning	bee flower	honey|pollen|nectar
+meaning	school teacher	student|class|classroom
+meaning	winter ice	snow|cold|frost
+meaning	ocean river	water
+meaning	pen pencil	paper|write|ink
+meaning	lion tiger	cat|zoo|jungle
+meaning	rain cloud	storm|sky|weather|umbrella
+meaning	chef kitchen	cook|cooking|food|restaurant
+meaning	farm cow	milk|barn|farmer
+meaning	camel pyramid	desert|egypt
+triple	snow foot basket	ball
+triple	bed bath class	room
+triple	star jelly gold	fish
+triple	fire water sound	proof
+triple	head flash sun	light
+triple	mail lunch tool	box
+triple	tooth hair paint	brush
+triple	cup pan cheese	cake
+triple	note text hand	book
+triple	rain snow water	fall
+triple	green light dog	house
+triple	key black skate	board
+triple	doctor nurse patient	hospital
+triple	lion tiger leopard	cat
+closest	big	large|huge|giant|great
+closest	happy	glad|joyful|cheerful|content
+closest	fast	quick|rapid|speedy|swift
+closest	angry	mad|furious|irate|cross
+closest	begin	start|commence|initiate
+closest	smart	clever|intelligent|bright|brainy
+closest	tiny	small|little|minute|wee
+closest	buy	purchase
+closest	sad	unhappy|sorrowful|gloomy|blue
+closest	rich	wealthy|affluent
+closest	close	shut|near
+closest	hard	difficult|tough|firm|solid
+closest	quiet	silent|calm|still|hushed
+closest	brave	courageous|bold|fearless|valiant
+closest	end	finish|conclusion|close|stop
+closest	help	assist|aid

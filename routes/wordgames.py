@@ -8,6 +8,7 @@ from data import df, word_pop, words
 from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
+from routes import chainle
 from routes import guess_the_phrase as gtp
 from routes import smush as smush_crowd
 from routes.smush import get_smush_words
@@ -482,6 +483,28 @@ def run_guess_the_phrase():
     else:
         log_page_visit('guess_the_phrase.html')
         return render_template("guess_the_phrase.html", schema_data=schema_data, **gtp.page_context())
+
+
+@bp.route("/chainle", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
+def run_chainle():
+
+    schema_data = make_schema_data(
+        "Chainle Solver - Hints for the Daily Word Chain",
+        "Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.",
+        "https://www.jamesapplewhite.com/chainle"
+    )
+    # The day the solver last improved, rather than the day of the request.
+    schema_data['dateModified'] = chainle.ACCURACY_UPDATED.isoformat()
+
+    if request.method == "POST":
+        data = request.get_json()
+        if not isinstance(data, dict):
+            raise ValidationError('expected a JSON object')
+        return chainle.solve_request(data)
+    else:
+        log_page_visit('chainle.html')
+        return render_template("chainle.html", schema_data=schema_data, **chainle.page_context())
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])

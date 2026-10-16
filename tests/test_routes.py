@@ -17,6 +17,7 @@ GET_OK = [
     "/smush",
     "/ribbit",
     "/guess_the_phrase",
+    "/chainle",
     "/any_word",
     "/fixer",
     "/common_denominator",

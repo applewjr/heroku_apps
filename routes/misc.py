@@ -139,7 +139,7 @@ def robots_txt():
 def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
-        '/blossom', '/smush', '/ribbit', '/guess_the_phrase', '/any_word', '/feedback',
+        '/blossom', '/smush', '/ribbit', '/guess_the_phrase', '/chainle', '/any_word', '/feedback',
         '/privacy-policy',
         '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4', '/kintsugi',
         '/thread',

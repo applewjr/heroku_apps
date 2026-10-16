@@ -57,6 +57,13 @@ guess_the_phrase:
     expect: 'id="gtp-bank-ok"'
     sev: crit
 
+# Same idea: the marker only renders once the word data has loaded.
+chainle:
+    path: "/chainle"
+    max_ms: 4000
+    expect: 'id="chn-data-ok"'
+    sev: warn
+
 wordle:
     path: "/wordle"
     max_ms: 3000
