@@ -6,14 +6,13 @@ deployed app reads it from disk and never fetches anything.
 
 | Arrays | What they hold |
 |---|---|
-| `vocab`, `zipf`, `flags`, `pos` | 77,435 words, sorted; each word's frequency, whether it may be suggested (52,581 may), and its parts of speech |
-| `vec`, `scale` | A word vector per word: cleaned up (below), unit length, int8 with one scale per word |
+| `vocab`, `zipf`, `flags`, `pos` | 72,106 words, sorted; each word's frequency, whether it may be suggested (51,216 may), and its parts of speech |
+| `vec`, `scale` | A word vector per word: unit length, int8 with one scale per word |
 | `base_ptr`, `base_ids` | Each word's base forms (FEET to FOOT), so a clue's other forms aren't suggested |
-| `link_*` | 188,745 links: compound words (SNOWBALL) and two-word phrases (FIRE STATION) joining two words, with a weight and which word comes first |
+| `link_*` | 188,103 links: compound words (SNOWBALL) and two-word phrases (FIRE STATION) joining two words, with a weight and which word comes first. They label a word for the page's hints and don't change its rank |
 | `syn_*`, `rel_*`, `ant_*` | Synonyms, each word's family (a main sense's parent and its other kinds), and antonyms |
-| `part_*` | 344,421 entries: each word's parts and wholes, one or two steps away (LEG: KNEE, and TOE through FOOT) |
 
-Built 2026-10-15: 24.8 MB on disk, about 33 MB in memory, loaded once per
+Built 2026-10-15: 22.4 MB on disk, about 29 MB in memory, loaded once per
 process on first use (about 0.1 s). `datasets/chainle_eval.tsv` holds
 hand-written test rounds for `scripts/eval_chainle.py`.
 
@@ -21,8 +20,8 @@ hand-written test rounds for `scripts/eval_chainle.py`.
 
 | Source | Licence | Used for |
 |---|---|---|
-| [GloVe](https://nlp.stanford.edu/projects/glove/) 2024 Wiki-Gigaword vectors (300 dimensions), Stanford NLP Group | [Open Data Commons Public Domain Dedication and License (PDDL) 1.0](https://opendatacommons.org/licenses/pddl/1-0/) | Word vectors: how close two words are in meaning |
-| [WordNet 3.0](https://wordnet.princeton.edu) | WordNet 3.0 licence, in full in [`licenses/WordNet-3.0-LICENSE.txt`](licenses/WordNet-3.0-LICENSE.txt). "Any purpose", so commercial use is allowed | Synonyms, antonyms, parts and wholes, base forms (its morphy rules and exception lists), parts of speech, and part of the vocabulary |
+| [ConceptNet Numberbatch](https://github.com/commonsense/conceptnet-numberbatch) 19.08 English vectors (300 dimensions), Luminoso Technologies, Inc. | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | Word vectors: how close two words are in meaning |
+| [WordNet 3.0](https://wordnet.princeton.edu) | WordNet 3.0 licence, in full in [`licenses/WordNet-3.0-LICENSE.txt`](licenses/WordNet-3.0-LICENSE.txt). "Any purpose", so commercial use is allowed | Synonyms, antonyms, families, base forms (its morphy rules and exception lists), parts of speech, and part of the vocabulary |
 | `phrase_bank.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): Wiktionary, WordNet 3.0 and Wikidata | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), WordNet licence, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | Two-word phrases, as links |
 | `phrase_words.tsv.gz` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)): [wordfreq](https://github.com/rspeer/wordfreq) by Robyn Speer | Data [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | Word frequencies (Zipf) |
 | [ENABLE](https://github.com/MagicOctopusUrn/wordListsByLength) word list (`all_words_blossom.csv`) | Public domain | The vocabulary and its compound words |
@@ -36,11 +35,13 @@ n-gram counts are not used: their data states no licence of its own (see
 
 `chainle_data.npz` is **not** covered by the repository's MIT licence. It is
 shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), as an
-adaptation of Wiktionary and wordfreq material (ShareAlike). It also contains
+adaptation of ConceptNet Numberbatch, Wiktionary and wordfreq material
+(ShareAlike). This data contains semantic vectors from ConceptNet
+Numberbatch, by Luminoso Technologies, Inc. You may redistribute or modify
+the data under the terms of the CC BY-SA 4.0 license. It also contains
 WordNet 3.0 material: WordNet 3.0 Copyright 2006 by Princeton University. All
 rights reserved. Used under the licence in `licenses/WordNet-3.0-LICENSE.txt`,
-which applies to that material. The GloVe vectors in it are in the public
-domain under the PDDL.
+which applies to that material.
 
 Changes from the sources: words are filtered (length, letters only,
 frequency, the offensive-word list), the vectors are normalised and
@@ -48,10 +49,17 @@ quantised, and links are scored.
 
 ### Credits the sources ask for
 
-- **GloVe:** none required (PDDL), credited anyway: Jeffrey Pennington,
-  Richard Socher and Christopher D. Manning, "GloVe: Global Vectors for Word
-  Representation" (2014), and Riley Carlson, John Bauer and Christopher D.
-  Manning, "A New Pair of GloVes" (2025), arXiv:2507.18103.
+- **ConceptNet Numberbatch:** due credit to Luminoso Technologies, Inc.
+  (the attribution above, its suggested text), and ShareAlike for anything
+  built from it. Made by Robyn Speer, Joshua Chin, Catherine Havasi and
+  Joanna Lowry-Duda; cited as Robyn Speer, Joshua Chin and Catherine Havasi,
+  "ConceptNet 5.5: An Open Multilingual Graph of General Knowledge", AAAI
+  2017. It is built from ConceptNet 5.7 (data from Wiktionary, WordNet and
+  contributors to Open Mind Common Sense projects); GloVe, by Jeffrey
+  Pennington, Richard Socher and Christopher Manning; word2vec, by Tomas
+  Mikolov and Google Research; and parallel text from OpenSubtitles 2016, by
+  Pierre Lison and Jörg Tiedemann, analyzed with fastText, by Piotr
+  Bojanowski, Edouard Grave, Armand Joulin and Tomas Mikolov.
 - **WordNet:** the notice above, on every copy of the data. Princeton's name
   may not be used in advertising or publicity.
 - **Wiktionary, wordfreq and LDNOOBW:** as in `PHRASE_BANK.md`.
@@ -61,15 +69,15 @@ publicly.
 
 ## How the data is chosen
 
-- **Vectors:** GloVe's 300-dimension vectors, cleaned up the "all-but-the-
-  top" way (Jiaqi Mu and Pramod Viswanath, 2018). The average vector and the
-  top 3 principal directions of the common words (Zipf 2.65 and up, about
-  32k) are removed, then each vector is scaled to unit length. Every word
-  shares those directions, and they make common words look close to
-  everything.
+- **Vectors:** Numberbatch's 300-dimension English vectors, used as they
+  are and scaled to unit length. Numberbatch blends word use (GloVe,
+  word2vec, fastText) with ConceptNet's network of what words mean, so
+  synonyms and parts of things sit close together. Their cosines match the
+  closeness Chainle shows after a guess far better than any GloVe build
+  tried (see `scripts/build_chainle_data.py`).
 
 - **Vocabulary:** ENABLE words and WordNet's single-word lemmas, 2 to 15
-  letters, with a Zipf frequency of at least 1.5 and a GloVe vector.
+  letters, with a Zipf frequency of at least 1.5 and a Numberbatch vector.
   - A word may be suggested if its Zipf is at least 2.0, it has 3 or more
     letters, it isn't a function word ("the", "of", "like") and it is in the
     dictionary (not only a name).
@@ -98,33 +106,29 @@ publicly.
   the most used first), the sense's parent and the parent's other kinds,
   the 12 most common (DOG: CANINE, WOLF, FOX). A parent with more than 80
   kinds is too broad to say much, so it is skipped.
-- **Parts and wholes:** from each word's first two senses, what WordNet's
-  part, member and substance links reach in one step or two, both ways (LEG:
-  KNEE, and TOE through FOOT). Only words that may be suggested, with a Zipf
-  of 3.0 or more, are kept, with their inflections. A word's vector leans to
-  its most common sense, so these catch a sense the vectors miss.
 - **Antonyms:**
   - WordNet's direct antonyms;
   - a satellite adjective also takes its head's (HUGE, SMALL).
 - **Canaries:** a few plain facts the build must get right, or it writes
   nothing:
-  - KING near QUEEN, and HUGE near BIG;
+  - KING near QUEEN, HUGE near BIG, and KNEE near LEG;
   - SNOW + BALL and FIRE + STATION linked;
   - LARGE a synonym of BIG, and SMALL an antonym of LARGE;
-  - FEET to FOOT, and RUNNING to RUN;
-  - KNEE a part of LEG, and TOE two steps from it.
+  - FEET to FOOT, and RUNNING to RUN.
 
 ## Rebuilding
 
 ```
-python scripts/build_chainle_data.py              # 300-dimension vectors
-python scripts/build_chainle_data.py --dims 100   # another GloVe size (50, 100, 200, 300)
-python scripts/eval_chainle.py --misses           # the hand-written test rounds
+python scripts/build_chainle_data.py                            # the shipped file
+python scripts/build_chainle_data.py --vectors glove            # GloVe 2024, to compare
+python scripts/build_chainle_data.py --vectors glove --dims 100 # another GloVe size (50, 100, 200, 300)
+python scripts/eval_chainle.py --misses                         # the hand-written test rounds
 ```
 
 Downloads are cached in the system temp folder (`chainle_data_cache`), so a
 re-run only hits the network for what's missing:
-- the GloVe file: 1.6 GB for 300 dimensions;
+- the Numberbatch English file: 325 MB (the GloVe file instead, with
+  `--vectors glove`: 1.6 GB for 300 dimensions);
 - the full WordNet 3.0 release: 12 MB. It is needed for its exception lists,
   which the database-only tarball the phrase bank uses doesn't include.
 

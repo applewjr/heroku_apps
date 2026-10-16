@@ -105,36 +105,35 @@ def test_a_compound_with_every_clue_says_so(data):
     assert all(0 <= s['strength'] <= 1 for s in res['suggestions'])
 
 
-def test_closeness_leads_and_a_link_breaks_ties(data):
-    # MAN and THING are much closer in meaning to both clues than BALL, and
-    # the game scores closeness, so they lead, though only BALL makes a
-    # compound with both.
+def test_closeness_decides_and_a_link_only_labels(data):
+    # The game scores closeness alone. MAN is close to both clues and leads,
+    # then BALL, though only BALL makes a compound with both. THING is as
+    # close as MAN, but a broad word.
     words = _words(ch.solve(data, ['snow', 'foot'], 'bridge', top=30))
-    assert words[:3] == ['MAN', 'THING', 'BALL']
-    # Between words equally close in meaning, a compound with every clue
-    # decides: BALL and BOARD share a vector here, and whichever is linked
-    # goes first after MAN, which is closer than both.
+    assert words[:2] == ['MAN', 'BALL']
+    assert words.index('THING') > words.index('BALL')
+    # A link labels a word without moving it: BALL and BOARD share a vector
+    # here, and they score the same whichever of them is linked.
     vecs = {'snow': [1, 0, 0], 'foot': [0, 1, 0], 'man': [.6, .6, .2],
             'ball': [.3, .3, .9], 'board': [.3, .3, .9]}
     for linked in ('ball', 'board'):
         tie = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, answer=set(vecs),
                                 links=[('snow', linked, 3.0, True), ('foot', linked, 3.0, True)]))
-        assert _words(ch.solve(tie, ['snow', 'foot'], 'bridge'))[:2] == ['MAN', linked.upper()]
+        found = {s['word']: s for s in ch.solve(tie, ['snow', 'foot'], 'bridge')['suggestions']}
+        assert found['BALL']['strength'] == found['BOARD']['strength']
+        assert found[linked.upper()]['type'] == 'link'
 
 
-def test_a_part_of_a_clue_counts_where_the_vectors_miss_it():
-    # LEAF is close to BOOK (a page) but far from TREE in the vectors, so
-    # SHELF, middling close to both, leads. Once the dictionary lists a leaf
-    # as part of a tree, LEAF scores at least PART_NEAR with TREE and leads.
-    # ROOT is TREE's closest word.
-    vecs = {'tree': [1, 0, 0], 'book': [0, 1, 0], 'root': [.9, .05, .43],
-            'leaf': [.05, .9, .43], 'shelf': [.4, .4, .82]}
-
-    def first(parts):
-        d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, answer=set(vecs), parts=parts))
-        return _words(ch.solve(d, ['tree', 'book'], 'bridge'))[0]
-    assert first(None) == 'SHELF'
-    assert first({'tree': {'leaf': 1}}) == 'LEAF'
+def test_a_word_close_to_every_clue_beats_one_closest_to_a_single_clue():
+    # BANKS is 0.4 from both clues, past CLOSE_FULL, so it scores in full.
+    # SHORE is far closer to RIVER (0.9) but only 0.2 from MONEY, and the
+    # game scores the weaker clue hardest.
+    vecs = {'river': [1, 0, 0], 'money': [0, 1, 0], 'banks': [.4, .4, .8246],
+            'shore': [.9, .2, .3873]}
+    d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}))
+    res = ch.solve(d, ['river', 'money'], 'bridge')
+    assert _words(res) == ['BANKS', 'SHORE']
+    assert res['suggestions'][1]['strength'] < 0.85
 
 
 def test_a_third_clue_narrows_the_links(data):
@@ -160,8 +159,19 @@ def test_never_suggests_a_clue_its_inflections_or_words_built_on_it(data):
     words = _words(ch.solve(data, ['snow', 'foot'], 'bridge', top=30))
     for banned in ('SNOW', 'FOOT', 'FEET', 'FOOTBALL', 'SNOWBALL'):
         assert banned not in words
-    # The plural as the clue still rules out the singular.
-    assert 'FOOT' not in _words(ch.solve(data, ['snow', 'feet'], 'bridge', top=30))
+    # The plural as the clue still rules out the singular, and words built
+    # on it.
+    words = _words(ch.solve(data, ['snow', 'feet'], 'bridge', top=30))
+    assert 'FOOT' not in words and 'FOOTBALL' not in words
+
+
+def test_a_word_whose_base_sits_inside_a_clue_is_too_close():
+    # COIN sits inside BITCOIN, so COINS is too close as well: the game
+    # would turn either down.
+    vecs = {'bitcoin': [1, 0, 0], 'silver': [0, 1, 0], 'coins': [.6, .6, .5],
+            'coin': [.6, .6, .52], 'river': [.3, .3, .9]}
+    d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, bases={'coins': {'coin'}}))
+    assert _words(ch.solve(d, ['bitcoin', 'silver'], 'bridge')) == ['RIVER']
 
 
 def test_stopwords_are_never_suggested(data):
@@ -176,12 +186,23 @@ def test_broad_words_rank_below_specific_ones(data):
 def test_a_meaning_only_answer_wins_when_nothing_links(data):
     res = ch.solve(data, ['doctor', 'nurse'], 'bridge')
     top = res['suggestions'][0]
-    # HOSPITALS scores a shade higher, but it's the same answer: listed once,
-    # in its base form.
+    # HOSPITALS scores as well, but it's the same answer: listed once, in
+    # its base form.
     assert top['word'] == 'HOSPITAL'
     assert 'HOSPITALS' not in _words(res)
     assert top['type'] == 'meaning'
     assert top['phrases'] == [None, None]
+
+
+def test_an_inflection_stays_as_itself_when_its_base_scores_far_lower():
+    # BANKS is close to both clues, BANK (here) to neither: listing BANK
+    # would put up a word the solver rates far lower. Still one answer.
+    vecs = {'river': [1, 0, 0], 'money': [0, 1, 0], 'banks': [.6, .6, .5],
+            'bank': [.1, .1, .99], 'shore': [.5, .2, .84]}
+    d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, bases={'banks': {'bank'}}))
+    words = _words(ch.solve(d, ['river', 'money'], 'bridge'))
+    assert words[0] == 'BANKS'
+    assert 'BANK' not in words
 
 
 # --- closest-meaning rounds -----------------------------------------------------------
@@ -202,19 +223,15 @@ def test_closest_meaning_skips_a_word_built_on_the_clue(data):
     assert 'TELEPHONE' not in words
 
 
-def test_a_word_without_synonyms_leans_on_its_family():
-    # A rare sense's synonym (FRUMP) never comes into it: the build keeps
-    # main senses only. With no synonyms left, the clue's family (DOG: WOLF,
-    # FOX) gets a boost and anchors closeness, so WOLF beats CAT, which is
-    # a shade closer on the vectors alone.
-    vecs = {'dog': [1, .2, 0], 'wolf': [.9, .1, .3], 'fox': [.8, .1, .4], 'cat': [1, .5, 0],
-            'cab': [0, 0, 1], 'frump': [0, 1, 0]}
-    plain = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}))
-    assert _words(ch.solve(plain, ['dog'], 'meaning'))[0] == 'CAT'
-    kin = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, related={'dog': {'wolf', 'fox'}}))
+def test_the_clues_family_beats_an_equally_close_word():
+    # WOLF and CAB sit equally close to DOG, but WOLF is in DOG's family (its
+    # parent's other kinds), so it ranks first of the two and says so. CAT,
+    # the closest word of all, stays on top.
+    vecs = {'dog': [1, .2, 0], 'cat': [1, .5, 0], 'wolf': [.9, .1, .3], 'cab': [.9, .1, .3]}
+    kin = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, related={'dog': {'wolf'}}))
     res = ch.solve(kin, ['dog'], 'meaning')
-    assert _words(res)[0] == 'WOLF'
-    assert res['suggestions'][0]['type'] == 'related'
+    assert _words(res) == ['CAT', 'WOLF', 'CAB']
+    assert res['suggestions'][1]['type'] == 'related'
 
 
 def test_closest_meaning_keeps_to_the_clues_part_of_speech(data):
@@ -229,7 +246,7 @@ def test_assess_reports_the_top_pick_and_each_words_rank(data):
     got = ch.assess(data, ['snow', 'foot'], 'bridge', ['ball', 'man', 'zzzz', ''])
     assert got['top'] == 'MAN'
     assert got['ranks']['MAN'] == 1
-    assert got['ranks']['BALL'] == 3
+    assert got['ranks']['BALL'] == 2
     assert got['ranks']['ZZZZ'] is None
     assert ch.assess(data, ['snow', 'zzzz'], 'bridge', ['ball']) is None
 
@@ -259,13 +276,6 @@ def shipped():
 ], ids=['bed-bath', 'tooth-hair-paint', 'doctor-nurse'])
 def test_the_shipped_data_finds_classic_bridges(shipped, clues, answer):
     assert answer in _words(ch.solve(shipped, clues, 'bridge'))
-
-
-def test_the_shipped_data_knows_parts_one_and_two_steps_away(shipped):
-    ids, steps = shipped.parts(shipped.id('leg'))
-    found = dict(zip(ids.tolist(), steps.tolist()))
-    assert found[shipped.id('knee')] == 1
-    assert found[shipped.id('toe')] == 2   # through FOOT
 
 
 def test_the_shipped_data_finds_a_synonym_not_an_opposite(shipped):

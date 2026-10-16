@@ -10,20 +10,17 @@ how close it is to each clue, and the weakest clue counts most:
 with each strength 0-100, from word vectors. The game's own reviewed answers
 score the full 1,000.
 
-Three signals, because each finds what the others miss:
-  link     compound words and two-word phrases joining a candidate to a clue
-           (SNOWBALL, FIRE STATION). Word vectors store a compound as a word
-           of its own, so they rate SNOW and BALL as far apart.
-  meaning  word vectors (GloVe), for answers related in meaning rather than
-           through a compound.
-  part     a clue's parts and wholes in WordNet (LEG: KNEE, and TOE through
-           FOOT). A word's vector leans to its most common sense, so it can
-           miss the sense an answer shares with a clue.
+Closeness is the cosine of two words' ConceptNet Numberbatch vectors. They
+blend how words are used with a network of what words mean, so a word sits
+close to its synonyms and its parts (LEG: KNEE) as well as to the words used
+alongside it, and they match the closeness Chainle shows after a guess.
 
-Candidates rank by the points they are expected to score: each earns its
-closeness estimate, and a word linked to every clue gets a small chance of
-being the reviewed answer (the full 1,000) on top. The constants below get
-tuned against rounds logged on /chainle_admin.
+Candidates rank by the points they are expected to score. In the
+closest-meaning round, a WordNet synonym of the clue also gets a chance of
+being a reviewed answer. Compound words and two-word phrases joining a word
+to a clue (SNOWBALL, FIRE STATION) never move the ranking, since the game
+scores closeness alone: they only label a word, for the page's hints. The
+constants below get tuned against rounds logged on /chainle_admin.
 
 The data (datasets/chainle_data.npz, built by scripts/build_chainle_data.py)
 is a few flat numpy arrays, never a Python object per word, so it costs about
@@ -38,41 +35,21 @@ import numpy as np
 CHUNK = 8192
 TOP = 10
 
-# Ranking. A word linked to every clue may be the reviewed answer, with this
-# chance: rising from LINK_P0 (its weakest link's weight) over LINK_P_SPAN,
-# capped at LINK_P_MAX.
-#
-# The cap is low on purpose: a tie-breaker, not a deciding vote. The game's
-# answers are mostly related in meaning, not compounds, and a phrase earns no
-# points beyond the word's closeness: it can join a word to a clue it's
-# otherwise far from, and the game scores the weakest clue hardest. On 68
-# bridge rounds logged on /chainle_admin (2026-10-15), 1 of the 12 linked
-# words that reached a top 10 at this cap was the answer; at 0.25, linked
-# words took the top spot in 5 rounds and none of them was the answer.
-LINK_P0 = 0.75
-LINK_P_SPAN = 2.0
-LINK_P_MAX = 0.10
-# Each clue past the second: a word that compounds with all three is far
-# less likely by chance than one that compounds with two.
-LINK_EXTRA_CLUE = 0.75
-# A clue's parts and wholes in WordNet (LEG: KNEE, and TOE through FOOT)
-# score at least PART_NEAR with it, or PART_FAR two steps away. A word's
-# vector leans to its most common sense, and the game's answers sometimes go
-# with a clue in another one. On 79 bridge rounds logged on /chainle_admin
-# (2026-10-15), this put the answer first in 2 more rounds and in the top 3
-# in 3 more; higher floors, or more of the clue's senses (PART_SENSES in
-# scripts/build_chainle_data.py), moved more answers down than up.
-PART_NEAR = 40
-PART_FAR = 25
+# Ranking. In a bridge round a word's strength with each clue rises with
+# their closeness, from 0 at CLOSE_ZERO to full at CLOSE_FULL and above. The
+# game scores a clue in full once a guess is about as close to it as the
+# reviewed answer is, and answers mostly sit at 0.2-0.4 with each clue.
+# Saturating a little above that ranked the answer first in 78 of 88 bridge
+# rounds logged on /chainle_admin (2026-10-15), and anywhere from 0.30 to
+# 0.45 did nearly as well: lower ties too many words at the top, and higher
+# lets a word very close to one clue make up for being far from another.
+CLOSE_ZERO = -0.08
+CLOSE_FULL = 0.34
 # A WordNet synonym of the clue's main senses, at full closeness, is a
 # likely reviewed answer in the closest-meaning round with this chance; a
 # word from a main sense's family (DOG: WOLF, FOX) less so.
 SYN_P = 0.7
 FAMILY_P = 0.4
-# The game scores other closest-meaning answers against the clue and its
-# reviewed alternatives. The clue's synonyms nearest to it stand in for those
-# alternatives, or its family when it has no synonyms.
-SYN_ANCHORS = 5
 # The game scores broad words (thing, good, great) lower in bridge rounds.
 BROAD_FACTOR = 0.6
 # The game's answers are common words: almost all logged on /chainle_admin
@@ -82,6 +59,13 @@ BROAD_FACTOR = 0.6
 MIN_ANSWER_ZIPF = 3.995
 # A word built on a clue, or inside one, is too close (see _too_close).
 CONTAINS_MIN = 3
+# A word close only in meaning is listed in its base form (WATERS: WATER)
+# when the base scores within this share of the form the solver ranked.
+# Otherwise it keeps its own form: a base often scores far lower (SAYING:
+# SAY), and the inflection rules can name another word (MATTER: MATT). On the
+# rounds logged on /chainle_admin (2026-10-15), a base listed in a top 10
+# scored a median 35% below the form it stood for.
+SHOWN_MARGIN = 0.03
 
 # flags bits
 ANSWER = 1   # may be suggested
@@ -94,8 +78,7 @@ FIRST = 2    # the clue is written first
 
 FIELDS = ('vocab', 'zipf', 'flags', 'pos', 'vec', 'scale', 'base_ptr', 'base_ids',
           'link_ptr', 'link_ids', 'link_w', 'link_form',
-          'syn_ptr', 'syn_ids', 'rel_ptr', 'rel_ids', 'ant_ptr', 'ant_ids',
-          'part_ptr', 'part_ids', 'part_step')
+          'syn_ptr', 'syn_ids', 'rel_ptr', 'rel_ids', 'ant_ptr', 'ant_ids')
 
 
 class Data:
@@ -145,11 +128,6 @@ class Data:
         """Its main senses' family: their parent and its other kinds."""
         return self._row(self.rel_ptr, self.rel_ids, i)
 
-    def parts(self, i):
-        """(ids, steps): its parts and wholes, 1 or 2 steps away (see PART_NEAR)."""
-        s, e = self.part_ptr[i], self.part_ptr[i + 1]
-        return self.part_ids[s:e], self.part_step[s:e]
-
     def link(self, clue, i):
         """(weight, form) of the link from a clue to word i, or None."""
         s, e = self.link_ptr[clue], self.link_ptr[clue + 1]
@@ -179,7 +157,7 @@ def _pairs(size, index, mapping):
 
 
 def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synonyms=None,
-         antonyms=None, pos=None, related=None, parts=None):
+         antonyms=None, pos=None, related=None):
     """The arrays Data needs, from plain Python structures.
 
     vectors   {word: sequence of floats}: every word the solver knows
@@ -191,7 +169,6 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
     synonyms, antonyms  {word: words}
     pos       {word: part-of-speech bits (NOUN | VERB | ADJ | ADV)}
     related   {word: its family: words of the same kind (DOG: WOLF, FOX)}
-    parts     {word: {a part or whole of it: steps away, 1 or 2}}
     """
     vocab = sorted(vectors)
     index = {w: i for i, w in enumerate(vocab)}
@@ -235,14 +212,6 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
     syn_ptr, syn_ids = _pairs(size, index, synonyms)
     rel_ptr, rel_ids = _pairs(size, index, related)
     ant_ptr, ant_ids = _pairs(size, index, antonyms)
-    p_src, p_dst, p_step = [], [], []
-    for w, found in (parts or {}).items():
-        for x, step in found.items():
-            if w in index and x in index and x != w:
-                p_src.append(index[w])
-                p_dst.append(index[x])
-                p_step.append(step)
-    part_ptr, part_ids, part_step = _csr(size, p_src, p_dst, np.array(p_step, dtype=np.uint8))
     return {
         'vocab': np.array([w.encode('ascii') for w in vocab], dtype=f'S{max(map(len, vocab), default=1)}'),
         'zipf': np.array([(zipf or {}).get(w, 0.0) for w in vocab], dtype=np.float16),
@@ -253,7 +222,6 @@ def pack(vectors, zipf=None, answer=None, broad=(), bases=None, links=(), synony
         'link_w': link_w.astype(np.float16), 'link_form': link_form.astype(np.uint8),
         'syn_ptr': syn_ptr, 'syn_ids': syn_ids, 'rel_ptr': rel_ptr, 'rel_ids': rel_ids,
         'ant_ptr': ant_ptr, 'ant_ids': ant_ids,
-        'part_ptr': part_ptr, 'part_ids': part_ids, 'part_step': part_step.astype(np.uint8),
     }
 
 
@@ -291,9 +259,9 @@ def _repeats(data, clue_ids):
 
 
 def _strengths(cos, allowed):
-    """0-100 per clue: a word's cosine over the clue's best cosine to any
-    allowed word. A stand-in for the game's per-clue adjustment, which it
-    doesn't publish."""
+    """0-100 per clue in the closest-meaning round: a word's cosine over the
+    clue's best cosine to any allowed word, so the nearest word scores in
+    full."""
     best = np.where(allowed, cos, -1.0).max(axis=1, keepdims=True)
     return 100 * np.clip(cos / np.maximum(best, 1e-3), 0, 1)
 
@@ -313,22 +281,17 @@ def _candidates(data, clue_ids, spare=()):
 
 
 def _bridge_scores(data, clue_ids):
-    """(expected points, weakest link weight, allowed) for every word."""
+    """(expected points, weakest link weight, allowed) for every word. The
+    link weight only labels a word (see bridge)."""
     allowed = _candidates(data, clue_ids)
-    strengths = _strengths(_cosines(data, clue_ids), allowed)
-    for j, c in enumerate(clue_ids):
-        ids, steps = data.parts(c)
-        strengths[j, ids] = np.maximum(strengths[j, ids], np.where(steps == 1, PART_NEAR, PART_FAR))
-    sem = estimate(strengths)
-    sem = np.where((data.flags & BROAD) != 0, sem * BROAD_FACTOR, sem)
+    cos = _cosines(data, clue_ids)
+    score = estimate(100 * np.clip((cos - CLOSE_ZERO) / (CLOSE_FULL - CLOSE_ZERO), 0, 1))
+    score = np.where((data.flags & BROAD) != 0, score * BROAD_FACTOR, score)
     weights = np.zeros((len(clue_ids), data.size), dtype=np.float32)
     for j, c in enumerate(clue_ids):
         s, e = data.link_ptr[c], data.link_ptr[c + 1]
         weights[j, data.link_ids[s:e]] = data.link_w[s:e]
-    link = weights.min(axis=0)
-    extra = LINK_EXTRA_CLUE * (len(clue_ids) - 2)
-    p = np.where(link > 0, np.clip((link - LINK_P0 + extra) / LINK_P_SPAN, 0, LINK_P_MAX), 0.0)
-    return p * 1000 + (1 - p) * sem, link, allowed
+    return score, weights.min(axis=0), allowed
 
 
 def _closest_scores(data, clue_id):
@@ -345,15 +308,7 @@ def _closest_scores(data, clue_id):
     # A synonym shares a part of speech with the clue (HARD: not COME).
     if data.pos[clue_id]:
         allowed &= (data.pos == 0) | ((data.pos & data.pos[clue_id]) != 0)
-    cos = _cosines(data, [clue_id])
-    # Closeness to the clue alone favours words used alongside it (BIG ->
-    # LITTLE, COMING); closeness to its synonyms' centre favours words that
-    # mean the same.
-    anchors = sorted((s for s in (syn or fam) if cos[0, s] > 0), key=lambda s: -cos[0, s])[:SYN_ANCHORS]
-    if anchors:
-        centre = _unit(data, [clue_id] + anchors).mean(axis=1, keepdims=True)
-        cos = np.vstack([cos, _dot(data, centre / (np.linalg.norm(centre) or 1))])
-    strengths = _strengths(cos, allowed)
+    strengths = _strengths(_cosines(data, [clue_id]), allowed)
     is_syn = np.zeros(data.size, dtype=bool)
     is_syn[list(syn)] = True
     is_fam = np.zeros(data.size, dtype=bool)
@@ -382,28 +337,37 @@ def _same_answer(data, i, seen):
     return False
 
 
-def _shown(data, i, allowed):
+def _shown(data, i, allowed, score):
     """The form to list word i as: its base when it's a regular inflection
-    of an allowed word (WATERS -> WATER). The game counts them as one answer."""
+    of an allowed word that scores about as well (WATERS -> WATER; see
+    SHOWN_MARGIN). The game counts them as one answer."""
     word, best = data.word(i), i
     for b in data.bases(i) - {i}:
         base = data.word(b)
         if (allowed[b] and len(base) >= 3 and word.startswith(base[:-1])
-                and len(base) < len(data.word(best))):
+                and len(base) < len(data.word(best)) and score[b] >= (1 - SHOWN_MARGIN) * score[i]):
             best = b
     return best
 
 
-def _too_close(word, clues):
-    """True if word is built on a clue or sits inside one (FOOTBALL for
+def _forms(data, ids):
+    """The words and their base forms, as strings."""
+    return {data.word(b) for i in ids for b in data.bases(i)}
+
+
+def _too_close(data, i, clues):
+    """True if word i is built on a clue or sits inside one (FOOTBALL for
     FOOT, TELEPHONE for PHONE, PHONE for TELEPHONE): the game turns those
-    down as too close."""
-    for c in clues:
-        if word == c:
-            continue
-        long_, short = (word, c) if len(word) > len(c) else (c, word)
-        if len(short) >= CONTAINS_MIN and (long_.startswith(short) or long_.endswith(short)):
-            return True
+    down as too close. clues holds the clues' forms (_forms), and word i's
+    base forms count too: COINS sits inside BITCOIN through COIN, and
+    FOOTBALL is built on FEET through FOOT."""
+    for word in _forms(data, [i]):
+        for c in clues:
+            if word == c:
+                continue
+            long_, short = (word, c) if len(word) > len(c) else (c, word)
+            if len(short) >= CONTAINS_MIN and (long_.startswith(short) or long_.endswith(short)):
+                return True
     return False
 
 
@@ -426,13 +390,15 @@ def bridge(data, clue_ids, top=TOP):
     """
     score, link, allowed = _bridge_scores(data, clue_ids)
     clues = [data.word(c) for c in clue_ids]
+    forms = _forms(data, clue_ids)
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 20):
-        if _too_close(data.word(i), clues) or _same_answer(data, i, seen):
+        if _too_close(data, i, forms) or _same_answer(data, i, seen):
             continue
         # A linked word stays as linked (its phrases name it); a word that's
-        # only close in meaning shows in its base form.
-        j = i if link[i] > 0 else _shown(data, i, allowed)
+        # only close in meaning shows in its base form if that scores about
+        # as well.
+        j = i if link[i] > 0 else _shown(data, i, allowed, score)
         word = data.word(j)
         phrases, patterns = [], []
         for c, clue in zip(clue_ids, clues):
@@ -452,12 +418,12 @@ def closest(data, clue_id, top=TOP):
     'synonym' (WordNet, main senses), 'related' (a main sense's family) or
     'meaning' (word vectors). Opposites are left out."""
     score, is_syn, is_fam, allowed = _closest_scores(data, clue_id)
-    clue = [data.word(clue_id)]
+    forms = _forms(data, [clue_id])
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 3):
-        if _too_close(data.word(i), clue) or _same_answer(data, i, seen):
+        if _too_close(data, i, forms) or _same_answer(data, i, seen):
             continue
-        j = _shown(data, i, allowed)
+        j = _shown(data, i, allowed, score)
         kind = ('synonym' if is_syn[i] or is_syn[j] else
                 'related' if is_fam[i] or is_fam[j] else 'meaning')
         out.append({'word': data.word(j).upper(), 'type': kind,

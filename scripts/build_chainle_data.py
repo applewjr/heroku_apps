@@ -5,17 +5,17 @@ routes/chainle.py load (arrays described in functions/chainle.py):
 
     vocab, zipf, flags   the words the solver knows, how common each is, and
                          which may be suggested
-    vec, scale           GloVe word vectors, cleaned up (below), unit length,
+    vec, scale           ConceptNet Numberbatch word vectors, unit length,
                          stored as int8
     base_*               each word's base forms, to spot a repeated clue
     link_*               compound words and two-word phrases joining two words
-    syn_*, ant_*         WordNet synonyms and antonyms
+    syn_*, rel_*, ant_*  WordNet synonyms, families and antonyms
 
 Build-time only. It downloads public data into a cache folder outside the
 repo, and the deployed app never fetches anything. Sources and licences are
 recorded in datasets/CHAINLE_DATA.md:
 
-    GloVe 2024 Wiki-Gigaword vectors (PDDL 1.0), Stanford NLP
+    ConceptNet Numberbatch 19.08 vectors (CC BY-SA 4.0), Luminoso Technologies
     WordNet 3.0 (WordNet 3.0 licence)
     datasets/phrase_bank.tsv.gz, phrase_words.tsv.gz and phrase_blocklist.txt,
         built by scripts/build_phrase_bank.py (see datasets/PHRASE_BANK.md)
@@ -23,8 +23,9 @@ recorded in datasets/CHAINLE_DATA.md:
 
 Run manually to regenerate:
 
-    python scripts/build_chainle_data.py              # 300-dimension vectors
-    python scripts/build_chainle_data.py --dims 100   # another GloVe size
+    python scripts/build_chainle_data.py                    # the shipped file
+    python scripts/build_chainle_data.py --vectors glove    # GloVe, to compare
+    python scripts/build_chainle_data.py --vectors glove --dims 100
 
 Set PHRASE_BANK_CONTACT (an email or URL) to add a contact to the
 User-Agent, as Wikimedia and Princeton ask of automated clients.
@@ -53,13 +54,18 @@ import build_phrase_bank as bpb  # noqa: E402  (its download cache and WordNet s
 from functions import chainle  # noqa: E402
 from functions.phrase_solver import TAG_BIT, blocklist_hash, load_blocklist  # noqa: E402
 
+# The word vectors: ConceptNet Numberbatch's English ones, used as they are.
+# Their cosines reproduce the closeness Chainle shows after a guess: on 170
+# (clue, guess) pairs logged on /chainle_admin (2026-10-15), three in four
+# matched to the two decimals it shows, and the average gap was 0.015. GloVe,
+# cleaned up as below, was 0.087 off on average.
+NUMBERBATCH = 'https://conceptnet.s3.amazonaws.com/downloads/2019/numberbatch/numberbatch-en-19.08.txt.gz'
+# For comparison builds (--vectors glove): GloVe 2024, cleaned up the
+# "all-but-the-top" way (Mu and Viswanath, 2018). That removes the average
+# vector and the top few principal directions, which every word shares and
+# which make common words look close to everything, measured over the ~32k
+# common words.
 GLOVE = 'https://nlp.stanford.edu/data/wordvecs/glove.2024.wikigiga.{dims}d.zip'
-# The vectors are cleaned up the "all-but-the-top" way (Mu and Viswanath,
-# 2018): remove the average vector and the top few principal directions,
-# which every word shares and which make common words look close to
-# everything. Measured over the common words, the ~32k a game is likely to
-# use. This reproduced the closeness numbers Chainle shows after a guess
-# better than raw vectors or any other size, and ranked its answers higher.
 CLEAN_TOP = 3
 CLEAN_ZIPF = 2.65
 # The full WordNet 3.0 release: unlike the WNdb database-only tarball the
@@ -144,13 +150,6 @@ MAIN_SENSES = 2
 FAMILY_MAX = 12
 FAMILY_ZIPF = 3.0
 FAMILY_MAX_KINDS = 80   # a parent with more kinds than this (PERSON) says little
-
-# A word's parts and wholes (LEG: KNEE, and TOE through FOOT): what WordNet's
-# part, member and substance links reach, both ways, from the word's first
-# PART_SENSES senses, one step out or two. The solver counts them in bridge
-# rounds (PART_NEAR in functions/chainle.py).
-PART_SENSES = 2
-PART_POINTERS = {'%p', '#p', '%m', '#m', '%s', '#s'}
 
 # WordNet's morphy rules (morphy(7WN)): inflected ending -> base ending.
 MORPHY = {
@@ -273,6 +272,22 @@ def load_glove(dims, wanted):
     return vectors
 
 
+def load_numberbatch(wanted):
+    """{word: vector} for the wanted words, from the Numberbatch English file."""
+    name = os.path.basename(NUMBERBATCH)
+    path = os.path.join(bpb.CACHE, name)
+    if not os.path.exists(path):
+        bpb.fetch(NUMBERBATCH, name)   # downloads into the cache
+    vectors = {}
+    with gzip.open(path, 'rt', encoding='utf-8') as fh:
+        next(fh)   # the header: word count and dimensions
+        for line in fh:
+            word, _, rest = line.partition(' ')
+            if word in wanted:
+                vectors[word] = np.array(rest.split(), dtype=np.float32)
+    return vectors
+
+
 # --- word relations -------------------------------------------------------------
 
 POS_BITS = {'noun': chainle.NOUN, 'verb': chainle.VERB, 'adj': chainle.ADJ, 'adv': chainle.ADV}
@@ -386,41 +401,6 @@ def main_senses(synsets, senses):
     return syn, fam
 
 
-def part_relations(synsets, senses, vocab, bases, keep):
-    """{word: {word in keep: steps}}: what WordNet's part-whole links reach
-    from the word's first PART_SENSES senses (or its base form's), 1 for one
-    step or a shared synset, 2 for two. A word reached counts for its
-    inflections too (KNEES with KNEE)."""
-    inflections = collections.defaultdict(set)
-    for w, found in bases.items():
-        for b in found:
-            inflections[b].add(w)
-    out = {}
-    for w in vocab:
-        starts = [(pos, o) for form in {w} | bases.get(w, set()) for pos in MORPHY
-                  for o in senses.get((pos, form), [])[:PART_SENSES]]
-        steps = dict.fromkeys(starts, 0)
-        queue = collections.deque(starts)
-        while queue:
-            s = queue.popleft()
-            if steps[s] >= 2:
-                continue
-            for symbol, offset, ppos, _ in synsets[s][1]:
-                t = (POINTER_POS[ppos], offset)
-                if symbol in PART_POINTERS and t in synsets and t not in steps:
-                    steps[t] = steps[s] + 1
-                    queue.append(t)
-        found = {}
-        for s, n in steps.items():
-            for x in _single(synsets[s][0]):
-                for v in {x} | inflections.get(x, set()):
-                    if v in keep and v != w:
-                        found[v] = min(found.get(v, 2), max(n, 1))
-        if found:
-            out[w] = found
-    return out
-
-
 def compound_links(enable, vocab, zipf, vectors, lemmas, exceptions):
     """(a, b, weight, closed=True) for dictionary words made of two known
     words (SNOWBALL = SNOW + BALL), weighted by how common the compound is.
@@ -486,13 +466,10 @@ def canaries(data):
         cos[i(word)] = -1
         return i(other) in np.argsort(-cos)[:k].tolist()
 
-    def part_steps(word, other):
-        ids, steps = data.parts(i(word))
-        return dict(zip(ids.tolist(), steps.tolist())).get(i(other))
-
     checks = {
         'queen near king': lambda: near('king', 'queen', 10),
         'huge near big': lambda: near('big', 'huge', 10),
+        'knee near leg': lambda: near('leg', 'knee', 10),
         'snow + ball link': lambda: data.link(i('snow'), i('ball')) is not None,
         'foot + ball link': lambda: data.link(i('foot'), i('ball')) is not None,
         'fire + station link': lambda: data.link(i('fire'), i('station')) is not None,
@@ -503,8 +480,6 @@ def canaries(data):
         'no ending split off a plural (TEACH + ERS)':
             lambda: data.id('ers') < 0 or data.link(i('teach'), data.id('ers')) is None,
         'wolf in the dog family': lambda: i('wolf') in data.related(i('dog')).tolist(),
-        'knee a part of leg': lambda: part_steps('leg', 'knee') == 1,
-        'toe two steps from leg (through foot)': lambda: part_steps('leg', 'toe') == 2,
     }
     failed = []
     for name, check in checks.items():
@@ -518,7 +493,7 @@ def canaries(data):
     return failed
 
 
-def build(dims, out_dir, force=False):
+def build(source, dims, out_dir, force=False):
     enable = load_enable()
     zipf = load_zipf()
     blocked = load_blocklist(os.path.join(DATA, 'phrase_blocklist.txt'))
@@ -528,12 +503,17 @@ def build(dims, out_dir, force=False):
     words = {w for w in enable | set().union(*lemmas.values())
              if MIN_LEN <= len(w) <= MAX_LEN and zipf.get(w, 0.0) >= VOCAB_ZIPF
              and blocklist_hash(w.upper()) not in blocked}
-    log(f'glove {dims}d...')
-    vectors = load_glove(dims, words)
+    if source == 'glove':
+        log(f'glove {dims}d...')
+        vectors = load_glove(dims, words)
+    else:
+        log('numberbatch...')
+        vectors = load_numberbatch(words)
     vocab = set(vectors)
     log(f'vocabulary: {len(vocab)} of {len(words)} candidate words have vectors')
     raw_vectors = vectors
-    vectors = clean_vectors(vectors, zipf)
+    if source == 'glove':
+        vectors = clean_vectors(vectors, zipf)
 
     bases, pos = word_forms(vocab, lemmas, exceptions)
     # Not an inflection of a two-letter word either (ERS, ESS): no game
@@ -547,17 +527,13 @@ def build(dims, out_dir, force=False):
     related = {w: sorted((x for x in kin if x in vocab and zipf.get(x, 0.0) >= FAMILY_ZIPF),
                          key=lambda x: (-zipf[x], x))[:FAMILY_MAX]
                for w, kin in fam.items() if w in vocab}
-    # Like a family, parts and wholes rarer than FAMILY_ZIPF are left out:
-    # the solver never suggests them.
-    parts = part_relations(synsets, senses, vocab, bases,
-                           {w for w in answer if zipf.get(w, 0.0) >= FAMILY_ZIPF})
 
     links = list(compound_links(enable, vocab, zipf, raw_vectors, lemmas, exceptions))
     n_closed = len(links)
     links += bank_links(vocab)
     log(f'links: {n_closed} from compound words, {len(links) - n_closed} from two-word phrases')
 
-    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos, related, parts)
+    arrays = chainle.pack(vectors, zipf, answer, BROAD & vocab, bases, links, syn, ant, pos, related)
     data = chainle.Data(**arrays)
     failed = canaries(data)
     if failed and not force:
@@ -571,14 +547,16 @@ def build(dims, out_dir, force=False):
     log(f'wrote {path}: {os.path.getsize(path) / 1e6:.1f} MB on disk, {in_memory / 1e6:.1f} MB loaded')
     log(f'  {data.size} words ({int((arrays["flags"] & chainle.ANSWER != 0).sum())} answers), '
         f'{len(arrays["link_ids"]) // 2} links, {len(arrays["syn_ids"])} synonym, '
-        f'{len(arrays["rel_ids"])} family, {len(arrays["ant_ids"])} antonym and '
-        f'{len(arrays["part_ids"])} part-whole entries, {len(arrays["base_ids"])} base forms')
+        f'{len(arrays["rel_ids"])} family and {len(arrays["ant_ids"])} antonym entries, '
+        f'{len(arrays["base_ids"])} base forms')
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--vectors', default='numberbatch', choices=('numberbatch', 'glove'),
+                    help='word vectors: Numberbatch (the shipped file) or GloVe 2024, to compare')
     ap.add_argument('--dims', type=int, default=300, choices=(50, 100, 200, 300),
-                    help='GloVe vector size')
+                    help='GloVe vector size (with --vectors glove)')
     ap.add_argument('--cache', default=os.path.join(tempfile.gettempdir(), 'chainle_data_cache'))
     ap.add_argument('--out', default=DATA)
     ap.add_argument('--force', action='store_true',
@@ -590,7 +568,7 @@ def main():
     contact = os.environ.get('PHRASE_BANK_CONTACT')
     if contact:
         bpb.UA = f'{bpb.UA[:-1]}; {contact})'
-    build(args.dims, args.out, args.force)
+    build(args.vectors, args.dims, args.out, args.force)
 
 
 if __name__ == '__main__':

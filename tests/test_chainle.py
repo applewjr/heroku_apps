@@ -75,7 +75,8 @@ def test_page_says_unofficial_and_credits_every_source(client, tiny):
     html = client.get('/chainle').get_data(as_text=True)
     for required in (
         'Not affiliated with or endorsed by Chainle',
-        'GloVe', 'Pennington', 'Carlson', 'opendatacommons.org/licenses/pddl',
+        'semantic vectors from', 'ConceptNet Numberbatch', 'Luminoso Technologies', 'GloVe', 'Pennington',
+        'word2vec', 'Mikolov', 'OpenSubtitles 2016', 'Lison',
         'WordNet 3.0 Copyright 2006 by Princeton University',
         'Wiktionary contributors', 'creativecommons.org/licenses/by-sa/4.0',
         'Wikidata', 'creativecommons.org/publicdomain/zero/1.0', 'ENABLE',
