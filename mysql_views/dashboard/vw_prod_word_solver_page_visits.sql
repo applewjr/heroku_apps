@@ -11,15 +11,15 @@ CREATE OR REPLACE VIEW vw_prod_word_solver_page_visits AS
 
 SELECT
     DATE(submit_time) AS date,
-    SUM(CASE WHEN page_name = 'blossom.html' THEN 1 ELSE 0 END) AS blossom,
-    SUM(CASE WHEN page_name = 'wordle_revamp.html' THEN 1 ELSE 0 END) AS wordle_revamp,
-    SUM(CASE WHEN page_name = 'antiwordle_revamp.html' THEN 1 ELSE 0 END) AS antiwordle_revamp,
-    SUM(CASE WHEN page_name = 'quordle.html' THEN 1 ELSE 0 END) AS quordle,
     SUM(CASE WHEN page_name = 'smush.html' THEN 1 ELSE 0 END) AS smush,
+    SUM(CASE WHEN page_name = 'blossom.html' THEN 1 ELSE 0 END) AS blossom,
     SUM(CASE WHEN page_name = 'ribbit.html' THEN 1 ELSE 0 END) AS ribbit,
     SUM(CASE WHEN page_name = 'wordiply.html' THEN 1 ELSE 0 END) AS wordiply,
+    SUM(CASE WHEN page_name = 'chainle.html' THEN 1 ELSE 0 END) AS chainle,
     SUM(CASE WHEN page_name = 'guess_the_phrase.html' THEN 1 ELSE 0 END) AS guess_the_phrase,
-    SUM(CASE WHEN page_name = 'chainle.html' THEN 1 ELSE 0 END) AS chainle
+    SUM(CASE WHEN page_name = 'antiwordle_revamp.html' THEN 1 ELSE 0 END) AS antiwordle_revamp,
+    SUM(CASE WHEN page_name = 'wordle_revamp.html' THEN 1 ELSE 0 END) AS wordle_revamp,
+    SUM(CASE WHEN page_name = 'quordle.html' THEN 1 ELSE 0 END) AS quordle
 FROM app_visits
 WHERE page_name IN ('blossom.html', 'wordle_revamp.html', 'antiwordle_revamp.html', 'quordle.html', 'smush.html', 'ribbit.html', 'wordiply.html', 'guess_the_phrase.html', 'chainle.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'

@@ -87,21 +87,16 @@ def test_page_says_unofficial_and_credits_every_source(client, tiny):
         assert required in html, required
 
 
-def test_page_says_it_is_in_beta(client, tiny):
+def test_page_no_longer_says_beta(client, tiny):
     html = client.get('/chainle').get_data(as_text=True)
-    assert '<span class="chn-beta"' in html and 'id="chn-beta-note"' in html
+    assert not re.search(r'\bbeta\b', html, re.I)
 
 
-def test_beta_note_and_search_engines_get_the_same_updated_date(client, tiny, monkeypatch):
-    # One constant dates both. Without it, make_schema_data would give search
-    # engines the day of each request. A one-digit day isn't zero-padded.
-    import routes.chainle as rc
-    monkeypatch.setattr(rc, 'ACCURACY_UPDATED', date(2026, 11, 5))
+def test_answers_are_listed_without_a_show_button(client, tiny):
+    # The words show, masked, as soon as there's a hint: no button opens them.
     html = client.get('/chainle').get_data(as_text=True)
-    assert 'Updated <time datetime="2026-11-05">Nov 5, 2026</time>.' in html
-    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
-    app = next(d for d in map(json.loads, blocks) if d.get('@type') == 'WebApplication')
-    assert app['dateModified'] == '2026-11-05'
+    assert 'id="chn-answer-list"' in html
+    assert 'chn-answers-toggle' not in html and 'Show possible answers' not in html
 
 
 def test_page_names_no_other_chainle_site(client, tiny):
@@ -262,6 +257,17 @@ def test_admin_page_rates_each_logged_round(client, tiny, monkeypatch):
     assert '&middot; unlimited &middot; round 5' in html
     assert 'closeness 0.61 / 0.12' in html and 'ranked #150 of 30,000' in html
     assert 'Your average score: <b>975</b>' in html
+
+
+def test_admin_lists_the_newest_10_rounds_but_rates_them_all(client, tiny, monkeypatch):
+    rows = [(rid, date(2026, 10, 14), 'chainle.io', 'daily', 1, 'bridge', 'SNOW FOOT', 'MAN', None, None,
+             None, None, None, None, None, None, None) for rid in range(1, 13)]
+    _, headers = _admin(tiny, monkeypatch, rows=rows)
+    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
+    assert html.count('class="round-card"') == 10
+    assert 'Showing the latest 10 of 12.' in html
+    summary = html.split('class="summary"')[1].split('</table>')[0]
+    assert '<td>12</td>' in summary
 
 
 def test_logging_a_round_saves_it_cleaned_up(client, tiny, monkeypatch):

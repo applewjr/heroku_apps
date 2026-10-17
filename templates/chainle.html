@@ -3,7 +3,7 @@
 {% block title %}Chainle Solver - Hints for the Daily Word Chain{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free Chainle solver with spoiler-free hints: the phrases your linking word makes with each clue, its length and first letter, then possible answers revealed one letter at a time.">
+<meta name="description" content="Free Chainle solver with spoiler-free hints: the phrases your linking word makes with each clue, its length and letters one at a time, then possible answers to reveal and copy.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/chainle">
 <meta name="keywords" content="chainle solver, chainle hint, chainle answer, chainle help, daily word chain, word bridge puzzle">
 <meta property="og:title" content="Chainle Solver - Hints for the Daily Word Chain">
@@ -34,7 +34,7 @@
       "name": "How does this solver help without spoiling the answer?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once."
+        "text": "Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint, then Show next letter for each letter after that. Below the hint, the best words are listed with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once. Tap a revealed word to copy it, then paste it into the game."
       }
     },
     {
@@ -50,7 +50,7 @@
       "name": "How accurate is it?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It suggests, it does not know the answer, and it is in beta: we're working on its accuracy. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess."
+        "text": "It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess."
       }
     },
     {
@@ -79,22 +79,6 @@
 /* ---------- intro ---------- */
 .chn-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
 .chn-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
-.chn-beta {
-    display: inline-block;
-    vertical-align: middle;
-    position: relative;
-    top: -0.15em;
-    margin-left: 8px;
-    padding: 3px 9px;
-    border-radius: 999px;
-    background-color: #ffd700;
-    color: #02484d;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    line-height: 1.4;
-    text-transform: uppercase;
-}
 .chn-notice {
     max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
     background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
@@ -217,6 +201,7 @@
     overflow-wrap: anywhere;
 }
 .chn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chn-actions[hidden] { display: none; }   /* the flex above would beat [hidden] */
 .chn-btn {
     background-color: #fff;
     border: 1px solid #cdd8d7;
@@ -258,6 +243,10 @@
     overflow-wrap: anywhere;
 }
 .chn-row.revealed .chn-word { color: #02484d; }
+/* A revealed word is a button: a tap copies it, to paste into the game. */
+button.chn-word { background: none; border: none; padding: 0; text-align: left; }
+button.chn-word, button.chn-pattern { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; text-underline-offset: 3px; }
 .chn-why { flex-basis: 100%; font-size: 12px; color: #6b7280; line-height: 1.4; }
 .chn-bar { width: 52px; height: 6px; border-radius: 3px; background-color: #e9ecef; overflow: hidden; flex-shrink: 0; }
 .chn-bar span { display: block; height: 100%; background-color: #e0a800; }
@@ -337,7 +326,7 @@
 
 @media (max-width: 480px) {
     .chn-card { margin: 10px 8px; padding: 12px; }
-    /* Hide possible answers and Show all answers share one row on a phone. */
+    /* Show more and Show all answers share one row on a phone. */
     #chn-answers .chn-actions .chn-btn { flex: 1 1 0; padding: 8px 10px; }
     .chn-word { font-size: 15px; letter-spacing: 1.5px; }
     .chn-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
@@ -349,14 +338,13 @@
 
 <center>
 <br>
-<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Solver &amp; Hints<span class="chn-beta" title="In beta: we're working on its accuracy">Beta</span></h1>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Solver &amp; Hints</h1>
 {% if vocab_size %}
 <p class="chn-sub" id="chn-data-ok">Spoiler-free help for every Chainle round, from {{ '{:,}'.format(vocab_size) }} words. A hint first; answers only when you ask.</p>
 {% else %}
 <div class="chn-notice" role="alert">The solver is unavailable right now. Please try again in a few minutes.</div>
 {% endif %}
 <p class="chn-unofficial">Unofficial helper. Not affiliated with or endorsed by Chainle.</p>
-<p class="chn-unofficial" id="chn-beta-note">In beta: we're working on its accuracy. Updated <time datetime="{{ accuracy_updated.isoformat() }}">{{ accuracy_updated.strftime('%b') }} {{ accuracy_updated.day }}, {{ accuracy_updated.year }}</time>.</p>
 
 <div class="instructions collapsed" id="instructions-panel">
     <div class="instructions-header" id="instructions-toggle">
@@ -370,10 +358,14 @@
         <strong>2. Type the clue words.</strong> The hint appears as soon as every clue is in.
         <br><br>
         <strong>3. Take a hint.</strong> First you see the phrases the best word makes with each
-        clue, with the word hidden, and its length. <strong>Show first letter</strong> gives a bit
-        more. Still stuck? <strong>Show possible answers</strong>: each word stays hidden until you
-        tap <strong>Show letter</strong> or <strong>Reveal</strong>, or <strong>Show all answers</strong>
-        to see the whole list.
+        clue, with the word hidden, and its length. <strong>Show first letter</strong>, then
+        <strong>Show next letter</strong>, uncovers it one letter at a time. Below,
+        <strong>Possible answers</strong> lists the best words, each hidden until you tap
+        <strong>Show letter</strong> or <strong>Reveal</strong>, or <strong>Show all answers</strong>
+        to see them all.
+        <br><br>
+        <strong>4. Copy it into the game.</strong> Tap a revealed word to copy it, then paste it
+        into Chainle.
     </div>
 </div>
 
@@ -396,11 +388,12 @@
         <div id="chn-hint-body"></div>
     </div>
     <div class="chn-card" id="chn-answers">
-        <div class="chn-actions" style="margin-top: 0;">
-            <button type="button" class="chn-btn" id="chn-answers-toggle">&#128064; Show possible answers</button>
+        <div class="chn-card-title">Possible answers</div>
+        <div id="chn-answer-list"></div>
+        <div class="chn-actions" id="chn-answer-actions">
+            <button type="button" class="chn-btn" id="chn-more" hidden>Show more</button>
             <button type="button" class="chn-btn" id="chn-reveal-all" hidden>Show all answers</button>
         </div>
-        <div id="chn-answer-list" hidden></div>
     </div>
 </div>
 
@@ -428,7 +421,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the answer?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint. If you are still stuck, Show possible answers lists the best words with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint, then Show next letter for each letter after that. Below the hint, the best words are listed with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once. Tap a revealed word to copy it, then paste it into the game.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does it find the linking word?</p>
@@ -436,7 +429,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How accurate is it?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer, and it is in beta: we're working on its accuracy. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
@@ -476,7 +469,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const ROWS_STEP = 5;
 
     /* ---------- state ---------- */
-    const fresh = type => ({type, clues: ['', '', ''], first: false, open: false, reveals: {}, shown: ROWS_STEP});
+    // reveals: letters shown per word. The hint's word is the list's first,
+    // so the hint and that row share a count.
+    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP});
     let rounds = DEFAULT_TYPES.map(fresh);
     let current = 0;
     let last = null;               // the solver's reply for the current round
@@ -488,8 +483,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const hintLine = document.getElementById('chn-hint-line');
     const resultsEl = document.getElementById('chn-results');
     const hintBody = document.getElementById('chn-hint-body');
-    const answersToggle = document.getElementById('chn-answers-toggle');
+    const moreBtn = document.getElementById('chn-more');
     const revealAll = document.getElementById('chn-reveal-all');
+    const answerActions = document.getElementById('chn-answer-actions');
     const listEl = document.getElementById('chn-answer-list');
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -497,7 +493,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const need = r => TYPE_CLUES[r.type];
     const cluesOf = r => r.clues.slice(0, need(r)).map(c => c.trim().toUpperCase());
     const ready = r => cluesOf(r).every(c => /^[A-Z]+$/.test(c));
-    const blanks = n => '_'.repeat(n);
 
     /* ---------- rendering ---------- */
     function renderRounds() {
@@ -562,12 +557,18 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '<div class="chn-hint"><span class="chn-hint-label">Close in meaning to</span>' +
                 clues.map(c => '<span class="chn-pattern">' + esc(c) + '</span>').join(' ') + '</div>';
         }
+        // One letter per tap until the whole word shows; then it copies.
         const word = top.word;
-        html += '<div class="chn-hint"><span class="chn-hint-label">Length</span><span class="chn-pattern">' +
-            (r.first ? esc(word[0]) + blanks(word.length - 1) : blanks(word.length)) + '</span>' +
+        const count = Math.min(r.reveals[word] || 0, word.length);
+        const done = count >= word.length;
+        html += '<div class="chn-hint"><span class="chn-hint-label">Top pick</span>' + (done
+            ? '<button type="button" class="chn-pattern" data-copy="' + esc(word) + '" title="Copy ' + esc(word) + '">' + esc(word) + '</button>'
+            : '<span class="chn-pattern">' + esc(masked(word, count)) + '</span>') +
             '<span class="chn-note" style="margin: 0;">' + word.length + ' letters</span></div>';
-        html += '<div class="chn-actions">' + (r.first ? '' :
-            '<button type="button" class="chn-btn" id="chn-first">&#128161; Show first letter</button>') + '</div>';
+        html += '<div class="chn-actions">' + (done
+            ? '<button type="button" class="chn-btn" data-copy="' + esc(word) + '">&#128203; Copy ' + esc(word) + '</button>'
+            : '<button type="button" class="chn-btn" id="chn-next-letter">&#128161; ' +
+              (count ? 'Show next letter' : 'Show first letter') + '</button>') + '</div>';
         return html;
     }
 
@@ -582,35 +583,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return last.kind === 'meaning' ? 'Close in meaning' : 'Close in meaning to every clue';
     }
 
+    // The words, each hidden until revealed letter by letter. A revealed
+    // word is a button that copies it.
     function renderAnswers() {
         const r = round();
-        listEl.hidden = !r.open;
-        answersToggle.innerHTML = r.open ? '&#128584; Hide possible answers' : '&#128064; Show possible answers';
-        // Shown once the list is open, until every word is out.
         const words = last ? last.suggestions : [];
-        revealAll.hidden = !r.open || !words.length ||
+        // Show more until every word is listed, Show all answers until every
+        // word is out.
+        moreBtn.hidden = words.length <= r.shown;
+        revealAll.hidden = !words.length ||
             (r.shown >= words.length && words.every(w => (r.reveals[w.word] || 0) >= w.word.length));
-        if (!r.open || !last) { listEl.innerHTML = ''; return; }
-        const rows = last.suggestions.slice(0, r.shown);
+        answerActions.hidden = moreBtn.hidden && revealAll.hidden;
         let html = '';
-        rows.forEach((s, idx) => {
+        words.slice(0, r.shown).forEach((s, idx) => {
             const count = r.reveals[s.word] || 0;
             const done = count >= s.word.length;
-            html += '<div class="chn-row' + (done ? ' revealed' : '') + '">' +
-                '<span class="chn-word">' + esc(masked(s.word, count)) + '</span>' +
+            html += '<div class="chn-row' + (done ? ' revealed' : '') + '">' + (done
+                ? '<button type="button" class="chn-word" data-copy="' + esc(s.word) + '" title="Copy ' + esc(s.word) + '">' + esc(s.word) + '</button>'
+                : '<span class="chn-word">' + esc(masked(s.word, count)) + '</span>') +
                 '<span class="chn-bar" title="How strongly it links the clues, compared with the best"><span style="width:' +
                 Math.max(4, Math.round(s.strength * 100)) + '%"></span></span>';
             if (!done) {
                 html += '<button type="button" class="chn-row-btn" data-act="letter" data-idx="' + idx + '">Show letter</button>' +
                     '<button type="button" class="chn-row-btn" data-act="all" data-idx="' + idx + '">Reveal</button>';
             } else {
-                html += '<span class="chn-why">' + esc(why(s)) + '</span>';
+                html += '<button type="button" class="chn-row-btn" data-copy="' + esc(s.word) + '">&#128203; Copy</button>' +
+                    '<span class="chn-why">' + esc(why(s)) + '</span>';
             }
             html += '</div>';
         });
-        if (last.suggestions.length > r.shown) {
-            html += '<div class="chn-actions"><button type="button" class="chn-btn" id="chn-more">Show more</button></div>';
-        }
         listEl.innerHTML = html;
     }
 
@@ -651,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         if (r.type === type) return;
         r.type = type;
-        r.first = false; r.open = false; r.reveals = {}; r.shown = ROWS_STEP;
+        r.reveals = {}; r.shown = ROWS_STEP;
         last = null;
         render();
         save();
@@ -676,7 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = round();
             if (r.clues[n] === clean) return;
             r.clues[n] = clean;
-            r.first = false; r.open = false; r.reveals = {}; r.shown = ROWS_STEP;
+            r.reveals = {}; r.shown = ROWS_STEP;
             renderRounds();
             renderClues();
             save();
@@ -690,17 +691,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Reveals re-render the hint as well: it shows the first word's letters.
     hintBody.addEventListener('click', e => {
-        if (e.target.closest('#chn-first')) {
-            round().first = true;
-            renderResults();
-            save();
-        }
+        if (!e.target.closest('#chn-next-letter') || !last || !last.suggestions.length) return;
+        const r = round();
+        const word = last.suggestions[0].word;
+        r.reveals[word] = Math.min((r.reveals[word] || 0) + 1, word.length);
+        renderResults();
+        save();
     });
 
-    answersToggle.addEventListener('click', () => {
-        const r = round();
-        r.open = !r.open;
+    moreBtn.addEventListener('click', () => {
+        round().shown += ROWS_STEP;
         renderAnswers();
         save();
     });
@@ -710,21 +712,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!last) return;
         last.suggestions.forEach(w => { r.reveals[w.word] = w.word.length; });
         r.shown = last.suggestions.length;
-        renderAnswers();
+        renderResults();
         save();
     });
 
     listEl.addEventListener('click', e => {
-        const btn = e.target.closest('button');
+        const btn = e.target.closest('button[data-act]');
         if (!btn || !last) return;
         const r = round();
-        if (btn.id === 'chn-more') { r.shown += ROWS_STEP; renderAnswers(); save(); return; }
         const s = last.suggestions[+btn.dataset.idx];
         if (!s) return;
         r.reveals[s.word] = btn.dataset.act === 'all' ? s.word.length : (r.reveals[s.word] || 0) + 1;
-        renderAnswers();
+        renderResults();
         save();
     });
+
+    // Any revealed word, in the hint or the list, copies on a tap.
+    resultsEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-copy]');
+        if (btn) copyAnswer(btn.dataset.copy);
+    });
+
+    async function copyAnswer(text) {
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+        } catch (_) {
+            // No clipboard API (an older browser, or not allowed): copy
+            // through a hidden text box instead.
+            const box = document.createElement('textarea');
+            box.value = text;
+            box.setAttribute('readonly', '');
+            box.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+            document.body.appendChild(box);
+            box.select();
+            box.setSelectionRange(0, text.length);
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            box.remove();
+        }
+        toast(ok ? 'Copied ' + text + ' - paste it into the game' : "Couldn't copy here - type " + text + ' into the game', !ok);
+    }
 
     // Same as /smush's Reset Board: asks first only when there's something to lose.
     document.getElementById('chn-new').addEventListener('click', () => {
@@ -788,8 +816,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r && Array.isArray(r.clues)) {
                 out.clues = [0, 1, 2].map(n => typeof r.clues[n] === 'string' ? r.clues[n].replace(/[^A-Za-z]/g, '').slice(0, 20) : '');
             }
-            out.first = r && r.first === true;
-            out.open = r && r.open === true;
             out.reveals = (r && r.reveals && typeof r.reveals === 'object') ? r.reveals : {};
             out.shown = r && Number.isInteger(r.shown) && r.shown > 0 && r.shown <= 10 ? r.shown : ROWS_STEP;
             return out;

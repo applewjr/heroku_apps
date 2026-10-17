@@ -3,8 +3,9 @@
 import ctypes
 import ipaddress
 import math
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
+import pytz
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
 
@@ -295,6 +296,21 @@ def make_schema_data(name, description, url, operating_system='Web'):
     if operating_system:
         schema["operatingSystem"] = operating_system
     return schema
+
+
+# Solvers tagged NEW in the site's solver links, and the last day (Pacific)
+# each keeps the tag. It drops off by itself: no deploy, nothing to remember.
+NEW_UNTIL = {
+    '/chainle': date(2026, 12, 31),
+    '/guess_the_phrase': date(2026, 12, 31),
+}
+
+
+def is_new(path):
+    """True while the page at `path` is still tagged NEW (see NEW_UNTIL).
+    Templates call it: app.py registers it as a template global."""
+    until = NEW_UNTIL.get(path)
+    return until is not None and datetime.now(pytz.timezone('America/Los_Angeles')).date() <= until
 
 
 def make_trending_jsonld(items, list_name="YouTube Trending - Top videos today"):

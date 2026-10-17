@@ -2,17 +2,19 @@
    solver is added here once. Set `current` to the page's own path to leave
    it out:
      {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
-   min-height holds the space before the links paint, so Auto Ads don't
-   shift the page. #}
-{% set solvers = [('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle'),
+   The newest solvers lead, and is_new (helpers.NEW_UNTIL) tags them NEW
+   until a set day. The tag sits on the button's corner, so it never changes
+   the button's size. min-height holds the space before the links paint, so
+   Auto Ads don't shift the page. #}
+{% set solvers = [('/chainle', 'Chainle'), ('/guess_the_phrase', 'Guess The Phrase'),
+                  ('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle'),
                   ('/blossom', 'Blossom'), ('/smush', 'Smush'), ('/ribbit', 'Ribbit'),
-                  ('/wordiply', 'Wordiply'), ('/guess_the_phrase', 'Guess The Phrase'),
-                  ('/chainle', 'Chainle')] %}
+                  ('/wordiply', 'Wordiply')] %}
 <div style="margin-top: 20px; min-height: 100px;">
     <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
     <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 400px; margin: 0 auto;">
         {% for path, name in solvers if path != current %}
-        <a href="{{ path }}" style="background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">{{ name }}</a>
+        <a href="{{ path }}" style="position: relative; background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">{{ name }}{% if is_new(path) %}<span style="position: absolute; top: -8px; right: 8px; padding: 2px 6px; border-radius: 999px; background-color: #ffd700; color: #02484d; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; line-height: 1.2;">NEW</span>{% endif %}</a>
         {% endfor %}
     </div>
 </div>

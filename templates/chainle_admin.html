@@ -270,7 +270,7 @@
         {% if not rounds %}
         <p class="muted" style="margin: 0;">No rounds logged yet.</p>
         {% endif %}
-        {% for r in rounds %}
+        {% for r in rounds[:recent] %}
         <div class="round-card">
             <div>
                 <div class="round-meta">{{ r.played_on }} &middot; {{ r.site }} &middot; {{ r.mode }} &middot; round {{ r.round_no }} &middot; {{ r.type }}</div>
@@ -312,8 +312,8 @@
             </div>
         </div>
         {% endfor %}
-        {% if total > rounds | length %}
-        <p class="muted">Showing the latest {{ shown }}.</p>
+        {% if total > recent %}
+        <p class="muted">Showing the latest {{ recent }} of {{ total }}.</p>
         {% endif %}
     </div>
 </div>

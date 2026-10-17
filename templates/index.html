@@ -76,6 +76,19 @@
         margin: 0;
         line-height: 1.45;
     }
+    /* Shown while is_new() holds (helpers.NEW_UNTIL). */
+    .new-tag {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background-color: #ffd700;
+        color: #02484d;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        vertical-align: 2px;
+    }
 </style>
 {% endblock %}
 
@@ -127,11 +140,11 @@
             <div class="app-card-desc">Recreate the Ribbit board and trace every word, longest first</div>
         </a>
         <a href="/guess_the_phrase" class="app-card">
-            <div class="app-card-title">Guess The Phrase Solver</div>
+            <div class="app-card-title">Guess The Phrase Solver{% if is_new('/guess_the_phrase') %}<span class="new-tag">NEW</span>{% endif %}</div>
             <div class="app-card-desc">Spoiler-free hints for the daily phrase puzzle, one letter at a time</div>
         </a>
         <a href="/chainle" class="app-card">
-            <div class="app-card-title">Chainle Solver</div>
+            <div class="app-card-title">Chainle Solver{% if is_new('/chainle') %}<span class="new-tag">NEW</span>{% endif %}</div>
             <div class="app-card-desc">Find the word that links your clues, with a hint before the answer</div>
         </a>
         <a href="/wordiply" class="app-card">

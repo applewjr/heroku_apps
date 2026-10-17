@@ -494,8 +494,6 @@ def run_chainle():
         "Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.",
         "https://www.jamesapplewhite.com/chainle"
     )
-    # The day the solver last improved, rather than the day of the request.
-    schema_data['dateModified'] = chainle.ACCURACY_UPDATED.isoformat()
 
     if request.method == "POST":
         data = request.get_json()
