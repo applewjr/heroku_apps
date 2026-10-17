@@ -252,14 +252,16 @@ def test_no_corrections_means_no_copy_of_the_word_list(smush_db):
     assert get_smush_words() is words
 
 
-def test_ribbit_uses_the_plain_dictionary(client, monkeypatch):
-    # Smush's and Blossom's corrections are about their own games' lists.
+def test_ribbit_never_reads_smush_corrections(client, monkeypatch):
+    # Smush's and Blossom's corrections are about their own games' lists;
+    # Ribbit has its own (tests/test_ribbit_crowd.py).
     import routes.wordgames as wordgames
 
     def no(*_a, **_k):
-        raise AssertionError("ribbit read a corrected word list")
+        raise AssertionError("ribbit read Smush's word list")
 
     monkeypatch.setattr(wordgames, "get_smush_words", no)
+    monkeypatch.setattr("routes.ribbit.get_ribbit_words", lambda: words)
     resp = client.post("/ribbit", json={
         "nodes": [{"id": 1, "letter": "c"}, {"id": 2, "letter": "a"}, {"id": 3, "letter": "t"}],
         "edges": [[1, 2], [2, 3]],

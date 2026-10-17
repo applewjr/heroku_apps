@@ -5,6 +5,7 @@ imports, missing templates, blueprint registration mistakes, renamed Jinja
 variables - without needing the database.
 """
 
+import re
 from datetime import date
 
 import pytest
@@ -80,6 +81,19 @@ def test_the_new_tag_drops_off_by_itself(client, monkeypatch):
         assert ">NEW</span>" not in client.get(path).get_data(as_text=True), path
 
 
+def test_wordle_wears_a_grey_old_tag(client, monkeypatch):
+    # James's joke counterpart to the NEW tags. Permanent: nothing expires.
+    _new_until(monkeypatch, date(9999, 12, 31))
+    for path in ("/smush", "/"):
+        html = client.get(path).get_data(as_text=True)
+        assert html.count(">OLD</span>") == 1, path
+        assert html.count(">NEW</span>") == 2, path
+    links = client.get("/smush").get_data(as_text=True).split("Other Word Game Solvers:")[1]
+    assert re.search(r'href="/wordle"[^>]*>Wordle<span [^>]*#6b7280[^>]*>OLD</span>', links)
+    # The Wordle page leaves itself out of its own solver links.
+    assert ">OLD</span>" not in client.get("/wordle").get_data(as_text=True)
+
+
 def test_unknown_path_returns_404(client):
     assert client.get("/this-page-does-not-exist").status_code == 404
 
@@ -87,6 +101,66 @@ def test_unknown_path_returns_404(client):
 def test_protected_dashboard_requires_auth(client):
     # No credentials -> 401, returned before any DB access.
     assert client.get("/etl_dash/1").status_code == 401
+
+
+def _needs_password(view):
+    """Is this view wrapped by extensions.auth.login_required? Its wrapper
+    closes over the auth object; walk the functools.wraps chain to it."""
+    from extensions import auth
+    fn = view
+    while fn is not None:
+        for cell in getattr(fn, "__closure__", None) or ():
+            try:
+                if cell.cell_contents is auth:
+                    return True
+            except ValueError:      # an empty cell
+                pass
+        fn = getattr(fn, "__wrapped__", None)
+    return False
+
+
+def test_jj_admin_needs_the_password(client):
+    assert client.get("/jj_admin").status_code == 401
+
+
+def test_jj_admin_links_every_password_page(client, flask_app, monkeypatch):
+    # So a new admin page that isn't linked from /jj_admin fails here.
+    from data import etl_dash_queries
+    from test_blossom import _admin_headers
+    html = client.get("/jj_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    rounds = sorted({d["round"] for d in etl_dash_queries.values() if "round" in d})
+    # /espresso only redirects to its home page, which is the link.
+    aliases = {"/espresso": "/espresso/home/"}
+    pages = set()
+    for rule in flask_app.url_map.iter_rules():
+        if "GET" not in rule.methods or rule.rule == "/jj_admin":
+            continue
+        if not _needs_password(flask_app.view_functions[rule.endpoint]):
+            continue
+        if rule.arguments == {"round"}:
+            pages |= {rule.rule.replace("<int:round>", str(r)) for r in rounds}
+        else:
+            assert not rule.arguments, f"no way to link {rule.rule}"
+            pages.add(aliases.get(rule.rule, rule.rule))
+    # The walk itself must keep finding them: every admin page, both dev
+    # pages, each ETL round and the espresso pages.
+    assert {"/smush_admin", "/ribbit_admin", "/ribbit_dev", "/smush_dev",
+            "/blossom_admin", "/chainle_admin", "/guess_the_phrase_admin",
+            "/etl_dash/1", "/espresso/home/"} <= pages
+    for path in sorted(pages):
+        assert f'href="{path}"' in html, f"/jj_admin doesn't link {path}"
+
+
+def test_ribbit_dev_is_password_only(client):
+    assert client.get("/ribbit_dev").status_code == 401
+    assert client.post("/ribbit_dev", json={"action": "shared_board"}).status_code == 401
+
+
+def test_ribbit_clear_board_sits_right_of_give_feedback(client):
+    html = client.get("/ribbit").get_data(as_text=True)
+    controls = re.search(r'<div class="rb-board-controls">(.*?)</div>', html, re.S).group(1)
+    assert 'id="clear-btn"' not in controls and 'id="rotate-btn"' in controls
+    assert html.index("💬 Give Feedback") < html.index('id="clear-btn"') < html.index("Other Word Game Solvers:")
 
 
 # ---------------------------------------------------------------------------
@@ -428,9 +502,11 @@ RIBBIT_BODY = {
 
 
 @pytest.fixture
-def ribbit_client(client):
-    # Already hermetic: Ribbit runs on the committed word list, with no
-    # DB-backed corrections (those belong to Blossom and Smush).
+def ribbit_client(client, monkeypatch):
+    # Ribbit's corrections live in the DB (routes/ribbit.py); solve on the
+    # committed word list so nothing reaches a real connection.
+    from data import words
+    monkeypatch.setattr("routes.ribbit.get_ribbit_words", lambda: words)
     return client
 
 

@@ -44,7 +44,15 @@
         "@type": "Answer",
         "text": "The board is a fixed 4x4 grid. Tap a square and type its letter - it advances to the next square automatically. Then draw connections by dragging a line across the connected tiles: a straight drag across a row, column, or diagonal links every tile it crosses in one motion. Connections can run up, down, left, right, or diagonally. Switch on Erase links and drag across a connection to remove it. Use Rotate to spin the board to match the game's orientation."
       }
-    },
+    },{% if shared_boards %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type the board in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
+      }
+    },{% endif %}
     {
       "@type": "Question",
       "name": "How are words ranked?",
@@ -58,7 +66,7 @@
       "name": "Will Ribbit accept every word this solver suggests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not always. Puzzmo's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the X on it: it is hidden without affecting anything else, and you carry on."
+        "text": "Not always. Puzzmo's official word list is not public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the X on it: it is hidden without affecting anything else, and you carry on. If Ribbit accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list."
       }
     },
     {
@@ -126,6 +134,53 @@
     min-height: 18px;
     padding: 0 12px;
     line-height: 1.4;
+}
+
+/* ---------- shared board ---------- */
+/* Offered on an empty board once other players have entered today's. */
+.rb-shared {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 12px;
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 12px auto 0;
+    padding: 12px 14px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+    text-align: center;
+}
+.rb-shared[hidden] { display: none; }
+.rb-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+.rb-shared-btn {
+    background-color: #02484d;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 16px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.rb-shared-btn:hover { background-color: #03595f; }
+
+/* The admin's own copy of the page says which copy it is. */
+.rb-dev-note {
+    max-width: 460px;
+    margin: 8px auto 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #02484d;
+    background-color: #eef4f4;
+    border: 1px dashed #4f9a97;
+    border-radius: 8px;
 }
 
 /* ---------- board (fixed 4x4 grid) ---------- */
@@ -439,6 +494,62 @@
 .rejected-chip { background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; text-decoration: line-through; }
 .rejected-chip:hover { background-color: #e55555; border-color: #e55555; color: #fff; text-decoration: none; }
 
+/* ---------- "Ribbit accepted a word that isn't listed?" ---------- */
+/* Smush's suggest box, shown only while solving: a suggestion is checked
+   against the board as entered. */
+.suggest-box {
+    display: none;
+    max-width: 480px;
+    margin: 20px auto 0;
+    padding: 12px 14px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    text-align: left;
+}
+.suggest-box.visible { display: block; }
+.suggest-label { display: block; margin-bottom: 8px; font-size: 13px; color: #555; }
+.we-row { display: flex; gap: 8px; }
+/* Beats base.html's input[type=text] on specificity, so the field can drop
+   that rule's wide padding without reaching for !important. */
+.suggest-box .we-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    /* 16px: anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+.suggest-box .we-input::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; }
+.we-btn {
+    flex-shrink: 0;
+    background-color: #02484d;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.we-btn:hover:not(:disabled) { background-color: #03595f; }
+.we-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Reserve the line so the box doesn't jump as the message appears. */
+.we-status { font-size: 13px; line-height: 1.4; margin-top: 8px; min-height: 18px; color: #6b7280; }
+
 /* ---------- shared bits ---------- */
 .instructions {
     background-color: #f8f9fa;
@@ -497,6 +608,9 @@
 <center>
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Ribbit Solver &amp; Word Finder</h1>
+{% if dev %}
+<p class="rb-dev-note">/ribbit_dev - only you can see this copy. The shared board is on here; /ribbit only logs boards until it goes live. Your ✗ votes and boards count like any player's.</p>
+{% endif %}
 
 <div class="instructions collapsed" id="instructions-panel">
     <div class="instructions-header" id="instructions-toggle">
@@ -506,21 +620,26 @@
     <div class="instructions-body">
         <strong>1. Type the board.</strong> The grid is a fixed 4x4. Tap a square and type its
         letter - it hops to the next square automatically, so you can type the board left to right,
-        top to bottom.
+        top to bottom.{% if shared_boards %} Once other players have entered today's board, you can
+        skip this: <strong>Load today's board</strong> fills in the letters and links for you.{% endif %}
         <br><br>
         <strong>2. Draw the connections.</strong> Drag a line across the tiles the game connects.
         A straight drag across a whole <strong>row, column, or diagonal links every tile it
         crosses</strong> in one motion; a short drag between two neighbours links just those two.
         Got one wrong? Switch on <strong>🗑 Erase links</strong> and drag across it to remove it.
-        Use <strong>↻ Rotate</strong> to spin the board to match the game.
+        Use <strong>↻ Rotate</strong> to spin the board to match the game.{% if shared_boards %} If other
+        players have already linked a board with your letters - an older puzzle too - the links fill
+        in as soon as you type the last letter.{% endif %}
         <br><br>
         <strong>3. Solve.</strong> Hit <strong>▶ Solve</strong> for every word you can trace, longest
         first. Ribbit's word list isn't public, so the solver uses its own dictionary - words flagged
         <strong>⚠</strong> are rare and the most likely to be refused. Tap a word to light up its path
         on the board.
         <br><br>
-        <strong>4. Play along.</strong> Hit <strong>✓ Found</strong> on a word you've played or
-        <strong>✗</strong> on one Ribbit refused to hide it. When the game clears a tile into a frog,
+        <strong>4. Play along.</strong> Hit <strong>✓ Found</strong> on a word you've played, or
+        <strong>✗</strong> on one Ribbit refused: it's hidden, and your ✗ helps us fix the word list.
+        If Ribbit accepts a word we don't list, type it into the box under the results. When the game
+        clears a tile into a frog,
         <strong>tap that tile</strong> to clear it here too - words that could only run through it drop
         out. The small number on each tile is how many suggested words can still reach it; a gold
         <strong>1</strong> means only one word can clear that tile, so play it before it gets stranded.
@@ -540,6 +659,13 @@
 
 <div class="rb-hint" id="rb-hint"></div>
 
+{% if shared_boards %}
+<div class="rb-shared" id="rb-shared" hidden>
+    <span class="rb-shared-text">🐸 Other players already entered today's board for you.</span>
+    <button type="button" class="rb-shared-btn" id="rb-shared-load">Load today's board</button>
+</div>
+{% endif %}
+
 <div class="rb-board-wrap" id="rb-board-wrap">
     <svg class="rb-edges" id="rb-edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
     <div class="rb-nodes" id="rb-nodes"></div>
@@ -547,7 +673,6 @@
 
 <div class="rb-board-controls">
     <button type="button" class="rb-ctrl" id="rotate-btn">↻ Rotate</button>
-    <button type="button" class="rb-ctrl" id="clear-btn">🔄 Clear board</button>
 </div>
 
 <div class="rb-status" id="rb-status" style="display: none;">
@@ -568,6 +693,17 @@
 
 <div id="results-container" class="results-container" aria-live="polite"></div>
 
+<div class="suggest-box" id="suggest-box">
+    <label class="suggest-label" for="suggest-input">Ribbit accepted a word that isn't listed?</label>
+    <div class="we-row">
+        <input type="text" id="suggest-input" class="we-input" maxlength="15" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"
+               placeholder="type the word" aria-describedby="suggest-status">
+        <button type="button" class="we-btn" id="suggest-btn">Add</button>
+    </div>
+    <div class="we-status" id="suggest-status" aria-live="polite"></div>
+</div>
+
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
     <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link" target="_blank" rel="noopener noreferrer" style="
@@ -578,6 +714,11 @@
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
         border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
         transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    <button type="button" id="clear-btn" style="
+        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+        border-radius: 8px; display: inline-block; margin: 4px; font-size: 14px; font-family: inherit;
+        line-height: inherit; cursor: pointer;
+        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Clear board</button>
 </div>
 
 {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
@@ -597,13 +738,19 @@
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The board is a fixed 4x4 grid. Tap a square and type its letter - it advances to the next square automatically. Then draw connections by dragging a line across the connected tiles: a straight drag across a row, column, or diagonal links every tile it crosses in one motion. Connections can run up, down, left, right, or diagonally. Switch on Erase links and drag across a connection to remove it, or use Rotate to spin the board to match the game.</p>
     </div>
+    {% if shared_boards %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
+    </div>
+    {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How are words ranked?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">By default the solver lists the longest words first, because those are usually the marquee words a Ribbit board is built around. Switch to Common first to surface the words the game is most likely to accept. Each result shows its length, and rare words are flagged with ⚠ so you know which ones Ribbit may refuse.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Will Ribbit accept every word this solver suggests?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Puzzmo's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the ✗ on it and it's hidden while you carry on.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Not always. Puzzmo's official word list isn't public, so this solver runs on its own large open dictionary. Most suggestions work, but the game will refuse some - especially obscure words, which the solver flags as rare based on real-world word frequency. When a word is refused, hit the ✗ on it and it's hidden while you carry on. If Ribbit accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does clearing tiles work in the solver?</p>
@@ -626,6 +773,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const WORDS_STEP = 25;
     const N = 4;                  // fixed 4x4 board
     const STORAGE_KEY = 'ribbitSolverState_v2';
+    // Set by the route: whether this copy of the page offers shared boards
+    // (it always logs them), and where it posts.
+    const SHARED_BOARDS = {{ 'true' if shared_boards else 'false' }};
+    const POST_URL = {{ post_url | tojson }};
 
     /* ---------- state ---------- */
     let phase = 'edit';           // 'edit' | 'solve'
@@ -635,6 +786,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let disabled = new Set();     // cell indices cleared into frogs
     let played = [];              // words found  [{word}]
     let rejected = [];            // words Ribbit refused  [word]
+    let boardSource = 'typed';    // 'typed' | 'shared' (from other players) | 'edited' (shared, then changed)
+    let loggedSig = '';           // the board as last sent to the shared-board log
+    let sharedToday = null;       // today's board from other players, once they've settled it
 
     let lastResults = [];
     let totalPlayable = 0;
@@ -654,6 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hint = document.getElementById('rb-hint');
     const toolsBar = document.getElementById('rb-tools');
     const resultsContainer = document.getElementById('results-container');
+    const sharedBanner = document.getElementById('rb-shared');
 
     const HINTS = {
         type: 'Tap a square and type its letter - it hops to the next square automatically.',
@@ -670,6 +825,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const areAdjacent = (a, b) => {
         const [ra, ca] = rc(a), [rb, cb] = rc(b);
         return Math.max(Math.abs(ra - rb), Math.abs(ca - cb)) === 1;
+    };
+    const inGrid = i => Number.isInteger(i) && i >= 0 && i < N * N;
+    const isFull = () => cells.every(c => c);
+    // The player's own date: Puzzmo dates each daily puzzle by it.
+    const localISO = () => {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
     };
 
     /* ---------- build the 16 fixed tiles once ---------- */
@@ -835,11 +998,14 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- letter entry ---------- */
     function onLetterInput(i, input) {
         const ch = (input.value.replace(/[^A-Za-z]/g, '').slice(-1) || '').toLowerCase();
+        if (ch !== cells[i]) markEdited();
         cells[i] = ch;
         input.value = ch.toUpperCase();
         renderCells();
+        renderShared();
         persist();
         if (ch && i < N * N - 1) focusCell(i + 1);   // auto-advance while typing the board
+        if (ch && isFull() && !edges.length) fetchBoardLinks();
         if (phase === 'solve') scheduleFetch();
     }
 
@@ -870,10 +1036,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const cell = cellAt(e.clientX, e.clientY);
         if (cell < 0 || cell === gesture.lastCell) return;
         const chain = cellsBetween(gesture.lastCell, cell);
+        const before = edges.length;     // a gesture only adds or only removes
         for (let k = 1; k < chain.length; k++) {
             if (gesture.mode === 'erase') removeEdge(chain[k - 1], chain[k]);
             else addEdge(chain[k - 1], chain[k]);
         }
+        if (edges.length !== before) markEdited();
         gesture.lastCell = cell;
         gesture.moved = true;
         renderEdges();
@@ -908,6 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('phase-edit').classList.toggle('active', editing);
         document.getElementById('phase-solve').classList.toggle('active', !editing);
         toolsBar.classList.toggle('visible', editing);
+        suggestBox.classList.toggle('visible', !editing);
         wrap.classList.toggle('solving', !editing);
         document.getElementById('rb-status').style.display = editing ? 'none' : 'flex';
         if (editing) {
@@ -920,6 +1089,7 @@ document.addEventListener('DOMContentLoaded', () => {
             scheduleFetch();
         }
         renderAll();
+        renderShared();
         persist();
     }
 
@@ -939,6 +1109,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const map = new Array(N * N);
         for (let r = 0; r < N; r++)
             for (let c = 0; c < N; c++) map[idx(r, c)] = idx(c, N - 1 - r);
+        // A turned board is the same board to the shared-board log; keep it
+        // from being sent again just for facing another way.
+        const wasLogged = loggedSig !== '' && loggedSig === boardSig();
         const newCells = Array(N * N).fill('');
         cells.forEach((ch, i) => { newCells[map[i]] = ch; });
         cells = newCells;
@@ -954,6 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newCover = {};
         Object.keys(cover).forEach(i => { newCover[map[i]] = cover[i]; });
         cover = newCover;
+        if (wasLogged) loggedSig = boardSig();
         renderAll();
         persist();
         if (phase === 'solve') scheduleFetch();
@@ -986,10 +1160,14 @@ document.addEventListener('DOMContentLoaded', () => {
         played = []; rejected = [];
         lastResults = []; totalPlayable = 0; activeWord = null;
         cover = {}; keyWords = new Set();
+        boardSource = 'typed'; loggedSig = '';
+        suggestInput.value = ''; suggestStatus.textContent = '';
         tool = 'type';
         renderPiles();
         setPhase('edit');
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        fetchShared();
+        focusCell(0);   // the button sits under the results: take them back to the board
     });
 
     /* ---------- solving ---------- */
@@ -1014,6 +1192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resultsContainer.innerHTML = '<div class="no-results">Type letters into the board, then solve.</div>';
             return;
         }
+        maybeLogBoard();
         const idset = new Set(placed);
         const payload = {
             nodes: placed.map(i => ({id: i, letter: cells[i]})),
@@ -1023,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rejected: rejected,
             min_len: 4
         };
-        fetch('/ribbit', {
+        fetch(POST_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -1104,7 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                r.word.toUpperCase() + ', light up its path">' + r.word.toUpperCase() + '</button>' +
                '<span class="word-meta"><span class="len-badge">' + r.len + '</span>' + key + rare + '</span>' +
                '<button type="button" class="played-btn" data-play="' + r.word + '" aria-label="Mark ' + r.word.toUpperCase() + ' as found">✓ Found</button>' +
-               '<button type="button" class="reject-btn" data-reject="' + r.word + '" title="Ribbit didn\'t accept this - hide it" aria-label="Hide ' + r.word.toUpperCase() + '">✗</button>' +
+               '<button type="button" class="reject-btn" data-reject="' + r.word + '" title="Ribbit didn\'t accept this - hide it and let us know" aria-label="Hide ' + r.word.toUpperCase() + ', not accepted by Ribbit">✗</button>' +
                '<a class="define-link" href="https://en.wiktionary.org/wiki/' + r.word + '" target="_blank" rel="noopener noreferrer" title="View definition" onclick="event.stopPropagation()">↗</a>' +
                '</div>';
     }
@@ -1183,17 +1362,101 @@ document.addEventListener('DOMContentLoaded', () => {
         afterChange();
     }
 
+    /* The game refused this word: hide it, and tell the server, which fixes
+       the word list once enough players agree. */
     function markRejected(word) {
         if (rejected.includes(word)) return;
         rejected.push(word);
         if (activeWord === word) activeWord = null;
-        toast(word.toUpperCase() + ' hidden - Ribbit didn\'t accept it.');
+        if (isFirstReject()) {
+            toast(word.toUpperCase() + " hidden. Thanks, we'll take your report into account. " +
+                  'Use ✗ only when Ribbit refuses a word.', false, 6000);
+        } else {
+            toast(word.toUpperCase() + ' hidden - Ribbit didn\'t accept it.');
+        }
+        postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
         renderPiles();
         afterChange();
     }
 
     function restoreFound(word) { played = played.filter(p => p.word !== word); renderPiles(); afterChange(); }
-    function restoreRejected(word) { rejected = rejected.filter(w => w !== word); renderPiles(); afterChange(); }
+    function restoreRejected(word) {
+        rejected = rejected.filter(w => w !== word);
+        postVote({action: 'restore', word: word}).catch(() => {});
+        renderPiles();
+        afterChange();
+    }
+
+    /* ---------- crowd corrections ---------- */
+    /* Players are never told how many reports a change takes, or when theirs
+       tipped a word over: the server doesn't say, and nothing on this page
+       hints at it. */
+    // A vote carries the board as a solve sends it, and the sort chip in
+    // view (kept in the server's vote log only).
+    function postVote(payload) {
+        const placed = [];
+        cells.forEach((ch, i) => { if (ch) placed.push(i); });
+        const idset = new Set(placed);
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.assign(payload, {
+                nodes: placed.map(i => ({id: i, letter: cells[i]})),
+                edges: edges.filter(e => idset.has(e.a) && idset.has(e.b)).map(e => [e.a, e.b]),
+                mode: sortMode
+            }))
+        }).then(r => {
+            if (!r.ok) throw new Error('vote failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    // True only the first time this browser hides a word. Storage can throw
+    // when a browser blocks site data; the explainer then just shows again.
+    function isFirstReject() {
+        try {
+            if (localStorage.getItem('ribbitRejectExplained')) return false;
+            localStorage.setItem('ribbitRejectExplained', '1');
+        } catch (_) {}
+        return true;
+    }
+
+    const suggestBox = document.getElementById('suggest-box');
+    const suggestInput = document.getElementById('suggest-input');
+    const suggestBtn = document.getElementById('suggest-btn');
+    const suggestStatus = document.getElementById('suggest-status');
+    const SUGGEST_MESSAGES = {
+        recorded: "Thanks! We'll take your suggestion into account.",
+        already_listed: 'That word is already in our list.',
+        not_on_board: "That word can't be traced on your board - check your links match the game."
+    };
+
+    function submitSuggestion() {
+        const w = (suggestInput.value || '').trim().toLowerCase();
+        // The checks the server makes that need no round trip.
+        let problem = '';
+        if (!/^[a-z]+$/.test(w)) problem = 'Letters only, please.';
+        else if (w.length < 4) problem = 'Ribbit words are at least 4 letters.';
+        else if (rejected.includes(w)) problem = 'You hid ' + w.toUpperCase() + ' with ✗ - tap it in the hidden list to bring it back.';
+        else if (lastResults.some(r => r.word === w) || played.some(p => p.word === w)) problem = SUGGEST_MESSAGES.already_listed;
+        if (problem) { suggestStatus.textContent = problem; return; }
+
+        suggestBtn.disabled = true;
+        suggestStatus.textContent = 'Sending...';
+        postVote({action: 'suggest_missing', word: w})
+            .then(data => {
+                const result = data && data.result;
+                suggestStatus.textContent = SUGGEST_MESSAGES[result] || SUGGEST_MESSAGES.recorded;
+                if (result === 'recorded') suggestInput.value = '';
+            })
+            .catch(() => { suggestStatus.textContent = 'Could not send that. Please try again.'; })
+            .finally(() => { suggestBtn.disabled = false; });
+    }
+
+    suggestBtn.addEventListener('click', submitSuggestion);
+    suggestInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submitSuggestion(); }
+    });
 
     function renderPiles() {
         const pSection = document.getElementById('played-section');
@@ -1215,12 +1478,111 @@ document.addEventListener('DOMContentLoaded', () => {
             c.addEventListener('click', () => restoreRejected(c.dataset.w)));
     }
 
+    /* ---------- shared boards ---------- */
+    // Early players' boards are offered to the players after them
+    // (routes/ribbit.py): each player's own board is logged when they solve
+    // it; an empty board can be offered today's, and a fully typed one gets
+    // its links. Nothing here is a guess - every link served was drawn by
+    // players.
+    const boardNodes = () => cells.map((ch, i) => ({id: i, letter: ch}));
+    const boardSig = () => cells.join('') + '|' + edges.map(e => edgeKey(e.a, e.b)).sort().join(',');
+    function everyTileLinked() {
+        const linked = new Set();
+        edges.forEach(e => { linked.add(e.a); linked.add(e.b); });
+        return linked.size === N * N;
+    }
+    // Links from the server, kept only if they're links this grid can draw.
+    const toEdges = list => (Array.isArray(list) ? list : [])
+        .filter(p => Array.isArray(p) && inGrid(p[0]) && inGrid(p[1]) && areAdjacent(p[0], p[1]))
+        .map(([a, b]) => ({a, b}));
+
+    function postBoard(payload) {
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) throw new Error('shared board failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    // A board loaded from other players stops being theirs once changed.
+    function markEdited() { if (boardSource === 'shared') boardSource = 'edited'; }
+
+    function renderShared() {
+        if (!sharedBanner) return;
+        sharedBanner.hidden = !(sharedToday && phase === 'edit' && !cells.some(c => c));
+    }
+
+    function fetchShared() {
+        if (!SHARED_BOARDS) return;
+        sharedToday = null;
+        renderShared();
+        postBoard({action: 'shared_board', played_on: localISO()})
+            .then(data => {
+                const b = data && data.board;
+                sharedToday = (b && Array.isArray(b.letters) && b.letters.length === N * N) ? b : null;
+                renderShared();
+            })
+            .catch(() => {});
+    }
+
+    if (sharedBanner) document.getElementById('rb-shared-load').addEventListener('click', () => {
+        const b = sharedToday;
+        if (!b) return;
+        // renderCells never overwrites the focused square (that's the one
+        // being typed in), and boot focuses the first one.
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        cells = b.letters.map(ch => (typeof ch === 'string' && /^[a-z]$/i.test(ch)) ? ch.toLowerCase() : '');
+        edges = toEdges(b.edges);
+        disabled = new Set(); activeWord = null;
+        boardSource = 'shared'; loggedSig = boardSig();
+        sharedToday = null;
+        renderAll(); renderShared(); persist();
+        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve.";
+    });
+
+    // All 16 letters typed and nothing linked yet: if other players have
+    // linked a board with these letters (on any day, so archive puzzles
+    // too), draw their links.
+    function fetchBoardLinks() {
+        if (!SHARED_BOARDS) return;
+        const asked = cells.join('');
+        postBoard({action: 'board_links', nodes: boardNodes()})
+            .then(data => {
+                // Only onto the letters it was asked about, and never over
+                // links the player has started drawing meanwhile.
+                if (!data || !data.edges || edges.length || cells.join('') !== asked) return;
+                const found = toEdges(data.edges);
+                if (!found.length) return;
+                edges = found;
+                boardSource = 'shared'; loggedSig = boardSig();
+                renderEdges(); persist();
+                toast('Other players linked this board for you - check the links match your game.');
+                if (phase === 'solve') scheduleFetch();
+            })
+            .catch(() => {});
+    }
+
+    // Sent once per version of a finished board the player made themselves.
+    // A board loaded as it is would only confirm itself, so it never is.
+    function maybeLogBoard() {
+        if (boardSource === 'shared' || !isFull() || !everyTileLinked()) return;
+        const sig = boardSig();
+        if (sig === loggedSig) return;
+        loggedSig = sig;
+        persist();
+        postBoard({action: 'log_board', nodes: boardNodes(), edges: edges.map(e => [e.a, e.b]),
+                   played_on: localISO(), source: boardSource}).catch(() => {});
+    }
+
     /* ---------- persistence ---------- */
     function persist() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 phase, cells, edges, disabled: [...disabled],
-                played, rejected, savedAt: Date.now()
+                played, rejected, boardSource, loggedSig, savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1249,7 +1611,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // is in localStorage, so it sticks. Check the shape of each collection
         // (a truthy non-array has no .filter) and the range of each index: an
         // out-of-range id survives rotation as undefined and draws NaN edges.
-        const inGrid = i => Number.isInteger(i) && i >= 0 && i < N * N;
         edges = (Array.isArray(s.edges) ? s.edges : [])
             .filter(e => e && inGrid(e.a) && inGrid(e.b));
         disabled = new Set((Array.isArray(s.disabled) ? s.disabled : []).filter(inGrid));
@@ -1258,6 +1619,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(p => p && typeof p.word === 'string');
         rejected = (Array.isArray(s.rejected) ? s.rejected : [])
             .filter(w => typeof w === 'string');
+        boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig : '';
         renderPiles();
         setPhase(s.phase === 'solve' && cells.some(c => c) ? 'solve' : 'edit');
         return true;
@@ -1265,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- toast ---------- */
     let toastEl = null, toastTimer = null;
-    function toast(msg, warn) {
+    function toast(msg, warn, ms) {
         if (toastEl) toastEl.remove();
         clearTimeout(toastTimer);
         toastEl = document.createElement('div');
@@ -1280,7 +1643,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.transition = 'opacity 0.5s ease';
             el.style.opacity = '0';
             setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
-        }, 2600);
+        }, ms || 2600);
     }
 
     /* ---------- instructions toggle ---------- */
@@ -1296,21 +1659,16 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- dated Puzzmo links ---------- */
     // Puzzmo's Ribbit URL carries the date, e.g. /puzzle/2026-07-25/ribbit;
     // point the "play" links at today's puzzle.
-    (function () {
-        const d = new Date();
-        const iso = d.getFullYear() + '-' +
-            String(d.getMonth() + 1).padStart(2, '0') + '-' +
-            String(d.getDate()).padStart(2, '0');
-        document.querySelectorAll('.puzzmo-ribbit-link').forEach(a => {
-            a.href = 'https://www.puzzmo.com/puzzle/' + iso + '/ribbit';
-        });
-    })();
+    document.querySelectorAll('.puzzmo-ribbit-link').forEach(a => {
+        a.href = 'https://www.puzzmo.com/puzzle/' + localISO() + '/ribbit';
+    });
 
     /* ---------- boot ---------- */
     if (!restore()) {
         setPhase('edit');
         focusCell(0);
     }
+    if (!cells.some(c => c)) fetchShared();
 });
 </script>
 

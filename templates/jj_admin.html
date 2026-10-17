@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}JJ Admin{% endblock %}
+
+{% block head %}
+<style>
+    .jj-admin {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 3.5rem;
+        text-align: left;
+    }
+    .jj-admin h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #02484d;
+        margin: 0 0 0.4rem;
+    }
+    .jj-admin-sub {
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin: 0;
+    }
+    .section-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: #02484d;
+        margin: 2.2rem 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #02484d;
+    }
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 14px;
+    }
+    .app-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+        text-decoration: none;
+        display: block;
+        color: inherit;
+    }
+    .app-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 18px rgba(2, 72, 77, 0.12);
+        border-color: #02484d;
+        color: inherit;
+        text-decoration: none;
+    }
+    .app-card-title {
+        font-size: 0.93rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0 0 0.3rem;
+    }
+    .app-card-desc {
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin: 0;
+        line-height: 1.45;
+    }
+    .app-card-path {
+        font-family: monospace;
+        font-size: 0.72rem;
+        color: #02484d;
+        margin: 0.5rem 0 0;
+    }
+</style>
+{% endblock %}
+
+{% macro card(path, title, desc) %}
+<a href="{{ path }}" class="app-card">
+    <div class="app-card-title">{{ title }}</div>
+    <div class="app-card-desc">{{ desc }}</div>
+    <div class="app-card-path">{{ path }}</div>
+</a>
+{% endmacro %}
+
+{% block content %}
+<div class="jj-admin">
+    <h1>JJ Admin</h1>
+    <p class="jj-admin-sub">Every password-protected page. They share this page's password, so none of them should ask again.</p>
+
+    <div class="section-label">Word lists and player reports</div>
+    <div class="card-grid">
+        {{ card('/blossom_admin', 'Blossom Admin', 'Word reports, removed and added words, recent Blossom feedback') }}
+        {{ card('/smush_admin', 'Smush Admin', 'Word reports, removed and added words') }}
+        {{ card('/ribbit_admin', 'Ribbit Admin', 'Shared boards, word reports, removed and added words') }}
+        {{ card('/guess_the_phrase_admin', 'Guess The Phrase Admin', 'Added phrases, removed phrases, phrase status') }}
+        {{ card('/chainle_admin', 'Chainle Admin', 'The round log, and how the solver rates each round') }}
+    </div>
+
+    <div class="section-label">Solver tools</div>
+    <div class="card-grid">
+        {{ card('/smush_dev', 'Smush Dev', 'Smush with the ICE COLD planner') }}
+        {{ card('/ribbit_dev', 'Ribbit Dev', 'Ribbit with the shared board turned on') }}
+    </div>
+
+    <div class="section-label">ETL dashboard</div>
+    <div class="card-grid">
+        {% for round, panels in etl_rounds %}
+        {{ card('/etl_dash/' ~ round, 'Round ' ~ round, panels|join(', ')) }}
+        {% endfor %}
+    </div>
+
+    <div class="section-label">Espresso</div>
+    <div class="card-grid">
+        {{ card('/espresso/home/', 'Espresso Home', 'Brew tracking home') }}
+        {{ card('/espresso/recommendation/', 'Recommendations', 'KNN predictive recommendations') }}
+        {{ card('/espresso/plot/', 'Plots', 'Dynamic scatter plots') }}
+        {{ card('/espresso/explore/', 'Explore', 'Exploration recommendations') }}
+        {{ card('/espresso/baseline/', 'Baseline', 'Baseline brews') }}
+    </div>
+</div>
+{% endblock %}

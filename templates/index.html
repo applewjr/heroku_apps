@@ -89,6 +89,19 @@
         letter-spacing: 0.05em;
         vertical-align: 2px;
     }
+    /* Wordle, the first solver, is OLD for good (James's joke). */
+    .old-tag {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background-color: #6b7280;
+        color: #fff;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        vertical-align: 2px;
+    }
 </style>
 {% endblock %}
 
@@ -116,7 +129,7 @@
     <div class="section-label">Game Solvers</div>
     <div class="card-grid">
         <a href="/wordle" class="app-card">
-            <div class="app-card-title">Wordle Solver</div>
+            <div class="app-card-title">Wordle Solver<span class="old-tag">OLD</span></div>
             <div class="app-card-desc">Get optimal guesses based on your current clues</div>
         </a>
         <a href="/antiwordle" class="app-card">
