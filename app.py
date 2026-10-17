@@ -33,7 +33,7 @@ if config.IS_HEROKU:
 
 # First, before data.py and pandas load: stops glibc holding freed memory,
 # the cause of the dyno's +9-13 MB/hour staircase (helpers.py has the detail).
-from helpers import ValidationError, pin_malloc_thresholds
+from helpers import ValidationError, is_new, pin_malloc_thresholds
 
 pin_malloc_thresholds()
 
@@ -81,6 +81,11 @@ app.register_blueprint(guess_the_phrase.bp)
 app.register_blueprint(chainle.bp)
 app.register_blueprint(espresso.bp)
 app.register_blueprint(dashboards.bp)
+
+##### templates #####
+
+# The solver links' NEW tag (templates/_related_solvers.html, index.html).
+app.add_template_global(is_new)
 
 ##### error handlers #####
 

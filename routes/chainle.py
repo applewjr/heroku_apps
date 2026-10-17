@@ -67,12 +67,6 @@ def get_data():
     return _static['data']
 
 
-# The day the solver's accuracy last improved. The page's beta note shows it,
-# and search engines get it as dateModified. Bump it when a tuning change
-# ships, not on every deploy.
-ACCURACY_UPDATED = date(2026, 10, 15)
-
-
 def solver_version():
     """A short code for the solver in this process: a hash of the engine's
     code and its word data, so it changes whenever either does. The admin
@@ -97,8 +91,7 @@ def page_context():
     """What the page template needs besides the SEO blob. Rendering the page
     never touches the database."""
     data = get_data()
-    return {'vocab_size': data.size if data is not None else None,
-            'accuracy_updated': ACCURACY_UPDATED}
+    return {'vocab_size': data.size if data is not None else None}
 
 
 ##### solving #####
@@ -146,7 +139,10 @@ MODES = ('daily', 'unlimited', 'archive')
 # closest meaning. The form can override the kind for a site that differs.
 ROUND_KIND = {1: 'bridge', 2: 'bridge', 3: 'bridge', 4: 'bridge', 5: 'meaning'}
 ROUND_CLUES = {1: 2, 2: 2, 3: 2, 4: 3, 5: 1}
+# The summaries cover the last SHOW_ROUNDS rounds; the page lists only the
+# newest RECENT_ROUNDS of them.
 SHOW_ROUNDS = 100
+RECENT_ROUNDS = 10
 MAX_WORD_LEN = 40
 MAX_NOTES = 200
 FIRST_DAY = date(2026, 1, 1)
@@ -390,7 +386,7 @@ def chainle_admin():
     form_date, form_round = _form_defaults(request.args)
     return render_template('chainle_admin.html', total=total, form_date=form_date,
                            form_round=form_round, sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
-                           data_ok=data is not None, shown=SHOW_ROUNDS, version=solver_version(),
+                           data_ok=data is not None, recent=RECENT_ROUNDS, version=solver_version(),
                            versioned=versioned, versions=versions, **assess_rounds(data, rows))
 
 

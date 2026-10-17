@@ -34,7 +34,7 @@
       "name": "How does this solver help without spoiling the answer?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. If you are still stuck, Show possible answers lists phrases that fit your board with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase."
+        "text": "It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. Below that, the possible answers are phrases that fit your board, with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase. Tap a revealed phrase to copy it, then paste it into the game."
       }
     },
     {
@@ -393,6 +393,16 @@
 }
 .gtp-row-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
 .gtp-row.revealed .gtp-masked { color: #02484d; }
+/* A revealed answer is a button: a tap copies it, to paste into the game. */
+button.gtp-masked {
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 560px) {
     /* The phrase gets its own line; squeezed beside the buttons it broke
        mid-word. The bar and buttons share the line below. */
@@ -499,9 +509,10 @@
         it. Switch to <strong>✗ Mark misses</strong> and tap each letter the game said isn't there.
         <br><br>
         <strong>4. Get a hint.</strong> <strong>Best next letter</strong> shows the consonant most
-        likely to be in the answer, and whether a vowel is worth buying. Still stuck? Open
-        <strong>Show possible answers</strong>: each one stays hidden until you tap
-        <strong>Show letter</strong> or <strong>Reveal</strong>. Works for older puzzles too.
+        likely to be in the answer, and whether a vowel is worth buying. Still stuck?
+        <strong>Possible answers</strong> lists phrases that fit, each hidden until you tap
+        <strong>Show letter</strong> or <strong>Reveal</strong>. Tap a revealed answer to copy it,
+        then paste it into the game. Works for older puzzles too.
     </div>
 </div>
 
@@ -555,8 +566,8 @@
     </div>
 
     <div class="gtp-card" id="gtp-answers">
-        <button type="button" class="gtp-btn" id="gtp-answers-toggle">👀 Show possible answers</button>
-        <div id="gtp-answers-body" hidden>
+        <div class="gtp-card-title">Possible answers</div>
+        <div id="gtp-answers-body">
             <div class="gtp-tabs" role="tablist">
                 <button type="button" class="sort-chip active" data-tab="phrases" role="tab">Whole answer</button>
                 <button type="button" class="sort-chip" data-tab="words" role="tab">Word by word</button>
@@ -600,7 +611,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the answer?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. If you are still stuck, Show possible answers lists phrases that fit your board with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It works from the board as you see it, never from the day's answer, so nothing is given away until you ask. First it suggests the letter most likely to be in the answer and whether a vowel is worth buying. Below that, the possible answers are phrases that fit your board, with every hidden letter masked. Tap Show letter to uncover one letter at a time, or Reveal to see the whole phrase. Tap a revealed phrase to copy it, then paste it into the game.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
@@ -665,7 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let padPage = 0;              // keypad page: 0 = 1 to 9, 1 = 10 to 15
     let selected = -1;            // selected tile index
     let mode = 'fill';            // 'fill' | 'miss'
-    let answersOpen = false;
     let tab = 'phrases';
     let wordTab = -1;             // board word shown in "Word by word"
     let reveals = {};             // row text -> hidden letters shown (Infinity = all)
@@ -686,8 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const doneBtn = document.getElementById('gtp-done');
     const typeRow = document.getElementById('gtp-type-row');
     const categoryEl = document.getElementById('gtp-category');
-    const answersBody = document.getElementById('gtp-answers-body');
-    const answersToggle = document.getElementById('gtp-answers-toggle');
     const listEl = document.getElementById('gtp-answer-list');
     const newBtn = document.getElementById('gtp-new');
 
@@ -844,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lengths = []; letters = []; misses = new Set();
         category = 'any'; categoryEl.value = 'any';
         selected = -1; reveals = {}; rowsShown = ROWS_STEP; wordTab = -1;
-        answersOpen = false; last = null; tab = 'phrases';
+        last = null; tab = 'phrases';
         document.getElementById('gtp-add-input').value = '';
         setMode('fill');
         setPhase('build');
@@ -987,12 +995,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return n;
     }
 
+    // A row stays masked until revealed letter by letter; then its text is
+    // a button that copies it.
     function rowHtml(text, share, known, idx) {
         const count = reveals[text] || 0;
         const left = hiddenCount(text, known);
         const done = count >= left;
-        let html = '<div class="gtp-row' + (done ? ' revealed' : '') + '">' +
-            '<span class="gtp-masked">' + esc(masked(text, known, count)) + '</span>';
+        let html = '<div class="gtp-row' + (done ? ' revealed' : '') + '">' + (done
+            ? '<button type="button" class="gtp-masked" data-copy="' + esc(text) + '" title="Copy ' + esc(text) + '">' + esc(text) + '</button>'
+            : '<span class="gtp-masked">' + esc(masked(text, known, count)) + '</span>');
         if (share !== null) {
             html += '<span class="gtp-share" title="Estimated chance this is the answer"><span class="gtp-bar"><span style="width:' +
                 Math.max(2, Math.round(share * 100)) + '%"></span></span>' + pct(share) + '</span>';
@@ -1000,6 +1011,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!done) {
             html += '<button type="button" class="gtp-row-btn" data-act="letter" data-idx="' + idx + '">Show letter</button>' +
                 '<button type="button" class="gtp-row-btn" data-act="all" data-idx="' + idx + '">Reveal</button>';
+        } else {
+            html += '<button type="button" class="gtp-row-btn" data-copy="' + esc(text) + '">📋 Copy</button>';
         }
         return html + '</div>';
     }
@@ -1007,10 +1020,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let rowTexts = [];   // the texts behind the current list's buttons
 
     function renderAnswers() {
-        answersBody.hidden = !answersOpen;
-        answersToggle.textContent = answersOpen ? '🙈 Hide possible answers' : '👀 Show possible answers';
         document.querySelectorAll('.gtp-tabs .sort-chip').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-        if (!answersOpen || !last) { listEl.innerHTML = ''; return; }
+        if (!last) { listEl.innerHTML = ''; return; }
         rowTexts = [];
         let html = '';
         if (tab === 'phrases') {
@@ -1060,11 +1071,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ---------- answers interactions ---------- */
-    answersToggle.addEventListener('click', () => {
-        answersOpen = !answersOpen;
-        renderAnswers();
-        save();
-    });
     document.querySelectorAll('.gtp-tabs .sort-chip[data-tab]').forEach(b => b.addEventListener('click', () => {
         tab = b.dataset.tab;
         renderAnswers();
@@ -1072,6 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
     listEl.addEventListener('click', e => {
         const btn = e.target.closest('button');
         if (!btn) return;
+        if (btn.dataset.copy !== undefined) { copyAnswer(btn.dataset.copy); return; }
         if (btn.id === 'gtp-more') { rowsShown += ROWS_STEP; renderAnswers(); return; }
         if (btn.dataset.word !== undefined) { wordTab = +btn.dataset.word; renderAnswers(); return; }
         const row = rowTexts[+btn.dataset.idx];
@@ -1081,6 +1088,27 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAnswers();
         save();
     });
+
+    async function copyAnswer(text) {
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+        } catch (_) {
+            // No clipboard API (an older browser, or not allowed): copy
+            // through a hidden text box instead.
+            const box = document.createElement('textarea');
+            box.value = text;
+            box.setAttribute('readonly', '');
+            box.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+            document.body.appendChild(box);
+            box.select();
+            box.setSelectionRange(0, text.length);
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            box.remove();
+        }
+        toast(ok ? 'Copied ' + text + ' - paste it into the game' : "Couldn't copy here - type " + text + ' into the game', !ok);
+    }
 
     /* ---------- entry ---------- */
     function setMode(m) {
@@ -1261,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                lengths, letters, misses: [...misses], category, answersOpen, reveals, phase, savedAt: Date.now()
+                lengths, letters, misses: [...misses], category, reveals, phase, savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1298,7 +1326,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof s.category === 'string' && [...categoryEl.options].some(o => o.value === s.category)) {
             category = s.category;
         }
-        answersOpen = s.answersOpen === true;
         reveals = (s.reveals && typeof s.reveals === 'object') ? s.reveals : {};
         // Saves from before the keypad have no phase: they were filling.
         phase = s.phase === 'build' ? 'build' : 'fill';

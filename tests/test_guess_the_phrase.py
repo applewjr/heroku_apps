@@ -117,6 +117,13 @@ def test_page_says_unofficial_and_credits_every_source(client, gtp_db):
     assert 'wheel of fortune solver' not in html.lower()
 
 
+def test_answers_are_listed_without_a_show_button(client, gtp_db):
+    # The phrases show, masked, as soon as there's a board: no button opens them.
+    html = client.get('/guess_the_phrase').get_data(as_text=True)
+    assert 'id="gtp-answer-list"' in html
+    assert 'gtp-answers-toggle' not in html and 'Show possible answers' not in html
+
+
 def test_page_never_touches_the_database(client, gtp_db):
     db = gtp_db(fail='SELECT')
     assert client.get('/guess_the_phrase').status_code == 200

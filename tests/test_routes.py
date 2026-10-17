@@ -5,6 +5,8 @@ imports, missing templates, blueprint registration mistakes, renamed Jinja
 variables - without needing the database.
 """
 
+from datetime import date
+
 import pytest
 
 # Pages that render straight from code/static data (no DB required).
@@ -56,6 +58,26 @@ def test_legacy_redirects(client, path, target):
     resp = client.get(path)
     assert resp.status_code == 301
     assert resp.headers["Location"].endswith(target)
+
+
+def _new_until(monkeypatch, day):
+    import helpers
+    monkeypatch.setattr(helpers, "NEW_UNTIL", {"/chainle": day, "/guess_the_phrase": day})
+
+
+def test_the_new_solvers_lead_the_solver_links_tagged_new(client, monkeypatch):
+    _new_until(monkeypatch, date(9999, 12, 31))
+    html = client.get("/smush").get_data(as_text=True)
+    links = html.split("Other Word Game Solvers:")[1]
+    assert links.index('href="/chainle"') < links.index('href="/guess_the_phrase"') < links.index('href="/wordle"')
+    assert html.count(">NEW</span>") == 2
+    assert client.get("/").get_data(as_text=True).count(">NEW</span>") == 2
+
+
+def test_the_new_tag_drops_off_by_itself(client, monkeypatch):
+    _new_until(monkeypatch, date(2020, 1, 1))
+    for path in ("/smush", "/"):
+        assert ">NEW</span>" not in client.get(path).get_data(as_text=True), path
 
 
 def test_unknown_path_returns_404(client):
