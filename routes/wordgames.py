@@ -5,12 +5,14 @@ import re
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 from routes import chainle
 from routes import guess_the_phrase as gtp
+from routes import ribbit
 from routes import smush as smush_crowd
+from routes.ribbit import parse_ribbit_board
 from routes.smush import get_smush_words
 
 bp = Blueprint('wordgames', __name__)
@@ -372,95 +374,65 @@ def run_smush():
         return render_template("smush.html", schema_data=schema_data)
 
 
-def parse_ribbit_board(data):
-    """Validate the Ribbit board (tiles + connections + cleared tiles) in the
-    POST body and return (nodes, edges, disabled).
+def _ribbit_post(dev=False):
+    """A POST to /ribbit, or /ribbit_dev with `dev`: a solve, or an `action`
+    (shared boards and crowd votes, in routes/ribbit.py)."""
+    data = request.get_json()
+    if not isinstance(data, dict):
+        raise ValidationError('expected a JSON object')
 
-    nodes    -- {node_id: letter} for every tile placed on the board
-    edges    -- list of (id_a, id_b) connection pairs
-    disabled -- set of node ids the player marked cleared (frogged)
-    Board size is capped so the path search can never be handed a runaway
-    graph: <=64 tiles and <=1024 connections.
-    """
-    raw_nodes = data.get('nodes')
-    if not (isinstance(raw_nodes, list) and 1 <= len(raw_nodes) <= 64):
-        raise ValidationError('nodes must be a list of 1 to 64 tiles')
-    nodes = {}
-    for n in raw_nodes:
-        if not isinstance(n, dict):
-            raise ValidationError('each node must be an object')
-        nid, letter = n.get('id'), n.get('letter')
-        if not (isinstance(nid, int) and not isinstance(nid, bool) and 0 <= nid <= 100000):
-            raise ValidationError('node id must be a non-negative integer')
-        if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
-            raise ValidationError('node letter must be a single letter a-z')
-        if nid in nodes:
-            raise ValidationError('node ids must be unique')
-        nodes[nid] = letter.lower()
+    if 'action' in data:
+        return ribbit.handle_action(data, dev=dev)
 
-    raw_edges = data.get('edges', [])
-    if not (isinstance(raw_edges, list) and len(raw_edges) <= 1024):
-        raise ValidationError('edges must be a list of at most 1024 connections')
-    edges = []
-    for e in raw_edges:
-        if not (isinstance(e, list) and len(e) == 2):
-            raise ValidationError('each edge must be a pair of node ids')
-        a, b = e
-        if not all(isinstance(x, int) and not isinstance(x, bool) for x in (a, b)):
-            raise ValidationError('edge endpoints must be integers')
-        if a not in nodes or b not in nodes:
-            raise ValidationError('edge endpoints must reference placed tiles')
-        edges.append((a, b))
+    nodes, edges, disabled = parse_ribbit_board(data)
 
-    raw_disabled = data.get('disabled', [])
-    if not (isinstance(raw_disabled, list) and len(raw_disabled) <= 64):
-        raise ValidationError('disabled must be a list of at most 64 node ids')
-    disabled = set()
-    for d in raw_disabled:
-        if not (isinstance(d, int) and not isinstance(d, bool) and d in nodes):
-            raise ValidationError('disabled entries must reference placed tiles')
-        disabled.add(d)
+    # rejected: words Ribbit refused; played: words already found. Both are
+    # simply dropped from suggestions - Ribbit has no per-letter budget, so
+    # a found word costs nothing beyond not being suggested again.
+    rejected = parse_smush_word_list(data, 'rejected')
+    played = parse_smush_word_list(data, 'played')
 
-    return nodes, edges, disabled
+    min_len = parse_int(data.get('min_len'), 'min_len',
+                        default=4, min_value=3, max_value=15)
+
+    # Ribbit's own list: the dictionary with Ribbit's crowd corrections,
+    # never Smush's or Blossom's - those are about their games' lists.
+    results, total_playable = all_words.ribbit_solver(
+        nodes, edges, ribbit.get_ribbit_words(), min_len=min_len,
+        exclude=set(rejected) | set(played), disabled=disabled,
+        popularity=word_pop, list_len=500)
+
+    return jsonify(results=results, total_playable=total_playable)
 
 
 @bp.route("/ribbit", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_ribbit():
+    if request.method == "POST":
+        return _ribbit_post()
 
     schema_data = make_schema_data(
         "Ribbit Solver - Find Every Word on Today's Board",
         "Solve Puzzmo's Ribbit in seconds - recreate the board, then see every word you can trace, longest first, with rare words flagged. Free solver for the daily frog word game.",
         "https://jamesapplewhite.com/ribbit"
     )
+    log_page_visit('ribbit.html')
+    return render_template("ribbit.html", schema_data=schema_data,
+                           shared_boards=ribbit.SHARED_BOARDS_LIVE, post_url='/ribbit', dev=False)
 
+
+@bp.route("/ribbit_dev", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
+@auth.login_required
+def run_ribbit_dev():
+    """James's copy of /ribbit with the shared board on, to check a few days
+    of served boards against his own game before players see them (James's
+    call, 2026-10-17). It posts to itself, so its votes are tagged dev in the
+    vote log; its boards and votes count like any player's. Not a page visit."""
     if request.method == "POST":
-        data = request.get_json()
-        if not isinstance(data, dict):
-            raise ValidationError('expected a JSON object')
-
-        nodes, edges, disabled = parse_ribbit_board(data)
-
-        # rejected: words Ribbit refused; played: words already found. Both are
-        # simply dropped from suggestions - Ribbit has no per-letter budget, so
-        # a found word costs nothing beyond not being suggested again.
-        rejected = parse_smush_word_list(data, 'rejected')
-        played = parse_smush_word_list(data, 'played')
-
-        min_len = parse_int(data.get('min_len'), 'min_len',
-                            default=4, min_value=3, max_value=15)
-
-        # The plain dictionary: Smush's and Blossom's corrections are about
-        # those games' word lists, not Ribbit's.
-        results, total_playable = all_words.ribbit_solver(
-            nodes, edges, words, min_len=min_len,
-            exclude=set(rejected) | set(played), disabled=disabled,
-            popularity=word_pop, list_len=500)
-
-        return jsonify(results=results, total_playable=total_playable)
-    else:
-        log_page_visit('ribbit.html')
-        return render_template("ribbit.html", schema_data=schema_data)
+        return _ribbit_post(dev=True)
+    return render_template("ribbit.html", schema_data=None,
+                           shared_boards=True, post_url='/ribbit_dev', dev=True)
 
 
 @bp.route("/guess_the_phrase", methods=["POST", "GET"])

@@ -256,6 +256,10 @@ def gather_gtp_crowd(cursor):
     return gather_crowd(cursor, 'gtp', GTP_WINDOW_DAYS)
 
 
+def gather_ribbit_crowd(cursor):
+    return gather_crowd(cursor, 'ribbit')
+
+
 def gather_dashboard(cursor):
     """Every /etl_dash panel, every round, in file order.
 
@@ -326,7 +330,7 @@ def _table(columns, rows, limit=MAX_ROWS_PER_PANEL):
 
 
 def render(now, health, latency, storage, feedback, panels, blossom=((), (), None),
-           smush=((), (), None), gtp=((), (), None)):
+           smush=((), (), None), gtp=((), (), None), ribbit=((), (), None)):
     total_mb, tables = storage
     ok = sum(1 for r in health if r[1] == 'ok')
     bad = sum(1 for r in health if r[1] == 'FAIL')
@@ -390,6 +394,7 @@ def render(now, health, latency, storage, feedback, panels, blossom=((), (), Non
     for title, admin, (cr_cols, cr_rows, cr_error) in (
             ('Blossom word', '/blossom_admin', blossom),
             ('Smush word', '/smush_admin', smush),
+            ('Ribbit word', '/ribbit_admin', ribbit),
             ('Guess The Phrase phrase', '/guess_the_phrase_admin', gtp)):
         h.append('<h2>{} fixes by players, last 24 hours ({})</h2>'.format(title, len(cr_rows)))
         h.append('<p class="sub">Applied on their own once enough different players '
@@ -440,6 +445,7 @@ def build(now):
         blossom = gather_blossom_crowd(cursor)
         smush = gather_smush_crowd(cursor)
         gtp = gather_gtp_crowd(cursor)
+        ribbit = gather_ribbit_crowd(cursor)
     finally:
         cursor.close()
         conn.close()
@@ -449,7 +455,7 @@ def build(now):
     latency = gather_latency()
 
     html, ok, bad, total_mb = render(now, health, latency, storage, feedback, panels,
-                                     blossom, smush, gtp)
+                                     blossom, smush, gtp, ribbit)
     # The summary goes in the subject so the phone notification is the report.
     # Most days that is the only part read, and it should be enough.
     subject = 'JJ daily {} - {} ok, {} alert{}, {} MB'.format(

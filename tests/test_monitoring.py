@@ -730,10 +730,10 @@ def test_one_broken_probe_costs_one_probe(monkeypatch):
 ##### daily digest #####
 
 def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=(),
-            blossom=((), (), None), smush=((), (), None)):
+            blossom=((), (), None), smush=((), (), None), ribbit=((), (), None)):
     now = datetime.datetime(2026, 9, 28, 6, 0)
     return daily_digest.render(now, list(health), list(latency), storage,
-                               feedback, list(panels), blossom, smush)
+                               feedback, list(panels), blossom, smush, ribbit=ribbit)
 
 
 def test_digest_keeps_the_limit_column_of_a_less_than_check():
@@ -957,6 +957,45 @@ def test_gather_smush_crowd_reads_only_smush_tables():
     [sql] = seen
     assert 'smush_word_votes' in sql and 'smush_invalid_words' in sql
     assert 'blossom_' not in sql
+
+
+def test_digest_lists_ribbit_crowd_fixes_separately():
+    html, _o, _b, _m = _render(ribbit=(
+        ['word', 'report', 'players_7d', 'last_report', 'result'],
+        [('<b>gorf</b>', 'missing', 2, '2026-10-17 05:10:00', 'added (crowd)')],
+        None,
+    ))
+    assert 'Smush word fixes by players, last 24 hours (0)' in html
+    assert 'Ribbit word fixes by players, last 24 hours (1)' in html
+    assert '/ribbit_admin' in html
+    assert '&lt;b&gt;gorf&lt;/b&gt;' in html
+
+
+def test_gather_ribbit_crowd_reads_only_ribbit_tables():
+    seen = []
+
+    class Recording:
+        description = [('word',)]
+
+        def execute(self, sql, *a, **k):
+            seen.append(sql)
+
+        def fetchall(self):
+            return []
+
+    _cols, _rows, error = daily_digest.gather_ribbit_crowd(Recording())
+    assert error is None
+    [sql] = seen
+    assert 'ribbit_word_votes' in sql and 'ribbit_invalid_words' in sql
+    assert 'smush_' not in sql and 'blossom_' not in sql
+
+
+def test_the_digest_covers_every_crowd_game():
+    from monitoring.crowd_report import CROWD_GAMES
+    html, _o, _b, _m = _render()
+    for admin in ('/blossom_admin', '/smush_admin', '/ribbit_admin', '/guess_the_phrase_admin'):
+        assert admin in html
+    assert len(CROWD_GAMES) == 4
 
 
 def test_digest_vote_window_matches_the_app():

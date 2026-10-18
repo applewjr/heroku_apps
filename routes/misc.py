@@ -2,7 +2,8 @@
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
-from extensions import FEEDBACK_POST_LIMITS, NOT_FOUND_LIMITS, db_cursor, limiter, log_page_visit
+from data import etl_dash_queries
+from extensions import FEEDBACK_POST_LIMITS, NOT_FOUND_LIMITS, auth, db_cursor, limiter, log_page_visit
 from helpers import bot_reason, client_ip, feedback_flooded, issue_form_token, log_dropped
 from monitoring import alerts
 
@@ -16,6 +17,19 @@ bp = Blueprint('misc', __name__)
 @bp.route("/", methods=["POST", "GET"])
 def run_index():
     return render_template("index.html")
+
+
+@bp.route('/jj_admin')
+@auth.login_required
+def jj_admin():
+    """Every password-protected page, on one page. They share its password,
+    so the browser doesn't ask again on the way through. A test fails if a
+    protected page isn't linked here."""
+    rounds = {}
+    for name, details in etl_dash_queries.items():
+        if 'round' in details:
+            rounds.setdefault(details['round'], []).append(details.get('label') or name)
+    return render_template('jj_admin.html', etl_rounds=sorted(rounds.items()))
 
 
 @bp.route('/log-click', methods=['POST'])

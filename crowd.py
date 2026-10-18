@@ -83,6 +83,31 @@ SETTLED_RESULTS = ('removed (crowd)', 'kept: you added it',
 _ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
 
 
+def player_hash(game):
+    """Who is playing `game`: an HMAC of the visitor's IP, never the IP itself.
+
+    HMAC rather than a plain hash because the IPv4 space is small enough to
+    brute-force a bare SHA-256 straight back to the address. IPv6 is cut to
+    its /64: privacy extensions rotate the low 64 bits, so otherwise one
+    phone would count as a new player every day. Salted with the game, so the
+    same visitor is a different player in each game, and the same player in
+    all of one game's tables.
+    """
+    ip = client_ip()
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        parsed = None
+    if parsed is not None and parsed.version == 6:
+        if parsed.ipv4_mapped is not None:
+            ip = str(parsed.ipv4_mapped)
+        else:
+            ip = str(ipaddress.ip_network(f'{parsed}/64', strict=False).network_address)
+    key = str(current_app.secret_key).encode()
+    salt = f'{game}-vote|'.encode()
+    return hmac.new(key, salt + ip.encode(), hashlib.sha256).hexdigest()[:32]
+
+
 def remove_votes_needed(word):
     """Players needed to take `word` out of a game's list: fewer the rarer it is."""
     pop = word_pop.get(word)
@@ -207,26 +232,8 @@ class CrowdList:
         return remove_votes_needed(word) if kind == 'invalid' else CROWD_ADD_VOTES
 
     def voter_hash(self):
-        """Who is voting: an HMAC of the visitor's IP, never the IP itself.
-
-        HMAC rather than a plain hash because the IPv4 space is small enough to
-        brute-force a bare SHA-256 straight back to the address. IPv6 is cut to
-        its /64: privacy extensions rotate the low 64 bits, so otherwise one
-        phone would count as a new player every day.
-        """
-        ip = client_ip()
-        try:
-            parsed = ipaddress.ip_address(ip)
-        except ValueError:
-            parsed = None
-        if parsed is not None and parsed.version == 6:
-            if parsed.ipv4_mapped is not None:
-                ip = str(parsed.ipv4_mapped)
-            else:
-                ip = str(ipaddress.ip_network(f'{parsed}/64', strict=False).network_address)
-        key = str(current_app.secret_key).encode()
-        salt = f'{self.game}-vote|'.encode()
-        return hmac.new(key, salt + ip.encode(), hashlib.sha256).hexdigest()[:32]
+        """Who is voting (see player_hash)."""
+        return player_hash(self.game)
 
     def _count_players(self, cursor, word, kind):
         """Distinct players behind a change to this word, inside the vote window.
