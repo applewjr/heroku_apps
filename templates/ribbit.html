@@ -121,6 +121,10 @@
     background-color: #02484d; color: #fff; border-color: #02484d;
 }
 .rb-phase-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+/* Next to Solve only while a board loaded from other players waits to be
+   checked, so a player whose game doesn't match can start over right there. */
+.rb-phase-clear { color: #6b7280; }
+.rb-phase-btn[hidden] { display: none; }
 .rb-tool.active { background-color: #e55555; color: #fff; border-color: #c0392b; }
 .rb-tool.active:hover { background-color: #d94444; }
 .rb-tools { display: none; margin-top: 10px; }
@@ -649,6 +653,7 @@
 <div class="rb-phase" role="group" aria-label="Mode">
     <button type="button" class="rb-phase-btn active" id="phase-edit">✏️ Edit board</button>
     <button type="button" class="rb-phase-btn" id="phase-solve">▶ Solve</button>
+    {% if shared_boards %}<button type="button" class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>🔄 Clear board</button>{% endif %}
 </div>
 
 <div class="rb-tools" id="rb-tools" role="group" aria-label="Board tools">
@@ -791,6 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let boardSource = 'typed';    // 'typed' | 'shared' (from other players) | 'edited' (shared, then changed)
     let loggedSig = '';           // the board as last sent to the shared-board log
     let sharedToday = null;       // today's board from other players, once they've settled it
+    let offerClear = false;       // that board was just loaded and isn't solved yet
 
     let lastResults = [];
     let totalPlayable = 0;
@@ -811,6 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsBar = document.getElementById('rb-tools');
     const resultsContainer = document.getElementById('results-container');
     const sharedBanner = document.getElementById('rb-shared');
+    const phaseClear = document.getElementById('phase-clear');
 
     const HINTS = {
         type: 'Tap a square and type its letter - it hops to the next square automatically.',
@@ -1073,6 +1080,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setPhase(p) {
         phase = p;
         activeWord = null;
+        if (p === 'solve') offerClear = false;
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
         const editing = p === 'edit';
         document.getElementById('phase-edit').classList.toggle('active', editing);
@@ -1155,22 +1163,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 380);
     });
 
-    document.getElementById('clear-btn').addEventListener('click', () => {
-        if (cells.some(c => c) && !confirm('Clear the whole board and start over?')) return;
+    // Back to an empty board. `ask` confirms first if there's anything to lose.
+    function clearBoard(ask) {
+        if (ask && cells.some(c => c) && !confirm('Clear the whole board and start over?')) return;
         cells = Array(N * N).fill('');
         edges = []; disabled = new Set();
         played = []; rejected = [];
         lastResults = []; totalPlayable = 0; activeWord = null;
         cover = {}; keyWords = new Set();
-        boardSource = 'typed'; loggedSig = '';
+        boardSource = 'typed'; loggedSig = ''; offerClear = false;
         suggestInput.value = ''; suggestStatus.textContent = '';
         tool = 'type';
         renderPiles();
         setPhase('edit');
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         fetchShared();
-        focusCell(0);   // the button sits under the results: take them back to the board
-    });
+        focusCell(0);   // the bottom button sits under the results: take them back to the board
+    }
+
+    document.getElementById('clear-btn').addEventListener('click', () => clearBoard(true));
+    // A board just loaded from other players, untouched, is nothing of the
+    // player's to lose (Load brings it back), so only a changed one asks.
+    if (phaseClear) phaseClear.addEventListener('click', () => clearBoard(boardSource !== 'shared'));
 
     /* ---------- solving ---------- */
     function afterChange() {
@@ -1515,6 +1529,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderShared() {
         if (!sharedBanner) return;
         sharedBanner.hidden = !(sharedToday && phase === 'edit' && !cells.some(c => c));
+        phaseClear.hidden = !(offerClear && phase === 'edit');
     }
 
     function fetchShared() {
@@ -1540,9 +1555,9 @@ document.addEventListener('DOMContentLoaded', () => {
         edges = toEdges(b.edges);
         disabled = new Set(); activeWord = null;
         boardSource = 'shared'; loggedSig = boardSig();
-        sharedToday = null;
+        sharedToday = null; offerClear = true;
         renderAll(); renderShared(); persist();
-        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve.";
+        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve, or 🔄 Clear board if it doesn't.";
     });
 
     // All 16 letters typed and nothing linked yet: if other players have
