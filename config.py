@@ -89,6 +89,22 @@ GMAIL_RECEIVER_EMAIL = 'james.r.applewhite@gmail.com'
 # routing path (Cloudflare included) rather than localhost.
 HEALTH_WEB_URL = os.environ.get('HEALTH_WEB_URL', 'https://www.jamesapplewhite.com/')
 
+##### ads #####
+
+# The deliberate 300x250 units below each solver's results
+# (templates/_ad_slot.html), by page. Slot IDs are public: they ship in the
+# page source. A page with no ID here shows no unit.
+AD_SLOT_IDS = {
+    'smush': '7072287683',
+    'blossom': '3885967128',
+    'ribbit': '2941470981',
+    'wordiply': '6129162095',
+    'chainle': '5376062635',
+}
+# Pages whose unit is off: the AD_SLOTS_DISABLED config var, comma-separated.
+AD_SLOTS_DISABLED = frozenset(
+    page.strip() for page in os.environ.get('AD_SLOTS_DISABLED', '').split(',') if page.strip())
+
 if not SESSION_KEY:
     if IS_HEROKU:
         # Production environment missing session key - this is an error

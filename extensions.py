@@ -16,7 +16,7 @@ import mysql.connector.pooling
 from mysql.connector import Error
 import pytz
 import redis
-from flask import Response, request
+from flask import Response, has_request_context, request
 from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
@@ -68,6 +68,36 @@ def custom_error():
     'Could not verify your access level for that URL.\n'
     'You have to login with proper credentials', 401,
     {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+##### ads #####
+
+def real_site():
+    """Is this request for the live site, jamesapplewhite.com or a subdomain
+    of it? Local runs, tests and staging are not."""
+    host = request.host.split(':')[0].lower()
+    return host == 'jamesapplewhite.com' or host.endswith('.jamesapplewhite.com')
+
+
+def show_ads():
+    """Whether a page loads AdSense at all (templates/base.html): only on the
+    live site, so local runs, tests and staging never request ads, and never
+    on a password-only page, which only James sees. Which public pages show
+    Auto ads is set in AdSense itself."""
+    return has_request_context() and real_site() and auth.current_user() is None
+
+
+def ad_slot(page):
+    """What templates/_ad_slot.html needs for `page`'s unit: enabled (it has
+    a slot ID in config.AD_SLOT_IDS, isn't in AD_SLOTS_DISABLED, and the page
+    isn't password-only), real (the live site, where the real ad is
+    requested; anywhere else gets a placeholder) and slot_id."""
+    slot_id = config.AD_SLOT_IDS.get(page, '')
+    return {
+        'enabled': (bool(slot_id) and page not in config.AD_SLOTS_DISABLED
+                    and auth.current_user() is None),
+        'real': real_site(),
+        'slot_id': slot_id,
+    }
 
 ##### MySQL #####
 
