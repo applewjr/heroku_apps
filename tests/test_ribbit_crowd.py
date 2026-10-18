@@ -349,7 +349,7 @@ def test_admin_shared_boards_still_work_without_the_word_tables(client, ribbit_d
     html = resp.get_data(as_text=True)
     assert resp.status_code == 200
     assert "Has mysql_tables/ribbit_crowd.sql been run?" in html
-    assert "Has mysql_tables/ribbit_boards.sql been run?" not in html
+    assert "Couldn't read the boards" not in html
     assert "Shared Boards" in html
 
 

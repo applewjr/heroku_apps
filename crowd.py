@@ -83,6 +83,25 @@ SETTLED_RESULTS = ('removed (crowd)', 'kept: you added it',
 _ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
 
 
+def _visitor_hmac(game, kind, v6_bits):
+    """An HMAC of the visitor's IP, never the IP itself: IPv6 cut to its
+    first `v6_bits`, an IPv4-mapped address read as IPv4, IPv4 whole.
+    Salted with the game and `kind`, so keys of different kinds never match."""
+    ip = client_ip()
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        parsed = None
+    if parsed is not None and parsed.version == 6:
+        if parsed.ipv4_mapped is not None:
+            ip = str(parsed.ipv4_mapped)
+        else:
+            ip = str(ipaddress.ip_network(f'{parsed}/{v6_bits}', strict=False).network_address)
+    key = str(current_app.secret_key).encode()
+    salt = f'{game}-{kind}|'.encode()
+    return hmac.new(key, salt + ip.encode(), hashlib.sha256).hexdigest()[:32]
+
+
 def player_hash(game):
     """Who is playing `game`: an HMAC of the visitor's IP, never the IP itself.
 
@@ -93,19 +112,21 @@ def player_hash(game):
     same visitor is a different player in each game, and the same player in
     all of one game's tables.
     """
-    ip = client_ip()
-    try:
-        parsed = ipaddress.ip_address(ip)
-    except ValueError:
-        parsed = None
-    if parsed is not None and parsed.version == 6:
-        if parsed.ipv4_mapped is not None:
-            ip = str(parsed.ipv4_mapped)
-        else:
-            ip = str(ipaddress.ip_network(f'{parsed}/64', strict=False).network_address)
-    key = str(current_app.secret_key).encode()
-    salt = f'{game}-vote|'.encode()
-    return hmac.new(key, salt + ip.encode(), hashlib.sha256).hexdigest()[:32]
+    return _visitor_hmac(game, 'vote', 64)
+
+
+def prefix_hash(game):
+    """The network a `game` player is on: coarser than player_hash, with
+    IPv6 cut to its /48 and IPv4 the whole address (so there it groups
+    exactly as player_hash does).
+
+    A home or a host is often handed a /56 or a /48 of IPv6, and every /64
+    in it is a different player_hash, so a count of players that should not
+    run up from one network counts these instead (Ribbit's shared boards,
+    routes/ribbit.py consensus). An HMAC like player_hash, never the IP, and
+    salted apart from it.
+    """
+    return _visitor_hmac(game, 'prefix', 48)
 
 
 def remove_votes_needed(word):
