@@ -11,6 +11,8 @@
 -- Code deployed without it fails safe: /ribbit works as before (no button, no
 -- filled-in links), boards are lost behind a `ribbit_board_log_failed` alert,
 -- and /ribbit_admin shows the error instead of the boards.
+--
+-- ribbit_boards_prefix.sql adds a column to this table; run it after this one.
 
 SET SESSION lock_wait_timeout = 5;
 

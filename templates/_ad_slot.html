@@ -1,0 +1,59 @@
+{# One deliberate 300x250 ad unit, below a page's whole results block:
+     {% with ad_page='smush', ad_gate='#results-container .word-result' %}{% include '_ad_slot.html' %}{% endwith %}
+   ad_page names the unit in config.AD_SLOT_IDS; with no ID, or switched off
+   in AD_SLOTS_DISABLED, nothing renders. ad_gate is for pages that draw
+   their results in the browser: a CSS selector, and the unit stays hidden
+   until it first matches, then stays shown, even after a reset. Leave it
+   out where the results come with the page (Blossom). One per page.
+
+   It shows wherever it's included, even on a page where Auto ads are
+   switched off, so include it only on pages meant to carry ads. Never
+   between a board and its results, inside a list, or above the tool.
+
+   The ad is requested once per page view, the first time the unit comes
+   within 400px of the screen, and only on the live site; anywhere else a
+   placeholder stands in. #}
+{% set ad = ad_slot(ad_page) %}
+{% if ad.enabled %}
+<div class="jj-ad" id="jj-ad"{% if ad_gate %} data-ad-gate="{{ ad_gate }}" hidden{% endif %}{% if ad.real %} data-ad-slot="{{ ad.slot_id }}"{% endif %}>
+    <div class="jj-ad-label">Advertisements</div>
+    <div class="jj-ad-box">{% if not ad.real %}<div class="jj-ad-placeholder">Ad 300x250</div>{% endif %}</div>
+</div>
+<script>
+(function () {
+    const slot = document.getElementById('jj-ad');
+
+    function request() {
+        if (!slot.dataset.adSlot) return;          // the placeholder, off the live site
+        const near = new IntersectionObserver(entries => {
+            if (!entries.some(e => e.isIntersecting)) return;
+            near.disconnect();
+            const ins = document.createElement('ins');
+            ins.className = 'adsbygoogle';
+            ins.style.cssText = 'display:inline-block;width:300px;height:250px';
+            ins.dataset.adClient = 'ca-pub-6048977647228919';
+            ins.dataset.adSlot = slot.dataset.adSlot;
+            slot.querySelector('.jj-ad-box').appendChild(ins);
+            // Queues until base.html has loaded the AdSense script.
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+        }, {rootMargin: '400px 0px'});
+        near.observe(slot);
+    }
+
+    const gate = slot.dataset.adGate;
+    if (!gate || document.querySelector(gate)) {
+        slot.hidden = false;
+        request();
+        return;
+    }
+    const results = new MutationObserver(() => {
+        if (!document.querySelector(gate)) return;
+        results.disconnect();
+        slot.hidden = false;
+        request();
+    });
+    results.observe(document.body, {childList: true, subtree: true,
+                                    attributes: true, attributeFilter: ['hidden']});
+})();
+</script>
+{% endif %}

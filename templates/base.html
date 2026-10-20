@@ -16,6 +16,7 @@
     });
     </script>
 
+    {% if show_ads() %}
     <script>
     window.addEventListener('load', function() {
       var script = document.createElement('script');
@@ -25,6 +26,7 @@
       document.head.appendChild(script);
     });
     </script>
+    {% endif %}
 
      <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -42,7 +44,9 @@
     <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 
     <link rel="preload" href="{{ url_for('static', filename='fonts/inter-v20-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+    {% if show_ads() %}
     <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
+    {% endif %}
 
     <style>
 /* Inter variable font, self-hosted (was Google Fonts). font-display: optional
@@ -383,6 +387,32 @@ li { margin-bottom: 10px; }
     text-decoration: none !important;
 }
 .jj-overlay-footer a:hover { color: rgba(255,255,255,0.6); }
+/* A deliberate ad unit (templates/_ad_slot.html): a fixed 300x250 with its
+   height held, so nothing moves when it fills, 40px clear of what's above
+   and below. It folds away if AdSense has nothing to show. line-height 0
+   keeps the inline ad from growing the box by a text descender. */
+.jj-ad { width: 300px; margin: 40px auto; }
+.jj-ad[hidden], .jj-ad:has(ins[data-ad-status="unfilled"]) { display: none; }
+.jj-ad-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+.jj-ad-box { width: 300px; height: 250px; line-height: 0; }
+.jj-ad-placeholder {
+    box-sizing: border-box;
+    width: 300px;
+    height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #9ca3af;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.4;
+}
     </style>
 
     {% block head %}{% endblock %}

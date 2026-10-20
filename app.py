@@ -37,7 +37,7 @@ from helpers import ValidationError, is_new, pin_malloc_thresholds
 
 pin_malloc_thresholds()
 
-from extensions import NOT_FOUND_LIMITS, cache, limiter, log_page_visit
+from extensions import NOT_FOUND_LIMITS, ad_slot, cache, limiter, log_page_visit, show_ads
 from monitoring import alerts
 from routes import blossom, chainle, dashboards, espresso, guess_the_phrase, misc, ribbit, smush, smush_dev, wordgames
 
@@ -87,6 +87,10 @@ app.register_blueprint(dashboards.bp)
 
 # The solver links' NEW tag (templates/_related_solvers.html, index.html).
 app.add_template_global(is_new)
+# Whether a page loads AdSense (base.html), and its deliberate ad unit
+# (templates/_ad_slot.html).
+app.add_template_global(show_ads)
+app.add_template_global(ad_slot)
 
 ##### error handlers #####
 

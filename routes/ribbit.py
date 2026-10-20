@@ -13,7 +13,8 @@ everyone after them. A player's board is logged when they solve it; once
 enough players agree on a board, later players are offered it ("Load today's
 board"), and anyone who types a known board's letters - an archive puzzle
 too - gets its links filled in. Nothing is guessed: every link served was
-drawn by players. Until SHARED_BOARDS_LIVE, only /ribbit_dev offers them.
+drawn by players. /ribbit_admin can also approve the latest board for a set
+of letters (James's own, entered just before), which serves it at once.
 """
 
 import re
@@ -162,10 +163,16 @@ BOARDS_PER_PLAYER_PER_DAY = 10
 # then changed. A board loaded and left as it is is never logged, so the
 # shared board can't confirm itself.
 BOARD_SOURCES = ('typed', 'edited')
-# Dark launch (James's call, 2026-10-17): /ribbit logs every player's board,
-# but only /ribbit_dev offers them back, so he can check a few days of served
-# boards against his own game first. Going live is this one flag.
-SHARED_BOARDS_LIVE = False
+# Live on /ribbit (James's call, 2026-10-18) after a dark launch from
+# 2026-10-17, when /ribbit only logged boards and /ribbit_dev alone offered
+# them back. False goes back to that: boards still logged, none offered.
+SHARED_BOARDS_LIVE = True
+# An approval from /ribbit_admin (the Shared Boards tab's Add) is a row of
+# its own in ribbit_boards, with this as its source and in place of a player
+# hash: a real hash is 32 hex characters, and players can only send
+# BOARD_SOURCES. Its links are served whatever the players' boards say, and
+# it never counts as a player.
+APPROVAL = 'admin'
 
 N = 4
 CELLS = N * N
@@ -246,29 +253,46 @@ def _adjacent(a, b):
     return max(abs(ra - rb), abs(ca - cb)) == 1
 
 
-# The columns every read of ribbit_boards returns, in this order.
-_COLUMNS = 'letters, links, orientation, source, voter_hash, played_on, updated_at'
-LETTERS, LINKS, ORIENTATION, SOURCE, VOTER, PLAYED_ON, UPDATED = range(7)
+# The columns every read of ribbit_boards returns, in this order. prefix_hash
+# (crowd.prefix_hash) is NULL on approvals, and on boards logged before
+# mysql_tables/ribbit_boards_prefix.sql added it.
+_COLUMNS = 'letters, links, orientation, source, voter_hash, played_on, updated_at, prefix_hash'
+LETTERS, LINKS, ORIENTATION, SOURCE, VOTER, PLAYED_ON, UPDATED, PREFIX = range(8)
 
 
 def consensus(rows):
     """What the boards for one set of letters add up to.
 
     rows -- ribbit_boards rows (see _COLUMNS) sharing one canonical letters,
-            from any dates. Each player's latest board is the one that counts.
+            from any dates. Each player's latest board is the one that
+            counts, and players on one network (crowd.prefix_hash) count
+            once: the latest board among them. A row logged before
+            prefix_hash existed is a network of its own.
 
-    Returns a dict: players (finished boards, one per player), half_drawn,
+    Returns a dict: players (finished boards, one per network), half_drawn,
     agreed / tied (links more than half / exactly half of them drew), links
     (the canonical links to serve, or None), why (None when served, else what
     it's waiting for), orientation (the view most of its players entered it
-    in), first_seen and last_update.
+    in), first_seen and last_update; approved / approved_at (an APPROVAL
+    row: its links are served, whatever the players drew) and latest_at /
+    latest_finished (the most recent player board, the one an approval
+    copies).
     """
+    approvals = [row for row in rows if row[SOURCE] == APPROVAL]
+    player_rows = [row for row in rows if row[SOURCE] != APPROVAL]
     latest = {}
-    for row in rows:
+    for row in player_rows:
         mine = latest.get(row[VOTER])
         if mine is None or row[UPDATED] > mine[UPDATED]:
             latest[row[VOTER]] = row
-    boards = [(row, _parse_links(row[LINKS])) for row in latest.values()]
+    # Then one per network. A second step, so a player with a board from
+    # before prefix_hash and one since still counts once.
+    networks = {}
+    for row in latest.values():
+        network = row[PREFIX] or row[VOTER]
+        if network not in networks or row[UPDATED] > networks[network][UPDATED]:
+            networks[network] = row
+    boards = [(row, _parse_links(row[LINKS])) for row in networks.values()]
     finished = [(row, links) for row, links in boards if _every_tile_linked(links)]
     players = len(finished)
 
@@ -276,8 +300,11 @@ def consensus(rows):
     agreed = tuple(sorted(pair for pair, n in votes.items() if 2 * n > players))
     tied = sum(1 for n in votes.values() if 2 * n == players)
 
+    approval = max(approvals, key=lambda row: row[UPDATED]) if approvals else None
     links, why = None, None
-    if players >= SERVE_MAJORITY:
+    if approval is not None:
+        links = _parse_links(approval[LINKS])
+    elif players >= SERVE_MAJORITY:
         if _every_tile_linked(agreed):
             links = agreed
         else:
@@ -293,7 +320,11 @@ def consensus(rows):
         why = 'no finished board yet'
 
     views = Counter(row[ORIENTATION] for row, _links in (finished or boards))
-    orientation = min(views, key=lambda t: (-views[t], t)) if views else 0
+    if views:
+        orientation = min(views, key=lambda t: (-views[t], t))
+    else:
+        orientation = approval[ORIENTATION] if approval is not None else 0
+    newest = max(player_rows, key=lambda row: row[UPDATED]) if player_rows else None
     return {
         'players': players,
         'half_drawn': len(boards) - players,
@@ -303,7 +334,12 @@ def consensus(rows):
         'why': why,
         'orientation': orientation,
         'first_seen': min(row[PLAYED_ON] for row in rows),
-        'last_update': max(row[UPDATED] for row in rows),
+        'last_update': max(row[UPDATED] for row in (player_rows or rows)),
+        'approved': approval is not None,
+        'approved_at': approval[UPDATED] if approval is not None else None,
+        'latest_at': newest[UPDATED] if newest is not None else None,
+        'latest_finished': (newest is not None
+                            and _every_tile_linked(_parse_links(newest[LINKS]))),
     }
 
 
@@ -315,7 +351,8 @@ def todays_board(rows, day):
 
     Today's board is the letters with the most players among those logged
     on `day`: strictly the most, and never letters first logged on an
-    earlier day - that is an older puzzle, so an archive game. Returns
+    earlier day - that is an older puzzle, so an archive game. An approved
+    board beats any count of players (of two, the later approval). Returns
     (board or None, groups): board is {'letters', 'edges'} in the view most
     of its players used; groups is every set of letters with its consensus
     and 'served', most players first, for the admin page.
@@ -336,19 +373,24 @@ def todays_board(rows, day):
         groups.append(result)
     groups.sort(key=lambda g: (-g['players'], g['letters']))
 
-    candidates = [g for g in groups if g['first_seen'] >= day and g['players']]
-    board = None
-    if candidates:
+    candidates = [g for g in groups
+                  if g['first_seen'] >= day and (g['players'] or g['approved'])]
+    approved = [g for g in candidates if g['approved']]
+    board, top = None, None
+    if approved:
+        top = max(approved, key=lambda g: g['approved_at'])
+    elif candidates:
         top = candidates[0]
         if len(candidates) > 1 and candidates[1]['players'] == top['players']:
             for g in candidates[:2]:
                 g['why'] = g['why'] or 'tied with another board'
-        elif top['links'] is not None:
-            top['served'] = True
-            board = in_view(top['letters'], top['links'], top['orientation'])
-        for g in candidates[1:]:
-            if g['why'] is None:
-                g['why'] = 'not the top board'
+            top = None
+    if top is not None and top['links'] is not None:
+        top['served'] = True
+        board = in_view(top['letters'], top['links'], top['orientation'])
+    for g in candidates:
+        if g is not top and g['why'] is None:
+            g['why'] = 'not the top board'
     return board, groups
 
 
@@ -377,10 +419,12 @@ def rows_logged_between(first, last):
         (first, last))
 
 
-def store_board(day, voter, letters, links, orientation, source):
+def store_board(day, voter, prefix, letters, links, orientation, source):
     """Log one player's board, replacing their earlier version of it that
-    day. Inline, not on the write-behind queue: a missing table there drops
-    the rest of its batch, page visits included. Best-effort, like a vote."""
+    day. `voter` is their crowd.player_hash, `prefix` their network's
+    crowd.prefix_hash. Inline, not on the write-behind queue: a missing
+    table or column there drops the rest of its batch, page visits
+    included. Best-effort, like a vote."""
     now = pst_now_str()
     try:
         with db_cursor() as (conn, cursor):
@@ -392,14 +436,42 @@ def store_board(day, voter, letters, links, orientation, source):
                 return
             cursor.execute(
                 """INSERT INTO ribbit_boards (played_on, voter_hash, letters, links, orientation,
-                       source, created_at, updated_at)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s) AS new
+                       source, created_at, updated_at, prefix_hash)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
                    ON DUPLICATE KEY UPDATE links = new.links, orientation = new.orientation,
-                       source = new.source, updated_at = new.updated_at""",
-                (day, voter, letters, _links_text(links), orientation, source, now, now))
+                       source = new.source, updated_at = new.updated_at,
+                       prefix_hash = new.prefix_hash""",
+                (day, voter, letters, _links_text(links), orientation, source, now, now, prefix))
             conn.commit()
     except Exception as e:
         alerts.alert_throttled('ribbit_board_log_failed', exc=type(e).__name__, msg=e)
+
+
+def store_approval(day, letters, links, orientation):
+    """Approve these links for these letters (see APPROVAL), replacing any
+    approval of them that day. Raises, unlike store_board: the admin page
+    says whether it worked."""
+    now = pst_now_str()
+    with db_cursor() as (conn, cursor):
+        cursor.execute(
+            """INSERT INTO ribbit_boards (played_on, voter_hash, letters, links, orientation,
+                   source, created_at, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s) AS new
+               ON DUPLICATE KEY UPDATE links = new.links, orientation = new.orientation,
+                   updated_at = new.updated_at""",
+            (day, APPROVAL, letters, _links_text(links), orientation, APPROVAL, now, now))
+        conn.commit()
+
+
+def remove_approval(letters):
+    """Take back every approval of these letters, any day; players' boards
+    stay. Returns how many rows went."""
+    with db_cursor() as (conn, cursor):
+        cursor.execute("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s",
+                       (letters, APPROVAL))
+        removed = cursor.rowcount
+        conn.commit()
+    return removed
 
 
 def _pacific_today():
@@ -450,7 +522,8 @@ def log_board(data):
     day = _played_on(data)
     if day is not None and links:
         canon_letters, canon_links, t = canonical(letters, links)
-        store_board(day, crowd.player_hash('ribbit'), canon_letters, canon_links, t, source)
+        store_board(day, crowd.player_hash('ribbit'), crowd.prefix_hash('ribbit'),
+                    canon_letters, canon_links, t, source)
     return jsonify(status='success')
 
 
@@ -593,6 +666,9 @@ ADMIN_TABS = ('boards', 'reports', 'invalid', 'added')
 # The days the Shared boards tab shows: Pacific's last three, and tomorrow
 # for players whose date is already ahead.
 ADMIN_DAYS_BACK = 2
+# How the tab's Add sends back the time of the board it showed, so the
+# approval can check that board is still the latest.
+_STAMP = '%Y-%m-%d %H:%M:%S'
 
 
 def _back(**message):
@@ -617,6 +693,7 @@ def _admin_days():
         for g in groups:
             letters, _links = _apply(INVERSES[g['orientation']], g['letters'], ())
             g['grid'] = [letters[r * N:(r + 1) * N].upper() for r in range(N)]
+            g['latest_stamp'] = g['latest_at'].strftime(_STAMP) if g['latest_at'] else ''
         if groups:
             days.append({'day': day, 'groups': groups})
         day -= timedelta(days=1)
@@ -660,14 +737,18 @@ def ribbit_admin():
                            crowd_window_days=CROWD_WINDOW_DAYS)
 
 
+def _is_letters(value):
+    """A canonical board's letters, as the Shared boards tab's forms send them."""
+    return len(value) == CELLS and value.isalpha() and value.islower()
+
+
 @bp.route(ADMIN + '/remove_board', methods=['POST'])
 @auth.login_required
 def ribbit_remove_board():
     """Delete one day's entries of a board: test boards, or junk."""
     letters = request.form.get('letters', '')
     played_on = request.form.get('played_on', '')
-    if not (len(letters) == CELLS and letters.isalpha() and letters.islower()
-            and _DATE.fullmatch(played_on)):
+    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
         return _back(error='Not a board')
     try:
         with db_cursor() as (conn, cursor):
@@ -679,6 +760,57 @@ def ribbit_remove_board():
         print(f"Error removing ribbit board: {e}")
         return _back(error='Database error')
     return _back(success=f"Removed {removed} entr{'y' if removed == 1 else 'ies'} of that board on {played_on}")
+
+
+@bp.route(ADMIN + '/approve_board', methods=['POST'])
+@auth.login_required
+def ribbit_approve_board():
+    """Serve the latest board for these letters to every player straight
+    away, whatever the other boards say: for a board James entered himself
+    and trusts (James asked, 2026-10-18). `latest` is that board's time as
+    the page showed it; if a newer board has come in since, nothing is
+    approved, so a stranger's board can't be approved in its place."""
+    letters = request.form.get('letters', '')
+    played_on = request.form.get('played_on', '')
+    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
+        return _back(error='Not a board')
+    try:
+        day = date.fromisoformat(played_on)
+    except ValueError:
+        return _back(error='Not a board')
+    try:
+        boards = [row for row in rows_with_letters(letters) if row[SOURCE] != APPROVAL]
+        newest = max(boards, key=lambda row: row[UPDATED]) if boards else None
+        if newest is None:
+            return _back(error='No board to approve for those letters')
+        if newest[UPDATED].strftime(_STAMP) != request.form.get('latest'):
+            return _back(error='A newer board came in since the page loaded. Check it, then approve again')
+        links = _parse_links(newest[LINKS])
+        if not _every_tile_linked(links):
+            return _back(error="The latest board isn't finished: every tile needs a link")
+        store_approval(day, letters, links, newest[ORIENTATION])
+    except Exception as e:
+        print(f"Error approving ribbit board: {e}")
+        return _back(error='Database error')
+    return _back(success=f"Approved the board last updated {newest[UPDATED]:%m-%d %H:%M}: its links are served now")
+
+
+@bp.route(ADMIN + '/unapprove_board', methods=['POST'])
+@auth.login_required
+def ribbit_unapprove_board():
+    """Undo an approval, every day's of these letters: the players' boards
+    decide again, and none of them is touched."""
+    letters = request.form.get('letters', '')
+    if not _is_letters(letters):
+        return _back(error='Not a board')
+    try:
+        removed = remove_approval(letters)
+    except Exception as e:
+        print(f"Error undoing ribbit approval: {e}")
+        return _back(error='Database error')
+    if not removed:
+        return _back(error='That board was not approved')
+    return _back(success="Approval undone: the players' boards decide again")
 
 
 def _admin_form():

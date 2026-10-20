@@ -2,10 +2,11 @@
 to the players after them.
 
 Nothing here reaches a real database: secret_pass points at the production
-JawsDB. Most tests swap the module's three table functions for an in-memory
+JawsDB. Most tests swap the module's table functions for an in-memory
 stand-in (MemoryBoards); the SQL itself is checked against test_blossom's
 scripted fake. Each simulated player is a different X-Forwarded-For, which
-is what helpers.client_ip reads.
+is what helpers.client_ip reads: an IPv4 address each, or IPv6 ones where a
+test needs players on one network.
 """
 
 import json
@@ -39,18 +40,36 @@ def _turned(letters, links, times=1):
 
 
 class MemoryBoards:
-    """Stands in for ribbit_boards: store_board writes here, and the two
-    readers read back, rows in routes.ribbit._COLUMNS order."""
+    """Stands in for ribbit_boards: store_board and the approvals write here,
+    and the two readers read back, rows in routes.ribbit._COLUMNS order."""
 
     def __init__(self):
         self.rows = {}
         self.clock = datetime(2026, 10, 17, 6, 0)
 
-    def store(self, day, voter, letters, links, orientation, source):
+    def store(self, day, voter, prefix, letters, links, orientation, source):
         import routes.ribbit as ribbit
         self.clock += timedelta(minutes=1)
         self.rows[(letters, voter, day)] = (letters, ribbit._links_text(links), orientation,
-                                            source, voter, day, self.clock)
+                                            source, voter, day, self.clock, prefix)
+
+    def approve(self, day, letters, links, orientation):
+        import routes.ribbit as ribbit
+        self.store(day, ribbit.APPROVAL, None, letters, links, orientation, ribbit.APPROVAL)
+
+    def unapprove(self, letters):
+        gone = [key for key, row in self.rows.items() if row[0] == letters and self._approval(row)]
+        for key in gone:
+            del self.rows[key]
+        return len(gone)
+
+    def approvals(self):
+        return [row for row in self.rows.values() if self._approval(row)]
+
+    @staticmethod
+    def _approval(row):
+        import routes.ribbit as ribbit
+        return row[ribbit.SOURCE] == ribbit.APPROVAL
 
     def with_letters(self, letters):
         return [row for row in self.rows.values() if row[0] == letters]
@@ -64,9 +83,15 @@ class MemoryBoards:
 def boards(monkeypatch):
     """The in-memory table, with shared boards live on /ribbit, so these
     tests exercise the serve rules; the dark launch has tests of its own."""
+    import crowd
     import routes.ribbit as ribbit
+    # /ribbit_admin's word-list half reads through crowd.py: an empty fake,
+    # never the real tables.
+    monkeypatch.setattr(crowd, "db_cursor", _ScriptedDB())
     memory = MemoryBoards()
     monkeypatch.setattr(ribbit, "store_board", memory.store)
+    monkeypatch.setattr(ribbit, "store_approval", memory.approve)
+    monkeypatch.setattr(ribbit, "remove_approval", memory.unapprove)
     monkeypatch.setattr(ribbit, "rows_with_letters", memory.with_letters)
     monkeypatch.setattr(ribbit, "rows_logged_between", memory.logged_between)
     monkeypatch.setattr(ribbit, "_pacific_today", lambda: DAY)
@@ -75,7 +100,9 @@ def boards(monkeypatch):
 
 
 def _player(n):
-    return {"X-Forwarded-For": f"198.51.100.{n}"}
+    """A simulated player: a number is an IPv4 address of their own, a
+    string an address as given (IPv6 too)."""
+    return {"X-Forwarded-For": f"198.51.100.{n}" if isinstance(n, int) else n}
 
 
 def _nodes(letters):
@@ -133,7 +160,7 @@ def test_a_day_of_players(client, boards):
     old = "zebracowsdognewt"
     old_letters, old_links, t = ribbit.canonical(old, tuple(LINKS))
     for voter in ("then-a", "then-b"):
-        boards.store(DAY - timedelta(days=3), voter, old_letters, old_links, t, "typed")
+        boards.store(DAY - timedelta(days=3), voter, None, old_letters, old_links, t, "typed")
     # ...so it never becomes today's board, even when more players replay it
     # today than entered today's.
     for p in (5, 6, 7, 8):
@@ -208,11 +235,13 @@ def test_a_board_with_no_links_is_not_stored(client, boards):
     {"nodes": _nodes(LETTERS)[:15] + [{"id": 16, "letter": "p"}]},    # off the grid
     {"edges": [[0, 2]]},                                              # not neighbours
     {"source": "shared"},                                             # never logged
+    {"source": "admin"},                                              # an approval's source
     {"source": None},
     {"played_on": "10/17/2026"},
     {"played_on": "2026-02-30"},
     {"nodes": _nodes("ribbitfrogslily1")},
-], ids=["15cells", "offgrid", "farlink", "shared", "nosource", "usdate", "nodate", "digit"])
+], ids=["15cells", "offgrid", "farlink", "shared", "admin", "nosource", "usdate", "nodate",
+        "digit"])
 def test_malformed_boards_are_a_400_and_store_nothing(client, boards, patch):
     body = {"action": "log_board", "nodes": _nodes(LETTERS), "edges": [list(p) for p in LINKS],
             "played_on": DAY.isoformat(), "source": "typed"}
@@ -251,10 +280,12 @@ def test_every_link_the_grid_can_draw_fits_the_column():
     assert ribbit._parse_links(ribbit._links_text(every)) == tuple(every)
 
 
-def _row(voter, links=LINKS, orientation=0, played_on=DAY, minute=0, letters=LETTERS):
+def _row(voter, links=LINKS, orientation=0, played_on=DAY, minute=0, letters=LETTERS,
+         prefix=None, source="typed"):
+    """A ribbit_boards row. No prefix is a board from before prefix_hash."""
     import routes.ribbit as ribbit
-    return (letters, ribbit._links_text(links), orientation, "typed", voter, played_on,
-            datetime(2026, 10, 17, 8, minute))
+    return (letters, ribbit._links_text(links), orientation, source, voter, played_on,
+            datetime(2026, 10, 17, 8, minute), prefix)
 
 
 def test_a_tied_link_is_left_out_until_the_next_board():
@@ -301,12 +332,86 @@ def test_why_a_board_is_not_served_yet():
 
 
 # ---------------------------------------------------------------------------
+# Players on one network count once
+# ---------------------------------------------------------------------------
+
+def test_many_64s_inside_one_48_count_as_one_player(client, boards):
+    # Each /64 is a player hash of its own, and one /48 holds 65,536 of them.
+    for subnet in range(1, 6):
+        _log(client, f"2001:db8:a:{subnet}::1")
+    assert len(boards.rows) == 5            # every board is logged...
+    assert _todays(client) is None          # ...but the network is one player
+    _log(client, "2001:db8:b:1::1")         # a second network agrees
+    assert _todays(client) == _as_board(LETTERS, LINKS)
+
+
+def test_distinct_48s_count_separately(client, boards):
+    _log(client, "2001:db8:a:1::1")
+    _log(client, "2001:db8:b:1::1")
+    assert _todays(client) == _as_board(LETTERS, LINKS)
+
+
+def test_one_network_cannot_outvote_the_real_board(client, boards):
+    _log(client, 1)
+    _log(client, 2)
+    for subnet in range(1, 6):
+        _log(client, f"2001:db8:a:{subnet}::1", letters="abcdefghijklmnop")
+    assert _todays(client) == _as_board(LETTERS, LINKS)
+    # ...nor take over the links of today's letters.
+    for subnet in range(6, 11):
+        _log(client, f"2001:db8:a:{subnet}::1", links=LINKS + [(5, 10)])
+    assert _links_for(client, LETTERS) == [list(p) for p in LINKS]
+
+
+def test_boards_from_before_the_network_column_count_by_player():
+    import routes.ribbit as ribbit
+    # Two players logged before prefix_hash existed: two players, as ever.
+    result = ribbit.consensus([_row("a"), _row("b")])
+    assert result["players"] == 2 and result["links"] == tuple(LINKS)
+    # One player's board from before and one since: still one player.
+    rows = [_row("a", minute=1),
+            _row("a", minute=5, prefix="net-1", played_on=DAY + timedelta(days=1))]
+    assert ribbit.consensus(rows)["players"] == 1
+    # Old and new side by side: b and c share a network, a is its own.
+    rows = [_row("a"), _row("b", prefix="net-1", minute=1), _row("c", prefix="net-1", minute=2)]
+    assert ribbit.consensus(rows)["players"] == 2
+
+
+def _keys(flask_app, ip):
+    """(prefix_hash, player_hash) for a visitor at `ip`."""
+    import crowd
+    with flask_app.test_request_context("/", environ_base={"REMOTE_ADDR": ip}):
+        return crowd.prefix_hash("ribbit"), crowd.player_hash("ribbit")
+
+
+def test_prefix_hash_is_the_48_or_the_whole_ipv4_address(flask_app):
+    network, player = _keys(flask_app, "2001:db8:a:1::5")
+    assert _keys(flask_app, "2001:db8:a:ffff:1:2:3:4")[0] == network    # same /48
+    assert _keys(flask_app, "2001:db8:b:1::5")[0] != network            # another /48
+    assert _keys(flask_app, "::ffff:198.51.100.7")[0] == _keys(flask_app, "198.51.100.7")[0]
+    assert _keys(flask_app, "198.51.100.7")[0] != _keys(flask_app, "198.51.100.8")[0]
+    assert re.fullmatch(r"[0-9a-f]{32}", network) and network != player
+    assert "198.51.100.7" not in _keys(flask_app, "198.51.100.7")[0]
+
+
+def test_player_hash_is_unchanged_by_the_network_key(flask_app):
+    # Every vote and board already stored is keyed on this exact value.
+    import hashlib
+    import hmac
+    key = str(flask_app.secret_key).encode()
+    expected = hmac.new(key, b"ribbit-vote|2001:db8:a:1::", hashlib.sha256).hexdigest()[:32]
+    assert _keys(flask_app, "2001:db8:a:1::5")[1] == expected
+
+
+# ---------------------------------------------------------------------------
 # The SQL, against the scripted fake
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def board_db(monkeypatch):
+    import crowd
     import routes.ribbit as ribbit
+    monkeypatch.setattr(crowd, "db_cursor", _ScriptedDB())     # as in `boards`
     monkeypatch.setattr(ribbit, "_pacific_today", lambda: DAY)
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", True)
 
@@ -327,7 +432,11 @@ def test_a_board_is_stored_canonical_with_its_view(client, board_db):
     canon_letters, canon_links, t = ribbit.canonical(letters, tuple(links))
     assert params[0] == DAY and re.fullmatch(r"[0-9a-f]{32}", params[1])
     assert params[2:6] == (canon_letters, ribbit._links_text(canon_links), t, "typed")
-    assert "ON DUPLICATE KEY UPDATE" in sql and db.commits == 1
+    # The network: an HMAC too, never the address, and not the player hash.
+    assert re.fullmatch(r"[0-9a-f]{32}", params[8]) and params[8] != params[1]
+    assert not any("198.51.100" in str(p) for p in params)
+    assert "ON DUPLICATE KEY UPDATE" in sql and "prefix_hash = new.prefix_hash" in sql
+    assert db.commits == 1
 
 
 def test_the_daily_cap_stops_a_flood(client, board_db):
@@ -366,7 +475,8 @@ def test_the_readers_ask_for_the_right_rows(client, board_db):
 
 def test_admin_needs_the_password(client, boards):
     assert client.get("/ribbit_admin").status_code == 401
-    assert client.post("/ribbit_admin/remove_board", data={}).status_code == 401
+    for action in ("remove_board", "approve_board", "unapprove_board"):
+        assert client.post(f"/ribbit_admin/{action}", data={}).status_code == 401
 
 
 def test_admin_shows_each_board_and_why(client, boards, monkeypatch):
@@ -385,7 +495,8 @@ def test_admin_says_when_the_table_is_missing(client, board_db, monkeypatch):
     board_db(fail="ribbit_boards")
     resp = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch))
     assert resp.status_code == 200
-    assert "Has mysql_tables/ribbit_boards.sql been run?" in resp.get_data(as_text=True)
+    assert ("Have mysql_tables/ribbit_boards.sql and ribbit_boards_prefix.sql been run?"
+            in resp.get_data(as_text=True))
 
 
 def test_admin_remove_deletes_that_days_entries(client, board_db, monkeypatch):
@@ -412,8 +523,138 @@ def test_admin_remove_refuses_anything_but_a_board(client, board_db, monkeypatch
 
 
 # ---------------------------------------------------------------------------
-# The dark launch: /ribbit logs boards, only /ribbit_dev serves them
+# Approve: James serves a board he entered himself
 # ---------------------------------------------------------------------------
+
+def _latest(boards, letters=LETTERS):
+    """The time of the latest player board for these letters, as the
+    Shared boards tab sends it back with Add."""
+    import routes.ribbit as ribbit
+    canon = ribbit.canonical(letters)[0]
+    return max(row[ribbit.UPDATED] for row in boards.rows.values()
+               if row[0] == canon and not boards._approval(row)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _approve(client, monkeypatch, boards, letters=LETTERS, latest=None):
+    import routes.ribbit as ribbit
+    return client.post("/ribbit_admin/approve_board", headers=_admin_headers(monkeypatch), data={
+        "letters": ribbit.canonical(letters)[0], "played_on": DAY.isoformat(),
+        "latest": latest if latest is not None else _latest(boards, letters)})
+
+
+def test_approving_your_board_serves_it_at_once(client, boards, monkeypatch):
+    _log(client, 1)                         # one board settles nothing...
+    assert _todays(client) is None
+    resp = _approve(client, monkeypatch, boards)
+    assert resp.status_code == 302 and "success=Approved" in resp.headers["Location"]
+    # ...until it's approved: then it's today's board, and typing its
+    # letters fills in its links.
+    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _links_for(client, LETTERS) == [list(p) for p in LINKS]
+
+
+def test_an_approved_board_beats_more_players(client, boards, monkeypatch):
+    for p in (1, 2, 3):
+        _log(client, p, letters="abcdefghijklmnop")
+    _log(client, 4)
+    _approve(client, monkeypatch, boards)
+    assert _todays(client) == _as_board(LETTERS, LINKS)
+
+
+def test_an_approval_copies_the_latest_board_and_is_never_a_player(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _log(client, 1, links=LINKS + [(5, 10)])        # earlier, with a slip
+    _log(client, 2)                                  # the latest: yours
+    _approve(client, monkeypatch, boards)
+    canon_letters, canon_links, _t = ribbit.canonical(LETTERS, tuple(LINKS))
+    result = ribbit.consensus(boards.with_letters(canon_letters))
+    assert result["approved"] and result["players"] == 2 and result["half_drawn"] == 0
+    assert result["links"] == canon_links
+
+
+def test_approve_refuses_once_a_newer_board_came_in(client, boards, monkeypatch):
+    _log(client, 1)
+    seen = _latest(boards)                           # what the page showed
+    _log(client, 2, links=LINKS + [(5, 10)])         # someone else's, since
+    resp = _approve(client, monkeypatch, boards, latest=seen)
+    assert "error=A+newer+board" in resp.headers["Location"]
+    assert boards.approvals() == []
+
+
+def test_approve_refuses_a_half_drawn_board(client, boards, monkeypatch):
+    _log(client, 1, links=[p for p in LINKS if 12 not in p])
+    resp = _approve(client, monkeypatch, boards)
+    assert "error=" in resp.headers["Location"] and boards.approvals() == []
+
+
+@pytest.mark.parametrize("form", [
+    {"letters": "short", "played_on": "2026-10-17", "latest": "x"},
+    {"letters": "RIBBITFROGSLILYP", "played_on": "2026-10-17", "latest": "x"},
+    {"letters": "ribbitfrogslilyp", "played_on": "2026-02-30", "latest": "x"},
+])
+def test_approve_refuses_anything_but_a_board(client, boards, monkeypatch, form):
+    resp = client.post("/ribbit_admin/approve_board", headers=_admin_headers(monkeypatch), data=form)
+    assert resp.status_code == 302 and "error=Not+a+board" in resp.headers["Location"]
+
+
+def test_undo_hands_the_board_back_to_the_players(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _log(client, 1)
+    _approve(client, monkeypatch, boards)
+    resp = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
+                       data={"letters": ribbit.canonical(LETTERS)[0]})
+    assert resp.status_code == 302 and "success=Approval+undone" in resp.headers["Location"]
+    assert _todays(client) is None                   # one player's board again
+    assert len(boards.rows) == 1                     # and that board is still there
+    again = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
+                        data={"letters": ribbit.canonical(LETTERS)[0]})
+    assert "error=" in again.headers["Location"]
+
+
+def test_admin_approve_column(client, boards, monkeypatch):
+    _log(client, 1)
+    _log(client, 2, letters="abcdefghijklmnop", links=[p for p in LINKS if 12 not in p])
+    headers = _admin_headers(monkeypatch)
+    html = client.get("/ribbit_admin", headers=headers).get_data(as_text=True)
+    assert "<th>Approve</th>" in html
+    assert html.count('action="/ribbit_admin/approve_board"') == 1
+    assert f'name="latest" value="{_latest(boards)}"' in html
+    assert "latest board half-drawn" in html
+    _approve(client, monkeypatch, boards)
+    html = client.get("/ribbit_admin", headers=headers).get_data(as_text=True)
+    assert '<span class="status-served">Approved</span>' in html
+    assert 'action="/ribbit_admin/unapprove_board"' in html
+    assert 'action="/ribbit_admin/approve_board"' not in html
+
+
+def test_the_approval_sql(client, board_db, monkeypatch):
+    import routes.ribbit as ribbit
+    canon_letters, canon_links, t = ribbit.canonical(LETTERS, tuple(LINKS))
+    newest = (canon_letters, ribbit._links_text(canon_links), t, "typed", "f" * 32, DAY,
+              datetime(2026, 10, 17, 7, 30), "e" * 32)
+    db = board_db(rows={"FROM ribbit_boards WHERE letters = %s": [newest]})
+    resp = client.post("/ribbit_admin/approve_board", headers=_admin_headers(monkeypatch), data={
+        "letters": canon_letters, "played_on": "2026-10-17", "latest": "2026-10-17 07:30:00"})
+    assert "success=Approved" in resp.headers["Location"]
+    [(sql, params)] = db.statements("INSERT INTO ribbit_boards")
+    assert params[:6] == (DAY, "admin", canon_letters, ribbit._links_text(canon_links), t, "admin")
+    assert "ON DUPLICATE KEY UPDATE" in sql and db.commits == 1
+    client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
+                data={"letters": canon_letters})
+    assert db.statements("DELETE FROM ribbit_boards") == [
+        ("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s", (canon_letters, "admin"))]
+
+
+# ---------------------------------------------------------------------------
+# Live on /ribbit, and the dark launch the flag goes back to: /ribbit logs
+# boards, only /ribbit_dev serves them
+# ---------------------------------------------------------------------------
+
+def test_shared_boards_are_live_on_ribbit(client):
+    # James's call, 2026-10-18. The other tests here set the flag; this one
+    # reads it as the code ships, so turning it off is a deliberate change.
+    html = client.get("/ribbit").get_data(as_text=True)
+    assert 'id="rb-shared"' in html and "const SHARED_BOARDS = true;" in html
 
 def test_while_dark_ribbit_logs_but_serves_nothing(client, boards, monkeypatch):
     import routes.ribbit as ribbit
@@ -438,7 +679,7 @@ def test_while_dark_the_public_page_shows_none_of_it(client, monkeypatch):
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", False)
     html = client.get("/ribbit").get_data(as_text=True)
     for hidden in ('id="rb-shared"', "Load today's board", "Do I have to type the board in?",
-                   "/ribbit_dev"):
+                   "/ribbit_dev", 'id="phase-clear"'):
         assert hidden not in html, f"/ribbit shows {hidden!r} before it's live"
     # It still logs: the page sends finished boards, to its own route.
     assert "action: 'log_board'" in html
@@ -473,6 +714,11 @@ def test_ribbit_page_ships_the_shared_board_hooks(client, monkeypatch):
                  "Other players already entered today's board for you.",
                  "action: 'shared_board'", "action: 'board_links'", "action: 'log_board'"):
         assert hook in html, f"ribbit.html lost {hook}"
+    # Right after loading, Clear sits next to Solve (hidden until then), and
+    # the hint points at it.
+    assert ('id="phase-solve">▶ Solve</button>\n    <button type="button" '
+            'class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>🔄 Clear board</button>') in html
+    assert "then hit ▶ Solve, or 🔄 Clear board if it doesn't." in html
 
 
 def test_the_faq_explains_the_shared_board_without_numbers(client, monkeypatch):

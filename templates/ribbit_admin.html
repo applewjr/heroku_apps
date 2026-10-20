@@ -451,11 +451,12 @@
         <h2>Shared Boards</h2>
         {% if load_error %}
         <div class="alert alert-error">
-            Couldn't read the boards ({{ load_error }}). Has mysql_tables/ribbit_boards.sql been run?
+            Couldn't read the boards ({{ load_error }}). Have mysql_tables/ribbit_boards.sql and ribbit_boards_prefix.sql been run?
         </div>
         {% endif %}
-        <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. Turned or mirrored entries are the same board, shown here the way most of its players entered it.</p>
+        <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. Players on one network (an IPv6 /48, or one IPv4 address) count as one. Turned or mirrored entries are the same board, shown here the way most of its players entered it.</p>
         <p class="crowd-note">Each day lists the boards logged on players' own dates; Served is the one offered to players on that date{% if not shared_live %} (on /ribbit_dev only, until it goes live){% endif %}. Players counts each player once, across every day the board was entered. Remove deletes that day's entries of the board.</p>
+        <p class="crowd-note">Approve: Add serves the most recently updated board for those letters (its time is under the button) to every player straight away, whatever the other boards say - use it on a board you entered yourself. If a newer board comes in before you press it, nothing is approved. Undo takes the approval back and leaves the players' boards alone. Approving an older puzzle fills in its links for anyone who types it, but never makes it a day's board.</p>
 
         {% for d in days %}
         <h3>{{ d.day.strftime('%Y-%m-%d') }}</h3>
@@ -469,6 +470,7 @@
                     <th>Links agreed / tied</th>
                     <th>Status</th>
                     <th>First seen / last update</th>
+                    <th>Approve</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -483,6 +485,29 @@
                     <td class="when">
                         {{ g.first_seen.strftime('%m-%d') }}<br>
                         {{ g.last_update.strftime('%m-%d %H:%M') }}
+                    </td>
+                    <td>
+                        {% if g.approved %}
+                        <span class="status-served">Approved</span><br>
+                        <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span><br>
+                        <form method="POST" action="/ribbit_admin/unapprove_board" class="remove-form">
+                            <input type="hidden" name="letters" value="{{ g.letters }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-secondary">Undo</button>
+                        </form>
+                        {% elif g.latest_finished %}
+                        <form method="POST" action="/ribbit_admin/approve_board" class="remove-form"
+                              onsubmit="return confirm('Serve the board last updated {{ g.latest_at.strftime('%m-%d %H:%M') }} to every player?')">
+                            <input type="hidden" name="letters" value="{{ g.letters }}">
+                            <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                            <input type="hidden" name="latest" value="{{ g.latest_stamp }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-success">Add</button>
+                        </form><br>
+                        <span class="when">board from {{ g.latest_at.strftime('%H:%M') }}</span>
+                        {% else %}
+                        <span class="status-waiting">latest board half-drawn</span>
+                        {% endif %}
                     </td>
                     <td>
                         <form method="POST" action="/ribbit_admin/remove_board" class="remove-form"
