@@ -119,7 +119,7 @@ def _log(client, player, letters=LETTERS, links=LINKS, source="typed", played_on
 
 def _todays(client, player=99, played_on=DAY):
     return client.post("/ribbit", headers=_player(player), json={
-        "action": "shared_board", "played_on": played_on.isoformat()}).get_json()["board"]
+        "action": "shared_board", "played_on": played_on.isoformat()}).get_json()["boards"]
 
 
 def _links_for(client, letters, player=99):
@@ -138,21 +138,21 @@ def _as_board(letters, links):
 def test_a_day_of_players(client, boards):
     # Player 1 enters today's board: one board settles nothing.
     _log(client, 1)
-    assert _todays(client) is None
+    assert _todays(client) == []
 
     # Player 2 enters it with a slip - one diagonal missed, one link too many.
     slipped = [p for p in LINKS if p != (0, 5)] + [(5, 10)]
     _log(client, 2, links=slipped)
-    assert _todays(client) is None          # two boards that differ: wait for a third
+    assert _todays(client) == []          # two boards that differ: wait for a third
 
     # Player 3 enters it turned a quarter (the page's Rotate): the same board.
     _log(client, 3, *_turned(LETTERS, LINKS))
     # Served, links by majority: the diagonal 2 of 3 drew is in, the extra
     # link only player 2 drew is out. Shown the way most players entered it.
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
     # Player 4 opens an empty board and is offered exactly that.
-    assert _todays(client, player=4) == _as_board(LETTERS, LINKS)
+    assert _todays(client, player=4) == [_as_board(LETTERS, LINKS)]
 
     # Player 5 plays an archive puzzle today. Two players entered that board
     # on its own day, three days ago...
@@ -165,7 +165,7 @@ def test_a_day_of_players(client, boards):
     # today than entered today's.
     for p in (5, 6, 7, 8):
         _log(client, p, letters=old)
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
     # ...but typing that older board's letters fills in its links, in the
     # player's own view.
     view_letters, view_links = _turned(old, LINKS, times=2)
@@ -175,32 +175,46 @@ def test_a_day_of_players(client, boards):
 def test_two_identical_boards_serve_at_once(client, boards):
     _log(client, 1)
     _log(client, 2)
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 
 def test_a_typo_is_its_own_board_and_blocks_nothing(client, boards):
     _log(client, 1)
     _log(client, 2)
     _log(client, 3, letters="ribbitfrogslilyq")     # last letter mistyped
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
     assert _links_for(client, "ribbitfrogslilyq") is None
 
 
-def test_a_tie_between_two_boards_serves_neither(client, boards):
+def test_two_settled_boards_are_both_served_most_players_first(client, boards):
+    # More than one board can be real on one day: the player picks theirs.
+    other = "abcdefghijklmnop"
     _log(client, 1)
     _log(client, 2)
-    other = "abcdefghijklmnop"
     _log(client, 3, letters=other)
     _log(client, 4, letters=other)
-    assert _todays(client) is None
+    assert _todays(client) == [_as_board(other, LINKS), _as_board(LETTERS, LINKS)]
+    _log(client, 5)
+    assert _todays(client) == [_as_board(LETTERS, LINKS), _as_board(other, LINKS)]
+
+
+def test_an_unsettled_board_with_more_players_blocks_nothing(client, boards):
+    # Three players whose links leave tile 12 stranded: not settled, however
+    # many they are, and a smaller settled board is still served.
+    base = [p for p in SNAKE if p != (12, 13)]
+    for p, corner in zip((1, 2, 3), ((12, 13), (8, 12), (9, 12))):
+        _log(client, p, links=base + [corner])
+    _log(client, 4, letters="abcdefghijklmnop")
+    _log(client, 5, letters="abcdefghijklmnop")
+    assert _todays(client) == [_as_board("abcdefghijklmnop", LINKS)]
 
 
 def test_a_half_drawn_board_does_not_count(client, boards):
     _log(client, 1)
     _log(client, 2, links=[p for p in LINKS if 12 not in p])    # tile 12 still unlinked
-    assert _todays(client) is None
+    assert _todays(client) == []
     _log(client, 3)
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 
 def test_loading_then_fixing_a_board_counts(client, boards):
@@ -208,13 +222,51 @@ def test_loading_then_fixing_a_board_counts(client, boards):
     _log(client, 1)
     _log(client, 2, links=LINKS + [(5, 10)])
     _log(client, 3, source="edited")
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
+
+
+def _stored(boards, letters=LETTERS):
+    """The links of the board stored last, in the view `letters` is in."""
+    import routes.ribbit as ribbit
+    canon_letters, _none, t = ribbit.canonical(letters)
+    row = max(boards.rows.values(), key=lambda row: row[ribbit.UPDATED])
+    return sorted(tuple(p) for p in ribbit.in_view(
+        canon_letters, ribbit._parse_links(row[ribbit.LINKS]), t)["edges"])
+
+
+# Players keep the page in step with their game, and some do it by erasing
+# links as tiles clear: the board they log after that is not the board.
+PRUNED = [p for p in LINKS if p != (0, 5)]          # every tile still linked
+
+
+def test_a_players_board_only_gains_links(client, boards):
+    _log(client, 1)
+    _log(client, 1, links=PRUNED)                   # erased one as they played
+    assert _stored(boards) == LINKS
+    _log(client, 1, links=PRUNED + [(5, 10)])       # drew one they had missed
+    assert _stored(boards) == sorted(LINKS + [(5, 10)])
+    assert len(boards.rows) == 1
+
+
+def test_pruning_a_loaded_board_logs_nothing(client, boards):
+    _log(client, 1)
+    _log(client, 2)
+    _log(client, 3, links=PRUNED, source="edited")
+    assert len(boards.rows) == 2
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
+
+
+def test_fixing_a_loaded_board_keeps_what_was_served(client, boards):
+    _log(client, 1)
+    _log(client, 2)
+    _log(client, 3, links=PRUNED + [(5, 10)], source="edited")
+    assert _stored(boards) == sorted(LINKS + [(5, 10)])
 
 
 def test_one_player_is_one_board_whatever_they_resend(client, boards):
     for _ in range(3):
         _log(client, 1)
-    assert _todays(client) is None
+    assert _todays(client) == []
     assert len(boards.rows) == 1
 
 
@@ -222,7 +274,7 @@ def test_a_player_whose_date_is_far_off_is_not_stored(client, boards):
     _log(client, 1, played_on=DAY + timedelta(days=3))
     _log(client, 2, played_on=DAY - timedelta(days=2))
     assert boards.rows == {}
-    assert _todays(client, played_on=DAY + timedelta(days=3)) is None
+    assert _todays(client, played_on=DAY + timedelta(days=3)) == []
 
 
 def test_a_board_with_no_links_is_not_stored(client, boards):
@@ -311,8 +363,34 @@ def test_each_players_latest_board_is_the_one_that_counts():
 def test_the_board_is_shown_the_way_most_players_entered_it():
     import routes.ribbit as ribbit
     rows = [_row("a", orientation=3), _row("b", orientation=3), _row("c", orientation=1)]
-    board, _groups = ribbit.todays_board(rows, DAY)
-    assert board == ribbit.in_view(LETTERS, tuple(LINKS), 3)
+    boards, _groups = ribbit.todays_boards(rows, DAY)
+    assert boards == [ribbit.in_view(LETTERS, tuple(LINKS), 3)]
+
+
+def _letters(n):
+    """A board's letters of its own: the n-th of a few made-up ones."""
+    return "abcdefghijklmnop"[n:] + "abcdefghijklmnop"[:n]
+
+
+def test_a_day_offers_at_most_a_few_boards():
+    import routes.ribbit as ribbit
+    rows = [_row(f"{n}-{voter}", letters=_letters(n))
+            for n in range(ribbit.TODAYS_BOARDS_MAX + 1) for voter in "ab"]
+    rows += [_row("0-c", letters=_letters(0))]          # the most players: first
+    boards, groups = ribbit.todays_boards(rows, DAY)
+    assert len(boards) == ribbit.TODAYS_BOARDS_MAX
+    assert boards[0]["letters"] == list(_letters(0))
+    assert [g["why"] for g in groups if not g["served"]] == ["past the limit of boards a day"]
+
+
+def test_of_two_approvals_on_one_day_only_the_later_is_served():
+    import routes.ribbit as ribbit
+    rows = [_row("admin", letters=_letters(0), source="admin", minute=1),
+            _row("admin", letters=_letters(1), source="admin", minute=5)]
+    boards, groups = ribbit.todays_boards(rows, DAY)
+    assert boards == [ribbit.in_view(_letters(1), tuple(LINKS), 0)]
+    [replaced] = [g for g in groups if not g["served"]]
+    assert replaced["letters"] == _letters(0) and replaced["why"] == "a later approval replaced it"
 
 
 def test_why_a_board_is_not_served_yet():
@@ -340,15 +418,15 @@ def test_many_64s_inside_one_48_count_as_one_player(client, boards):
     for subnet in range(1, 6):
         _log(client, f"2001:db8:a:{subnet}::1")
     assert len(boards.rows) == 5            # every board is logged...
-    assert _todays(client) is None          # ...but the network is one player
+    assert _todays(client) == []          # ...but the network is one player
     _log(client, "2001:db8:b:1::1")         # a second network agrees
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 
 def test_distinct_48s_count_separately(client, boards):
     _log(client, "2001:db8:a:1::1")
     _log(client, "2001:db8:b:1::1")
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 
 def test_one_network_cannot_outvote_the_real_board(client, boards):
@@ -356,7 +434,7 @@ def test_one_network_cannot_outvote_the_real_board(client, boards):
     _log(client, 2)
     for subnet in range(1, 6):
         _log(client, f"2001:db8:a:{subnet}::1", letters="abcdefghijklmnop")
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
     # ...nor take over the links of today's letters.
     for subnet in range(6, 11):
         _log(client, f"2001:db8:a:{subnet}::1", links=LINKS + [(5, 10)])
@@ -451,7 +529,7 @@ def test_a_missing_table_costs_the_board_never_the_request(client, board_db, cap
     alerts.reset_throttle()
     board_db(fail="ribbit_boards")
     _log(client, 1)
-    assert _todays(client) is None
+    assert _todays(client) == []
     assert _links_for(client, LETTERS) is None
     out = capsys.readouterr().out
     assert "check=ribbit_board_log_failed" in out and "check=ribbit_board_read_failed" in out
@@ -544,21 +622,29 @@ def _approve(client, monkeypatch, boards, letters=LETTERS, latest=None):
 
 def test_approving_your_board_serves_it_at_once(client, boards, monkeypatch):
     _log(client, 1)                         # one board settles nothing...
-    assert _todays(client) is None
+    assert _todays(client) == []
     resp = _approve(client, monkeypatch, boards)
     assert resp.status_code == 302 and "success=Approved" in resp.headers["Location"]
     # ...until it's approved: then it's today's board, and typing its
     # letters fills in its links.
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
     assert _links_for(client, LETTERS) == [list(p) for p in LINKS]
 
 
-def test_an_approved_board_beats_more_players(client, boards, monkeypatch):
+def test_an_approved_board_comes_first_and_the_players_board_stays(client, boards, monkeypatch):
+    # James's game shows him one board; players settled another on their own.
     for p in (1, 2, 3):
         _log(client, p, letters="abcdefghijklmnop")
     _log(client, 4)
     _approve(client, monkeypatch, boards)
-    assert _todays(client) == _as_board(LETTERS, LINKS)
+    assert _todays(client) == [_as_board(LETTERS, LINKS), _as_board("abcdefghijklmnop", LINKS)]
+
+
+def test_next_to_an_approval_one_player_is_still_not_enough(client, boards, monkeypatch):
+    _log(client, 1)
+    _log(client, 2, letters="abcdefghijklmnop")
+    _approve(client, monkeypatch, boards)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 
 def test_an_approval_copies_the_latest_board_and_is_never_a_player(client, boards, monkeypatch):
@@ -604,7 +690,7 @@ def test_undo_hands_the_board_back_to_the_players(client, boards, monkeypatch):
     resp = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
                        data={"letters": ribbit.canonical(LETTERS)[0]})
     assert resp.status_code == 302 and "success=Approval+undone" in resp.headers["Location"]
-    assert _todays(client) is None                   # one player's board again
+    assert _todays(client) == []                   # one player's board again
     assert len(boards.rows) == 1                     # and that board is still there
     again = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
                         data={"letters": ribbit.canonical(LETTERS)[0]})
@@ -662,13 +748,13 @@ def test_while_dark_ribbit_logs_but_serves_nothing(client, boards, monkeypatch):
     _log(client, 1)
     _log(client, 2)
     assert len(boards.rows) == 2                     # logged...
-    assert _todays(client) is None                   # ...but not served, even when asked directly
+    assert _todays(client) == []                   # ...but not served, even when asked directly
     assert _links_for(client, LETTERS) is None
     # /ribbit_dev serves it, behind the password.
     headers = {**_player(9), **_admin_headers(monkeypatch)}
-    board = client.post("/ribbit_dev", headers=headers, json={
-        "action": "shared_board", "played_on": DAY.isoformat()}).get_json()["board"]
-    assert board == _as_board(LETTERS, LINKS)
+    served = client.post("/ribbit_dev", headers=headers, json={
+        "action": "shared_board", "played_on": DAY.isoformat()}).get_json()["boards"]
+    assert served == [_as_board(LETTERS, LINKS)]
     edges = client.post("/ribbit_dev", headers=headers, json={
         "action": "board_links", "nodes": _nodes(LETTERS)}).get_json()["edges"]
     assert edges == [list(p) for p in LINKS]
@@ -678,7 +764,8 @@ def test_while_dark_the_public_page_shows_none_of_it(client, monkeypatch):
     import routes.ribbit as ribbit
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", False)
     html = client.get("/ribbit").get_data(as_text=True)
-    for hidden in ('id="rb-shared"', "Load today's board", "Do I have to type the board in?",
+    for hidden in ('id="rb-shared"', "Players entered more than one board today",
+                   "Do I have to type the board in?",
                    "/ribbit_dev", 'id="phase-clear"'):
         assert hidden not in html, f"/ribbit shows {hidden!r} before it's live"
     # It still logs: the page sends finished boards, to its own route.
@@ -688,7 +775,8 @@ def test_while_dark_the_public_page_shows_none_of_it(client, monkeypatch):
 
 def test_ribbit_dev_has_the_shared_board_on(client, monkeypatch):
     html = client.get("/ribbit_dev", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
-    for hook in ('id="rb-shared"', "Load today's board", "Do I have to type the board in?",
+    for hook in ('id="rb-shared"', "Players entered more than one board today",
+                 "Do I have to type the board in?",
                  "const SHARED_BOARDS = true;", 'const POST_URL = "/ribbit_dev";',
                  "only you can see this copy"):
         assert hook in html, f"/ribbit_dev lost {hook}"
@@ -710,8 +798,10 @@ def test_ribbit_page_ships_the_shared_board_hooks(client, monkeypatch):
     import routes.ribbit as ribbit
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", True)
     html = client.get("/ribbit").get_data(as_text=True)
-    for hook in ('id="rb-shared"', 'id="rb-shared-load"', "Load today's board",
-                 "Other players already entered today's board for you.",
+    for hook in ('id="rb-shared"', 'id="rb-shared-picks"', "rb-shared-pick",
+                 "Other players already entered today's board for you. Tap it to load it.",
+                 "Players entered more than one board today. Tap the one that matches your game.",
+                 "data.boards",
                  "action: 'shared_board'", "action: 'board_links'", "action: 'log_board'"):
         assert hook in html, f"ribbit.html lost {hook}"
     # Right after loading, Clear sits next to Solve (hidden until then), and
@@ -728,7 +818,7 @@ def test_the_faq_explains_the_shared_board_without_numbers(client, monkeypatch):
     blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
     faq = next(b for b in map(json.loads, blocks) if b.get("@type") == "FAQPage")
     answers = {q["name"]: q["acceptedAnswer"]["text"] for q in faq["mainEntity"]}
-    assert "Load today's board" in answers["Do I have to type the board in?"]
+    assert "tap the one that matches your game" in answers["Do I have to type the board in?"]
     assert "Do I have to type the board in?" in html.split("Frequently Asked Questions")[1]
     lowered = html.lower()
     for hint in ("2 players", "3 players", "two players", "three players", "serve_"):

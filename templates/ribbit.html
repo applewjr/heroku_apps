@@ -50,7 +50,7 @@
       "name": "Do I have to type the board in?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
       }
     },{% endif %}
     {
@@ -141,7 +141,9 @@
 }
 
 /* ---------- shared board ---------- */
-/* Offered on an empty board once other players have entered today's. */
+/* Offered on an empty board once other players have entered today's. More
+   than one board can be real on a day, so each is a small grid of its
+   letters: the player taps the one that matches their game. */
 .rb-shared {
     display: flex;
     flex-wrap: wrap;
@@ -159,20 +161,62 @@
 }
 .rb-shared[hidden] { display: none; }
 .rb-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+/* One board per row, letters big enough to read at a glance: the whole row
+   is the button. On the narrowest phones the label drops under the grid. */
+.rb-shared-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+.rb-shared-pick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background-color: #fff;
+    border: 2px solid #02484d;
+    border-radius: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rb-shared-pick:hover,
+.rb-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+.rb-mini {
+    display: grid;
+    grid-template-columns: repeat(4, 26px);
+    grid-auto-rows: 26px;
+    gap: 3px;
+}
+.rb-mini span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #02484d;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
 .rb-shared-btn {
     background-color: #02484d;
-    border: 1px solid #02484d;
     border-radius: 8px;
     color: #fff;
-    font-family: inherit;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
-    padding: 9px 16px;
+    padding: 10px 14px;
     min-height: 44px;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
 }
-.rb-shared-btn:hover { background-color: #03595f; }
+.rb-shared-pick:hover .rb-shared-btn { background-color: #03595f; }
 
 /* The admin's own copy of the page says which copy it is. */
 .rb-dev-note {
@@ -625,7 +669,8 @@
         <strong>1. Type the board.</strong> The grid is a fixed 4x4. Tap a square and type its
         letter - it hops to the next square automatically, so you can type the board left to right,
         top to bottom.{% if shared_boards %} Once other players have entered today's board, you can
-        skip this: <strong>Load today's board</strong> fills in the letters and links for you.{% endif %}
+        skip this: tap it above the board and its letters and links fill in for you. If more than one
+        board is offered, pick the one that matches your game.{% endif %}
         <br><br>
         <strong>2. Draw the connections.</strong> Drag a line across the tiles the game connects.
         A straight drag across a whole <strong>row, column, or diagonal links every tile it
@@ -666,8 +711,9 @@
 
 {% if shared_boards %}
 <div class="rb-shared" id="rb-shared" hidden>
-    <span class="rb-shared-text">🐸 Other players already entered today's board for you.</span>
-    <button type="button" class="rb-shared-btn" id="rb-shared-load">Load today's board</button>
+    <span class="rb-shared-text" id="rb-shared-one">🐸 Other players already entered today's board for you. Tap it to load it.</span>
+    <span class="rb-shared-text" id="rb-shared-many" hidden>🐸 Players entered more than one board today. Tap the one that matches your game.</span>
+    <div class="rb-shared-picks" id="rb-shared-picks"></div>
 </div>
 {% endif %}
 
@@ -748,7 +794,7 @@
     {% if shared_boards %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
     </div>
     {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -795,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let rejected = [];            // words Ribbit refused  [word]
     let boardSource = 'typed';    // 'typed' | 'shared' (from other players) | 'edited' (shared, then changed)
     let loggedSig = '';           // the board as last sent to the shared-board log
-    let sharedToday = null;       // today's board from other players, once they've settled it
+    let sharedBoards = [];        // today's boards from other players, once they've settled them
     let offerClear = false;       // that board was just loaded and isn't solved yet
 
     let lastResults = [];
@@ -817,6 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsBar = document.getElementById('rb-tools');
     const resultsContainer = document.getElementById('results-container');
     const sharedBanner = document.getElementById('rb-shared');
+    const sharedOne = document.getElementById('rb-shared-one');
+    const sharedMany = document.getElementById('rb-shared-many');
+    const sharedPicks = document.getElementById('rb-shared-picks');
     const phaseClear = document.getElementById('phase-clear');
 
     const HINTS = {
@@ -1528,34 +1577,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderShared() {
         if (!sharedBanner) return;
-        sharedBanner.hidden = !(sharedToday && phase === 'edit' && !cells.some(c => c));
+        sharedBanner.hidden = !(sharedBoards.length && phase === 'edit' && !cells.some(c => c));
         phaseClear.hidden = !(offerClear && phase === 'edit');
     }
 
+    // More than one board can be real on a day (routes/ribbit.py), so each
+    // is offered as a small grid of its letters: the player picks theirs.
+    function renderSharedPicks() {
+        if (!sharedBanner) return;
+        sharedOne.hidden = sharedBoards.length > 1;
+        sharedMany.hidden = !sharedOne.hidden;
+        sharedPicks.replaceChildren(...sharedBoards.map((b, i) => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'rb-shared-pick';
+            pick.dataset.pick = String(i);
+            pick.setAttribute('aria-label', 'Load the board ' + b.letters.join('').toUpperCase());
+            const mini = document.createElement('span');
+            mini.className = 'rb-mini';
+            mini.setAttribute('aria-hidden', 'true');
+            b.letters.forEach(ch => {
+                const tile = document.createElement('span');
+                tile.textContent = ch;
+                mini.appendChild(tile);
+            });
+            const label = document.createElement('span');
+            label.className = 'rb-shared-btn';
+            label.textContent = 'Load this board';
+            pick.append(mini, label);
+            return pick;
+        }));
+    }
+
+    const isSharedBoard = b => b && Array.isArray(b.letters) && b.letters.length === N * N
+        && b.letters.every(ch => typeof ch === 'string' && /^[a-z]$/i.test(ch));
+
     function fetchShared() {
         if (!SHARED_BOARDS) return;
-        sharedToday = null;
+        sharedBoards = [];
         renderShared();
         postBoard({action: 'shared_board', played_on: localISO()})
             .then(data => {
-                const b = data && data.board;
-                sharedToday = (b && Array.isArray(b.letters) && b.letters.length === N * N) ? b : null;
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isSharedBoard);
+                renderSharedPicks();
                 renderShared();
             })
             .catch(() => {});
     }
 
-    if (sharedBanner) document.getElementById('rb-shared-load').addEventListener('click', () => {
-        const b = sharedToday;
+    if (sharedBanner) sharedPicks.addEventListener('click', e => {
+        const pick = e.target.closest('[data-pick]');
+        const b = pick && sharedBoards[Number(pick.dataset.pick)];
         if (!b) return;
         // renderCells never overwrites the focused square (that's the one
         // being typed in), and boot focuses the first one.
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-        cells = b.letters.map(ch => (typeof ch === 'string' && /^[a-z]$/i.test(ch)) ? ch.toLowerCase() : '');
+        cells = b.letters.map(ch => ch.toLowerCase());
         edges = toEdges(b.edges);
         disabled = new Set(); activeWord = null;
         boardSource = 'shared'; loggedSig = boardSig();
-        sharedToday = null; offerClear = true;
+        sharedBoards = []; offerClear = true;
         renderAll(); renderShared(); persist();
         hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve, or 🔄 Clear board if it doesn't.";
     });

@@ -15,6 +15,12 @@ board"), and anyone who types a known board's letters - an archive puzzle
 too - gets its links filled in. Nothing is guessed: every link served was
 drawn by players. /ribbit_admin can also approve the latest board for a set
 of letters (James's own, entered just before), which serves it at once.
+
+More than one Ribbit board can be real on one day: several players at a time
+type boards, alike, that James's game on puzzmo.com never shows him (seen in
+the logged boards, 2026-10-21). So a day can offer several boards, and the
+player picks the one that matches their game: James's approval, plus any
+board the players settled on their own.
 """
 
 import re
@@ -155,13 +161,18 @@ def get_ribbit_words():
 # always. Players are never told these numbers (see crowd.py on why).
 SERVE_IDENTICAL = 2
 SERVE_MAJORITY = 3
+# The most boards one day offers: an approval and the settled players'
+# boards, approval first, then most players. Several can be real at once
+# (see the module docstring); more than this is junk getting through.
+TODAYS_BOARDS_MAX = 3
 # Boards one player can log on one day: an archive binge plus typo fixes,
 # with room to spare. Each typo is a new board (other letters), so this also
 # bounds what one person can add to a day's groups.
 BOARDS_PER_PLAYER_PER_DAY = 10
 # 'typed' = entered by the player; 'edited' = loaded from other players,
 # then changed. A board loaded and left as it is is never logged, so the
-# shared board can't confirm itself.
+# shared board can't confirm itself; nor is one that only lost links (see
+# _links_to_log).
 BOARD_SOURCES = ('typed', 'edited')
 # Live on /ribbit (James's call, 2026-10-18) after a dark launch from
 # 2026-10-17, when /ribbit only logged boards and /ribbit_dev alone offered
@@ -343,19 +354,20 @@ def consensus(rows):
     }
 
 
-def todays_board(rows, day):
-    """The board to offer players whose date is `day`.
+def todays_boards(rows, day):
+    """The boards to offer players whose date is `day`.
 
     rows -- every ribbit_boards row (any date) for each set of letters
             logged on `day`.
 
-    Today's board is the letters with the most players among those logged
-    on `day`: strictly the most, and never letters first logged on an
-    earlier day - that is an older puzzle, so an archive game. An approved
-    board beats any count of players (of two, the later approval). Returns
-    (board or None, groups): board is {'letters', 'edges'} in the view most
-    of its players used; groups is every set of letters with its consensus
-    and 'served', most players first, for the admin page.
+    Today's boards are the letters logged on `day` that are settled (see
+    consensus): the approved one first (of two approved, only the later
+    approval), then the players' boards, most players first, at most
+    TODAYS_BOARDS_MAX. Never letters first logged on an earlier day - that
+    is an older puzzle, so an archive game. Returns (boards, groups): boards
+    is a list of {'letters', 'edges'}, each in the view most of its players
+    used; groups is every set of letters with its consensus and 'served',
+    most players first, for the admin page.
     """
     by_letters = {}
     for row in rows:
@@ -373,25 +385,20 @@ def todays_board(rows, day):
         groups.append(result)
     groups.sort(key=lambda g: (-g['players'], g['letters']))
 
-    candidates = [g for g in groups
-                  if g['first_seen'] >= day and (g['players'] or g['approved'])]
-    approved = [g for g in candidates if g['approved']]
-    board, top = None, None
-    if approved:
-        top = max(approved, key=lambda g: g['approved_at'])
-    elif candidates:
-        top = candidates[0]
-        if len(candidates) > 1 and candidates[1]['players'] == top['players']:
-            for g in candidates[:2]:
-                g['why'] = g['why'] or 'tied with another board'
-            top = None
-    if top is not None and top['links'] is not None:
-        top['served'] = True
-        board = in_view(top['letters'], top['links'], top['orientation'])
-    for g in candidates:
-        if g is not top and g['why'] is None:
-            g['why'] = 'not the top board'
-    return board, groups
+    settled = [g for g in groups if g['first_seen'] >= day and g['links'] is not None]
+    approved = [g for g in settled if g['approved']]
+    latest = max(approved, key=lambda g: g['approved_at']) if approved else None
+    for g in approved:
+        if g is not latest:
+            g['why'] = 'a later approval replaced it'
+    offered = ([latest] if latest else []) + [g for g in settled if not g['approved']]
+    for g in offered[TODAYS_BOARDS_MAX:]:
+        g['why'] = 'past the limit of boards a day'
+    boards = []
+    for g in offered[:TODAYS_BOARDS_MAX]:
+        g['served'] = True
+        boards.append(in_view(g['letters'], g['links'], g['orientation']))
+    return boards, groups
 
 
 def in_view(letters, links, t):
@@ -512,6 +519,39 @@ def _grid_board(data, whole=True):
     return letters, tuple(sorted(links))
 
 
+def _links_to_log(links, rows, voter, day, source):
+    """The canonical links to store for a player's board, or None to store
+    nothing: a logged board only ever gains links.
+
+    Players keep the page in step with their game as it goes, and some do
+    it by erasing links (James, 2026-10-21; most loaded boards logged that
+    day had only lost links). A board is logged on every Solve, and each
+    player's latest board is the one that counts, so their later boards
+    would outvote their first. So:
+    - a player's own earlier board of these letters that day keeps every
+      link it had; links they add (a missed line) still count;
+    - a board loaded from other players (source 'edited') that only lost
+      links is not logged at all, and one that gained some is logged as the
+      links served for it plus those.
+    The cost: a player who erases a link they drew wrongly, after a Solve,
+    keeps it. One player's slip is what the majority rule outvotes.
+
+    rows -- every ribbit_boards row for these canonical letters, any date.
+    """
+    drawn = set(links)
+    mine = [row for row in rows
+            if row[VOTER] == voter and row[PLAYED_ON] == day and row[SOURCE] != APPROVAL]
+    if mine:
+        return tuple(sorted(drawn | set(_parse_links(mine[0][LINKS]))))
+    if source == 'edited' and rows:
+        served = consensus(rows)['links']
+        if served is not None:
+            if drawn <= set(served):
+                return None
+            return tuple(sorted(drawn | set(served)))
+    return links
+
+
 def log_board(data):
     """A board a player entered, sent when they solve it. Always the same
     reply, stored or not."""
@@ -522,23 +562,31 @@ def log_board(data):
     day = _played_on(data)
     if day is not None and links:
         canon_letters, canon_links, t = canonical(letters, links)
-        store_board(day, crowd.player_hash('ribbit'), crowd.prefix_hash('ribbit'),
-                    canon_letters, canon_links, t, source)
+        voter = crowd.player_hash('ribbit')
+        try:
+            rows = rows_with_letters(canon_letters)
+        except Exception as e:
+            alerts.alert_throttled('ribbit_board_log_failed', exc=type(e).__name__, msg=e)
+            return jsonify(status='success')
+        keep = _links_to_log(canon_links, rows, voter, day, source)
+        if keep is not None:
+            store_board(day, voter, crowd.prefix_hash('ribbit'), canon_letters, keep, t, source)
     return jsonify(status='success')
 
 
 def shared_board(data):
-    """Today's board for the player's date, if other players have settled it."""
+    """Today's boards for the player's date, those other players have
+    settled: a list, empty when there are none."""
     day = _played_on(data)
     if day is None:
-        return jsonify(board=None)
+        return jsonify(boards=[])
     try:
         rows = rows_logged_between(day, day)
     except Exception as e:
         alerts.alert_throttled('ribbit_board_read_failed', exc=type(e).__name__, msg=e)
-        return jsonify(board=None)
-    board, _groups = todays_board(rows, day)
-    return jsonify(board=board)
+        return jsonify(boards=[])
+    boards, _groups = todays_boards(rows, day)
+    return jsonify(boards=boards)
 
 
 def board_links(data):
@@ -652,7 +700,7 @@ def handle_action(data, dev=False):
         if not (dev or SHARED_BOARDS_LIVE):
             # The dark launch: /ribbit logs boards but serves none yet, even
             # to someone calling it directly.
-            return jsonify(board=None) if action == 'shared_board' else jsonify(edges=None)
+            return jsonify(boards=[]) if action == 'shared_board' else jsonify(edges=None)
         return shared_board(data) if action == 'shared_board' else board_links(data)
     if action in VOTE_ACTIONS:
         return handle_vote(data, dev)
@@ -689,7 +737,7 @@ def _admin_days():
     days = []
     day = last
     while day >= first:
-        _board, groups = todays_board(rows, day)
+        _boards, groups = todays_boards(rows, day)
         for g in groups:
             letters, _links = _apply(INVERSES[g['orientation']], g['letters'], ())
             g['grid'] = [letters[r * N:(r + 1) * N].upper() for r in range(N)]
@@ -730,6 +778,7 @@ def ribbit_admin():
                            crowd_error=crowd_error, days=days, load_error=load_error,
                            shared_live=SHARED_BOARDS_LIVE,
                            serve_identical=SERVE_IDENTICAL, serve_majority=SERVE_MAJORITY,
+                           todays_boards_max=TODAYS_BOARDS_MAX,
                            word_pop=word_pop,
                            crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
                            crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
@@ -766,8 +815,9 @@ def ribbit_remove_board():
 @auth.login_required
 def ribbit_approve_board():
     """Serve the latest board for these letters to every player straight
-    away, whatever the other boards say: for a board James entered himself
-    and trusts (James asked, 2026-10-18). `latest` is that board's time as
+    away, first of the day's boards and whatever the players drew for these
+    letters: for a board James entered himself and trusts (James asked,
+    2026-10-18). `latest` is that board's time as
     the page showed it; if a newer board has come in since, nothing is
     approved, so a stranger's board can't be approved in its place."""
     letters = request.form.get('letters', '')
