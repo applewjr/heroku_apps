@@ -18,9 +18,11 @@ of letters (James's own, entered just before), which serves it at once.
 
 More than one Ribbit board can be real on one day: several players at a time
 type boards, alike, that James's game on puzzmo.com never shows him (seen in
-the logged boards, 2026-10-21). So a day can offer several boards, and the
-player picks the one that matches their game: James's approval, plus any
-board the players settled on their own.
+the logged boards, 2026-10-21). Yahoo Games runs its own Ribbit, powered by
+Puzzmo, with its own daily board, and there are fan clones with boards of
+their own. So a day can offer several boards, and the player picks the one
+that matches their game: James's approvals, plus any board the players
+settled on their own.
 """
 
 import re
@@ -161,8 +163,8 @@ def get_ribbit_words():
 # always. Players are never told these numbers (see crowd.py on why).
 SERVE_IDENTICAL = 2
 SERVE_MAJORITY = 3
-# The most boards one day offers: an approval and the settled players'
-# boards, approval first, then most players. Several can be real at once
+# The most boards one day offers: approvals and the settled players'
+# boards, approvals first, then most players. Several can be real at once
 # (see the module docstring); more than this is junk getting through.
 TODAYS_BOARDS_MAX = 3
 # Boards one player can log on one day: an archive binge plus typo fixes,
@@ -361,9 +363,9 @@ def todays_boards(rows, day):
             logged on `day`.
 
     Today's boards are the letters logged on `day` that are settled (see
-    consensus): the approved one first (of two approved, only the later
-    approval), then the players' boards, most players first, at most
-    TODAYS_BOARDS_MAX. Never letters first logged on an earlier day - that
+    consensus): the approved ones first, in the order they were approved
+    (James can play both Puzzmo's and Yahoo's), then the players' boards,
+    most players first, at most TODAYS_BOARDS_MAX. Never letters first logged on an earlier day - that
     is an older puzzle, so an archive game. Returns (boards, groups): boards
     is a list of {'letters', 'edges'}, each in the view most of its players
     used; groups is every set of letters with its consensus and 'served',
@@ -386,12 +388,8 @@ def todays_boards(rows, day):
     groups.sort(key=lambda g: (-g['players'], g['letters']))
 
     settled = [g for g in groups if g['first_seen'] >= day and g['links'] is not None]
-    approved = [g for g in settled if g['approved']]
-    latest = max(approved, key=lambda g: g['approved_at']) if approved else None
-    for g in approved:
-        if g is not latest:
-            g['why'] = 'a later approval replaced it'
-    offered = ([latest] if latest else []) + [g for g in settled if not g['approved']]
+    approved = sorted((g for g in settled if g['approved']), key=lambda g: g['approved_at'])
+    offered = approved + [g for g in settled if not g['approved']]
     for g in offered[TODAYS_BOARDS_MAX:]:
         g['why'] = 'past the limit of boards a day'
     boards = []

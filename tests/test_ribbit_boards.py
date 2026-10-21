@@ -383,14 +383,15 @@ def test_a_day_offers_at_most_a_few_boards():
     assert [g["why"] for g in groups if not g["served"]] == ["past the limit of boards a day"]
 
 
-def test_of_two_approvals_on_one_day_only_the_later_is_served():
+def test_every_approval_of_the_day_is_served_in_the_order_approved():
+    # James can play Puzzmo's board and Yahoo's, and approve both.
     import routes.ribbit as ribbit
-    rows = [_row("admin", letters=_letters(0), source="admin", minute=1),
-            _row("admin", letters=_letters(1), source="admin", minute=5)]
+    rows = [_row("admin", letters=_letters(1), source="admin", minute=1),
+            _row("admin", letters=_letters(0), source="admin", minute=5),
+            _row("a", letters=_letters(2)), _row("b", letters=_letters(2))]
     boards, groups = ribbit.todays_boards(rows, DAY)
-    assert boards == [ribbit.in_view(_letters(1), tuple(LINKS), 0)]
-    [replaced] = [g for g in groups if not g["served"]]
-    assert replaced["letters"] == _letters(0) and replaced["why"] == "a later approval replaced it"
+    assert [b["letters"] for b in boards] == [list(_letters(n)) for n in (1, 0, 2)]
+    assert all(g["served"] for g in groups)
 
 
 def test_why_a_board_is_not_served_yet():
@@ -656,6 +657,20 @@ def test_an_approval_copies_the_latest_board_and_is_never_a_player(client, board
     result = ribbit.consensus(boards.with_letters(canon_letters))
     assert result["approved"] and result["players"] == 2 and result["half_drawn"] == 0
     assert result["links"] == canon_links
+
+
+def test_approving_two_boards_on_one_day_serves_both(client, boards, monkeypatch):
+    # James plays Puzzmo's board and Yahoo's, enters each, and approves each.
+    other = "abcdefghijklmnop"
+    _log(client, 1)
+    _approve(client, monkeypatch, boards)
+    _log(client, 1, letters=other)
+    resp = _approve(client, monkeypatch, boards, letters=other)
+    assert "success=Approved" in resp.headers["Location"]
+    assert _todays(client) == [_as_board(LETTERS, LINKS), _as_board(other, LINKS)]
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert html.count('<span class="status-served">Approved</span>') == 2
+    assert html.count('action="/ribbit_admin/unapprove_board"') == 2
 
 
 def test_approve_refuses_once_a_newer_board_came_in(client, boards, monkeypatch):
