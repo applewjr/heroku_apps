@@ -33,7 +33,7 @@ def blossom_solver():
     try:
 
         schema_data = make_schema_data(
-            "Blossom Word Finder & Solver",
+            "Blossom Solver & Word Finder - Today's Hints & Answers",
             "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
             "https://jamesapplewhite.com/blossom",
             operating_system=None
