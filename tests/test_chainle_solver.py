@@ -186,8 +186,7 @@ def test_broad_words_rank_below_specific_ones(data):
 def test_a_meaning_only_answer_wins_when_nothing_links(data):
     res = ch.solve(data, ['doctor', 'nurse'], 'bridge')
     top = res['suggestions'][0]
-    # HOSPITALS scores as well, but it's the same answer: listed once, in
-    # its base form.
+    # HOSPITALS scores a shade higher, but the game turns plurals down.
     assert top['word'] == 'HOSPITAL'
     assert 'HOSPITALS' not in _words(res)
     assert top['type'] == 'meaning'
@@ -195,14 +194,63 @@ def test_a_meaning_only_answer_wins_when_nothing_links(data):
 
 
 def test_an_inflection_stays_as_itself_when_its_base_scores_far_lower():
-    # BANKS is close to both clues, BANK (here) to neither: listing BANK
+    # BANKING is close to both clues, BANK (here) to neither: listing BANK
     # would put up a word the solver rates far lower. Still one answer.
-    vecs = {'river': [1, 0, 0], 'money': [0, 1, 0], 'banks': [.6, .6, .5],
+    vecs = {'river': [1, 0, 0], 'money': [0, 1, 0], 'banking': [.6, .6, .5],
             'bank': [.1, .1, .99], 'shore': [.5, .2, .84]}
+    d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, bases={'banking': {'bank'}}))
+    words = _words(ch.solve(d, ['river', 'money'], 'bridge'))
+    assert words[0] == 'BANKING'
+    assert 'BANK' not in words
+
+
+# --- words the game turns down ------------------------------------------------------
+
+def test_every_s_form_is_marked_but_nothing_else():
+    vecs = {w: [1, 0] for w in ('book', 'books', 'box', 'boxes', 'city', 'cities', 'wolf', 'wolves',
+                                'knife', 'knives', 'woman', 'women', 'agree', 'agrees', 'run',
+                                'running', 'news', 'boss', 'me', 'mess')}
+    bases = {'books': {'book'}, 'boxes': {'box'}, 'cities': {'city'}, 'wolves': {'wolf'},
+             'knives': {'knife'}, 'women': {'woman'}, 'agrees': {'agree'}, 'running': {'run'},
+             'mess': {'me'}}
+    d = ch.Data(**ch.pack(vecs, bases=bases))
+    marked = {d.word(i) for i in np.flatnonzero(d.s_forms)}
+    assert marked == {'books', 'boxes', 'cities', 'wolves', 'knives', 'women', 'agrees'}
+
+
+def test_an_s_form_is_never_suggested_unless_the_admin_keeps_it():
+    # BANKS is the closest word to both clues, but the game turns plurals
+    # down; the admin's Allow list puts a real word back.
+    vecs = {'river': [1, 0, 0], 'money': [0, 1, 0], 'banks': [.6, .6, .5],
+            'bank': [.3, .3, .9], 'shore': [.5, .2, .84]}
     d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}, bases={'banks': {'bank'}}))
     words = _words(ch.solve(d, ['river', 'money'], 'bridge'))
-    assert words[0] == 'BANKS'
-    assert 'BANK' not in words
+    assert 'BANKS' not in words and words
+    assert _words(ch.solve(d, ['river', 'money'], 'bridge', kept=['banks']))[0] == 'BANKS'
+
+
+def test_removed_words_are_never_suggested_and_kept_ones_win(data):
+    assert _words(ch.solve(data, ['snow', 'foot'], 'bridge'))[0] == 'MAN'
+    words = _words(ch.solve(data, ['snow', 'foot'], 'bridge', removed=['man', 'notaword']))
+    assert 'MAN' not in words and words
+    # A word in both lists stays, as Blossom and Smush keep an added word.
+    both = _words(ch.solve(data, ['snow', 'foot'], 'bridge', removed=['man'], kept=['man']))
+    assert both[0] == 'MAN'
+    # The admin's ranks match what players see.
+    assert ch.assess(data, ['snow', 'foot'], 'bridge', ['man'], removed=['man'])['ranks']['MAN'] is None
+
+
+def test_a_clue_spelled_the_other_way_is_too_close():
+    # The game turns NEIGHBOURHOOD down for NEIGHBORHOOD, and COLOR for COLOUR.
+    vecs = {'neighborhood': [1, 0], 'neighbourhood': [.99, .1], 'district': [.9, .3],
+            'colour': [0, 1], 'color': [.1, .99], 'paint': [.3, .9]}
+    d = ch.Data(**ch.pack(vecs, zipf={w: 4.0 for w in vecs}))
+    assert _words(ch.solve(d, ['neighborhood'], 'meaning'))[0] == 'DISTRICT'
+    assert 'NEIGHBOURHOOD' not in _words(ch.solve(d, ['neighborhood'], 'meaning'))
+    assert 'COLOR' not in _words(ch.solve(d, ['colour'], 'meaning'))
+    for uk, us in (('centre', 'center'), ('realise', 'realize'), ('organisation', 'organization'),
+                   ('analyse', 'analyze'), ('catalogue', 'catalog'), ('defence', 'defense')):
+        assert ch._us_spelling(uk) == ch._us_spelling(us), uk
 
 
 # --- closest-meaning rounds -----------------------------------------------------------

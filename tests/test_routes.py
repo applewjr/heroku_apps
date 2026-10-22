@@ -469,6 +469,21 @@ def test_smush_page_ships_the_played_word_entry_box(smush_client):
     assert 'class="word-entry" id="word-entry"' in html, "entry panel starts expanded"
 
 
+def test_smush_lists_start_short_but_all8_stays_whole(smush_client):
+    # A sorted list shows WORDS_FIRST rows, and every reset (new results, a
+    # new sort) goes back to that; Show more adds WORDS_STEP. The All 8 plan
+    # is the exception, always shown whole: renderPlan never reads the count.
+    import re
+    html = smush_client.get("/smush").get_data(as_text=True)
+    assert "const WORDS_FIRST = 10;" in html
+    assert "const WORDS_STEP = 25;" in html
+    resets = re.findall(r"visibleCount = (\w+);", html)
+    assert resets and set(resets) == {"WORDS_FIRST"}
+    assert "visibleCount += WORDS_STEP;" in html
+    plan_fn = html.split("function renderPlan()")[1].split("\n    function ")[0]
+    assert "visibleCount" not in plan_fn
+
+
 def test_smush_accepts_a_played_word_we_do_not_suggest(smush_client):
     # The entry box takes any board-legal word, so the played pile can carry
     # words missing from our dictionary; the route must still solve.

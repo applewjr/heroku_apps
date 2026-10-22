@@ -4,13 +4,15 @@
 <head>
 
     <script>
+    // Global, so a page script can send its own events (Smush's Show more).
+    // They queue in dataLayer until gtag.js arrives after load.
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
     window.addEventListener('load', function() {
       var ga = document.createElement('script');
       ga.async = true;
       ga.src = 'https://www.googletagmanager.com/gtag/js?id=G-TLNFREYPWR';
       document.head.appendChild(ga);
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-TLNFREYPWR');
     });

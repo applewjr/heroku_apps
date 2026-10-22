@@ -9,7 +9,7 @@ production JawsDB, so nothing here may reach a real connection.
 import json
 import re
 import time
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -25,10 +25,14 @@ def tiny(monkeypatch):
     import routes.chainle as rc
     monkeypatch.setattr(rc, '_static', {'data': ch.Data(**_arrays()), 'failed_at': 0.0})
     monkeypatch.setattr(rc, '_assessed', {})
+    monkeypatch.setattr(rc, '_corrections', {'value': None, 'expires': 0.0})
 
     def install(answers=None, rows=None, fail=None):
+        import crowd
         db = _ScriptedDB(answers, rows, 1, fail)
         monkeypatch.setattr(rc, 'db_cursor', db)
+        # The reports and word lists go through crowd.py's own cursor.
+        monkeypatch.setattr(crowd, 'db_cursor', db)
         return db
 
     install(fail=' ')
@@ -421,9 +425,174 @@ def test_admin_page_splits_the_rounds_by_solver_version(client, tiny, monkeypatc
 
 
 def test_admin_survives_a_database_error(client, tiny, monkeypatch):
+    # The page stays up and says which half it couldn't read.
     _, headers = _admin(tiny, monkeypatch, fail='SELECT')
-    assert client.get('/chainle_admin', headers=headers).status_code == 500
+    resp = client.get('/chainle_admin', headers=headers)
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "Couldn't read the word lists" in html and "Couldn't read the round log" in html
     _, headers = _admin(tiny, monkeypatch, fail='INSERT')
     resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
     assert resp.status_code == 302
     assert 'Database+error' in resp.headers['Location']
+    assert 'tab=log' in resp.headers['Location']
+
+
+def test_the_round_log_still_works_without_the_crowd_tables(client, tiny, monkeypatch):
+    # Prod may run this code before mysql_tables/chainle_crowd.sql.
+    _, headers = _admin(tiny, monkeypatch, fail='chainle_invalid_words')
+    html = client.get('/chainle_admin?tab=log', headers=headers).get_data(as_text=True)
+    assert 'Has mysql_tables/chainle_crowd.sql been run?' in html
+    assert 'class="round-card"' in html and 'SNOW + FOOT' in html
+    assert 'id="log-tab" class="tab-content active"' in html
+
+
+# --- players' reports and the admin's word lists ----------------------------------------
+
+def _offered_words(client, clues, kind='bridge'):
+    return [s['word'] for s in _solve(client, clues, kind).get_json()['suggestions']]
+
+
+def test_removed_words_are_never_offered_and_allowed_ones_reach_the_solver(client, tiny, monkeypatch):
+    import routes.chainle as rc
+    tiny(rows={'SELECT word FROM chainle_invalid_words': [('MAN',)],
+               'SELECT word FROM chainle_added_words': [('hospitals',)]})
+    assert 'MAN' not in _offered_words(client, ['snow', 'foot'])
+    # What allowing does to the ranking is tested in test_chainle_solver.py.
+    seen = {}
+    solve = rc.ch.solve
+    monkeypatch.setattr(rc.ch, 'solve', lambda *a, **kw: seen.update(kw) or solve(*a, **kw))
+    _solve(client, ['doctor', 'nurse'])
+    assert seen['removed'] == {'man'} and seen['kept'] == {'hospitals'}
+
+
+def test_the_corrections_are_read_once_until_a_change(client, tiny):
+    import routes.chainle as rc
+    db = tiny()
+    _solve(client, ['snow', 'foot'])
+    _solve(client, ['big'], 'meaning')
+    assert len(db.statements('SELECT word FROM chainle_invalid_words')) == 1
+    rc.CHAINLE_CROWD.on_change()
+    _solve(client, ['snow', 'foot'])
+    assert len(db.statements('SELECT word FROM chainle_invalid_words')) == 2
+
+
+def test_the_solver_works_without_the_corrections(client, tiny):
+    # A database blip, or the tables not created yet: solve without them.
+    tiny(fail='chainle_invalid_words')
+    resp = _solve(client, ['snow', 'foot'])
+    assert resp.status_code == 200
+    assert resp.get_json()['suggestions'][0]['word'] == 'MAN'
+
+
+def _report(client, action, word, clues=('SNOW', 'FOOT'), kind='bridge'):
+    return client.post('/chainle', json={'action': action, 'word': word, 'clues': list(clues), 'kind': kind})
+
+
+def test_a_refusal_counts_for_a_word_the_round_offers(client, tiny):
+    from test_blossom import VOTE_LOG_FIELDS
+    # This player's votes today, their refusals today, and the word's players.
+    db = tiny(answers={'WHERE voter_hash = %s AND created_at': (0,),
+                       "WHERE voter_hash = %s AND vote = 'invalid'": (1,),
+                       'FROM chainle_word_votes v WHERE v.word': (1,)})
+    resp = _report(client, 'refuse', 'BALL')
+    assert resp.status_code == 200 and resp.get_json() == {'status': 'success'}
+    [(_sql, params)] = db.statements('INSERT INTO chainle_word_votes')
+    assert params[:2] == ('ball', 'invalid')
+    assert params[3] == 'foot:snow'                  # the clues, sorted
+    [log] = [dict(zip(VOTE_LOG_FIELDS, p)) for _s, p in db.statements('INSERT INTO chainle_vote_log')]
+    assert (log['event'], log['mode']) == ('vote', 'bridge')
+
+
+def test_a_refusal_of_a_word_the_round_never_offered_is_ignored(client, tiny):
+    db = tiny()
+    assert 'FOOTBALL' not in _offered_words(client, ['snow', 'foot'])
+    resp = _report(client, 'refuse', 'football')
+    # The same reply as a counted one: players can't tell the difference.
+    assert resp.status_code == 200 and resp.get_json() == {'status': 'success'}
+    assert not db.statements('INSERT INTO chainle_word_votes')
+
+
+def test_taking_a_refusal_back(client, tiny):
+    db = tiny()
+    resp = _report(client, 'unrefuse', 'BALL')
+    assert resp.get_json() == {'status': 'success'}
+    [(sql, params)] = db.statements('DELETE FROM chainle_word_votes')
+    assert params[:2] == ('ball', 'invalid')
+
+
+@pytest.mark.parametrize('payload', [
+    {'action': 'delete', 'word': 'ball', 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 'two words', 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 7, 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 'ball', 'clues': ['snow']},
+], ids=['unknown-action', 'two-words', 'not-text', 'bad-clues'])
+def test_a_junk_report_is_a_400(client, tiny, payload):
+    db = tiny()
+    assert client.post('/chainle', json=payload).status_code == 400
+    assert not db.statements('chainle_word_votes')
+
+
+def test_players_are_never_told_the_vote_counts(client, tiny):
+    # As on /smush and /blossom: the page never says how many reports a
+    # change takes, not in the FAQ, the toasts or a JS constant.
+    html = client.get('/chainle').get_data(as_text=True)
+    lowered = html.lower()
+    for hint in ('crowd_remove_votes', 'different players', 'another player', 'players flag',
+                 'players agreed', 'for everyone', '5 players', 'five players', 'three players'):
+        assert hint not in lowered, f'page hints at the threshold: {hint!r}'
+    assert 'take every report into account' in html
+    assert 'data-refuse' in html and 'data-unrefuse' in html
+
+
+REPORT = ('ball', 'invalid', 4, datetime(2026, 10, 21, 9, 30), 'waiting',
+          datetime(2026, 10, 21, 8, 0), 'foot:snow', date(2026, 10, 21))
+
+
+def test_admin_page_has_the_word_tabs_and_the_round_log(client, tiny, monkeypatch):
+    db, headers = _admin(tiny, monkeypatch)
+    db.rows['WITH board_dates'] = [REPORT]
+    db.rows['FROM chainle_invalid_words ORDER BY'] = [('cats', datetime(2026, 10, 20, 7, 0), 'crowd')]
+    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
+    for tab in ('Player Reports', 'Removed Words', 'Allowed Words', 'Round Log'):
+        assert tab in html
+    # Player Reports opens first, like /smush_admin.
+    assert 'id="reports-tab" class="tab-content active"' in html
+    reports = html.split('id="reports-tab"')[1].split('id="invalid-tab"')[0]
+    assert '<strong>ball</strong>' in reports and 'FOOT<br>SNOW<br>' in reports
+    assert 'value="invalid" class="btn btn-danger">Remove now' in reports
+    assert 'value="missing" class="btn btn-success">Allow now' in reports
+    assert '<strong>cats</strong>' in html.split('id="invalid-tab"')[1].split('id="added-tab"')[0]
+    # The round log is all still there, on its own tab.
+    assert 'id="round-form"' in html and 'class="round-card"' in html
+
+
+def test_the_admin_removes_and_allows_words(client, tiny, monkeypatch):
+    db, headers = _admin(tiny, monkeypatch)
+    resp = client.post('/chainle_admin/add_word', headers=headers,
+                       data={'word': 'Man', 'word_type': 'invalid', 'tab': 'invalid', 'q': 'ma'})
+    assert resp.status_code == 302
+    assert 'success=' in resp.headers['Location'] and 'tab=invalid' in resp.headers['Location']
+    assert 'q=ma' in resp.headers['Location']
+    assert db.statements('INSERT INTO chainle_invalid_words')
+    client.post('/chainle_admin/add_word', headers=headers, data={'word': 'hospitals', 'word_type': 'missing'})
+    assert db.statements('INSERT INTO chainle_added_words')
+    client.post('/chainle_admin/remove_word', headers=headers, data={'word': 'man', 'word_type': 'invalid'})
+    assert db.statements('DELETE FROM chainle_invalid_words WHERE word = %s')
+
+
+@pytest.mark.parametrize('form,message', [
+    ({'word': 'man'}, 'Choose+Remove+word+or+Allow+word+first'),
+    ({'word': 'm4n', 'word_type': 'invalid'}, 'letters+only'),
+    ({'word': 'zzzz', 'word_type': 'missing'}, 'solver'),
+], ids=['no-choice', 'not-letters', 'unknown-word'])
+def test_the_admin_word_form_refuses_what_it_cannot_use(client, tiny, monkeypatch, form, message):
+    db, headers = _admin(tiny, monkeypatch)
+    resp = client.post('/chainle_admin/add_word', headers=headers, data=form)
+    assert 'error=' in resp.headers['Location'] and message in resp.headers['Location']
+    assert not db.statements('INSERT INTO chainle_')
+
+
+def test_the_word_routes_need_the_password(client, tiny):
+    for path in ('/chainle_admin/add_word', '/chainle_admin/remove_word'):
+        assert client.post(path, data={'word': 'man', 'word_type': 'invalid'}).status_code == 401

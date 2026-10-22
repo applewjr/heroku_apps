@@ -471,6 +471,9 @@ def run_chainle():
         data = request.get_json()
         if not isinstance(data, dict):
             raise ValidationError('expected a JSON object')
+        # A player's report on a refused word, not a round to solve.
+        if 'action' in data:
+            return chainle.handle_vote(data)
         return chainle.solve_request(data)
     else:
         log_page_visit('chainle.html')

@@ -1029,7 +1029,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
     Please enter the center letter first.
   </div>
 
-  <input type="hidden" name="current_count" value="{{current_count|default(25)}}">
+  <input type="hidden" name="current_count" value="{{current_count}}">
   <input type="hidden" name="must_have" value="{{must_have_val}}">
   <input type="hidden" name="may_have" value="{{may_have_val}}">
   <input type="hidden" name="petal_letter" value="{{petal_letter}}">
@@ -1117,7 +1117,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
            element: form1 spans this section, and the HTML parser drops a nested
            form start tag while letting its closing tag end form1 early. -->
       <button type="submit" name="load_more" value="true" class="show-more-btn"
-              formaction="/blossom#words" onclick="showLoadingOverlay()">Show 25 more words</button>
+              formaction="/blossom#words" onclick="showLoadingOverlay()">Show {{ list_step }} more words</button>
       {% endif %}
     </div>
     {% if blossom_table %}

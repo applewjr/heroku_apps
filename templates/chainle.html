@@ -55,6 +55,14 @@
     },
     {
       "@type": "Question",
+      "name": "What if the game refuses a word?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Chainle only takes dictionary words: it turns down plurals, names and filler words, and words too close to a clue. The solver leaves those out, but if the game still refuses one of its suggestions, tap the ✗ next to it. The word is hidden and the next one moves up. Your ✗ also tells us, and we take every report into account when updating the list."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Does it work for older puzzles?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -264,6 +272,42 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
     color: #02484d;
 }
 .chn-row-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+/* ✗: the game turned the word down. The same compact button as /smush's and
+   /ribbit's ✗, red only as a functional accent. */
+.chn-refuse {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #e0d5d5;
+    border-radius: 6px;
+    color: #a55;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 9px;
+    min-height: 36px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.chn-refuse:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+/* Beside the hint's Copy button, the same height as it. */
+.chn-actions .chn-refuse { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+.chn-refused { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.chn-refused .chn-note { margin: 0; }
+.chn-refused-chip {
+    border: 1px dashed #e55555;
+    border-radius: 999px;
+    background-color: #fff;
+    color: #b42318;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    min-height: 36px;
+    text-decoration: line-through;
+    cursor: pointer;
+}
+.chn-refused-chip:hover { text-decoration: none; background-color: #fbf0f0; }
 
 .chn-new-btn {
     background-color: #f8f9fa;
@@ -365,7 +409,7 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
         to see them all.
         <br><br>
         <strong>4. Copy it into the game.</strong> Tap a revealed word to copy it, then paste it
-        into Chainle.
+        into Chainle. If the game refuses it, tap its <strong>✗</strong> for the next word.
     </div>
 </div>
 
@@ -434,6 +478,10 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What if the game refuses a word?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Chainle only takes dictionary words: it turns down plurals, names and filler words, and words too close to a clue. The solver leaves those out, but if the game still refuses one of its suggestions, tap the ✗ next to it. The word is hidden and the next one moves up. Your ✗ also tells us, and we take every report into account when updating the list.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. The solver only needs the clue words you type, so it works the same for today's rounds, for past puzzles and for practice rounds, wherever you play Chainle.</p>
     </div>
@@ -470,10 +518,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const TYPE_LABEL = {pair: 'Pair', triple: 'Triple', meaning: 'Meaning'};
     const ROWS_STEP = 5;
 
+    // A first ✗ in this browser explains what it's for.
+    const REFUSE_NOTE_KEY = 'chainleRefuseNoteSeen';
+
     /* ---------- state ---------- */
     // reveals: letters shown per word. The hint's word is the list's first,
-    // so the hint and that row share a count.
-    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP});
+    // so the hint and that row share a count. refused: words this player
+    // said the game turned down, hidden from the hint and the list.
+    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP, refused: []});
     let rounds = DEFAULT_TYPES.map(fresh);
     let current = 0;
     let last = null;               // the solver's reply for the current round
@@ -495,6 +547,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const need = r => TYPE_CLUES[r.type];
     const cluesOf = r => r.clues.slice(0, need(r)).map(c => c.trim().toUpperCase());
     const ready = r => cluesOf(r).every(c => /^[A-Z]+$/.test(c));
+    // The suggestions still in play: the solver's, minus the refused ones.
+    const offered = () => last ? last.suggestions.filter(s => !round().refused.includes(s.word)) : [];
 
     /* ---------- rendering ---------- */
     function renderRounds() {
@@ -545,8 +599,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hintHtml() {
         const r = round();
-        const top = last.suggestions[0];
-        if (!top) return '<p class="chn-note">No suggestions for these clues. Check they match the game.</p>';
+        const top = offered()[0];
+        if (!top) return last.suggestions.length
+            ? '<p class="chn-note">Every suggestion is hidden. Tap one under Possible answers to bring it back.</p>'
+            : '<p class="chn-note">No suggestions for these clues. Check they match the game.</p>';
         const clues = last.clues;
         let html = '';
         if (top.type === 'link') {
@@ -568,7 +624,8 @@ document.addEventListener('DOMContentLoaded', () => {
             : '<span class="chn-pattern">' + esc(masked(word, count)) + '</span>') +
             '<span class="chn-note" style="margin: 0;">' + word.length + ' letters</span></div>';
         html += '<div class="chn-actions">' + (done
-            ? '<button type="button" class="chn-btn" data-copy="' + esc(word) + '">&#128203; Copy ' + esc(word) + '</button>'
+            ? '<button type="button" class="chn-btn" data-copy="' + esc(word) + '">&#128203; Copy ' + esc(word) + '</button>' +
+              refuseButton(word)
             : '<button type="button" class="chn-btn" id="chn-next-letter">&#128161; ' +
               (count ? 'Show next letter' : 'Show first letter') + '</button>') + '</div>';
         return html;
@@ -576,6 +633,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function masked(word, count) {
         return word.split('').map((c, i) => i < count ? c : '_').join('');
+    }
+
+    // ✗ on a word once it's revealed: only then can it have been tried in
+    // the game.
+    function refuseButton(word) {
+        return '<button type="button" class="chn-refuse" data-refuse="' + esc(word) +
+            '" title="The game refused ' + esc(word) + ' - hide it and let us know" aria-label="Hide ' + esc(word) +
+            ', refused by the game">&#10007;</button>';
     }
 
     function why(s) {
@@ -589,7 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // word is a button that copies it.
     function renderAnswers() {
         const r = round();
-        const words = last ? last.suggestions : [];
+        const words = offered();
         // Show more until every word is listed, Show all answers until every
         // word is out.
         moreBtn.hidden = words.length <= r.shown;
@@ -610,10 +675,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     '<button type="button" class="chn-row-btn" data-act="all" data-idx="' + idx + '">Reveal</button>';
             } else {
                 html += '<button type="button" class="chn-row-btn" data-copy="' + esc(s.word) + '">&#128203; Copy</button>' +
+                    refuseButton(s.word) +
                     '<span class="chn-why">' + esc(why(s)) + '</span>';
             }
             html += '</div>';
         });
+        if (r.refused.length) {
+            html += '<div class="chn-refused"><span class="chn-note">Refused by the game, hidden:</span>' +
+                r.refused.map(w => '<button type="button" class="chn-refused-chip" data-unrefuse="' + esc(w) +
+                    '" title="Bring ' + esc(w) + ' back" aria-label="Bring ' + esc(w) + ' back">' + esc(w) + '</button>').join('') +
+                '</div>';
+        }
         listEl.innerHTML = html;
     }
 
@@ -654,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         if (r.type === type) return;
         r.type = type;
-        r.reveals = {}; r.shown = ROWS_STEP;
+        r.reveals = {}; r.shown = ROWS_STEP; r.refused = [];
         last = null;
         render();
         save();
@@ -679,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = round();
             if (r.clues[n] === clean) return;
             r.clues[n] = clean;
-            r.reveals = {}; r.shown = ROWS_STEP;
+            r.reveals = {}; r.shown = ROWS_STEP; r.refused = [];
             renderRounds();
             renderClues();
             save();
@@ -695,9 +767,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reveals re-render the hint as well: it shows the first word's letters.
     hintBody.addEventListener('click', e => {
-        if (!e.target.closest('#chn-next-letter') || !last || !last.suggestions.length) return;
+        const top = offered()[0];
+        if (!e.target.closest('#chn-next-letter') || !top) return;
         const r = round();
-        const word = last.suggestions[0].word;
+        const word = top.word;
         r.reveals[word] = Math.min((r.reveals[word] || 0) + 1, word.length);
         renderResults();
         save();
@@ -722,18 +795,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button[data-act]');
         if (!btn || !last) return;
         const r = round();
-        const s = last.suggestions[+btn.dataset.idx];
+        const s = offered()[+btn.dataset.idx];
         if (!s) return;
         r.reveals[s.word] = btn.dataset.act === 'all' ? s.word.length : (r.reveals[s.word] || 0) + 1;
         renderResults();
         save();
     });
 
-    // Any revealed word, in the hint or the list, copies on a tap.
+    // Any revealed word, in the hint or the list, copies on a tap; its ✗
+    // hides it, and a refused word's chip brings it back.
     resultsEl.addEventListener('click', e => {
-        const btn = e.target.closest('[data-copy]');
-        if (btn) copyAnswer(btn.dataset.copy);
+        const copy = e.target.closest('[data-copy]');
+        const no = e.target.closest('[data-refuse]');
+        const back = e.target.closest('[data-unrefuse]');
+        if (copy) copyAnswer(copy.dataset.copy);
+        else if (no) refuse(no.dataset.refuse);
+        else if (back) unrefuse(back.dataset.unrefuse);
     });
+
+    // The game turned the word down: hide it for this round, so the next
+    // word moves up, and report it. The report is best effort and says
+    // nothing back: the word is hidden either way.
+    function refuse(word) {
+        const r = round();
+        if (!last || r.refused.includes(word)) return;
+        r.refused.push(word);
+        renderResults();
+        save();
+        report('refuse', word);
+        let seen = false;
+        try {
+            seen = localStorage.getItem(REFUSE_NOTE_KEY) === '1';
+            localStorage.setItem(REFUSE_NOTE_KEY, '1');
+        } catch (_) {}
+        toast(seen ? 'Hidden - thanks for letting us know'
+                   : 'Hidden - thanks for letting us know. Keep ✗ for words the game refused, not for a low score',
+              false, seen ? 2600 : 6000);
+    }
+
+    function unrefuse(word) {
+        const r = round();
+        if (!r.refused.includes(word)) return;
+        r.refused = r.refused.filter(w => w !== word);
+        renderResults();
+        save();
+        report('unrefuse', word);
+    }
+
+    function report(action, word) {
+        if (!last) return;
+        fetch('/chainle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action, word, clues: last.clues, kind: last.kind})
+        }).catch(() => {});
+    }
 
     async function copyAnswer(text) {
         let ok = false;
@@ -820,6 +936,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             out.reveals = (r && r.reveals && typeof r.reveals === 'object') ? r.reveals : {};
             out.shown = r && Number.isInteger(r.shown) && r.shown > 0 && r.shown <= 10 ? r.shown : ROWS_STEP;
+            out.refused = r && Array.isArray(r.refused)
+                ? r.refused.filter(w => typeof w === 'string' && /^[A-Z]{1,40}$/.test(w)).slice(0, 10) : [];
             return out;
         });
         current = Number.isInteger(s.current) && s.current >= 0 && s.current < rounds.length ? s.current : 0;
@@ -827,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- toast ---------- */
     let toastEl = null, toastTimer = null;
-    function toast(msg, warn) {
+    function toast(msg, warn, ms) {
         if (toastEl) toastEl.remove();
         clearTimeout(toastTimer);
         toastEl = document.createElement('div');
@@ -840,7 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.transition = 'opacity 0.5s ease';
             el.style.opacity = '0';
             setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
-        }, 2600);
+        }, ms || 2600);
     }
 
     /* ---------- instructions toggle ---------- */

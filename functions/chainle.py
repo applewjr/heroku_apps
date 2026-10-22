@@ -28,6 +28,8 @@ its file size in memory. pack() turns plain Python structures into those
 arrays, for the build script and for tests.
 """
 
+import re
+
 import numpy as np
 
 # Rows per matmul block: one block's float32 copy is ~3 MB, where converting
@@ -66,6 +68,20 @@ CONTAINS_MIN = 3
 # rounds logged on /chainle_admin (2026-10-15), a base listed in a top 10
 # scored a median 35% below the form it stood for.
 SHOWN_MARGIN = 0.03
+# The game turns down plurals ("No names, plurals, or filler words"), and
+# every -s form with them: a word made from one of its base forms by one of
+# these endings (BOOKS, BOXES, CITIES, WOLVES, KNIVES, WOMEN, AGREES) is
+# never suggested. On the rounds logged on /chainle_admin (2026-10-22),
+# leaving them out put the answer first in 8 more rounds. A real word that
+# only looks like one (PHYSICS) comes back through the admin's Allow list.
+S_ENDINGS = (('s', ''), ('es', ''), ('ies', 'y'), ('ves', 'f'), ('ves', 'fe'), ('men', 'man'))
+# British spellings in their American form, to spot a word that is a clue
+# spelled the other way (NEIGHBOURHOOD for NEIGHBORHOOD): the game turns
+# those down as "another spelling of a clue word".
+_UK_US = ((re.compile('our'), 'or'), (re.compile('isation'), 'ization'),
+          (re.compile('is(e|ed|es|ing)$'), r'iz\1'), (re.compile('ys(e|ed|es|ing)$'), r'yz\1'),
+          (re.compile('([^aeiou])re$'), r'\1er'), (re.compile('ogue$'), 'og'),
+          (re.compile('ence$'), 'ense'))
 
 # flags bits
 ANSWER = 1   # may be suggested
@@ -96,6 +112,23 @@ class Data:
         # Which word owns each base_ids entry, to find every word that
         # shares a base with a clue in one pass.
         self.base_src = np.repeat(np.arange(self.size, dtype=np.int32), np.diff(self.base_ptr))
+        self.s_forms = self._s_form_mask()
+
+    def _s_form_mask(self):
+        """True for each word that is an -s form of one of its base forms
+        (see S_ENDINGS)."""
+        mask = np.zeros(self.size, dtype=bool)
+        for i in np.flatnonzero(np.diff(self.base_ptr)).tolist():
+            word = self.word(i)
+            if not word.endswith(('s', 'men')):
+                continue
+            for b in self._row(self.base_ptr, self.base_ids, i).tolist():
+                base = self.word(b)
+                if any(word.endswith(end) and word[:-len(end)] + base_end == base
+                       for end, base_end in S_ENDINGS):
+                    mask[i] = True
+                    break
+        return mask
 
     @classmethod
     def from_file(cls, path):
@@ -272,18 +305,26 @@ def estimate(strengths):
     return 10 * (0.8 * gm + 0.2 * strengths.min(axis=0))
 
 
-def _candidates(data, clue_ids, spare=()):
+def _candidates(data, clue_ids, spare=(), removed=(), kept=()):
     """Words the solver may suggest for these clues: common ones, plus any
-    in `spare` however rare."""
+    in `spare` however rare. Never an -s form (S_ENDINGS) unless it's in
+    `kept`, and never a word in `removed` (ids; see solve)."""
     common = data.zipf >= MIN_ANSWER_ZIPF
     common[list(spare)] = True
-    return ((data.flags & ANSWER) != 0) & common & ~_repeats(data, clue_ids)
+    s_forms = data.s_forms
+    if kept:
+        s_forms = s_forms.copy()
+        s_forms[list(kept)] = False
+    allowed = ((data.flags & ANSWER) != 0) & common & ~s_forms & ~_repeats(data, clue_ids)
+    if removed:
+        allowed[list(set(removed) - set(kept))] = False
+    return allowed
 
 
-def _bridge_scores(data, clue_ids):
+def _bridge_scores(data, clue_ids, removed=(), kept=()):
     """(expected points, weakest link weight, allowed) for every word. The
     link weight only labels a word (see bridge)."""
-    allowed = _candidates(data, clue_ids)
+    allowed = _candidates(data, clue_ids, removed=removed, kept=kept)
     cos = _cosines(data, clue_ids)
     score = estimate(100 * np.clip((cos - CLOSE_ZERO) / (CLOSE_FULL - CLOSE_ZERO), 0, 1))
     score = np.where((data.flags & BROAD) != 0, score * BROAD_FACTOR, score)
@@ -294,7 +335,7 @@ def _bridge_scores(data, clue_ids):
     return score, weights.min(axis=0), allowed
 
 
-def _closest_scores(data, clue_id):
+def _closest_scores(data, clue_id, removed=(), kept=()):
     """(expected points, synonym mask, family mask, allowed) for every word."""
     syn, fam, ant = set(), set(), set()
     for b in data.bases(clue_id):
@@ -302,7 +343,7 @@ def _closest_scores(data, clue_id):
         fam.update(data.related(b).tolist())
         ant.update(data.antonyms(b).tolist())
     fam -= syn
-    allowed = _candidates(data, [clue_id], spare=syn)
+    allowed = _candidates(data, [clue_id], spare=syn, removed=removed, kept=kept)
     # The game scores an opposite at most 100.
     allowed[list(ant)] = False
     # A synonym shares a part of speech with the clue (HARD: not COME).
@@ -355,16 +396,26 @@ def _forms(data, ids):
     return {data.word(b) for i in ids for b in data.bases(i)}
 
 
+def _us_spelling(word):
+    """The word with British endings in their American form (_UK_US)."""
+    for pattern, us in _UK_US:
+        word = pattern.sub(us, word)
+    return word
+
+
 def _too_close(data, i, clues):
     """True if word i is built on a clue or sits inside one (FOOTBALL for
-    FOOT, TELEPHONE for PHONE, PHONE for TELEPHONE): the game turns those
-    down as too close. clues holds the clues' forms (_forms), and word i's
-    base forms count too: COINS sits inside BITCOIN through COIN, and
-    FOOTBALL is built on FEET through FOOT."""
+    FOOT, TELEPHONE for PHONE, PHONE for TELEPHONE), or is a clue spelled
+    the British or American way (COLOUR for COLOR): the game turns those
+    down. clues holds the clues' forms (_forms), and word i's base forms
+    count too: COINS sits inside BITCOIN through COIN, and FOOTBALL is
+    built on FEET through FOOT."""
     for word in _forms(data, [i]):
         for c in clues:
             if word == c:
                 continue
+            if _us_spelling(word) == _us_spelling(c):
+                return True
             long_, short = (word, c) if len(word) > len(c) else (c, word)
             if len(short) >= CONTAINS_MIN and (long_.startswith(short) or long_.endswith(short)):
                 return True
@@ -380,15 +431,15 @@ def _phrase(clue, word, form):
     return (word + sep + clue).upper(), (hidden + sep + clue).upper()
 
 
-def bridge(data, clue_ids, top=TOP):
+def bridge(data, clue_ids, top=TOP, removed=(), kept=()):
     """Best words joining every clue: [{word, type, score, phrases, patterns}].
 
     type is 'link' for a word that forms a compound or phrase with every
     clue, else 'meaning'. phrases/patterns hold, per clue, the phrase the
     word makes with it and the same phrase with the word hidden (None where
-    there's no link).
+    there's no link). removed / kept are word ids (see solve).
     """
-    score, link, allowed = _bridge_scores(data, clue_ids)
+    score, link, allowed = _bridge_scores(data, clue_ids, removed, kept)
     clues = [data.word(c) for c in clue_ids]
     forms = _forms(data, clue_ids)
     out, seen = [], set()
@@ -413,11 +464,12 @@ def bridge(data, clue_ids, top=TOP):
     return out
 
 
-def closest(data, clue_id, top=TOP):
+def closest(data, clue_id, top=TOP, removed=(), kept=()):
     """Words nearest in meaning to one clue: [{word, type, score}], type
     'synonym' (WordNet, main senses), 'related' (a main sense's family) or
-    'meaning' (word vectors). Opposites are left out."""
-    score, is_syn, is_fam, allowed = _closest_scores(data, clue_id)
+    'meaning' (word vectors). Opposites are left out. removed / kept are
+    word ids (see solve)."""
+    score, is_syn, is_fam, allowed = _closest_scores(data, clue_id, removed, kept)
     forms = _forms(data, [clue_id])
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 3):
@@ -433,10 +485,17 @@ def closest(data, clue_id, top=TOP):
     return out
 
 
-def solve(data, clues, kind, top=TOP):
+def _known(data, words):
+    """The ids of the words the solver knows."""
+    return {i for i in map(data.id, words) if i >= 0}
+
+
+def solve(data, clues, kind, top=TOP, removed=(), kept=()):
     """What the page needs for one round.
 
-    clues -- the clue words (two or three for 'bridge', one for 'meaning')
+    clues   -- the clue words (two or three for 'bridge', one for 'meaning')
+    removed -- words players or the admin took off the list: never suggested
+    kept    -- words the admin keeps on it, -s form or not (PHYSICS)
     Returns {'kind', 'clues', 'unknown', 'suggestions'}. Each suggestion
     carries 'strength', its score relative to the best (0-1): the scores
     aren't calibrated to the game's points yet, so the page shows them as
@@ -447,7 +506,9 @@ def solve(data, clues, kind, top=TOP):
               'unknown': [c.upper() for c, i in zip(clues, ids) if i < 0], 'suggestions': []}
     if result['unknown']:
         return result
-    rows = bridge(data, ids, top) if kind == 'bridge' else closest(data, ids[0], top)
+    removed, kept = _known(data, removed), _known(data, kept)
+    rows = (bridge(data, ids, top, removed, kept) if kind == 'bridge'
+            else closest(data, ids[0], top, removed, kept))
     best = rows[0]['score'] if rows else 0.0
     for r in rows:
         r['strength'] = round(max(r.pop('score'), 0.0) / best, 3) if best > 0 else 0.0
@@ -455,17 +516,20 @@ def solve(data, clues, kind, top=TOP):
     return result
 
 
-def assess(data, clues, kind, words, limit=100):
+def assess(data, clues, kind, words, limit=100, removed=(), kept=()):
     """How the solver rates a logged round, for /chainle_admin.
 
     Returns {'top': its first pick, 'ranks': {word: rank or None}} where a
     rank is the word's place in the solver's list (None past `limit`, or for
-    a word it doesn't know). None when a clue is unknown.
+    a word it doesn't know). None when a clue is unknown. removed / kept as
+    in solve, so the ranks match what players see.
     """
     ids = [data.id(c) for c in clues]
     if any(i < 0 for i in ids):
         return None
-    rows = bridge(data, ids, limit) if kind == 'bridge' else closest(data, ids[0], limit)
+    removed, kept = _known(data, removed), _known(data, kept)
+    rows = (bridge(data, ids, limit, removed, kept) if kind == 'bridge'
+            else closest(data, ids[0], limit, removed, kept))
     order = [r['word'] for r in rows]
     ranks = {}
     for w in words:

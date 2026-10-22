@@ -1,21 +1,332 @@
 {% extends 'base.html' %}
 
-{% block title %}Chainle Admin - Round Log{% endblock %}
+{% block title %}Chainle Admin - Words and Rounds{% endblock %}
 
 {% block content %}
 <style>
-.admin-container { max-width: 760px; margin: 0 auto; padding: 16px 12px 40px; text-align: left; }
+.admin-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
 .admin-section {
     background-color: #f8f9fa;
-    padding: 16px;
+    padding: 20px;
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
     border: 1px solid #e9ecef;
 }
-.admin-section h2 { font-size: 17px; color: #02484d; margin: 0 0 12px; }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
-.form-group label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #333; }
-.form-group input, .form-group select {
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: none;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+.btn-disabled {
+    background-color: #e9ecef;
+    color: #999;
+}
+
+/* Wide tables scroll inside their own box on a phone, not the whole page. */
+.table-wrap {
+    overflow-x: auto;
+}
+
+.words-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.words-table th,
+.words-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.words-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.words-table tr:hover {
+    background-color: #f5f5f5;
+}
+
+.alert {
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.stats {
+    background-color: #e9ecef;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.top-nav {
+    margin-bottom: 20px;
+}
+
+.top-nav .btn {
+    margin-bottom: 8px;
+}
+
+.remove-form {
+    display: inline;
+}
+
+/* First and last report: one short line each, never wrapped. */
+.report-dates {
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+/* The two row buttons sit side by side, never wrapped onto two lines. */
+.row-actions {
+    white-space: nowrap;
+}
+
+.row-actions .btn {
+    padding: 6px 10px;
+    margin: 0 6px 0 0;
+}
+
+.word-choice {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+/* Two outlined boxes until one is chosen; the chosen one fills in. */
+.choice-btn {
+    flex: 1;
+    margin: 0;
+    font-weight: bold;
+    background-color: #fff;
+    border: 2px solid;
+}
+
+.choice-remove {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.choice-add {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.choice-remove[aria-pressed="true"] {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.choice-add[aria-pressed="true"] {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.word-submit {
+    margin: 0;
+}
+
+.word-submit:disabled {
+    background-color: #adb5bd;
+    cursor: not-allowed;
+}
+
+.tab-container {
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    background-color: #e9ecef;
+    border: 1px solid #ddd;
+    padding: 10px 20px;
+    cursor: pointer;
+    display: inline-block;
+    margin-right: 5px;
+    border-radius: 4px 4px 0 0;
+}
+
+.tab-button.active {
+    background-color: #007bff;
+    color: white;
+    border-bottom: 1px solid #007bff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.crowd-note {
+    color: #666;
+    font-size: 13px;
+}
+
+.search-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.search-form input {
+    flex: 1 1 180px;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.search-form .btn {
+    margin: 0;
+}
+
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.pager .btn {
+    margin: 0;
+    padding: 6px 12px;
+}
+
+.pager a {
+    padding: 4px 8px;
+}
+
+.pager-now {
+    padding: 4px 8px;
+    font-weight: bold;
+}
+
+/* A round's clue words, one under the other. */
+.round-words {
+    font-family: monospace;
+    font-size: 14px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.result-waiting {
+    color: #666;
+}
+
+.by-crowd {
+    color: #02484d;
+    font-weight: bold;
+}
+
+.pop-rare {
+    color: #b00020;
+    font-weight: bold;
+}
+
+.pop-none {
+    color: #999;
+}
+
+/* ---------- the Round Log tab ---------- */
+/* The page is centered like the other admin pages; the form and the round
+   cards read left to right. Its form keeps 16px inputs, so a phone doesn't
+   zoom in on them. */
+#log-tab .form-grid, #log-tab .round-card { text-align: left; }
+#log-tab .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+#log-tab .form-group { margin-bottom: 0; }
+#log-tab .form-group label { font-size: 13px; margin-bottom: 4px; }
+#log-tab .form-group input, #log-tab .form-group select {
     width: 100%;
     box-sizing: border-box;
     min-height: 42px;
@@ -26,7 +337,7 @@
     font-size: 16px;
     background-color: #fff;
 }
-.form-group.wide { grid-column: 1 / -1; }
+#log-tab .form-group.wide { grid-column: 1 / -1; }
 .clue-row { display: flex; gap: 8px; }
 .clue-row input { flex: 1; min-width: 0; text-transform: uppercase; }
 .clue-row input[hidden] { display: none; }
@@ -46,25 +357,9 @@
     cursor: pointer;
 }
 /* The radio covers its label, invisibly, so a tap anywhere on it counts. */
-.round-picks input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+#log-tab .round-picks input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; opacity: 0; cursor: pointer; }
 .round-picks input:checked + span { color: #fff; }
 .round-picks label:has(input:checked) { background-color: #02484d; border-color: #02484d; color: #fff; }
-.btn {
-    padding: 10px 18px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-}
-.btn-primary { background-color: #02484d; color: #fff; }
-.btn-primary:hover { background-color: #03595f; }
-.btn-danger { background-color: #fff; color: #e55555; border: 1px solid #ecd3d3; padding: 6px 10px; font-size: 12px; }
-.btn-danger:hover { background-color: #fbf0f0; }
-.alert { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
-.alert-success { background-color: #e6f2f2; color: #02484d; border: 1px solid #cdd8d7; }
-.alert-error { background-color: #fbf0f0; color: #a55; border: 1px solid #ecd3d3; }
 .summary { width: 100%; border-collapse: collapse; font-size: 14px; }
 .summary th, .summary td { padding: 6px 8px; border-bottom: 1px solid #e9ecef; text-align: right; }
 .summary th:first-child, .summary td:first-child { text-align: left; }
@@ -79,6 +374,7 @@
     gap: 4px 10px;
     font-size: 14px;
 }
+.round-card .btn { padding: 6px 10px; margin: 0; font-size: 12px; }
 .round-meta { font-size: 12px; color: #6b7280; }
 .round-clues { font-weight: 700; color: #1f2937; overflow-wrap: anywhere; }
 .round-clues .answer { color: #02484d; }
@@ -109,216 +405,530 @@
 .pick span { color: #6b7280; font-size: 12px; text-align: right; overflow-wrap: anywhere; }
 .pick.chosen { border-color: #02484d; box-shadow: 0 0 0 2px #ffd700; }
 @media (max-width: 480px) {
-    .form-grid { grid-template-columns: minmax(0, 1fr); }
+    #log-tab .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
 
+{% macro pager(p) %}
+{% if p.pages > 1 %}
+<nav class="pager">
+    {% if p.prev %}<a class="btn btn-secondary" href="{{ p.prev }}">Prev</a>{% else %}<span class="btn btn-disabled">Prev</span>{% endif %}
+    {% for n, url in p.numbers %}
+        {% if n == p.page %}<span class="pager-now">{{ n }}</span>{% else %}<a href="{{ url }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+    {% if p.next %}<a class="btn btn-secondary" href="{{ p.next }}">Next</a>{% else %}<span class="btn btn-disabled">Next</span>{% endif %}
+    <span class="crowd-note">Page {{ p.page }} of {{ p.pages }}</span>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# How common the word is: its Zipf score (see data.word_pop), which sets
+   how many players it takes to remove it. #}
+{% macro pop_cell(word) %}
+{% set pop = word_pop.get(word) %}
+{% if pop is none %}<td class="pop-none">none</td>
+{% else %}<td class="{{ 'pop-rare' if pop < 2 else '' }}">{{ '%.1f' % pop }}</td>{% endif %}
+{% endmacro %}
+
+{# The page's search, tab and pages, copied into every form that changes a
+   list so the page the action returns to looks the same (see
+   crowd.admin_return_url). showTab() keeps the tab field on the tab in view. #}
+{% macro keep_view() %}
+{% for k, v in keep.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}"{% if k == 'tab' %} class="keep-tab"{% endif %}>{% endfor %}
+{% endmacro %}
+
 <div class="admin-container">
-    <h1 style="font-size: 24px; margin: 8px 0 4px;">Chainle Round Log</h1>
-    <p class="muted" style="margin: 0 0 16px;">{{ total }} round{{ '' if total == 1 else 's' }} logged.
-        Log each round after you play it, to tune <a href="/chainle" style="color: #02484d;">the solver</a> against.
-        Rounds stay here: the solver never shows them.
-        {% if version %}Solver version <b>{{ version }}</b>{% if not versioned %} (saved with each round once
-        mysql_tables/chainle_rounds_version.sql has run){% endif %}.{% endif %}</p>
+    <h1>Chainle Admin - Words and Rounds</h1>
+
+    <div class="top-nav">
+        <a href="/chainle" target="_blank" rel="noopener" class="btn btn-primary">Back to Chainle Solver</a>
+        <a href="https://chainle.io/" target="_blank" rel="noopener" class="btn btn-success">Chainle</a>
+    </div>
 
     {% if request.args.get('success') %}
-    <div class="alert alert-success">{{ request.args.get('success') }}</div>
-    {% endif %}
-    {% if request.args.get('error') %}
-    <div class="alert alert-error">{{ request.args.get('error') }}</div>
-    {% endif %}
-    {% if not data_ok %}
-    <div class="alert alert-error">The solver's word data didn't load, so ranks are missing below.</div>
+    <div class="alert alert-success">
+        {{ request.args.get('success') }}
+    </div>
     {% endif %}
 
+    {% if request.args.get('error') %}
+    <div class="alert alert-error">
+        {{ request.args.get('error') }}
+    </div>
+    {% endif %}
+
+    {% if crowd_error %}
+    <div class="alert alert-error">
+        Couldn't read the word lists ({{ crowd_error }}). Has mysql_tables/chainle_crowd.sql been run?
+    </div>
+    {% endif %}
+
+    {% if in_both %}
+    <div class="alert alert-error">
+        In both lists: {{ in_both|join(', ') }}. The solver keeps these (Allowed wins). Undo the side you don't want.
+    </div>
+    {% endif %}
+
+    <div class="stats">
+        <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
+        <strong>Removed words:</strong> {{ invalid_total }} |
+        <strong>Allowed words:</strong> {{ added_total }} |
+        <strong>Rounds logged:</strong> {{ total }}
+    </div>
+
     <div class="admin-section">
-        <h2>Log a round</h2>
-        <form method="POST" action="/chainle_admin/log_round" id="round-form">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="played_on">Date played</label>
-                    <input type="date" id="played_on" name="played_on" value="{{ form_date }}" required>
-                </div>
-                <div class="form-group">
-                    <label for="site">Site</label>
-                    <select id="site" name="site">
-                        {% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="mode">Game</label>
-                    <select id="mode" name="mode">
-                        {% for m in modes %}<option value="{{ m }}">{{ m | capitalize }}</option>{% endfor %}
-                    </select>
-                </div>
-                <div class="form-group wide">
-                    <label>Round</label>
-                    <div class="round-picks">
-                        {% for n in range(1, 6) %}
-                        <label><input type="radio" name="round_no" value="{{ n }}" {% if n == form_round %}checked{% endif %}><span>{{ n }}</span></label>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="kind">Round type</label>
-                    <select id="kind" name="kind">
-                        <option value="bridge">Bridge (2 or 3 clues)</option>
-                        <option value="meaning">Closest meaning (1 clue)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="clue_count">Clues</label>
-                    <select id="clue_count">
-                        <option value="1">1</option>
-                        <option value="2" selected>2</option>
-                        <option value="3">3</option>
-                    </select>
-                </div>
-                <div class="form-group wide">
-                    <label for="clue1">Clue words</label>
-                    <div class="clue-row">
-                        <input type="text" id="clue1" name="clue1" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 1" required>
-                        <input type="text" id="clue2" name="clue2" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 2">
-                        <input type="text" id="clue3" name="clue3" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 3">
-                    </div>
-                </div>
-                <div class="form-group wide" id="picks-group" hidden>
-                    <label>Solver's picks <span class="muted" style="font-weight: normal;">(tap one to make it your guess)</span></label>
-                    <div class="picks" id="picks"></div>
-                </div>
-                <div class="form-group">
-                    <label for="guess">Your guess <span class="muted" style="font-weight: normal;">(the solver's pick)</span></label>
-                    <input type="text" id="guess" name="guess" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
-                </div>
-                <div class="form-group">
-                    <label for="score">Your score (0 to 1000)</label>
-                    <input type="number" id="score" name="score" min="0" max="1000" step="1" inputmode="numeric">
-                </div>
-                <div class="form-group wide">
-                    <label for="link1">Closeness to each clue <span class="muted" style="font-weight: normal;">(the numbers by the chains, 0 to 1)</span></label>
-                    <div class="clue-row">
-                        <input type="text" id="link1" name="link1" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 1">
-                        <input type="text" id="link2" name="link2" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 2">
-                        <input type="text" id="link3" name="link3" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 3">
-                    </div>
-                </div>
-                <div class="form-group wide">
-                    <label for="game_rank">The game's rank for your guess</label>
-                    <div class="clue-row" style="align-items: center;">
-                        <input type="text" id="game_rank" name="game_rank" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="#">
-                        <span class="muted">of</span>
-                        <input type="text" id="rank_of" name="rank_of" maxlength="9" inputmode="numeric" autocomplete="off" placeholder="words">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="answer">The game's answer <span class="muted" style="font-weight: normal;">(its strongest link)</span></label>
-                    <input type="text" id="answer" name="answer" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
-                </div>
-                <div class="form-group">
-                    <label for="notes">Notes</label>
-                    <input type="text" id="notes" name="notes" maxlength="200" autocomplete="off" placeholder="Other answers the game accepted, anything odd">
-                </div>
+        <h2>Remove/Allow Words</h2>
+        <p class="crowd-note">Remove takes a word off the solver's suggestions. Allow keeps a word on them that the solver would leave out as a plural or other -s form (a real word that only looks like one), and player reports can't take it off. Your entries are final: players can never reverse them, and the word's votes start over. Type the word, choose, then press Submit.</p>
+        <form method="POST" action="/chainle_admin/add_word" id="word-form">
+            <div class="form-group">
+                <label for="word">Word:</label>
+                <input type="text" id="word" name="word" required
+                       placeholder="Enter word"
+                       style="text-transform: lowercase;">
             </div>
-            <div style="margin-top: 14px;">
-                <button type="submit" class="btn btn-primary">Save round</button>
-                <span class="muted" style="margin-left: 8px;">The same date, site and round again replaces it.</span>
+            <div class="word-choice">
+                <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove word</button>
+                <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Allow word</button>
             </div>
+            <input type="hidden" name="word_type" id="word-type" value="">
+            {{ keep_view() }}
+            <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
+            <p class="crowd-note" id="word-hint">Type a word, then choose.</p>
         </form>
     </div>
 
-    <div class="admin-section">
-        <h2>How the solver does</h2>
-        {% if summary %}
-        <table class="summary">
-            <tr><th>Round type</th><th>Rounds</th><th>Answer #1</th><th>Top 3</th><th>Top 10</th></tr>
-            {% for name, t in summary %}
-            <tr>
-                <td>{{ name }}</td>
-                <td>{{ t.rounds }}</td>
-                <td>{{ t.top1 }} ({{ (100 * t.top1 / t.rounds) | round | int }}%)</td>
-                <td>{{ t.top3 }} ({{ (100 * t.top3 / t.rounds) | round | int }}%)</td>
-                <td>{{ t.top10 }} ({{ (100 * t.top10 / t.rounds) | round | int }}%)</td>
-            </tr>
-            {% endfor %}
+    <form method="GET" class="search-form" id="search-form">
+        <input type="hidden" name="tab" id="tab-input" value="{{ active_tab }}">
+        {% if show_settled %}<input type="hidden" name="settled" value="1">{% endif %}
+        <input type="text" name="q" value="{{ query }}" placeholder="Search words or rounds">
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if query %}<a href="{{ clear_url }}">Clear search</a>{% endif %}
+    </form>
+    <p class="crowd-note">Searches the word lists. Include a colon to search the reports' Round column: a round is its clue words in alphabetical order with a colon between them. A search stays through Remove, Allow and Undo until you press Clear search.</p>
+    <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). "none" means it isn't in the frequency list at all.</p>
+
+    <div class="tab-container">
+        <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
+        <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
+        <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Allowed Words</div>
+        <div class="tab-button{% if active_tab == 'log' %} active{% endif %}" onclick="showTab(event, 'log')">Round Log</div>
+    </div>
+
+    <!-- Player Reports Tab -->
+    <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
+        <h2>Player Reports, last {{ crowd_window_days }} days</h2>
+        <p class="crowd-note">A report is a ✗ on a revealed suggestion: the game refused the word.
+            A word comes off once enough different players report it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. Needed is that number for each word.
+            Players counts every report in the window, including ones from a player over the daily limit, which don't count toward a removal.
+            Either button clears that word's votes.</p>
+        <p class="crowd-note">
+            {% if show_settled %}
+                Showing settled reports too. <a href="{{ settled_url }}">Hide them</a>
+            {% else %}
+                {{ settled_count }} settled report{{ '' if settled_count == 1 else 's' }} hidden. <a href="{{ settled_url }}">Show them</a>
+            {% endif %}
+        </p>
+        {% if reports %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Popularity</th>
+                    <th>Players</th>
+                    <th>Needed</th>
+                    <th>First / last report</th>
+                    <th>Round</th>
+                    <th>Round date</th>
+                    <th>Result</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reports %}
+                <tr>
+                    <td><strong>{{ r[0] }}</strong></td>
+                    {{ pop_cell(r[0]) }}
+                    <td>{{ r[2] }}</td>
+                    <td>{{ votes_needed(r[0], r[1]) }}</td>
+                    <td class="report-dates">
+                        {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
+                        {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
+                    </td>
+                    <td class="round-words">{% if r[6] %}{% for clue in r[6].split(':') %}{{ clue|upper }}<br>{% endfor %}{% else %}<span class="crowd-note">not recorded</span>{% endif %}</td>
+                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
+                    <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
+                    <td>
+                        {% if r[4] == 'waiting' %}
+                        <form method="POST" action="/chainle_admin/add_word" class="remove-form row-actions">
+                            <input type="hidden" name="word" value="{{ r[0] }}">
+                            {{ keep_view() }}
+                            <button type="submit" name="word_type" value="invalid" class="btn btn-danger">Remove now</button>
+                            <button type="submit" name="word_type" value="missing" class="btn btn-success">Allow now</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
         </table>
-        <p class="muted" style="margin: 10px 0 0;">Over the last {{ rounds | length }} logged rounds that have the game's answer.
-            {% if avg_score is not none %}Your average score: <b>{{ avg_score }}</b>.{% endif %}</p>
+        </div>
+        {{ pager(reports_pager) }}
         {% else %}
-        <p class="muted" style="margin: 0;">Nothing to rate yet: log a round with the game's answer.</p>
-        {% endif %}
-        {% if versions %}
-        <h3 style="font-size: 16px; margin: 18px 0 6px;">By solver version</h3>
-        <table class="summary" id="by-version">
-            <tr><th>Version</th><th>Rounds</th><th>Your avg</th><th>Its #1 right</th><th>You took #1</th></tr>
-            {% for v in versions %}
-            <tr>
-                <td>{{ v.version }}{% if v.version == version %} <span class="muted">(now)</span>{% endif %}
-                    <div class="muted">{{ v.first }}{% if v.last != v.first %} to {{ v.last }}{% endif %}</div></td>
-                <td>{{ v.rounds }}</td>
-                <td>{{ v.avg if v.avg is not none else '-' }}</td>
-                <td>{{ v.top1 }}/{{ v.judged }}</td>
-                <td>{{ v.took }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        <p class="muted" style="margin: 10px 0 0;">As each version saw the round when you logged it.</p>
+        <p>{% if query %}No reports match "{{ query }}".{% else %}No open reports in the last {{ crowd_window_days }} days.{% endif %}</p>
         {% endif %}
     </div>
 
-    <div class="admin-section">
-        <h2>Recent rounds</h2>
-        {% if not rounds %}
-        <p class="muted" style="margin: 0;">No rounds logged yet.</p>
-        {% endif %}
-        {% for r in rounds[:recent] %}
-        <div class="round-card">
-            <div>
-                <div class="round-meta">{{ r.played_on }} &middot; {{ r.site }} &middot; {{ r.mode }} &middot; round {{ r.round_no }} &middot; {{ r.type }}</div>
-                <div class="round-clues">{{ r.clues | join(' + ') }}{% if r.answer %} &rarr; <span class="answer">{{ r.answer }}</span>{% endif %}</div>
-            </div>
-            <form method="POST" action="/chainle_admin/delete_round" onsubmit="return confirm('Delete this round?');">
-                <input type="hidden" name="id" value="{{ r.id }}">
-                <button type="submit" class="btn btn-danger">Delete</button>
-            </form>
-            <div class="round-solver">
-                {% if not r.known %}
-                <span class="muted">Solver: a clue word isn't in its list.</span>
-                {% else %}
-                {% if r.answer %}
-                Answer:
-                {% if r.rank == 1 %}<span class="rank hit">#1</span>
-                {% elif r.rank %}<span class="rank near">#{{ r.rank }}</span>
-                {% else %}<span class="rank miss">not in top 100</span>{% endif %}
-                &middot;
-                {% endif %}
-                Solver's pick: <b>{{ r.top or '-' }}</b>
-                {% if r.guess %}
-                &middot; Your guess {{ r.guess }}{% if r.score is not none %} ({{ r.score }}){% endif %}:
-                {% if r.guess_rank %}#{{ r.guess_rank }}{% else %}not in top 100{% endif %}
-                {% endif %}
-                {% endif %}
-                {% if r.closeness or r.game_rank %}
-                <div class="muted">The game:
-                    {% if r.closeness %}closeness {{ r.closeness | join(' / ') }}{% endif %}
-                    {% if r.closeness and r.game_rank %}&middot;{% endif %}
-                    {% if r.game_rank %}ranked #{{ '{:,}'.format(r.game_rank) }}{% if r.rank_of %} of {{ '{:,}'.format(r.rank_of) }}{% endif %}{% endif %}
-                </div>
-                {% endif %}
-                {% if r.version %}
-                <div class="muted">Logged with solver {{ r.version }}: its pick {{ r.top_then or '-' }}{% if r.answer %},
-                    answer {% if r.rank_then %}#{{ r.rank_then }}{% else %}not in top 100{% endif %}{% endif %}</div>
-                {% endif %}
-                {% if r.notes %}<div class="muted">{{ r.notes }}</div>{% endif %}
-            </div>
+    <!-- Removed Words Tab -->
+    <div id="invalid-tab" class="tab-content{% if active_tab == 'invalid' %} active{% endif %}">
+        <h2>Removed Words (Never Suggested)</h2>
+        <p class="crowd-note">"Crowd" rows came off automatically once enough different players reported the word ({{ crowd_remove_rare }} to {{ crowd_remove_bands[0][1] }}, depending on its popularity). Undo puts the word back and resets its votes.</p>
+        {% if invalid_words %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Popularity</th>
+                    <th>Added Date</th>
+                    <th>By</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word_data in invalid_words %}
+                <tr>
+                    <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
+                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
+                    <td>
+                        <form method="POST" action="/chainle_admin/remove_word" class="remove-form"
+                              onsubmit="return confirm('Put {{ word_data[0] }} back on the Chainle list?')">
+                            <input type="hidden" name="word" value="{{ word_data[0] }}">
+                            <input type="hidden" name="word_type" value="invalid">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Undo</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
         </div>
-        {% endfor %}
-        {% if total > recent %}
-        <p class="muted">Showing the latest {{ recent }} of {{ total }}.</p>
+        {{ pager(invalid_pager) }}
+        {% else %}
+        <p>{% if query %}No removed words match "{{ query }}".{% else %}No words removed.{% endif %}</p>
         {% endif %}
+    </div>
+
+    <!-- Allowed Words Tab -->
+    <div id="added-tab" class="tab-content{% if active_tab == 'added' %} active{% endif %}">
+        <h2>Allowed Words (Kept on the List)</h2>
+        <p class="crowd-note">Words you keep on the list: the solver doesn't leave them out as -s forms, and player reports can't take them off. Undo lets the filter and the players decide again.</p>
+        {% if added_words %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Popularity</th>
+                    <th>Added Date</th>
+                    <th>By</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word_data in added_words %}
+                <tr>
+                    <td><strong>{{ word_data[0] }}</strong></td>
+                    {{ pop_cell(word_data[0]) }}
+                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
+                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
+                    <td>
+                        <form method="POST" action="/chainle_admin/remove_word" class="remove-form"
+                              onsubmit="return confirm('Stop keeping {{ word_data[0] }} on the Chainle list?')">
+                            <input type="hidden" name="word" value="{{ word_data[0] }}">
+                            <input type="hidden" name="word_type" value="missing">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Undo</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {{ pager(added_pager) }}
+        {% else %}
+        <p>{% if query %}No allowed words match "{{ query }}".{% else %}No words allowed.{% endif %}</p>
+        {% endif %}
+    </div>
+
+    <!-- Round Log Tab -->
+    <div id="log-tab" class="tab-content{% if active_tab == 'log' %} active{% endif %}">
+        <h2>Round Log</h2>
+        <p class="muted" style="margin: 0 0 16px;">{{ total }} round{{ '' if total == 1 else 's' }} logged.
+            Log each round after you play it, to tune <a href="/chainle" style="color: #02484d;">the solver</a> against.
+            Rounds stay here: the solver never shows them.
+            {% if version %}Solver version <b>{{ version }}</b>{% if not versioned %} (saved with each round once
+            mysql_tables/chainle_rounds_version.sql has run){% endif %}.{% endif %}</p>
+
+        {% if log_error %}
+        <div class="alert alert-error">Couldn't read the round log ({{ log_error }}).</div>
+        {% endif %}
+        {% if not data_ok %}
+        <div class="alert alert-error">The solver's word data didn't load, so ranks are missing below.</div>
+        {% endif %}
+
+        <div class="admin-section">
+            <h3>Log a round</h3>
+            <form method="POST" action="/chainle_admin/log_round" id="round-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="played_on">Date played</label>
+                        <input type="date" id="played_on" name="played_on" value="{{ form_date }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="site">Site</label>
+                        <select id="site" name="site">
+                            {% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="mode">Game</label>
+                        <select id="mode" name="mode">
+                            {% for m in modes %}<option value="{{ m }}">{{ m | capitalize }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group wide">
+                        <label>Round</label>
+                        <div class="round-picks">
+                            {% for n in range(1, 6) %}
+                            <label><input type="radio" name="round_no" value="{{ n }}" {% if n == form_round %}checked{% endif %}><span>{{ n }}</span></label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="kind">Round type</label>
+                        <select id="kind" name="kind">
+                            <option value="bridge">Bridge (2 or 3 clues)</option>
+                            <option value="meaning">Closest meaning (1 clue)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="clue_count">Clues</label>
+                        <select id="clue_count">
+                            <option value="1">1</option>
+                            <option value="2" selected>2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+                    <div class="form-group wide">
+                        <label for="clue1">Clue words</label>
+                        <div class="clue-row">
+                            <input type="text" id="clue1" name="clue1" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 1" required>
+                            <input type="text" id="clue2" name="clue2" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 2">
+                            <input type="text" id="clue3" name="clue3" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Clue 3">
+                        </div>
+                    </div>
+                    <div class="form-group wide" id="picks-group" hidden>
+                        <label>Solver's picks <span class="muted" style="font-weight: normal;">(tap one to make it your guess)</span></label>
+                        <div class="picks" id="picks"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="guess">Your guess <span class="muted" style="font-weight: normal;">(the solver's pick)</span></label>
+                        <input type="text" id="guess" name="guess" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label for="score">Your score (0 to 1000)</label>
+                        <input type="number" id="score" name="score" min="0" max="1000" step="1" inputmode="numeric">
+                    </div>
+                    <div class="form-group wide">
+                        <label for="link1">Closeness to each clue <span class="muted" style="font-weight: normal;">(the numbers by the chains, 0 to 1)</span></label>
+                        <div class="clue-row">
+                            <input type="text" id="link1" name="link1" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 1">
+                            <input type="text" id="link2" name="link2" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 2">
+                            <input type="text" id="link3" name="link3" maxlength="5" inputmode="decimal" autocomplete="off" placeholder="Clue 3">
+                        </div>
+                    </div>
+                    <div class="form-group wide">
+                        <label for="game_rank">The game's rank for your guess</label>
+                        <div class="clue-row" style="align-items: center;">
+                            <input type="text" id="game_rank" name="game_rank" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="#">
+                            <span class="muted">of</span>
+                            <input type="text" id="rank_of" name="rank_of" maxlength="9" inputmode="numeric" autocomplete="off" placeholder="words">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="answer">The game's answer <span class="muted" style="font-weight: normal;">(its strongest link)</span></label>
+                        <input type="text" id="answer" name="answer" class="upper" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <input type="text" id="notes" name="notes" maxlength="200" autocomplete="off" placeholder="Other answers the game accepted, anything odd">
+                    </div>
+                </div>
+                <div style="margin-top: 14px;">
+                    <button type="submit" class="btn btn-primary">Save round</button>
+                    <span class="muted" style="margin-left: 8px;">The same date, site and round again replaces it.</span>
+                </div>
+            </form>
+        </div>
+
+        <div class="admin-section">
+            <h3>How the solver does</h3>
+            {% if summary %}
+            <table class="summary">
+                <tr><th>Round type</th><th>Rounds</th><th>Answer #1</th><th>Top 3</th><th>Top 10</th></tr>
+                {% for name, t in summary %}
+                <tr>
+                    <td>{{ name }}</td>
+                    <td>{{ t.rounds }}</td>
+                    <td>{{ t.top1 }} ({{ (100 * t.top1 / t.rounds) | round | int }}%)</td>
+                    <td>{{ t.top3 }} ({{ (100 * t.top3 / t.rounds) | round | int }}%)</td>
+                    <td>{{ t.top10 }} ({{ (100 * t.top10 / t.rounds) | round | int }}%)</td>
+                </tr>
+                {% endfor %}
+            </table>
+            <p class="muted" style="margin: 10px 0 0;">Over the last {{ rounds | length }} logged rounds that have the game's answer, as players see the solver now (removed and allowed words included).
+                {% if avg_score is not none %}Your average score: <b>{{ avg_score }}</b>.{% endif %}</p>
+            {% else %}
+            <p class="muted" style="margin: 0;">Nothing to rate yet: log a round with the game's answer.</p>
+            {% endif %}
+            {% if versions %}
+            <h3 style="font-size: 16px; margin: 18px 0 6px;">By solver version</h3>
+            <table class="summary" id="by-version">
+                <tr><th>Version</th><th>Rounds</th><th>Your avg</th><th>Its #1 right</th><th>You took #1</th></tr>
+                {% for v in versions %}
+                <tr>
+                    <td>{{ v.version }}{% if v.version == version %} <span class="muted">(now)</span>{% endif %}
+                        <div class="muted">{{ v.first }}{% if v.last != v.first %} to {{ v.last }}{% endif %}</div></td>
+                    <td>{{ v.rounds }}</td>
+                    <td>{{ v.avg if v.avg is not none else '-' }}</td>
+                    <td>{{ v.top1 }}/{{ v.judged }}</td>
+                    <td>{{ v.took }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            <p class="muted" style="margin: 10px 0 0;">As each version saw the round when you logged it.</p>
+            {% endif %}
+        </div>
+
+        <div class="admin-section">
+            <h3>Recent rounds</h3>
+            {% if not rounds %}
+            <p class="muted" style="margin: 0;">No rounds logged yet.</p>
+            {% endif %}
+            {% for r in rounds[:recent] %}
+            <div class="round-card">
+                <div>
+                    <div class="round-meta">{{ r.played_on }} &middot; {{ r.site }} &middot; {{ r.mode }} &middot; round {{ r.round_no }} &middot; {{ r.type }}</div>
+                    <div class="round-clues">{{ r.clues | join(' + ') }}{% if r.answer %} &rarr; <span class="answer">{{ r.answer }}</span>{% endif %}</div>
+                </div>
+                <form method="POST" action="/chainle_admin/delete_round" onsubmit="return confirm('Delete this round?');">
+                    <input type="hidden" name="id" value="{{ r.id }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+                <div class="round-solver">
+                    {% if not r.known %}
+                    <span class="muted">Solver: a clue word isn't in its list.</span>
+                    {% else %}
+                    {% if r.answer %}
+                    Answer:
+                    {% if r.rank == 1 %}<span class="rank hit">#1</span>
+                    {% elif r.rank %}<span class="rank near">#{{ r.rank }}</span>
+                    {% else %}<span class="rank miss">not in top 100</span>{% endif %}
+                    &middot;
+                    {% endif %}
+                    Solver's pick: <b>{{ r.top or '-' }}</b>
+                    {% if r.guess %}
+                    &middot; Your guess {{ r.guess }}{% if r.score is not none %} ({{ r.score }}){% endif %}:
+                    {% if r.guess_rank %}#{{ r.guess_rank }}{% else %}not in top 100{% endif %}
+                    {% endif %}
+                    {% endif %}
+                    {% if r.closeness or r.game_rank %}
+                    <div class="muted">The game:
+                        {% if r.closeness %}closeness {{ r.closeness | join(' / ') }}{% endif %}
+                        {% if r.closeness and r.game_rank %}&middot;{% endif %}
+                        {% if r.game_rank %}ranked #{{ '{:,}'.format(r.game_rank) }}{% if r.rank_of %} of {{ '{:,}'.format(r.rank_of) }}{% endif %}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if r.version %}
+                    <div class="muted">Logged with solver {{ r.version }}: its pick {{ r.top_then or '-' }}{% if r.answer %},
+                        answer {% if r.rank_then %}#{{ r.rank_then }}{% else %}not in top 100{% endif %}{% endif %}</div>
+                    {% endif %}
+                    {% if r.notes %}<div class="muted">{{ r.notes }}</div>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if total > recent %}
+            <p class="muted">Showing the latest {{ recent }} of {{ total }}.</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 <script>
+var wordInput = document.getElementById('word');
+var wordType = document.getElementById('word-type');
+var wordSubmit = document.getElementById('word-submit');
+var wordHint = document.getElementById('word-hint');
+
+wordInput.addEventListener('input', function() {
+    this.value = this.value.toLowerCase();
+    refreshWordForm();
+});
+
+// Enter does nothing here: the word is submitted only by the Submit button,
+// after Remove or Allow is chosen.
+wordInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') e.preventDefault();
+});
+
+document.querySelectorAll('.choice-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        wordType.value = this.getAttribute('data-choice');
+        document.querySelectorAll('.choice-btn').forEach(function(other) {
+            other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        });
+        refreshWordForm();
+    });
+});
+
+function refreshWordForm() {
+    var word = wordInput.value.trim();
+    var choice = wordType.value;
+    wordSubmit.disabled = !(word && choice);
+    if (!word) {
+        wordHint.textContent = choice ? 'Type the word.' : 'Type a word, then choose.';
+    } else if (!choice) {
+        wordHint.textContent = 'Now choose Remove or Allow.';
+    } else if (choice === 'invalid') {
+        wordHint.textContent = 'Submit will take "' + word + '" off the Chainle list.';
+    } else {
+        wordHint.textContent = 'Submit will keep "' + word + '" on the Chainle list, whatever the -s filter and players say.';
+    }
+}
+
+refreshWordForm();
+
+function showTab(event, tabName) {
+    document.querySelectorAll('.tab-content').forEach(function(content) {
+        content.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-button').forEach(function(button) {
+        button.classList.remove('active');
+    });
+    document.getElementById(tabName + '-tab').classList.add('active');
+    event.target.classList.add('active');
+    document.getElementById('tab-input').value = tabName;
+    // So Remove/Allow/Undo come back to the tab they were pressed on.
+    document.querySelectorAll('.keep-tab').forEach(function(input) {
+        input.value = tabName;
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // The daily game's rounds: 1-3 two clues, 4 three clues, 5 one (closest meaning).
     const ROUND_CLUES = {{ round_clues | tojson }};
