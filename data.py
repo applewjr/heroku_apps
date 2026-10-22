@@ -32,3 +32,7 @@ with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_f
 
 with open(os.path.join(data_folder, 'etl_dash_queries.yaml'), 'r') as file:
     etl_dash_queries = yaml.safe_load(file)
+
+# The /etl_dash round names. Not in the YAML: the daily digest reads every
+# key there as a panel. A round missing here is called "Round <n>".
+ETL_ROUND_NAMES = {1: 'Overview', 2: 'Trends', 3: 'Blossom', 4: 'Pipelines', 5: 'Scratch'}

@@ -824,6 +824,34 @@ exclusion and as `site_idle`'s: **anything that reasons about real usage has to
 exclude the thing that generates fake usage on a timer.** A new view reading
 `app_visits` should assume it needs the filter.
 
+#### Named pages, Overview and Trends - 2026-10-22
+
+`/etl_dash` rounds now have names (`ETL_ROUND_NAMES` in `data.py`): Overview,
+Trends, Blossom, Pipelines and Scratch. The crowd-vote panels are gone: the
+admin pages and the digest's crowd sections show the same thing. A panel whose
+query fails now shows its error on the page, as it already did in the digest,
+instead of disappearing.
+
+Six view files to paste into Workbench, in any order:
+
+| View | Change |
+|---|---|
+| `vw_prod_traffic_today` | New. Each page today against its usual by this time of day |
+| `vw_prod_weekly_landings` | New. Landings per page per week, 8 weeks |
+| `vw_prod_search_sources` | New. Google, other search and direct shares per page, last 7 days against the 7 before |
+| `vw_prod_errors_by_day` | New. 500s and 404s per day |
+| `vw_prod_word_solver_page_visits` | Replaced. Bots and staging left out, a total column, and a date filter instead of a scan of the whole table |
+| `vw_prod_errors` | Replaced. 500s only, 7 days. The 404s are nearly all scanners and buried any real error |
+
+Until a view exists, its panel shows the missing-table error. The four
+`app_visits` views share one filter: not the health probe, not a local or
+staging run, and not a bot user agent. A new view that counts people should
+copy it.
+
+No panel reads `vw_prod_blossom_errors` or the six `vw_prod_*_votes_*` /
+`vw_prod_*_crowd_changes` views any more. Drop them, and their files,
+whenever convenient.
+
 ### 8. Test the dead-man's switch
 
 Disable the `run_checks` Scheduler entry, wait for the email, then **re-enable
