@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Ribbit Solver - Find Every Word on Today's Board{% endblock %}
+{% block title %}Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Solve Puzzmo's Ribbit in seconds. Type today's 4x4 board, draw the connections, and see every word you can trace - longest first, with rare words flagged so you know which the game might refuse. Free solver for the daily frog word game.">
+<meta name="description" content="Today's Ribbit answers for Puzzmo or Yahoo: type the 4x4 board, draw the connections, and see every word you can trace, longest first.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/ribbit">
 <meta name="keywords" content="ribbit solver, ribbit puzzmo, ribbit word game, puzzmo ribbit answers, ribbit help, ribbit word finder, frog word game solver, ribbit today">
-<meta property="og:title" content="Ribbit Solver - Find Every Word on Today's Board">
+<meta property="og:title" content="Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit">
 <meta property="og:description" content="Type Puzzmo's 4x4 Ribbit board, draw the connections, and instantly see every word you can trace, ranked longest first, with rare words flagged. Mark words found or refused and clear tiles as they turn into frogs.">
 <meta property="og:url" content="https://jamesapplewhite.com/ribbit">
 <meta property="og:type" content="website">
@@ -50,7 +50,7 @@
       "name": "Do I have to type the board in?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
       }
     },{% endif %}
     {
@@ -141,7 +141,9 @@
 }
 
 /* ---------- shared board ---------- */
-/* Offered on an empty board once other players have entered today's. */
+/* Offered on an empty board once other players have entered today's. More
+   than one board can be real on a day, so each is a small grid of its
+   letters: the player taps the one that matches their game. */
 .rb-shared {
     display: flex;
     flex-wrap: wrap;
@@ -159,20 +161,62 @@
 }
 .rb-shared[hidden] { display: none; }
 .rb-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+/* One board per row, letters big enough to read at a glance: the whole row
+   is the button. On the narrowest phones the label drops under the grid. */
+.rb-shared-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+.rb-shared-pick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background-color: #fff;
+    border: 2px solid #02484d;
+    border-radius: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rb-shared-pick:hover,
+.rb-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+.rb-mini {
+    display: grid;
+    grid-template-columns: repeat(4, 26px);
+    grid-auto-rows: 26px;
+    gap: 3px;
+}
+.rb-mini span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #02484d;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
 .rb-shared-btn {
     background-color: #02484d;
-    border: 1px solid #02484d;
     border-radius: 8px;
     color: #fff;
-    font-family: inherit;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
-    padding: 9px 16px;
+    padding: 10px 14px;
     min-height: 44px;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
 }
-.rb-shared-btn:hover { background-color: #03595f; }
+.rb-shared-pick:hover .rb-shared-btn { background-color: #03595f; }
 
 /* The admin's own copy of the page says which copy it is. */
 .rb-dev-note {
@@ -611,7 +655,7 @@
 
 <center>
 <br>
-<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Ribbit Solver &amp; Word Finder</h1>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Ribbit Solver &amp; Answers</h1>
 {% if dev %}
 <p class="rb-dev-note">/ribbit_dev - only you can see this copy. Your ✗ votes and boards count like any player's.</p>
 {% endif %}
@@ -625,12 +669,14 @@
         <strong>1. Type the board.</strong> The grid is a fixed 4x4. Tap a square and type its
         letter - it hops to the next square automatically, so you can type the board left to right,
         top to bottom.{% if shared_boards %} Once other players have entered today's board, you can
-        skip this: <strong>Load today's board</strong> fills in the letters and links for you.{% endif %}
+        skip this: tap it above the board and its letters and links fill in for you. If more than one
+        board is offered, pick the one that matches your game.{% endif %}
         <br><br>
         <strong>2. Draw the connections.</strong> Drag a line across the tiles the game connects.
         A straight drag across a whole <strong>row, column, or diagonal links every tile it
         crosses</strong> in one motion; a short drag between two neighbours links just those two.
-        Got one wrong? Switch on <strong>🗑 Erase links</strong> and drag across it to remove it.
+        Got one wrong? While still dragging, slide back a tile to undo it, or switch on
+        <strong>🗑 Erase links</strong> and drag across it to remove it.
         Use <strong>↻ Rotate</strong> to spin the board to match the game.{% if shared_boards %} If other
         players have already linked a board with your letters - an older puzzle too - the links fill
         in as soon as you type the last letter.{% endif %}
@@ -666,8 +712,9 @@
 
 {% if shared_boards %}
 <div class="rb-shared" id="rb-shared" hidden>
-    <span class="rb-shared-text">🐸 Other players already entered today's board for you.</span>
-    <button type="button" class="rb-shared-btn" id="rb-shared-load">Load today's board</button>
+    <span class="rb-shared-text" id="rb-shared-one">🐸 Other players already entered today's board for you. Tap it to load it.</span>
+    <span class="rb-shared-text" id="rb-shared-many" hidden>🐸 Players entered more than one board today. Tap the one that matches your game.</span>
+    <div class="rb-shared-picks" id="rb-shared-picks"></div>
 </div>
 {% endif %}
 
@@ -748,7 +795,7 @@
     {% if shared_boards %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, a Load today's board button fills in its letters and links for you - they did the work. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
     </div>
     {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -795,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let rejected = [];            // words Ribbit refused  [word]
     let boardSource = 'typed';    // 'typed' | 'shared' (from other players) | 'edited' (shared, then changed)
     let loggedSig = '';           // the board as last sent to the shared-board log
-    let sharedToday = null;       // today's board from other players, once they've settled it
+    let sharedBoards = [];        // today's boards from other players, once they've settled them
     let offerClear = false;       // that board was just loaded and isn't solved yet
 
     let lastResults = [];
@@ -806,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cover = {};               // cell index -> how many suggested words reach it
     let keyWords = new Set();     // words that are the only reach to some tile
 
-    let gesture = null;           // {mode:'link'|'erase', lastCell, moved}
+    let gesture = null;           // {mode:'link'|'erase', path, added, pt, trail} - see pointerdown
     let rotating = false;         // true during the rotate spin (blocks board input)
     let fetchTimer = null, fetchSeq = 0;
 
@@ -817,11 +864,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsBar = document.getElementById('rb-tools');
     const resultsContainer = document.getElementById('results-container');
     const sharedBanner = document.getElementById('rb-shared');
+    const sharedOne = document.getElementById('rb-shared-one');
+    const sharedMany = document.getElementById('rb-shared-many');
+    const sharedPicks = document.getElementById('rb-shared-picks');
     const phaseClear = document.getElementById('phase-clear');
 
     const HINTS = {
         type: 'Tap a square and type its letter - it hops to the next square automatically.',
-        link: 'Drag a line across the connected tiles to link them - a straight drag links a whole row, column, or diagonal at once.',
+        link: 'Drag across tiles to link them - a straight drag links a whole row, column, or diagonal. Slide back a tile to undo.',
         erase: 'Drag across a connection to remove it. Switch to Type or Link when you\'re done.',
         solve: 'Tap a word to light up its path. Tap a tile to clear it into a frog once the game does.'
     };
@@ -883,20 +933,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ---------- geometry ---------- */
-    // Which tile a screen point is ON: the nearest tile centre, but only if the
-    // point is within HIT% of it. The gaps between tiles return -1, which is what
-    // lets a diagonal drag land on the diagonal tile instead of stair-stepping
-    // through the orthogonal neighbour whose quadrant the line clips.
-    const HIT = 11;   // percent half-extent of a tile's hit region (< 12.5 = half pitch)
-    function cellAt(clientX, clientY) {
+    // A screen point in board percent (0-100 each way), or null before layout.
+    function boardPoint(clientX, clientY) {
         const r = wrap.getBoundingClientRect();
-        if (!r.width || !r.height) return -1;
-        const px = (clientX - r.left) / r.width * 100;
-        const py = (clientY - r.top) / r.height * 100;
-        const col = clamp(Math.round((px - 12.5) / 25), 0, N - 1);
-        const row = clamp(Math.round((py - 12.5) / 25), 0, N - 1);
-        if (Math.abs(px - (col * 25 + 12.5)) > HIT || Math.abs(py - (row * 25 + 12.5)) > HIT) return -1;
-        return idx(row, col);
+        if (!r.width || !r.height) return null;
+        return {x: (clientX - r.left) / r.width * 100, y: (clientY - r.top) / r.height * 100};
+    }
+    const nearestCell = p => idx(clamp(Math.round((p.y - 12.5) / 25), 0, N - 1),
+                                 clamp(Math.round((p.x - 12.5) / 25), 0, N - 1));
+    const distTo = (p, i) => { const c = center(i); return Math.hypot(p.x - c.x, p.y - c.y); };
+
+    // Which tile a tap (or the start of a drag) lands on: the nearest tile
+    // centre, if the point is within a generous HIT% square of it.
+    const HIT = 11;   // percent half-extent of a tile's tap region (< 12.5 = half pitch)
+    function cellAt(p) {
+        const i = nearestCell(p), c = center(i);
+        return Math.abs(p.x - c.x) > HIT || Math.abs(p.y - c.y) > HIT ? -1 : i;
+    }
+
+    // Which tile a drag is passing over: a circle about the size of the drawn
+    // tile, so the gaps between tiles are as wide as they look. Square regions
+    // that nearly touch made a diagonal drag clip the orthogonal neighbour's
+    // corner unless it stayed within ~2% of the 45-degree line; the circles
+    // leave ~8% of slack.
+    const DRAG_HIT = 9.5;   // percent radius (tiles are 15% wide on a 25% pitch)
+    function cellUnder(p) {
+        const i = nearestCell(p);
+        return distTo(p, i) <= DRAG_HIT ? i : -1;
+    }
+
+    // A fluid drag that cuts a turn can skip the turn tile and land a knight's
+    // move away. Link through whichever tile next to both ends the pointer
+    // passed closest to; null for any other jump.
+    function turnTile(a, b, trail) {
+        const [ra, ca] = rc(a), [rb, cb] = rc(b);
+        const adr = Math.abs(rb - ra), adc = Math.abs(cb - ca);
+        if (Math.max(adr, adc) !== 2 || Math.min(adr, adc) !== 1) return null;
+        let best = null, bestD = Infinity;
+        for (let i = 0; i < N * N; i++) {
+            if (!areAdjacent(a, i) || !areAdjacent(i, b)) continue;
+            const d = trail.reduce((m, p) => Math.min(m, distTo(p, i)), Infinity);
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
     }
 
     // the run of cells between a and b along a straight row/column/diagonal,
@@ -1023,7 +1102,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // opens reliably); Link/Erase and Solve are driven by pointer geometry.
     wrap.addEventListener('pointerdown', e => {
         if (rotating) return;
-        const cell = cellAt(e.clientX, e.clientY);
+        const p = boardPoint(e.clientX, e.clientY);
+        const cell = p ? cellAt(p) : -1;
         if (cell < 0) return;
         if (phase === 'solve') {
             e.preventDefault();
@@ -1032,7 +1112,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (tool === 'type') return;   // let the input focus natively
         e.preventDefault();
-        gesture = {mode: tool, lastCell: cell, moved: false};
+        // path: tiles visited, ending on the current one; added: edge keys this
+        // drag created (the only ones sliding back may undo); pt: last pointer
+        // point; trail: points since leaving the current tile, for turnTile.
+        gesture = {mode: tool, path: [cell], added: new Set(), pt: p, trail: [p]};
         window.addEventListener('pointermove', onPointerMove);
         window.addEventListener('pointerup', onPointerUp);
         // An OS gesture or palm rejection cancels the stream without a pointerup;
@@ -1042,18 +1125,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onPointerMove(e) {
         if (!gesture) return;
-        const cell = cellAt(e.clientX, e.clientY);
-        if (cell < 0 || cell === gesture.lastCell) return;
-        const chain = cellsBetween(gesture.lastCell, cell);
-        const before = edges.length;     // a gesture only adds or only removes
-        for (let k = 1; k < chain.length; k++) {
-            if (gesture.mode === 'erase') removeEdge(chain[k - 1], chain[k]);
-            else addEdge(chain[k - 1], chain[k]);
+        // Every sample the browser merged into this event, not just the last.
+        const samples = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
+        let changed = false;
+        for (const s of samples.length ? samples : [e]) {
+            const p = boardPoint(s.clientX, s.clientY);
+            if (p && trace(p)) changed = true;
         }
-        if (edges.length !== before) markEdited();
-        gesture.lastCell = cell;
-        gesture.moved = true;
-        renderEdges();
+        if (changed) { markEdited(); renderEdges(); }
+    }
+
+    // Walk from the last pointer point to p in small steps, so a fast swipe
+    // can't hop over a tile's hit circle between samples. Edges are committed
+    // as each tile is reached, so an interrupted drag keeps what it drew.
+    function trace(p) {
+        const g = gesture, from = g.pt;
+        const n = Math.max(1, Math.ceil(Math.hypot(p.x - from.x, p.y - from.y) / 2));
+        let changed = false;
+        for (let k = 1; k <= n; k++) {
+            const q = {x: from.x + (p.x - from.x) * k / n, y: from.y + (p.y - from.y) * k / n};
+            const cell = cellUnder(q);
+            if (cell === g.path[g.path.length - 1]) { g.trail = [q]; continue; }
+            g.trail.push(q);
+            if (cell < 0) continue;
+            if (stepTo(cell)) changed = true;
+            g.trail = [q];
+        }
+        g.pt = p;
+        return changed;
+    }
+
+    // Move the drag from its current tile onto `cell`, linking (or erasing)
+    // each step between. In Link mode, a step straight back onto the tile
+    // before undoes the edge this drag just drew there.
+    function stepTo(cell) {
+        const g = gesture, last = g.path[g.path.length - 1];
+        let chain = cellsBetween(last, cell);
+        if (chain.length === 2 && !areAdjacent(last, cell)) {
+            const mid = turnTile(last, cell, g.trail);
+            if (mid !== null) chain = [last, mid, cell];
+        }
+        let changed = false;
+        for (let k = 1; k < chain.length; k++) {
+            const from = chain[k - 1], to = chain[k], key = edgeKey(from, to), before = edges.length;
+            if (g.mode === 'erase') {
+                removeEdge(from, to);
+            } else if (to === g.path[g.path.length - 2] && g.added.has(key)) {
+                removeEdge(from, to);
+                g.added.delete(key);
+                g.path.pop();
+                changed = true;
+                continue;
+            } else {
+                addEdge(from, to);
+                if (edges.length !== before) g.added.add(key);
+            }
+            if (edges.length !== before) changed = true;
+            g.path.push(to);
+        }
+        return changed;
     }
 
     function onPointerUp() {
@@ -1528,34 +1658,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderShared() {
         if (!sharedBanner) return;
-        sharedBanner.hidden = !(sharedToday && phase === 'edit' && !cells.some(c => c));
+        sharedBanner.hidden = !(sharedBoards.length && phase === 'edit' && !cells.some(c => c));
         phaseClear.hidden = !(offerClear && phase === 'edit');
     }
 
+    // More than one board can be real on a day (routes/ribbit.py), so each
+    // is offered as a small grid of its letters: the player picks theirs.
+    function renderSharedPicks() {
+        if (!sharedBanner) return;
+        sharedOne.hidden = sharedBoards.length > 1;
+        sharedMany.hidden = !sharedOne.hidden;
+        sharedPicks.replaceChildren(...sharedBoards.map((b, i) => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'rb-shared-pick';
+            pick.dataset.pick = String(i);
+            pick.setAttribute('aria-label', 'Load the board ' + b.letters.join('').toUpperCase());
+            const mini = document.createElement('span');
+            mini.className = 'rb-mini';
+            mini.setAttribute('aria-hidden', 'true');
+            b.letters.forEach(ch => {
+                const tile = document.createElement('span');
+                tile.textContent = ch;
+                mini.appendChild(tile);
+            });
+            const label = document.createElement('span');
+            label.className = 'rb-shared-btn';
+            label.textContent = 'Load this board';
+            pick.append(mini, label);
+            return pick;
+        }));
+    }
+
+    const isSharedBoard = b => b && Array.isArray(b.letters) && b.letters.length === N * N
+        && b.letters.every(ch => typeof ch === 'string' && /^[a-z]$/i.test(ch));
+
     function fetchShared() {
         if (!SHARED_BOARDS) return;
-        sharedToday = null;
+        sharedBoards = [];
         renderShared();
         postBoard({action: 'shared_board', played_on: localISO()})
             .then(data => {
-                const b = data && data.board;
-                sharedToday = (b && Array.isArray(b.letters) && b.letters.length === N * N) ? b : null;
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isSharedBoard);
+                renderSharedPicks();
                 renderShared();
             })
             .catch(() => {});
     }
 
-    if (sharedBanner) document.getElementById('rb-shared-load').addEventListener('click', () => {
-        const b = sharedToday;
+    if (sharedBanner) sharedPicks.addEventListener('click', e => {
+        const pick = e.target.closest('[data-pick]');
+        const b = pick && sharedBoards[Number(pick.dataset.pick)];
         if (!b) return;
         // renderCells never overwrites the focused square (that's the one
         // being typed in), and boot focuses the first one.
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-        cells = b.letters.map(ch => (typeof ch === 'string' && /^[a-z]$/i.test(ch)) ? ch.toLowerCase() : '');
+        cells = b.letters.map(ch => ch.toLowerCase());
         edges = toEdges(b.edges);
         disabled = new Set(); activeWord = null;
         boardSource = 'shared'; loggedSig = boardSig();
-        sharedToday = null; offerClear = true;
+        sharedBoards = []; offerClear = true;
         renderAll(); renderShared(); persist();
         hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve, or 🔄 Clear board if it doesn't.";
     });

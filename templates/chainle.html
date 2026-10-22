@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Chainle Solver - Hints for the Daily Word Chain{% endblock %}
+{% block title %}Chainle Answers & Hints - Solver for Today's Rounds{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Free Chainle solver with spoiler-free hints: the phrases your linking word makes with each clue, its length and letters one at a time, then possible answers to reveal and copy.">
+<meta name="description" content="Chainle answers and hints for today's rounds: type the clue words to see the best linking words, or take a spoiler-free hint first.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/chainle">
 <meta name="keywords" content="chainle solver, chainle hint, chainle answer, chainle help, daily word chain, word bridge puzzle">
-<meta property="og:title" content="Chainle Solver - Hints for the Daily Word Chain">
+<meta property="og:title" content="Chainle Answers & Hints - Solver for Today's Rounds">
 <meta property="og:description" content="Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.">
 <meta property="og:url" content="https://www.jamesapplewhite.com/chainle">
 <meta property="og:type" content="website">
@@ -338,7 +338,7 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 
 <center>
 <br>
-<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Solver &amp; Hints</h1>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Answers &amp; Hints</h1>
 {% if vocab_size %}
 <p class="chn-sub" id="chn-data-ok">Spoiler-free help for every Chainle round, from {{ '{:,}'.format(vocab_size) }} words. A hint first; answers only when you ask.</p>
 {% else %}

@@ -412,7 +412,7 @@ def run_ribbit():
         return _ribbit_post()
 
     schema_data = make_schema_data(
-        "Ribbit Solver - Find Every Word on Today's Board",
+        "Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit",
         "Solve Puzzmo's Ribbit in seconds - recreate the board, then see every word you can trace, longest first, with rare words flagged. Free solver for the daily frog word game.",
         "https://jamesapplewhite.com/ribbit"
     )
@@ -462,7 +462,7 @@ def run_guess_the_phrase():
 def run_chainle():
 
     schema_data = make_schema_data(
-        "Chainle Solver - Hints for the Daily Word Chain",
+        "Chainle Answers & Hints - Solver for Today's Rounds",
         "Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.",
         "https://www.jamesapplewhite.com/chainle"
     )
@@ -482,7 +482,7 @@ def run_chainle():
 def run_wordiply():
 
     schema_data = make_schema_data(
-        "Wordiply Solver - Find the Longest Words Instantly",
+        "Wordiply Solver - Today's Answers & Longest Words",
         "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
         "https://jamesapplewhite.com/wordiply"
     )
