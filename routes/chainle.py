@@ -1,4 +1,4 @@
-"""Chainle solver data, the solve request, and the admin's round log.
+"""Chainle solver data, the solve request, and /chainle_admin.
 
 The solver route itself is run_chainle in routes/wordgames.py; it hands a
 round to solve_request here.
@@ -6,9 +6,10 @@ round to solve_request here.
 Self-contained: the word data ships in datasets/ (see datasets/CHAINLE_DATA.md)
 and nothing is fetched at runtime. The solver never contacts any Chainle site.
 
-/chainle_admin keeps a log of rounds the admin plays, to tune the ranking in
-functions/chainle.py against. Logged rounds stay in the database: the solver
-never shows them and never uses them as answers.
+/chainle_admin has the words taken off or kept on the solver's list, and a
+log of rounds the admin plays, to tune the ranking in functions/chainle.py
+against. Logged rounds stay in the database: the solver never shows them and
+never uses them as answers.
 """
 
 import hashlib
@@ -23,7 +24,9 @@ import numpy as np
 import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
-from data import data_folder
+import crowd
+from crowd import CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE, CROWD_WINDOW_DAYS
+from data import data_folder, word_pop
 from extensions import auth, db_cursor, pst_now_str
 from functions import chainle as ch
 from helpers import ValidationError, release_memory
@@ -126,7 +129,60 @@ def solve_request(data):
     solver = get_data()
     if solver is None:
         return jsonify(error='The solver is unavailable right now.'), 503
-    return jsonify(ch.solve(solver, clues, kind))
+    removed, kept = get_corrections()
+    return jsonify(ch.solve(solver, clues, kind, removed=removed, kept=kept))
+
+
+##### word corrections #####
+
+# /chainle_admin's Remove takes a word off the solver's suggestions, and its
+# Allow ('missing' in crowd.py) keeps one on that the -s filter would drop
+# (PHYSICS). One list for every Chainle site. Players have no way to report
+# words (James's call, 2026-10-22): the -s form and spelling filters cover
+# every refusal the round log has seen. The lists use crowd.py's tables like
+# the other word games', so the admin page works the same way; with no
+# player votes, its Player Reports tab stays empty.
+
+# (removed, kept) word sets, memoized in the module like routes/smush.py's
+# word list. The memo of how the solver rates logged rounds is dropped with
+# it, since corrections change those ranks.
+_corrections = {'value': None, 'expires': 0.0}
+NO_CORRECTIONS = (frozenset(), frozenset())
+
+
+def _forget_corrections():
+    """Make the next get_corrections() re-read the lists."""
+    _corrections['expires'] = 0.0
+    _assessed.clear()
+
+
+def get_corrections():
+    """(removed, kept): the words /chainle_admin took off the list, and the
+    words it keeps on it, lower case. Refreshed every
+    12 hours, or straight away after a change."""
+    if _corrections['value'] is not None and time.time() < _corrections['expires']:
+        return _corrections['value']
+    try:
+        with db_cursor() as (conn, cursor):
+            cursor.execute("SELECT word FROM chainle_invalid_words")
+            removed = frozenset(row[0].lower() for row in cursor.fetchall())
+            cursor.execute("SELECT word FROM chainle_added_words")
+            kept = frozenset(row[0].lower() for row in cursor.fetchall())
+    except Exception as e:
+        print(f"Error fetching chainle word corrections: {e}")
+        # A DB blip must not drop the corrections for 12 hours: keep the
+        # last good lists (or none) and retry soon.
+        _corrections['value'] = _corrections['value'] or NO_CORRECTIONS
+        _corrections['expires'] = time.time() + 300
+        return _corrections['value']
+    _corrections['value'] = (removed, kept)
+    _corrections['expires'] = time.time() + 43200
+    return _corrections['value']
+
+
+CHAINLE_CROWD = crowd.CrowdList('chainle', on_change=_forget_corrections)
+
+MAX_WORD_LEN = 40
 
 
 ##### admin: the round log #####
@@ -143,7 +199,6 @@ ROUND_CLUES = {1: 2, 2: 2, 3: 2, 4: 3, 5: 1}
 # newest RECENT_ROUNDS of them.
 SHOW_ROUNDS = 100
 RECENT_ROUNDS = 10
-MAX_WORD_LEN = 40
 MAX_NOTES = 200
 FIRST_DAY = date(2026, 1, 1)
 
@@ -196,11 +251,17 @@ def _today():
     return datetime.now(pytz.timezone('America/Los_Angeles')).date()
 
 
+def _back_to_log(**message):
+    """Back to the admin page's Round Log tab, with a success or error
+    message (and any form defaults: see _form_defaults)."""
+    message = {k: v for k, v in dict(message, tab='log').items() if v}
+    return redirect(ADMIN + '?' + urlencode(message))
+
+
 def _back(**message):
-    """Back to the admin page, with a success or error message (and any
-    form defaults: see _form_defaults)."""
-    message = {k: v for k, v in message.items() if v}
-    return redirect(ADMIN + ('?' + urlencode(message) if message else ''))
+    """Back to /chainle_admin as the admin left it after a word action, with
+    a message (see crowd.admin_return_url)."""
+    return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
 
 
 def _form_defaults(args):
@@ -315,7 +376,9 @@ def _assess(data, kind, clues, answer, guess):
     if key not in _assessed:
         if len(_assessed) >= ASSESS_MEMO_MAX:
             _assessed.clear()
-        _assessed[key] = ch.assess(data, clues.lower().split(), kind, [answer, guess])
+        removed, kept = get_corrections()
+        _assessed[key] = ch.assess(data, clues.lower().split(), kind, [answer, guess],
+                                   removed=removed, kept=kept)
     return _assessed[key]
 
 
@@ -359,10 +422,24 @@ def assess_rounds(data, rows):
     }
 
 
-@bp.route(ADMIN)
-@auth.login_required
-def chainle_admin():
-    """The round log: a form to add a round, and how the solver rates each."""
+ADMIN_TABS = ('reports', 'invalid', 'added', 'log')
+
+
+def _empty_view(active_tab):
+    """The word tabs when their tables can't be read, so the round log still
+    works (and the page says what's wrong)."""
+    pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
+    return {'reports': [], 'invalid_words': [], 'added_words': [],
+            'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
+            'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
+            'show_settled': False, 'settled_url': ADMIN, 'query': '', 'clear_url': ADMIN,
+            'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
+            'votes_needed': CHAINLE_CROWD.threshold}
+
+
+def _round_log():
+    """(context, error) for the Round Log tab: the newest logged rounds with
+    how the solver rates each, and the summary by solver version."""
     try:
         with db_cursor() as (conn, cursor):
             versioned = _has_version_columns(cursor)
@@ -380,14 +457,37 @@ def chainle_admin():
                 cursor.execute(VERSION_SUMMARY)
                 versions = _versions(cursor.fetchall())
     except Exception as e:
-        print(f"Error loading chainle admin: {e}")
-        return render_template('error.html', return_type='Admin Error'), 500
-    data = get_data()
+        print(f"Error loading chainle round log: {e}")
+        return ({'total': 0, 'versioned': False, 'versions': [], 'rounds': [], 'summary': [],
+                 'avg_score': None}, f'{type(e).__name__}: {e}')
+    return {'total': total, 'versioned': versioned, 'versions': versions,
+            **assess_rounds(get_data(), rows)}, None
+
+
+@bp.route(ADMIN)
+@auth.login_required
+def chainle_admin():
+    """What players reported, the removed and allowed words, and the round
+    log. Each half still shows if the other's tables can't be read."""
+    args = request.args.to_dict()
+    # Players can't report words, so the round log is what's worth opening on.
+    args.setdefault('tab', 'log')
+    try:
+        view, crowd_error = CHAINLE_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
+    except Exception as e:
+        print(f"Error loading chainle admin word lists: {e}")
+        view = _empty_view(args['tab'] if args.get('tab') in ADMIN_TABS else 'reports')
+        crowd_error = f'{type(e).__name__}: {e}'
+    log, log_error = _round_log()
     form_date, form_round = _form_defaults(request.args)
-    return render_template('chainle_admin.html', total=total, form_date=form_date,
-                           form_round=form_round, sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
-                           data_ok=data is not None, recent=RECENT_ROUNDS, version=solver_version(),
-                           versioned=versioned, versions=versions, **assess_rounds(data, rows))
+    return render_template('chainle_admin.html', **view, **log, crowd_error=crowd_error,
+                           log_error=log_error, form_date=form_date, form_round=form_round,
+                           sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
+                           data_ok=get_data() is not None, recent=RECENT_ROUNDS,
+                           version=solver_version(), word_pop=word_pop,
+                           crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
+                           crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
+                           crowd_window_days=CROWD_WINDOW_DAYS)
 
 
 @bp.route(ADMIN + '/log_round', methods=['POST'])
@@ -398,7 +498,7 @@ def chainle_log_round():
     try:
         row = parse_round(request.form)
     except ValidationError as e:
-        return _back(error=str(e), **keep)
+        return _back_to_log(error=str(e), **keep)
     data = get_data()
     got = _assess(data, row['kind'], row['clues'], row['answer'], row['guess']) if data is not None else None
     row.update(solver_version=solver_version(), solver_top=got['top'] if got else None,
@@ -412,11 +512,11 @@ def chainle_log_round():
             conn.commit()
     except Exception as e:
         print(f"Error logging chainle round: {e}")
-        return _back(error='Database error', **keep)
+        return _back_to_log(error='Database error', **keep)
     saved = f"Saved round {row['round_no']} ({row['mode']})"
     if row['round_no'] < max(ROUND_KIND):
-        return _back(success=saved, date=row['played_on'], round=row['round_no'] + 1)
-    return _back(success=f'{saved}: that was the last one')
+        return _back_to_log(success=saved, date=row['played_on'], round=row['round_no'] + 1)
+    return _back_to_log(success=f'{saved}: that was the last one')
 
 
 @bp.route(ADMIN + '/delete_round', methods=['POST'])
@@ -425,12 +525,70 @@ def chainle_delete_round():
     try:
         rid = int(request.form.get('id', ''))
     except ValueError:
-        return _back(error='No round chosen')
+        return _back_to_log(error='No round chosen')
     try:
         with db_cursor() as (conn, cursor):
             cursor.execute("DELETE FROM chainle_rounds WHERE id = %s", (rid,))
             conn.commit()
     except Exception as e:
         print(f"Error deleting chainle round: {e}")
+        return _back_to_log(error='Database error')
+    return _back_to_log(success='Round deleted')
+
+
+def _admin_form():
+    """The word and its list, or None for the list if no choice was sent.
+    Nothing is assumed: a missing choice must not count as a removal."""
+    word = request.form.get('word', '').strip().lower()
+    kind = request.form.get('word_type')
+    return word, kind if kind in ('invalid', 'missing') else None
+
+
+NO_CHOICE = 'Choose Remove word or Allow word first'
+
+
+def _check_word(word):
+    """An error message for a word the lists can't take, or None."""
+    if not word.isalpha():
+        return 'Word must be letters only'
+    data = get_data()
+    if data is not None and data.id(word) < 0:
+        return f"{word} isn't in the solver's word list, so it is never suggested anyway"
+    return None
+
+
+@bp.route(ADMIN + '/add_word', methods=['POST'])
+@auth.login_required
+def chainle_add_word():
+    """Take a word off the list ('invalid') or keep one on it ('missing':
+    the -s filter and player reports leave it alone)."""
+    word, kind = _admin_form()
+    if kind is None:
+        return _back(error=NO_CHOICE)
+    error = _check_word(word)
+    if error:
+        return _back(error=error)
+    try:
+        CHAINLE_CROWD.admin_set(word, kind)
+    except Exception as e:
+        print(f"Error adding chainle word: {e}")
         return _back(error='Database error')
-    return _back(success='Round deleted')
+    done = 'allowed: it stays on the list' if kind == 'missing' else 'taken off the list'
+    return _back(success=f'{word} {done}')
+
+
+@bp.route(ADMIN + '/remove_word', methods=['POST'])
+@auth.login_required
+def chainle_remove_word():
+    """Undo an entry in either list, and reset that word's votes."""
+    word, kind = _admin_form()
+    if kind is None:
+        return _back(error=NO_CHOICE)
+    if not word.isalpha():
+        return _back(error='Word must be letters only')
+    try:
+        CHAINLE_CROWD.admin_remove(word, kind)
+    except Exception as e:
+        print(f"Error removing chainle word: {e}")
+        return _back(error='Database error')
+    return _back(success=f'{word} undone')

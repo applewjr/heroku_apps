@@ -991,6 +991,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const CENTER = 4;                        // grid index of the gold tile
     const ENTRY_ORDER = [4, 0, 1, 2, 3, 5, 6, 7, 8];
     const MAX_USES = 5;
+    // Rows a list shows at first, and how many more each Show more adds. All 8
+    // always shows its whole plan: renderPlan() doesn't use these.
+    const WORDS_FIRST = 10;
     const WORDS_STEP = 25;
     const STORAGE_KEY = 'smushSolverState_v1';
     // The chosen sort/filter is a UI preference, not game state, so it lives
@@ -1014,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let totalPlayable = 0;
     let pangramStatus = 'none';
     let sortMode = 'pts';                     // default; overridden by SORT_KEY if saved
-    let visibleCount = WORDS_STEP;
+    let visibleCount = WORDS_FIRST;
     let fetchTimer = null;
     let fetchSeq = 0;
 
@@ -1364,7 +1367,7 @@ document.addEventListener('DOMContentLoaded', () => {
             planData = data.plan || null;
             totalPlayable = data.total_playable || 0;
             pangramStatus = data.pangram_status || 'none';
-            visibleCount = WORDS_STEP;
+            visibleCount = WORDS_FIRST;
             renderStatus();
             renderResults();
         })
@@ -1434,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.querySelectorAll('.sort-chip').forEach(chip =>
             chip.addEventListener('click', () => {
                 sortMode = chip.dataset.sort;
-                visibleCount = WORDS_STEP;
+                visibleCount = WORDS_FIRST;
                 try { localStorage.setItem(SORT_KEY, sortMode); } catch (_) {}
                 // The All 8 plan is only computed when asked for, so entering
                 // that mode without one in hand means a refetch.
@@ -1554,7 +1557,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.type = 'button';
             btn.className = 'show-more-btn';
             btn.textContent = `Show ${Math.min(WORDS_STEP, remaining)} more (${remaining} remaining)`;
-            btn.addEventListener('click', () => { visibleCount += WORDS_STEP; renderResults(); });
+            btn.addEventListener('click', () => {
+                visibleCount += WORDS_STEP;
+                renderResults();
+                // Counted in GA4, to tell whether WORDS_FIRST rows are too few.
+                if (typeof gtag === 'function') gtag('event', 'show_more');
+            });
             resultsContainer.appendChild(btn);
         }
 

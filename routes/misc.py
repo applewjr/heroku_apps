@@ -6,6 +6,7 @@ from data import etl_dash_queries
 from extensions import FEEDBACK_POST_LIMITS, NOT_FOUND_LIMITS, auth, db_cursor, limiter, log_page_visit
 from helpers import bot_reason, client_ip, feedback_flooded, issue_form_token, log_dropped
 from monitoring import alerts
+from routes.dashboards import etl_round_name
 
 # Namespaces the signature, so a token minted for this form cannot be replayed
 # into another form that later uses the same mechanism.
@@ -29,7 +30,8 @@ def jj_admin():
     for name, details in etl_dash_queries.items():
         if 'round' in details:
             rounds.setdefault(details['round'], []).append(details.get('label') or name)
-    return render_template('jj_admin.html', etl_rounds=sorted(rounds.items()))
+    etl_rounds = [(r, etl_round_name(r), panels) for r, panels in sorted(rounds.items())]
+    return render_template('jj_admin.html', etl_rounds=etl_rounds)
 
 
 @bp.route('/log-click', methods=['POST'])

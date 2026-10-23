@@ -1,108 +1,95 @@
-Blossom:
+# The /etl_dash panels, one page per round, in file order. The daily digest
+# (monitoring/daily_digest.py) mails every panel too. Each query must be a
+# SELECT; the views live in mysql_views/dashboard/. Round names are in
+# data.py (ETL_ROUND_NAMES), because every key in this file is read as a panel.
+
+Traffic Today:
     round: 1
+    label: "Traffic Today"
+    description: "Human landings today against the usual by this time of day (the last 7 days' average). vs_usual_pct is the difference; min_since_last is minutes since the latest landing"
+    query: SELECT * FROM vw_prod_traffic_today;
+
+Landings (14 Days):
+    round: 1
+    label: "Landings (14 Days)"
+    description: "Human landings per page per day. Today is partial"
+    query: SELECT * FROM vw_prod_word_solver_page_visits;
+
+Errors by Day:
+    round: 1
+    label: "Errors by Day"
+    description: "server_errors are 500s and should be 0. not_found are 404s, nearly all scanners, so only a jump matters"
+    query: SELECT * FROM vw_prod_errors_by_day;
+
+Server Errors (Last 7 Days):
+    round: 1
+    label: "Server Errors (Last 7 Days)"
+    description: "The latest 500s, newest first. Empty is good"
+    query: SELECT * FROM vw_prod_errors;
+
+Recent Feedback:
+    round: 1
+    label: "Recent Feedback"
+    description: "Feedback form posts from the last 30 days, newest first (vw_prod_dynamic_1)"
+    query: SELECT * FROM vw_prod_dynamic_1;
+
+
+Weekly Landings:
+    round: 2
+    label: "Weekly Landings"
+    description: "Human landings per page per week, Monday to Sunday. This week is partial"
+    query: SELECT * FROM vw_prod_weekly_landings;
+
+Search Sources:
+    round: 2
+    label: "Search Sources"
+    description: "Each page's human landings, last 7 days against the 7 before: Google's share, the change in Google landings, other search engines, and no referrer (direct)"
+    query: SELECT * FROM vw_prod_search_sources;
+
+
+Blossom:
+    round: 3
     label: "Blossom"
     description: "Click counts by current time PST, total day, minmax. Last 28 days"
     query: SELECT * FROM vw_prod_blossom;
 
 Blossom Most Recent:
-    round: 1
+    round: 3
     label: "Blossom Most Recent"
     description: "Most recent 25 clicks"
     query: SELECT * FROM vw_prod_blossom_most_recent;
 
 Blossom Hourly Average:
-    round: 1
+    round: 3
     label: "Blossom Hourly Average"
     description: "Clicks averaged by hour, last 28 days"
     query: SELECT * FROM vw_prod_blossom_hourly_average;
 
 Blossom Search Source:
-    round: 1
+    round: 3
     label: "Blossom Search Source"
     description: "Referrer sources, minmaxed"
     query: SELECT * FROM vw_prod_blossom_search_source;
 
 
-Blossom Errors (Last 10 Days):
-    round: 2
-    label: "Blossom Errors (Last 10 Days)"
-    description: "Error page returns from referrer Blossom"
-    query: SELECT * FROM vw_prod_blossom_errors;
-
-Errors (Last 48 Hours):
-    round: 2
-    label: "Errors (Last 48 Hours)"
-    description: "Errors in the last 48 hours, most recent 25"
-    query: SELECT * FROM vw_prod_errors;
-
-Word Solver Page Visits:
-    round: 2
-    label: "Word Solver Page Visits"
-    description: "(Not individual clicks)"
-    query: SELECT * FROM vw_prod_word_solver_page_visits;
-
-
 High Level ETL:
-    round: 3
+    round: 4
     label: 'High Level ETL'
     description: "Min and max dates for various ETL"
     query: SELECT * FROM vw_prod_high_level_etl;
 
 Youtube Trending:
-    round: 3
+    round: 4
     label: 'Youtube Trending'
     description: "Last 10 days of data"
     query: SELECT * FROM vw_prod_youtube_trending;
 
 Youtube Trending Grouped:
-    round: 3
+    round: 4
     label: 'Youtube Trending Grouped'
     description: "Last 10 days of data for the new grouped Youtube trending"
     query: SELECT * FROM vw_prod_youtube_trending_grouped;
 
-
-Blossom Votes Recent:
-    round: 4
-    label: 'Blossom Votes Recent'
-    description: "Most recent 100 crowd votes (Invalid box, missing-word box). player = first 8 of voter_hash"
-    query: SELECT * FROM vw_prod_blossom_votes_recent;
-
-Blossom Votes 7 Days:
-    round: 4
-    label: 'Blossom Votes 7 Days'
-    description: "Votes per word in the 7-day window. counted drops players over 10 Invalid ticks that day. Removes at 5 counted, adds at 2"
-    query: SELECT * FROM vw_prod_blossom_votes_7d;
-
-Blossom Crowd Changes:
-    round: 4
-    label: 'Blossom Crowd Changes'
-    description: "Words the crowd removed or added (your admin rows excluded). Undo in /blossom_admin"
-    query: SELECT * FROM vw_prod_blossom_crowd_changes;
-
-Smush Votes Recent:
-    round: 4
-    label: 'Smush Votes Recent'
-    description: "Most recent 100 crowd votes (the X button, suggest box). player = first 8 of voter_hash"
-    query: SELECT * FROM vw_prod_smush_votes_recent;
-
-Smush Votes 7 Days:
-    round: 4
-    label: 'Smush Votes 7 Days'
-    description: "Votes per word in the 7-day window. counted drops players over 10 X taps that day. Removes at 5 counted, adds at 2"
-    query: SELECT * FROM vw_prod_smush_votes_7d;
-
-Smush Crowd Changes:
-    round: 4
-    label: 'Smush Crowd Changes'
-    description: "Words the crowd removed or added (your admin rows excluded). Undo in /smush_admin"
-    query: SELECT * FROM vw_prod_smush_crowd_changes;
-
-
-Dynamic View 1:
-    round: 5
-    label: 'Dynamic View 1'
-    description: ""
-    query: SELECT * FROM vw_prod_dynamic_1;
 
 Dynamic View 2:
     round: 5
@@ -121,4 +108,3 @@ Dynamic View 4:
     label: 'Dynamic View 4'
     description: ""
     query: SELECT * FROM vw_prod_dynamic_4;
-

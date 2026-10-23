@@ -104,8 +104,8 @@
 
     <div class="section-label">ETL dashboard</div>
     <div class="card-grid">
-        {% for round, panels in etl_rounds %}
-        {{ card('/etl_dash/' ~ round, 'Round ' ~ round, panels|join(', ')) }}
+        {% for round, name, panels in etl_rounds %}
+        {{ card('/etl_dash/' ~ round, name, panels|join(', ')) }}
         {% endfor %}
     </div>
 

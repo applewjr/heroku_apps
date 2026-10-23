@@ -1,94 +1,205 @@
 {% extends 'base.html' %}
 
-{% block title %}ETL Status Dashboard{% endblock %}
+{% block title %}ETL Dashboard - {{ round_name }}{% endblock %}
 
 {% block head %}
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        text-align: center; /* Center text by default */
+    .etl-dash {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 1.6rem 1.25rem 3rem;
+        text-align: left;
     }
-    h3 {
-        margin-top: 20px; /* Add space above each table header */
+    .etl-dash h1 {
+        font-size: 1.7rem;
+        font-weight: 600;
+        color: #02484d;
+        margin: 0 0 0.9rem;
     }
-    table {
-        margin-left: auto; /* Center the table */
-        margin-right: auto; /* Center the table */
-        border-collapse: collapse; /* Collapse borders for a more compact design */
-        table-layout: auto; /* Allow the table to adjust column widths based on content */
+    .round-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 1.4rem;
     }
-    th, td {
-        border: 1px solid #ddd; /* Add a border to each cell */
-        text-align: left; /* Align text to the left inside the table */
-        padding: 8px; /* Add some padding for text inside cells */
-        white-space: nowrap; /* Keep the content in a single line */
-        overflow: hidden; /* Hide the content that overflows the cell */
-        text-overflow: ellipsis; /* Add ellipsis (...) for overflowed content */
+    .round-pill {
+        padding: 7px 15px;
+        border: 1px solid #cdd8d7;
+        border-radius: 999px;
+        background: white;
+        color: #02484d;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
     }
-    th {
-        background-color: #f2f2f2; /* Add background color to header cells */
+    .round-pill:hover {
+        border-color: #02484d;
+        color: #02484d;
+        text-decoration: none;
     }
-    .round-button {
-        width: 50px; /* Added 'px' to make the CSS valid. Adjust this as needed, perhaps to min-width for better responsiveness */
-        background-color: #02484d;
+    .round-pill.current {
+        background: #02484d;
+        border-color: #02484d;
         color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none; /* Remove underline from link */
-        display: inline-block; /* Allows width and height for <a> */
-        text-align: center; /* Centers text within button */
     }
-    .round-button:hover {
-        background-color: #03282b;
-        color: gray;
+    .panel {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 1rem 1.1rem 1.1rem;
+        margin: 0 0 1.1rem;
+    }
+    .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+    }
+    .panel h2 {
+        font-size: 1.02rem;
+        font-weight: 600;
+        color: #111;
+        margin: 0;
+    }
+    .panel-count {
+        font-size: 0.75rem;
+        color: #6b7280;
+        white-space: nowrap;
+    }
+    .panel-desc {
+        font-size: 0.8rem;
+        color: #6b7280;
+        margin: 0.3rem 0 0.75rem;
+        line-height: 1.45;
+    }
+    .panel-note {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin: 0.5rem 0 0;
+    }
+    .panel-error {
+        font-size: 0.85rem;
+        color: #a12;
+        background: #fbf0f0;
+        border: 1px solid #ecd3d3;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin: 0.5rem 0 0;
+        overflow-wrap: anywhere;
+    }
+    /* Wide tables scroll sideways inside their card, never the whole page. */
+    .table-wrap {
+        overflow: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+    }
+    /* Undo base.html's site-wide table rule (borders, 33% widths, centring). */
+    .table-wrap table,
+    .table-wrap th,
+    .table-wrap td {
+        width: auto;
+        border: none;
+        margin: 0;
+        font-size: inherit;
+    }
+    .table-wrap table {
+        border-collapse: collapse;
+        min-width: 100%;
+        font-size: 0.82rem;
+    }
+    .table-wrap th,
+    .table-wrap td {
+        padding: 6px 10px;
+        border-bottom: 1px solid #eef0f2;
+        text-align: left;
+        vertical-align: top;
+        white-space: nowrap;
+    }
+    .table-wrap th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f6f6;
+        color: #02484d;
+        font-weight: 600;
+    }
+    .table-wrap tbody tr:nth-child(even) td { background: #fafbfb; }
+    .table-wrap .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .table-wrap .wide {
+        white-space: normal;
+        min-width: 16rem;
+        max-width: 32rem;
+        overflow-wrap: anywhere;
+    }
+    .table-wrap .pos { color: #15803d; font-weight: 600; }
+    .table-wrap .neg { color: #b91c1c; font-weight: 600; }
+    /* Long tables scroll inside the card on a wide screen, under a sticky
+       header row. Not on a phone, where a scroll area inside the page
+       fights the page's own scrolling. */
+    @media (min-width: 601px) {
+        .table-wrap { max-height: 70vh; }
+    }
+    @media (max-width: 600px) {
+        .etl-dash { padding: 1.1rem 0.75rem 2.5rem; }
+        .etl-dash h1 { font-size: 1.35rem; }
+        .panel { padding: 0.8rem 0.75rem 0.85rem; }
+        .table-wrap table { font-size: 0.78rem; }
+        .table-wrap th,
+        .table-wrap td { padding: 5px 8px; }
+        .table-wrap .wide { min-width: 12rem; }
     }
 </style>
 {% endblock %}
 
+{# One cell. numeric columns align right; wide ones may wrap; a signed column
+   (vs_*, *_change) is tinted by its sign, with a + on gains. #}
+{% macro cell(p, i, v) -%}
+{%- set tone = '' -%}
+{%- if p.signed[i] and v is number -%}
+{%- if v > 0 %}{% set tone = 'pos' %}{% elif v < 0 %}{% set tone = 'neg' %}{% endif -%}
+{%- endif -%}
+{%- set classes = ['num' if p.numeric[i] else '', 'wide' if p.wide[i] else '', tone] | select | join(' ') -%}
+<td{% if classes %} class="{{ classes }}"{% endif %}>{% if v is not none %}{% if tone == 'pos' %}+{% endif %}{{ v }}{% endif %}</td>
+{%- endmacro %}
+
 {% block content %}
-
-<head>
-</head>
-<body>
-    {% for table_name, details in query_dict.items() %}
-        <h3>{{ table_name }}</h3>
-        <p>{{ details.description }}</p> <!-- Displaying the description -->
-        <table>
-            <thead>
-                <tr>
-                    {% for column in details.data.columns %} <!-- Adjusted for nested structure -->
-                        <th>{{ column }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for index, row in details.data.iterrows() %} <!-- Adjusted for nested structure -->
-                    <tr>
-                        {% for cell in row %}
-                            <td>{{ cell }}</td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br>
-        <br>
-    {% endfor %}
-    <div>
-        {% for round_num in valid_rounds %}
-            {% if round_num != round %}
-                <a href="/etl_dash/{{ round_num }}" class="round-button">{{ round_num }}</a>
-            {% endif %}
+<div class="etl-dash">
+    <h1>ETL Dashboard</h1>
+    <nav class="round-pills" aria-label="Dashboard pages">
+        {% for r, name in rounds %}
+        <a href="/etl_dash/{{ r }}" class="round-pill{% if r == round %} current{% endif %}"{% if r == round %} aria-current="page"{% endif %}>{{ name }}</a>
         {% endfor %}
-    </div>
-    <br>
-    <br>
-    <br>
-</body>
+    </nav>
 
-
+    {% for p in panels %}
+    <section class="panel">
+        <div class="panel-head">
+            <h2>{{ p.name }}</h2>
+            {% if not p.error %}<span class="panel-count">{{ p.rows | length }} row{{ '' if p.rows | length == 1 else 's' }}</span>{% endif %}
+        </div>
+        {% if p.description %}<p class="panel-desc">{{ p.description }}</p>{% endif %}
+        {% if p.error %}
+        <p class="panel-error">This panel didn't load: {{ p.error }}</p>
+        {% elif not p.rows %}
+        <p class="panel-note">No rows.</p>
+        {% else %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>{% for c in p.columns %}<th{% if p.numeric[loop.index0] %} class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                    {% for row in p.rows %}
+                    <tr>{% for v in row %}{{ cell(p, loop.index0, v) }}{% endfor %}</tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </section>
+    {% endfor %}
+</div>
 {% endblock %}

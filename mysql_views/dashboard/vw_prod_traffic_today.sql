@@ -1,0 +1,42 @@
+CREATE OR REPLACE VIEW vw_prod_traffic_today AS
+
+-- Each logged page today against its usual: landings so far, how many it
+-- usually has by this time of day (the average of the last 7 days up to the
+-- same clock time), the difference in percent, its usual full day, and
+-- minutes since its latest landing. A page with no landing in the last 7
+-- days drops out.
+--
+-- Human landings only, as in vw_prod_word_solver_page_visits: not the hourly
+-- health probe, not a local or staging run, and not a bot user agent.
+
+WITH visits AS (
+    SELECT page_name, submit_time
+    FROM app_visits
+    WHERE submit_time >= DATE(pst_now()) - INTERVAL 7 DAY
+        AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
+                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html')
+        AND user_agent <> 'jj-healthcheck'
+        AND referrer NOT LIKE '%127.0.0.1:5000%'
+        AND referrer NOT LIKE '%apple-apps-staging%'
+        AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
+    )
+,counts AS (
+    SELECT
+     page_name
+    ,SUM(submit_time >= DATE(pst_now())) AS today
+    ,SUM(submit_time < DATE(pst_now()) AND TIME(submit_time) <= TIME(pst_now())) / 7 AS usual_by_now
+    ,SUM(submit_time < DATE(pst_now())) / 7 AS per_day_7d
+    ,MAX(submit_time) AS last_visit
+    FROM visits
+    GROUP BY page_name
+    )
+SELECT
+ REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') AS page
+,today
+,ROUND(usual_by_now) AS usual_by_now
+,ROUND(100 * (today / NULLIF(usual_by_now, 0) - 1)) AS vs_usual_pct
+,ROUND(per_day_7d) AS per_day_7d
+,TIMESTAMPDIFF(MINUTE, last_visit, pst_now()) AS min_since_last
+FROM counts
+ORDER BY per_day_7d DESC
+;

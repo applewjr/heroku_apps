@@ -26,6 +26,13 @@ INSERT INTO blossom_solver_clicks (click_time, must_have, may_have, petal_letter
 VALUES (%s, %s, %s, %s, %s);
 """
 
+# Words the results list shows at first, and how many more each "Show more"
+# adds. A short first list puts the end of the results, and what follows it,
+# within reach without much scrolling. list_len in blossom_solver_clicks
+# shows how often players ask for more.
+BLOSSOM_LIST_FIRST = 15
+BLOSSOM_LIST_STEP = 25
+
 
 @bp.route("/blossom", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
@@ -87,9 +94,9 @@ def blossom_solver():
 
             # Handle load more functionality
             current_count = parse_int(request.form.get("current_count"), "current_count",
-                                      default=25, min_value=1, max_value=10000)
+                                      default=BLOSSOM_LIST_FIRST, min_value=1, max_value=10000)
             if request.form.get("load_more"):
-                current_count = min(current_count + 25, 10000)
+                current_count = min(current_count + BLOSSOM_LIST_STEP, 10000)
 
             # Get used words, and words this player flagged invalid, from session
             used_words = session.get('used_words', [])
@@ -127,6 +134,7 @@ def blossom_solver():
                                 used_words=used_words,
                                 current_count=current_count,
                                 show_load_more=show_load_more,
+                                list_step=BLOSSOM_LIST_STEP,
                                 pangrams=pangrams,
                                 schema_data=schema_data)
 
@@ -143,7 +151,7 @@ def blossom_solver():
 
             return render_template("blossom.html",
                                 used_words=used_words,
-                                current_count=25,
+                                current_count=BLOSSOM_LIST_FIRST,
                                 show_load_more=False,
                                 schema_data=schema_data)
 

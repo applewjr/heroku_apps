@@ -336,6 +336,32 @@ def test_blossom_show_more_button_hidden_when_all_words_shown(blossom_client):
     assert "Show 25 more words" not in resp.get_data(as_text=True)
 
 
+def test_blossom_lists_15_words_first_then_25_more(blossom_client):
+    # A short first list keeps the end of the results within reach; each
+    # Show more adds BLOSSOM_LIST_STEP, and the count rides along in form1.
+    from routes.blossom import BLOSSOM_LIST_FIRST, BLOSSOM_LIST_STEP
+    assert (BLOSSOM_LIST_FIRST, BLOSSOM_LIST_STEP) == (15, 25)
+
+    def rows_shown(html):
+        table = html.split('class="word-results-container"')[1].split('class="word-count-row"')[0]
+        return table.split('<tbody>')[1].count('<tr')
+
+    landing = blossom_client.get("/blossom").get_data(as_text=True)
+    assert 'name="current_count" value="15"' in landing
+
+    letters = {"must_have": "t", "may_have": "raine", "petal_letter": "s"}
+    html = blossom_client.post("/blossom", data=letters).get_data(as_text=True)
+    assert rows_shown(html) == 15
+    assert "Showing 15 of" in html
+    assert 'name="current_count" value="15"' in html
+    assert "Show 25 more words" in html
+
+    html = blossom_client.post("/blossom", data=dict(letters, current_count="15", load_more="true")).get_data(as_text=True)
+    assert rows_shown(html) == 40
+    assert "Showing 40 of" in html
+    assert 'name="current_count" value="40"' in html
+
+
 # ---------------------------------------------------------------------------
 # Crowd corrections: the Invalid box, the missing-word box, and the vote
 # counting behind them. Every database call goes to a scripted fake. These
@@ -458,10 +484,11 @@ def test_results_table_has_an_invalid_box_on_every_row(blossom_client):
         "/blossom",
         data={"must_have": "t", "may_have": "raine", "petal_letter": "s"},
     )
+    from routes.blossom import BLOSSOM_LIST_FIRST
     html = resp.get_data(as_text=True)
     assert "<th>Invalid</th>" in html
-    assert html.count('class="word-checkbox"') == 25
-    assert html.count('class="invalid-checkbox"') == 25
+    assert html.count('class="word-checkbox"') == BLOSSOM_LIST_FIRST
+    assert html.count('class="invalid-checkbox"') == BLOSSOM_LIST_FIRST
     # The hint sits above the table, so it is read before the first tap.
     assert html.index('class="invalid-hint"') < html.index('<table')
     assert "Tried a word and Blossom rejected it? Tick its Invalid box." in html

@@ -4,6 +4,7 @@ import io
 import threading
 import time
 from datetime import datetime
+from decimal import Decimal
 
 import pandas as pd
 import pytz
@@ -11,7 +12,7 @@ import requests
 from flask import Blueprint, abort, redirect, render_template, url_for
 
 import config
-from data import etl_dash_queries
+from data import ETL_ROUND_NAMES, etl_dash_queries
 from extensions import auth, db_cursor
 from functions import plot_viz, youtube_stats, youtube_revamp_stats
 from helpers import make_trending_jsonld
@@ -155,6 +156,50 @@ def get_valid_rounds():
     return rounds
 
 
+def etl_round_name(round):
+    return ETL_ROUND_NAMES.get(round, f'Round {round}')
+
+
+# A text value longer than this lets its column wrap rather than stretch the
+# table (feedback bodies, referrers).
+WIDE_TEXT = 40
+
+
+def _is_number(value):
+    return isinstance(value, (int, float, Decimal)) and not isinstance(value, bool)
+
+
+def run_panel(cursor, query):
+    """One panel's table: {'columns', 'rows', 'numeric', 'signed', 'wide',
+    'error'}, with a flag per column for the template.
+
+    numeric -- every value is a number, so the column is right-aligned
+    signed  -- named vs_* or *_change: tinted green or red by its sign
+    wide    -- holds long text, so the column may wrap
+
+    A failed query comes back with its error rather than raising, so the
+    page shows that panel as broken instead of quietly leaving it out.
+    """
+    try:
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [d[0] for d in cursor.description]
+    except Exception as e:
+        print(f'etl_dash panel failed: {e}')
+        return {'columns': [], 'rows': [], 'numeric': [], 'signed': [], 'wide': [],
+                'error': f'{type(e).__name__}: {e}'}
+    by_column = list(zip(*rows)) if rows else [()] * len(columns)
+    return {
+        'columns': columns,
+        'rows': rows,
+        'numeric': [any(v is not None for v in col) and all(_is_number(v) for v in col if v is not None)
+                    for col in by_column],
+        'signed': [c.startswith('vs_') or c.endswith('_change') for c in columns],
+        'wide': [any(isinstance(v, str) and len(v) > WIDE_TEXT for v in col) for col in by_column],
+        'error': None,
+    }
+
+
 @bp.route("/etl_dash")
 def etl_dash_redirect():
     return redirect(url_for('dashboards.etl_status_dash', round=1))
@@ -169,25 +214,17 @@ def etl_status_dash(round):
     if round not in valid_rounds:
         return f"Invalid round parameter. Return only: {valid_rounds}", 400
 
+    panels = []
     with db_cursor() as (conn, cursor):
-        query_dict = {}
         for name, details in etl_dash_queries.items():
             if details.get('round') == round:
-                try:
-                    cursor.execute(details['query'])
-                    result = cursor.fetchall()
-                    columns = [desc[0] for desc in cursor.description]
-                    query_df = pd.DataFrame(result, columns=columns)
+                panels.append({'name': details.get('label') or name,
+                               'description': details.get('description', ''),
+                               **run_panel(cursor, details['query'])})
 
-                    # Here we add the description to the dictionary entry for this name
-                    query_dict[name] = {
-                        'description': details['description'],
-                        'data': query_df
-                    }
-                except Exception as e:
-                    print(f'{name} not run due to error: {e}')
-
-        return render_template("etl_dash.html", query_dict=query_dict, valid_rounds=sorted(list(valid_rounds)), round=round)
+    rounds = [(r, etl_round_name(r)) for r in sorted(valid_rounds)]
+    return render_template("etl_dash.html", panels=panels, rounds=rounds, round=round,
+                           round_name=etl_round_name(round))
 
 
 def _render_mtg(source):

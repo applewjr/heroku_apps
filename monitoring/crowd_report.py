@@ -9,7 +9,7 @@ Each crowd game has the same three tables: <game>_word_votes,
 <game>_invalid_words and <game>_added_words.
 """
 
-CROWD_GAMES = ('blossom', 'smush', 'gtp', 'ribbit')  # gtp = Guess The Phrase
+CROWD_GAMES = ('blossom', 'smush', 'gtp', 'ribbit', 'chainle')  # gtp = Guess The Phrase
 
 
 def report_sql(game, window_days, recent_days=None):
