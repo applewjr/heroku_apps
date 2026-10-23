@@ -517,8 +517,8 @@
     <!-- Player Reports Tab -->
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         <h2>Player Reports, last {{ crowd_window_days }} days</h2>
-        <p class="crowd-note">A report is a ✗ on a revealed suggestion: the game refused the word.
-            A word comes off once enough different players report it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. Needed is that number for each word.
+        <p class="crowd-note"><strong>Players have no way to report words on /chainle, so this tab stays empty.</strong> Remove and Allow above still steer the solver.</p>
+        <p class="crowd-note">A word comes off once enough different players report it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. Needed is that number for each word.
             Players counts every report in the window, including ones from a player over the daily limit, which don't count toward a removal.
             Either button clears that word's votes.</p>
         <p class="crowd-note">
