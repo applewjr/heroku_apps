@@ -46,6 +46,12 @@ Search Sources:
     description: "Each page's human landings, last 7 days against the 7 before: Google's share, the change in Google landings, other search engines, and no referrer (direct)"
     query: SELECT * FROM vw_prod_search_sources;
 
+Solver to Solver:
+    round: 2
+    label: "Solver to Solver"
+    description: "Visits that came from one of this site's pages to a solver, last 7 days against the 7 before. home is the front page; the rest show whether the More daily puzzle solvers cards move players between games"
+    query: SELECT * FROM vw_prod_internal_flow;
+
 
 Blossom:
     round: 3

@@ -336,6 +336,93 @@
     color: #218838;
     font-weight: bold;
 }
+
+.status-served {
+    color: #218838;
+    font-weight: bold;
+}
+
+.status-waiting {
+    color: #666;
+}
+
+.when {
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+/* A board state: the center, then the petals in the solver's spots. */
+.board-text {
+    font-family: monospace;
+    font-size: 15px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.puzzle-card {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin-bottom: 14px;
+}
+
+.puzzle-card .words-table {
+    margin-top: 8px;
+}
+
+.puzzle-line {
+    margin: 0 0 6px;
+}
+
+/* The Approve form's letters, laid out like the solver's flower: petals
+   top-left and top-right, middle-left and middle-right of the center,
+   bottom-left and bottom-right. The inputs are in typing order (center,
+   then petal-0..5); the grid puts each in its spot. */
+.mini-flower {
+    display: grid;
+    grid-template-columns: repeat(4, 44px);
+    grid-auto-rows: 44px;
+    grid-template-areas: ". p0 p1 ." "p2 c c p3" ". p4 p5 .";
+    gap: 6px;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.mini-flower input {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: 2px solid #02484d;
+    border-radius: 50%;
+    box-sizing: border-box;
+}
+
+.mini-flower .mini-center {
+    grid-area: c;
+    justify-self: center;
+    background-color: #ffd700;
+    color: #02484d;
+}
+
+.approve-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+}
+
+.approve-row input[type=date] {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
 </style>
 
 {% macro pager(p) %}
@@ -372,6 +459,7 @@
 
     <div class="top-nav">
         <a href="/blossom" target="_blank" rel="noopener" class="btn btn-primary">Back to Blossom Solver</a>
+        <a href="/blossom_dev" target="_blank" rel="noopener" class="btn btn-secondary">Blossom Dev</a>
         <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" rel="noopener" class="btn btn-success">Open Blossom Game</a>
     </div>
 
@@ -393,11 +481,18 @@
     </div>
     {% endif %}
 
+    {% if crowd_error %}
+    <div class="alert alert-error">
+        Couldn't read the word lists ({{ crowd_error }}). Today's Board still works.
+    </div>
+    {% endif %}
+
     <div class="stats">
         <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
         <strong>Recent feedback:</strong> {{ recent_feedback|length }} |
         <strong>Removed words:</strong> {{ invalid_total }} |
-        <strong>Added words:</strong> {{ added_total }}
+        <strong>Added words:</strong> {{ added_total }} |
+        <strong>Today's board:</strong> {{ 'live on /blossom' if board_live else 'logging only; served on /blossom_dev' }}
     </div>
 
     <div class="admin-section">
@@ -432,10 +527,115 @@
     <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Smush solver tags rare; "none" means it isn't in the frequency list at all.</p>
 
     <div class="tab-container">
+        <div class="tab-button{% if active_tab == 'board' %} active{% endif %}" onclick="showTab(event, 'board')">Today's Board</div>
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
         <div class="tab-button{% if active_tab == 'feedback' %} active{% endif %}" onclick="showTab(event, 'feedback')">Recent Feedback</div>
         <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
         <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Added Words</div>
+    </div>
+
+    <!-- Today's Board Tab -->
+    <div id="board-tab" class="tab-content{% if active_tab == 'board' %} active{% endif %}">
+        <h2>Today's Board</h2>
+        {% if load_error %}
+        <div class="alert alert-error">
+            Couldn't read the boards ({{ load_error }}). Has mysql_tables/blossom_boards.sql been run?
+        </div>
+        {% endif %}
+        <p class="crowd-note">The boards players typed into the solver, logged on their first petal tap, on their own date (Blossom rolls over at each player's midnight). A board is the center plus the letter in each petal spot, in the solver's order: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right. Served is the board players whose date that is are offered{% if not board_live %} (on /blossom_dev only, until it goes live){% endif %}, with its hints.</p>
+        <p class="crowd-note">Your approval is served straight away, whatever the players typed, and the latest one for a day wins. Without one, a board is served once {{ serve_crowd }} players enter it exactly, every petal in the same spot; then whichever board has the most players, a tie going to the first to reach {{ serve_crowd }}. Players count once per network (an IPv6 /48, or one IPv4 address), and a player's later board of the same puzzle that day replaces their earlier one. Only the puzzle most players entered that day can be served, never one first seen on an earlier day (an archive game), unless you approve it. Remove deletes the players' entries of that board on that day; Undo takes back an approval and leaves the players' boards alone.</p>
+
+        <form method="POST" action="/blossom_admin/approve_board" class="admin-section" id="approve-form">
+            <strong>Approve your game's board</strong>
+            <p class="crowd-note">Type each letter in the spot your game shows it, the center in the middle. Or approve a board from the lists below.</p>
+            <div class="mini-flower">
+                <input type="text" name="center" class="mini-center" maxlength="1" autocomplete="off" aria-label="Center">
+                <input type="text" name="p0" style="grid-area: p0;" maxlength="1" autocomplete="off" aria-label="Top-left petal">
+                <input type="text" name="p1" style="grid-area: p1;" maxlength="1" autocomplete="off" aria-label="Top-right petal">
+                <input type="text" name="p2" style="grid-area: p2;" maxlength="1" autocomplete="off" aria-label="Middle-left petal">
+                <input type="text" name="p3" style="grid-area: p3;" maxlength="1" autocomplete="off" aria-label="Middle-right petal">
+                <input type="text" name="p4" style="grid-area: p4;" maxlength="1" autocomplete="off" aria-label="Bottom-left petal">
+                <input type="text" name="p5" style="grid-area: p5;" maxlength="1" autocomplete="off" aria-label="Bottom-right petal">
+            </div>
+            <div class="approve-row">
+                <label>Date <input type="date" name="played_on" value="{{ pacific_today.strftime('%Y-%m-%d') }}" required></label>
+                {{ keep_view() }}
+                <button type="submit" class="btn btn-success">Approve</button>
+            </div>
+        </form>
+
+        {% for d in days %}
+        <h3>{{ d.day.strftime('%Y-%m-%d') }}{% if d.day == pacific_today %} (today, Pacific){% endif %}</h3>
+        {% for g in d.groups %}
+        <div class="puzzle-card">
+            <p class="puzzle-line">
+                <span class="board-text">{{ g.letters[0]|upper }} · {{ g.letters[1:]|upper }}</span>
+                - {{ g.players }} player{{ '' if g.players == 1 else 's' }} this day, first seen {{ g.first_seen.strftime('%m-%d') }}
+                {% if g.archive %}<span class="status-waiting">(an older puzzle)</span>{% endif %}
+                - {% if g.served %}<span class="status-served">Served</span>{% else %}<span class="status-waiting">{{ g.why or 'not served' }}</span>{% endif %}
+            </p>
+            {% if g.approved %}
+            <div class="puzzle-line">
+                Approved: <span class="board-text">{{ g.approved_text }}</span>
+                <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span>
+                <form method="POST" action="/blossom_admin/unapprove_board" class="remove-form"
+                      onsubmit="return confirm('Take back the approval of this puzzle on {{ d.day.strftime('%m-%d') }}?')">
+                    <input type="hidden" name="letters" value="{{ g.letters }}">
+                    <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                    {{ keep_view() }}
+                    <button type="submit" class="btn btn-secondary">Undo</button>
+                </form>
+            </div>
+            {% endif %}
+            {% if g.states %}
+            <div class="table-wrap">
+            <table class="words-table">
+                <thead>
+                    <tr>
+                        <th>Board</th>
+                        <th>Players</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in g.states %}
+                    <tr>
+                        <td class="board-text">{{ s.text }}</td>
+                        <td>{{ s.players }}</td>
+                        <td>
+                            {% if s.served %}<span class="status-served">Served</span>{% endif %}
+                            {% if s.reached_at %}<span class="when">{{ serve_crowd }} by {{ s.reached_at.strftime('%H:%M') }}</span>{% endif %}
+                        </td>
+                        <td class="row-actions">
+                            <form method="POST" action="/blossom_admin/approve_board" class="remove-form"
+                                  onsubmit="return confirm('Serve {{ s.text }} to every player whose date is {{ d.day.strftime('%m-%d') }}?')">
+                                <input type="hidden" name="letters" value="{{ g.letters }}">
+                                <input type="hidden" name="board" value="{{ s.board }}">
+                                <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                                {{ keep_view() }}
+                                <button type="submit" class="btn btn-success">Approve</button>
+                            </form>
+                            <form method="POST" action="/blossom_admin/remove_board" class="remove-form"
+                                  onsubmit="return confirm('Delete every player entry of {{ s.text }} on {{ d.day.strftime('%m-%d') }}?')">
+                                <input type="hidden" name="letters" value="{{ g.letters }}">
+                                <input type="hidden" name="board" value="{{ s.board }}">
+                                <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                                {{ keep_view() }}
+                                <button type="submit" class="btn btn-danger">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        {% if not load_error %}<p>No boards logged in the last few days.</p>{% endif %}
+        {% endfor %}
     </div>
 
     <!-- Player Reports Tab -->
@@ -664,6 +864,16 @@ function refreshWordForm() {
 }
 
 refreshWordForm();
+
+// The Approve form's letters: one per box, then on to the next box in
+// typing order (the center, then the petals in the solver's order).
+var flowerInputs = document.querySelectorAll('.mini-flower input');
+flowerInputs.forEach(function(input, i) {
+    input.addEventListener('input', function() {
+        this.value = this.value.replace(/[^A-Za-z]/g, '').slice(-1).toUpperCase();
+        if (this.value && flowerInputs[i + 1]) flowerInputs[i + 1].focus();
+    });
+});
 
 function showTab(event, tabName) {
     document.querySelectorAll('.tab-content').forEach(function(content) {

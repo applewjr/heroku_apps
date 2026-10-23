@@ -26,6 +26,22 @@ def no_write_behind(monkeypatch):
                         queue.Queue(maxsize=extensions._LOG_QUEUE_MAX))
 
 
+@pytest.fixture(autouse=True)
+def no_blossom_board_reads(monkeypatch):
+    """Start every test with an empty blossom_boards and no board memo.
+
+    /blossom_dev's GET reads today's board from blossom_boards
+    (routes/blossom.py, "today's board"), and so will /blossom's once
+    TODAYS_BOARD_LIVE is on. ``secret_pass.py`` points at the production
+    JawsDB, so the smoke tests that GET /blossom would read it.
+    tests/test_blossom_boards.py puts a table of its own in place of this.
+    """
+    import routes.blossom as blossom
+
+    monkeypatch.setattr(blossom, "rows_logged_between", lambda first, last: [])
+    monkeypatch.setattr(blossom, "_board_cache", {})
+
+
 @pytest.fixture(scope="session")
 def flask_app():
     # Importing app.py wires the blueprints, SSLify, ProxyFix, and pings Redis.

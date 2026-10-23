@@ -1,21 +1,46 @@
-{# "Other Word Game Solvers": one list for every solver page, so a new
-   solver is added here once. Set `current` to the page's own path to leave
-   it out:
+{# "More daily puzzle solvers": the cross-links between solvers, one list for
+   every solver page, so a new solver is added here once. Set `current` to the
+   page's own path to leave it out:
      {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
-   The newest solvers lead, and is_new (helpers.NEW_UNTIL) tags them NEW
-   until a set day. Wordle, the first solver, wears a grey OLD for good
-   (James's joke). A tag sits on the button's corner, so it never changes
-   the button's size. min-height holds the space before the links paint, so
-   Auto Ads don't shift the page. #}
-{% set solvers = [('/chainle', 'Chainle'), ('/guess_the_phrase', 'Guess The Phrase'),
-                  ('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle'),
-                  ('/blossom', 'Blossom'), ('/smush', 'Smush'), ('/ribbit', 'Ribbit'),
-                  ('/wordiply', 'Wordiply')] %}
-<div style="margin-top: 20px; min-height: 100px;">
-    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Other Word Game Solvers:</p>
-    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 400px; margin: 0 auto;">
-        {% for path, name in solvers if path != current %}
-        <a href="{{ path }}" style="position: relative; background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 8px 16px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.2s ease; flex: 0 0 calc(50% - 2px); text-align: center; box-sizing: border-box;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">{{ name }}{% if is_new(path) %}<span style="position: absolute; top: -8px; right: 8px; padding: 2px 6px; border-radius: 999px; background-color: #ffd700; color: #02484d; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; line-height: 1.2;">NEW</span>{% elif path == '/wordle' %}<span style="position: absolute; top: -8px; right: 8px; padding: 2px 6px; border-radius: 999px; background-color: #6b7280; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; line-height: 1.2;">OLD</span>{% endif %}</a>
+   One per page, after the page's whole tool, its results, its ad unit and its
+   Play buttons, and before the FAQ: never between a tool and its results.
+
+   Links only, no <button>: on /blossom this sits inside form1, where a button
+   would submit the form. No tracked-link class either, since /log-click
+   stores nothing. The /etl_dash "Solver to Solver" panel
+   (vw_prod_internal_flow) counts what these links do, from app_visits
+   referrers.
+
+   Each daily solver is a card: the emoji on that page's own Play button, its
+   name, and a hook. Hooks say "today", "answers" and "hints", the words
+   people search for, but never promise a ready-made list. Wordle, Antiwordle
+   and Quordle help with guesses rather than today's answers, so they get a
+   line of plain links under the cards, and every solver page still links to
+   all the others.
+
+   is_new (helpers.NEW_UNTIL) tags a solver NEW until a set day. Wordle, the
+   first solver, wears a grey OLD for good (James's joke). A card's tag sits
+   on its corner, so it never changes the card's size. Styles: .jj-more* in
+   base.html. #}
+{% set daily = [('/smush', '🥞', 'Smush', "Today's pangram and best words"),
+                ('/blossom', '🌸', 'Blossom', "Today's hints and answers"),
+                ('/chainle', '🔗', 'Chainle', "Answers and hints for today's rounds"),
+                ('/ribbit', '🐸', 'Ribbit', "Every word on today's board"),
+                ('/wordiply', '🧩', 'Wordiply', "Longest words for today's letters"),
+                ('/guess_the_phrase', '🎡', 'Guess The Phrase', 'Spoiler-free letter hints')] %}
+{% set guess_helpers = [('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle')] %}
+<section class="jj-more" aria-labelledby="jj-more-title">
+    <h2 class="jj-more-title" id="jj-more-title">More daily puzzle solvers</h2>
+    <div class="jj-more-grid">
+        {% for path, icon, name, hook in daily if path != current %}
+        <a class="jj-more-tile" href="{{ path }}">
+            <span class="jj-more-name"><span class="jj-more-icon" aria-hidden="true">{{ icon }}</span>{{ name }}</span>
+            <span class="jj-more-hook">{{ hook }}</span>
+            {%- if is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% endif %}
+        </a>
         {% endfor %}
     </div>
-</div>
+    <p class="jj-more-also">More solvers:
+        {% for path, name in guess_helpers if path != current %}{% if not loop.first %} · {% endif %}<a href="{{ path }}">{{ name }}{% if path == '/wordle' %}<span class="jj-more-tag jj-more-old">OLD</span>{% endif %}</a>{% endfor %}
+    </p>
+</section>

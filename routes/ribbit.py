@@ -25,12 +25,10 @@ that matches their game: James's approvals, plus any board the players
 settled on their own.
 """
 
-import re
 import time
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
-import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
@@ -39,12 +37,13 @@ from crowd import (CROWD_ADD_VOTES, CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTE
 from data import word_pop, words
 from extensions import auth, db_cursor, pst_now_str
 from functions import all_words
-from helpers import ValidationError, parse_letters
+# _pacific_today is a name of this module's own so tests can set the day.
+from helpers import ISO_DATE as _DATE
+from helpers import ValidationError, parse_letters, parse_played_on
+from helpers import pacific_today as _pacific_today
 from monitoring import alerts
 
 bp = Blueprint('ribbit', __name__)
-
-PACIFIC = pytz.timezone('America/Los_Angeles')
 
 
 def parse_ribbit_board(data):
@@ -479,24 +478,11 @@ def remove_approval(letters):
     return removed
 
 
-def _pacific_today():
-    return datetime.now(PACIFIC).date()
-
-
-_DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
-
-
 def _played_on(data):
     """The player's own date, or None if it can't be today anywhere on Earth
-    (more than a day from Pacific's) - a wrong clock, not a reason to 400."""
-    value = data.get('played_on')
-    if not (isinstance(value, str) and _DATE.fullmatch(value)):
-        raise ValidationError('played_on must be a date, YYYY-MM-DD')
-    try:
-        day = date.fromisoformat(value)
-    except ValueError:
-        raise ValidationError('played_on must be a real date')
-    return day if abs((day - _pacific_today()).days) <= 1 else None
+    (more than a day from Pacific's) - a wrong clock, not a reason to 400.
+    See helpers.parse_played_on."""
+    return parse_played_on(data.get('played_on'), _pacific_today())
 
 
 def _grid_board(data, whole=True):

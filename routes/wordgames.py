@@ -33,7 +33,7 @@ def run_wordle_revamp():
     schema_data = make_schema_data(
         "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
         "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
-        "https://jamesapplewhite.com/wordle"
+        "https://www.jamesapplewhite.com/wordle"
     )
 
     if request.method == "POST":
@@ -104,7 +104,7 @@ def run_antiwordle_revamp():
     schema_data = make_schema_data(
         "Antiwordle Solver - Beat Antiwordle Game Instantly",
         "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
-        "https://jamesapplewhite.com/antiwordle"
+        "https://www.jamesapplewhite.com/antiwordle"
     )
 
     if request.method == "POST":
@@ -164,7 +164,7 @@ def run_quordle_revamp():
     schema_data = make_schema_data(
         "Quordle Solver - Solve 4 Wordles at Once Instantly",
         "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
-        "https://jamesapplewhite.com/quordle"
+        "https://www.jamesapplewhite.com/quordle"
     )
 
     if request.method == "POST":
@@ -231,7 +231,7 @@ def any_word():
         "Any Word Finder - Search Words by Pattern",
         "Free word finder. Search a large dictionary by starts-with, ends-with, "
         "contained text, wildcard pattern, letters, and length.",
-        "https://jamesapplewhite.com/any_word",
+        "https://www.jamesapplewhite.com/any_word",
     )
 
     if request.method == "POST":
@@ -301,7 +301,7 @@ def run_smush():
     schema_data = make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",
         "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
-        "https://jamesapplewhite.com/smush"
+        "https://www.jamesapplewhite.com/smush"
     )
 
     if request.method == "POST":
@@ -414,7 +414,7 @@ def run_ribbit():
     schema_data = make_schema_data(
         "Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit",
         "Solve Puzzmo's Ribbit in seconds - recreate the board, then see every word you can trace, longest first, with rare words flagged. Free solver for the daily frog word game.",
-        "https://jamesapplewhite.com/ribbit"
+        "https://www.jamesapplewhite.com/ribbit"
     )
     log_page_visit('ribbit.html')
     return render_template("ribbit.html", schema_data=schema_data,
@@ -484,7 +484,7 @@ def run_wordiply():
     schema_data = make_schema_data(
         "Wordiply Solver - Today's Answers & Longest Words",
         "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
-        "https://jamesapplewhite.com/wordiply"
+        "https://www.jamesapplewhite.com/wordiply"
     )
 
     if request.method == "POST":

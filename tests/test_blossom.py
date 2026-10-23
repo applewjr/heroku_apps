@@ -846,7 +846,8 @@ def test_admin_board_search_and_green_reports(client, crowd_db, monkeypatch):
     assert "<strong>nastier</strong>" in html and "<strong>tisane</strong>" not in html
     assert '<td class="report-missing">missing</td>' in html
     assert '<td class="">invalid</td>' in html
-    assert html.count('<input type="hidden" name="q" value="f:egilnu">') == 3   # top form + 2 rows
+    # The word form, Today's Board's Approve form, and the 2 rows.
+    assert html.count('<input type="hidden" name="q" value="f:egilnu">') == 4
 
 
 def test_admin_actions_keep_the_search(client, crowd_db, monkeypatch):

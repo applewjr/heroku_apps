@@ -8,7 +8,7 @@
 <meta name="keywords" content="blossom, blossom solver, blossom word finder, merriam webster blossom, blossom game solver, word game solver, blossom hints">
 <meta property="og:title" content="Blossom Solver & Word Finder - Today's Hints & Answers">
 <meta property="og:description" content="Today's Blossom hints and answers: enter your 7 letters and see every valid word ranked by score, with pangrams highlighted.">
-<meta property="og:url" content="https://jamesapplewhite.com/blossom">
+<meta property="og:url" content="https://www.jamesapplewhite.com/blossom">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
 {% if schema_data %}
@@ -42,7 +42,15 @@
         "@type": "Answer",
         "text": "Type your center letter into the yellow circle, then enter your six petal letters into the surrounding petals. Once all 7 letters are filled in, click any petal to see all valid words that score double with that bonus letter, ranked from highest to lowest score. Check off words as you play them to track your progress."
       }
-    },
+    },{% if show_board %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type today's letters?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower: tap Load it and all seven letters fill in, each in its spot. Check they match your game, then tap a petal. Playing an older puzzle from the archive? Type its letters as usual."
+      }
+    },{% endif %}
     {
       "@type": "Question",
       "name": "Why are some words missing from the results?",
@@ -999,6 +1007,113 @@ table.blossom-results td.show-letter-cell { width: 80px; }
     opacity: 1;
 }
 
+/* ---------- today's board ---------- */
+/* The bar offers today's board above the flower, on one line down to a
+   360px phone; the box under it is one collapsed row until opened, so the
+   flower moves down by little more than the two of them. The flower's box
+   reaches 70px up over whatever is above it (.blossom-container's margin),
+   into the space above its top petals, so these sit above it: otherwise its
+   empty top would take the taps meant for them. */
+.bl-today, .bl-loaded-note, .bl-hints {
+    position: relative;
+    z-index: 11;
+}
+.bl-today {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 10px;
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    padding: 8px 10px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+}
+.bl-today[hidden], .bl-hints[hidden], .bl-loaded-note[hidden] { display: none; }
+.bl-today-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+.bl-today-text strong { white-space: nowrap; }
+.bl-today-btn, .bl-hints-every {
+    min-height: 44px;
+    padding: 10px 14px;
+    background-color: #02484d;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.bl-today-btn:hover, .bl-hints-every:hover { background-color: #03595f; }
+.bl-loaded-note {
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #02484d;
+}
+.bl-hints {
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 8px auto 0;
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    text-align: left;
+}
+.bl-hints-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    cursor: pointer;
+    list-style: none;
+}
+.bl-hints-head::-webkit-details-marker { display: none; }
+.bl-hints-head::before {
+    content: '';
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 6px solid #02484d;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transition: transform 0.15s ease;
+}
+.bl-hints[open] > .bl-hints-head::before { transform: rotate(90deg); }
+.bl-hints-title { margin: 0; font-size: 15px; font-weight: 600; color: #02484d; line-height: 1.3; }
+.bl-hints-steps { padding: 0 14px; }
+.bl-hint { border-top: 1px solid #e9ecef; }
+.bl-hint > summary {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #02484d;
+    cursor: pointer;
+}
+.bl-hint > p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: #374151; overflow-wrap: anywhere; }
+.bl-hints-every { display: block; margin: 4px auto 14px; }
+
+/* The admin's own copy of the page says which copy it is. */
+.bl-dev-note {
+    max-width: 460px;
+    margin: 8px auto 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #02484d;
+    background-color: #eef4f4;
+    border: 1px dashed #4f9a97;
+    border-radius: 8px;
+}
+
 </style>
 
 <div id="blossom-loading-overlay" aria-live="polite" aria-label="Loading results">
@@ -1008,7 +1123,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
 
 <div id="blossom-toast" class="blossom-toast" role="status" aria-live="polite"></div>
 
-<form name="form1" action="/blossom" method="post">
+<form name="form1" action="{{ post_url or '/blossom' }}" method="post">
   <center>
 
   <div id="center-warning" style="
@@ -1033,11 +1148,54 @@ table.blossom-results td.show-letter-cell { width: 80px; }
   <input type="hidden" name="must_have" value="{{must_have_val}}">
   <input type="hidden" name="may_have" value="{{may_have_val}}">
   <input type="hidden" name="petal_letter" value="{{petal_letter}}">
+  <!-- How the player got these letters: typed, loaded (today's board) or
+       edited (loaded, then changed). The results page gets it back, so a
+       loaded board is never logged as the player's own there either. -->
+  <input type="hidden" name="board_source" value="{{ board_source or 'typed' }}">
 
+  {% if dev %}
+  <p class="bl-dev-note">/blossom_dev - only you can see this copy. Today's board and hints are on here; your votes and boards count like any player's.</p>
+  {% endif %}
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
 
   <p class="pad_lr_30" style="text-align: center">Enter your letters below. Click any petal to calculate words with that bonus letter.</p>
+
+  {% if show_board and board_date %}
+  {# Today's board (routes/blossom.py): the bar offers it, the box under it
+     gives hints for it, both for the Pacific date the page was rendered on.
+     The script below asks again when the player's own date differs. Every
+     button is type="button": this is inside form1. #}
+  <div class="bl-today" id="bl-today"{% if not todays_board %} hidden{% endif %}>
+    <span class="bl-today-text">Today's board: <strong id="bl-today-letters">{{ todays_board.text if todays_board else '' }}</strong></span>
+    <button type="button" class="bl-today-btn" id="bl-load">Load it</button>
+  </div>
+  <p class="bl-loaded-note" id="bl-loaded-note" hidden>Loaded today's board, entered by other players. Check it matches your game, then tap a petal.</p>
+  {% set hints = todays_board.hints if todays_board else none %}
+  <details class="bl-hints" id="bl-hints"{% if not hints %} hidden{% endif %}>
+    <summary class="bl-hints-head"><h2 class="bl-hints-title" id="bl-hints-title">{{ hints.heading if hints else '' }}</h2></summary>
+    <div class="bl-hints-steps" id="bl-hints-steps">
+      {% if hints %}{% for step in hints['steps'] %}
+      <details class="bl-hint"><summary>{{ step.summary }}</summary><p>{{ step.text }}</p></details>
+      {% endfor %}{% endif %}
+    </div>
+    <button type="button" class="bl-hints-every" id="bl-every">See every word</button>
+  </details>
+  <script>
+    // Before the bar and box paint: hide them if this player's own date isn't
+    // the one they were rendered for (Blossom rolls over at each player's
+    // midnight). The page's script then asks for the player's date.
+    (function () {
+      var d = new Date();
+      var mine = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                 String(d.getDate()).padStart(2, '0');
+      if (mine !== {{ board_date | tojson }}) {
+        document.getElementById('bl-today').hidden = true;
+        document.getElementById('bl-hints').hidden = true;
+      }
+    })();
+  </script>
+  {% endif %}
   <br>
 
   <!-- New Blossom Layout -->
@@ -1117,7 +1275,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
            element: form1 spans this section, and the HTML parser drops a nested
            form start tag while letting its closing tag end form1 early. -->
       <button type="submit" name="load_more" value="true" class="show-more-btn"
-              formaction="/blossom#words" onclick="showLoadingOverlay()">Show {{ list_step }} more words</button>
+              formaction="{{ post_url or '/blossom' }}#words" onclick="showLoadingOverlay()">Show {{ list_step }} more words</button>
       {% endif %}
     </div>
     {% if blossom_table %}
@@ -1198,6 +1356,12 @@ table.blossom-results td.show-letter-cell { width: 80px; }
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I use the Blossom word finder?</p>
         <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type your center letter into the yellow circle, then enter your six petal letters into the surrounding petals. Once all 7 letters are filled in, click any petal to see all valid words that score double with that bonus letter, ranked from highest to lowest score. Check off words as you play them to track your progress.</p>
       </div>
+      {% if show_board %}
+      <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+        <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type today's letters?</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower: tap Load it and all seven letters fill in, each in its spot. Check they match your game, then tap a petal. Playing an older puzzle from the archive? Type its letters as usual.</p>
+      </div>
+      {% endif %}
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why are some words missing from the results?</p>
         <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list. You can also use the "Report Invalid/Missing Word" button.</p>
@@ -1260,6 +1424,18 @@ function initializeBlossomApp() {
   let petalLetters = ['', '', '', '', '', ''];
   let selectedPetal = '';
 
+  // This copy's own address (/blossom, or James's /blossom_dev), and where
+  // its Reset goes. boardSource is how the player got the letters in the
+  // flower: 'typed', 'loaded' (today's board) or 'edited' (loaded, then
+  // changed). It rides along with the form, so a results page knows it too.
+  // Declared up here, before anything in init can throw, because the letter
+  // handlers below use it.
+  const POST_URL = {{ (post_url or '/blossom') | tojson }};
+  const RESET_URL = {{ ('/blossom/reset?to=dev' if dev else '/blossom/reset') | tojson }};
+  const sourceInput = document.querySelector('input[name="board_source"]');
+  let boardSource = (sourceInput && ['typed', 'loaded', 'edited'].indexOf(sourceInput.value) !== -1)
+    ? sourceInput.value : 'typed';
+
   // Update hidden form inputs
   function updateHiddenInputs() {
     document.querySelector('input[name="must_have"]').value = centerLetter;
@@ -1289,6 +1465,7 @@ function initializeBlossomApp() {
     centerLetter = newLetter;
     input.value = centerLetter;
     updatePetalVisualState();
+    noteLetterChange();
     
     if (centerLetter.length === 1) {
       const nextEmpty = findNextEmptyCell();
@@ -1323,6 +1500,7 @@ function initializeBlossomApp() {
     petalLetters[index] = newLetter;
     input.value = newLetter;
     updatePetalVisualState();
+    noteLetterChange();
 
     if (newLetter.length === 1) {
       const nextEmpty = findNextEmptyCell('petal');
@@ -1429,6 +1607,7 @@ function initializeBlossomApp() {
       document.querySelectorAll('.petal-button').forEach(btn => btn.classList.remove('selected'));
       document.querySelector(`.petal-${index + 1}`).classList.add('selected');
 
+      logBoardOnce();
       showLoadingOverlay();
       document.querySelector('form[name="form1"]').submit();
     }
@@ -1582,7 +1761,7 @@ function initializeBlossomApp() {
     }
 
     // Server sync
-    fetch('/blossom', {
+    fetch(POST_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1621,7 +1800,7 @@ function initializeBlossomApp() {
   }
 
   function postBlossom(payload) {
-    return fetch('/blossom', {
+    return fetch(POST_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1830,7 +2009,7 @@ function initializeBlossomApp() {
     }
     revealedLetters = {};
     
-    window.location.href = '/blossom/reset';
+    window.location.href = RESET_URL;
   }
 
   // Helper mode functionality
@@ -2198,6 +2377,179 @@ function initializeBlossomApp() {
   });
 
   setupMissingWordBox();
+
+  // ---- Today's board (routes/blossom.py, "today's board") ----
+  // When today's board is known, the bar above the flower offers it and the
+  // box under the bar holds hints for it. Both come with the page for the
+  // Pacific date; when the player's own date differs (Blossom rolls over at
+  // each player's midnight), the page asks for theirs and shows that, or
+  // nothing. A board the player typed is logged on their first petal tap; a
+  // loaded one never is, so the board on offer can't vote for itself.
+  const BOARD_ON_PAGE = {{ 'true' if show_board and board_date else 'false' }};
+  const BOARD_DATE = {{ (board_date or '') | tojson }};
+  let todaysBoard = {{ (todays_board or none) | tojson }};
+
+  // The player's own date, the one Blossom gives them a board for.
+  function localISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+
+  function boardSig() {
+    return centerLetter + petalLetters.join('');
+  }
+
+  function setBoardSource(source) {
+    boardSource = source;
+    if (sourceInput) sourceInput.value = source;
+  }
+
+  // The boards this tab has logged or loaded, as date|letters, so each one
+  // is sent once. Best effort: with storage blocked a board may go twice,
+  // and the second only replaces the first.
+  function alreadyLogged(key) {
+    try {
+      return JSON.parse(sessionStorage.getItem('blossomBoardsLogged_v1') || '[]').indexOf(key) !== -1;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function markLogged(key) {
+    try {
+      const keys = JSON.parse(sessionStorage.getItem('blossomBoardsLogged_v1') || '[]')
+        .filter(k => k !== key).slice(-29);
+      keys.push(key);
+      sessionStorage.setItem('blossomBoardsLogged_v1', JSON.stringify(keys));
+    } catch (e) {
+      // Storage blocked or full: nothing remembered, nothing lost.
+    }
+  }
+
+  // Sent once per board the player entered themselves, on their first petal
+  // tap with all seven letters in. keepalive lets it outlive the page the
+  // form is about to leave. Nothing in here may stop the form submitting.
+  function logBoardOnce() {
+    try {
+      const sig = boardSig();
+      if (boardSource === 'loaded' || sig.length !== 7 || new Set(sig).size !== 7) return;
+      const day = localISO();
+      if (alreadyLogged(day + '|' + sig)) return;
+      markLogged(day + '|' + sig);
+      fetch(POST_URL, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'log_board', center: centerLetter.toLowerCase(),
+                               petals: petalLetters.join('').toLowerCase(),
+                               played_on: day, source: boardSource })
+      }).catch(() => {});
+    } catch (e) {
+      console.error("Today's board:", e);
+    }
+  }
+
+  // Any letter the player changes: a loaded board becomes their own edit,
+  // and the offer goes once the flower has letters in it.
+  function noteLetterChange() {
+    try {
+      if (boardSource === 'loaded') {
+        setBoardSource('edited');
+        const note = document.getElementById('bl-loaded-note');
+        if (note) note.hidden = true;
+      }
+      const bar = document.getElementById('bl-today');
+      if (bar && boardSig()) bar.hidden = true;
+    } catch (e) {
+      console.error("Today's board:", e);
+    }
+  }
+
+  const isBoard = b => !!b && typeof b.date === 'string' && typeof b.center === 'string' &&
+    /^[a-z]$/.test(b.center) && typeof b.petals === 'string' && /^[a-z]{6}$/.test(b.petals);
+
+  // Fill the flower with today's board, each letter in its spot.
+  function loadBoard(b) {
+    if (!isBoard(b)) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    centerLetter = b.center.toUpperCase();
+    document.getElementById('center-input').value = centerLetter;
+    for (let i = 0; i < 6; i++) {
+      petalLetters[i] = b.petals[i].toUpperCase();
+      document.getElementById(`petal-${i}`).value = petalLetters[i];
+    }
+    updatePetalVisualState();
+    updateHiddenInputs();
+    setBoardSource('loaded');
+    markLogged(localISO() + '|' + boardSig());
+    document.getElementById('bl-today').hidden = true;
+    document.getElementById('bl-loaded-note').hidden = false;
+  }
+
+  // Put a board, or none, in the bar and the hints box: the one the page
+  // came with, or the reply for the player's own date. Text only, never
+  // markup from the reply.
+  function showBoard(b) {
+    const bar = document.getElementById('bl-today');
+    const box = document.getElementById('bl-hints');
+    todaysBoard = isBoard(b) ? b : null;
+    if (!todaysBoard) {
+      bar.hidden = true;
+      box.hidden = true;
+      return;
+    }
+    document.getElementById('bl-today-letters').textContent = todaysBoard.text ||
+      todaysBoard.center.toUpperCase() + ' · ' + todaysBoard.petals.toUpperCase().split('').join(' ');
+    bar.hidden = !!boardSig();
+    const hints = todaysBoard.hints;
+    if (!hints || !Array.isArray(hints.steps)) {
+      box.hidden = true;
+      return;
+    }
+    document.getElementById('bl-hints-title').textContent = hints.heading || '';
+    const steps = document.getElementById('bl-hints-steps');
+    steps.textContent = '';
+    hints.steps.forEach(step => {
+      const hint = document.createElement('details');
+      hint.className = 'bl-hint';
+      const summary = document.createElement('summary');
+      summary.textContent = String(step.summary || '');
+      const text = document.createElement('p');
+      text.textContent = String(step.text || '');
+      hint.append(summary, text);
+      steps.appendChild(hint);
+    });
+    box.open = false;
+    box.hidden = false;
+  }
+
+  function setupTodaysBoard() {
+    if (!BOARD_ON_PAGE) return;
+    document.getElementById('bl-load').addEventListener('click', () => loadBoard(todaysBoard));
+    document.getElementById('bl-every').addEventListener('click', () => {
+      loadBoard(todaysBoard);
+      const flower = document.querySelector('.blossom-container');
+      const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (flower) flower.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+    });
+    if (localISO() === BOARD_DATE) {
+      // The page came with this player's board. Only keep the offer off a
+      // flower that already has letters in it.
+      if (boardSig()) document.getElementById('bl-today').hidden = true;
+      return;
+    }
+    showBoard(null);
+    postBlossom({ action: 'todays_board', played_on: localISO() })
+      .then(data => showBoard(data && data.board))
+      .catch(() => showBoard(null));
+  }
+
+  try {
+    setupTodaysBoard();
+  } catch (e) {
+    console.error("Today's board:", e);
+  }
 
   // Auto-focus center input on first load if it's empty
   if (!centerLetter) {
