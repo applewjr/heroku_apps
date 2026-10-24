@@ -415,6 +415,101 @@ li { margin-bottom: 10px; }
     font-size: 13px;
     line-height: 1.4;
 }
+/* The cross-links to the other solvers (templates/_related_solvers.html):
+   cards in the home page's .app-card style, two to a row on a phone and
+   three on a wider screen, all the same width (no flex-grow), with a lone
+   last card centred. The whole card is the link. No table, so the site-wide
+   table rule above never reaches it. */
+.jj-more {
+    max-width: 640px;
+    margin: 28px auto 8px;
+    padding: 0 16px;
+    box-sizing: border-box;
+}
+.jj-more .jj-more-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 14px;
+    text-align: center;
+}
+.jj-more-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+.jj-more a.jj-more-tile {
+    position: relative;
+    box-sizing: border-box;
+    flex: 0 1 calc(50% - 5px);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 64px;
+    padding: 11px 12px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(2, 72, 77, 0.06);
+    color: inherit;
+    text-align: left;
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+@media (min-width: 600px) {
+    .jj-more a.jj-more-tile { flex-basis: calc((100% - 20px) / 3); }
+}
+.jj-more a.jj-more-tile:hover,
+.jj-more a.jj-more-tile:focus-visible {
+    border-color: #02484d;
+    box-shadow: 0 4px 14px rgba(2, 72, 77, 0.12);
+    transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+    .jj-more a.jj-more-tile { transition: none; }
+    .jj-more a.jj-more-tile:hover,
+    .jj-more a.jj-more-tile:focus-visible { transform: none; }
+}
+.jj-more-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #02484d;
+    line-height: 1.3;
+}
+.jj-more-icon { margin-right: 6px; }
+.jj-more-hook {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.35;
+}
+.jj-more-tag {
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+}
+.jj-more-tile .jj-more-tag { position: absolute; top: -8px; right: 10px; }
+.jj-more-new { background: #ffd700; color: #02484d; }
+.jj-more-old { background: #6b7280; color: #fff; }
+.jj-more-also {
+    margin: 12px 0 0;
+    font-size: 13px;
+    color: #6b7280;
+    text-align: center;
+}
+.jj-more-also a {
+    display: inline-block;
+    padding: 12px 4px;
+    line-height: 20px;
+    color: #02484d;
+    font-weight: 600;
+    text-decoration: none;
+}
+.jj-more-also a:hover { text-decoration: underline; }
+.jj-more-also .jj-more-tag { margin-left: 5px; vertical-align: 1px; }
     </style>
 
     {% block head %}{% endblock %}

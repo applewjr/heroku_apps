@@ -66,11 +66,19 @@ def _new_until(monkeypatch, day):
     monkeypatch.setattr(helpers, "NEW_UNTIL", {"/chainle": day, "/guess_the_phrase": day})
 
 
-def test_the_new_solvers_lead_the_solver_links_tagged_new(client, monkeypatch):
+# The heading of the solver cross-links (templates/_related_solvers.html).
+STRIP = "More daily puzzle solvers"
+
+
+def test_the_solver_links_run_biggest_first_with_new_tags(client, monkeypatch):
+    # The daily solvers keep one order, the games players most likely know
+    # first (James, 2026-10-23); the NEW tags still mark the newest two.
     _new_until(monkeypatch, date(9999, 12, 31))
     html = client.get("/smush").get_data(as_text=True)
-    links = html.split("Other Word Game Solvers:")[1]
-    assert links.index('href="/chainle"') < links.index('href="/guess_the_phrase"') < links.index('href="/wordle"')
+    links = html.split(STRIP)[1]
+    spots = [links.index(f'href="{path}"')
+             for path in ("/blossom", "/chainle", "/ribbit", "/wordiply", "/guess_the_phrase", "/wordle")]
+    assert spots == sorted(spots)
     assert html.count(">NEW</span>") == 2
     assert client.get("/").get_data(as_text=True).count(">NEW</span>") == 2
 
@@ -88,8 +96,10 @@ def test_wordle_wears_a_grey_old_tag(client, monkeypatch):
         html = client.get(path).get_data(as_text=True)
         assert html.count(">OLD</span>") == 1, path
         assert html.count(">NEW</span>") == 2, path
-    links = client.get("/smush").get_data(as_text=True).split("Other Word Game Solvers:")[1]
-    assert re.search(r'href="/wordle"[^>]*>Wordle<span [^>]*#6b7280[^>]*>OLD</span>', links)
+    html = client.get("/smush").get_data(as_text=True)
+    links = html.split(STRIP)[1]
+    assert re.search(r'href="/wordle"[^>]*>Wordle<span [^>]*jj-more-old[^>]*>OLD</span>', links)
+    assert ".jj-more-old { background: #6b7280;" in html
     # The Wordle page leaves itself out of its own solver links.
     assert ">OLD</span>" not in client.get("/wordle").get_data(as_text=True)
 
@@ -142,9 +152,9 @@ def test_jj_admin_links_every_password_page(client, flask_app, monkeypatch):
         else:
             assert not rule.arguments, f"no way to link {rule.rule}"
             pages.add(aliases.get(rule.rule, rule.rule))
-    # The walk itself must keep finding them: every admin page, both dev
+    # The walk itself must keep finding them: every admin page, the dev
     # pages, each ETL round and the espresso pages.
-    assert {"/smush_admin", "/ribbit_admin", "/ribbit_dev", "/smush_dev",
+    assert {"/smush_admin", "/ribbit_admin", "/ribbit_dev", "/smush_dev", "/blossom_dev", "/smush_dev2",
             "/blossom_admin", "/chainle_admin", "/guess_the_phrase_admin",
             "/etl_dash/1", "/espresso/home/"} <= pages
     for path in sorted(pages):
@@ -156,11 +166,25 @@ def test_ribbit_dev_is_password_only(client):
     assert client.post("/ribbit_dev", json={"action": "shared_board"}).status_code == 401
 
 
+def test_smush_dev2_is_password_only(client):
+    assert client.get("/smush_dev2").status_code == 401
+    assert client.post("/smush_dev2", json={"action": "todays_board",
+                                            "played_on": "2026-10-23"}).status_code == 401
+
+
+def test_blossom_dev_is_password_only(client):
+    assert client.get("/blossom_dev").status_code == 401
+    assert client.post("/blossom_dev", json={"action": "todays_board",
+                                             "played_on": "2026-10-23"}).status_code == 401
+    assert client.post("/blossom_dev", data={"must_have": "t", "may_have": "raines",
+                                             "petal_letter": "s"}).status_code == 401
+
+
 def test_ribbit_clear_board_sits_right_of_give_feedback(client):
     html = client.get("/ribbit").get_data(as_text=True)
     controls = re.search(r'<div class="rb-board-controls">(.*?)</div>', html, re.S).group(1)
     assert 'id="clear-btn"' not in controls and 'id="rotate-btn"' in controls
-    assert html.index("💬 Give Feedback") < html.index('id="clear-btn"') < html.index("Other Word Game Solvers:")
+    assert html.index("💬 Give Feedback") < html.index('id="clear-btn"') < html.index(STRIP)
 
 
 # ---------------------------------------------------------------------------

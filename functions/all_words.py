@@ -987,3 +987,90 @@ def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
     results.sort(key=lambda r: (-r['len'], -r['pop'], r['word']))
     total_playable = len(results)
     return (results[:list_len] if list_len else results), total_playable
+
+
+# The most words hints 2 and 3 go through one by one. Common letters give a
+# board dozens of pangrams (R P A E N S T: 29 in Blossom's list), which as
+# patterns is a wall of text; the words themselves are all in the last step.
+HINT_LIST_MAX = 10
+
+
+def _and_list(items):
+    """'a', 'a and b', 'a, b and c'."""
+    items = list(items)
+    if len(items) < 2:
+        return ''.join(items)
+    return ', '.join(items[:-1]) + ' and ' + items[-1]
+
+
+def _hint_pattern(word):
+    """'SP_____ (7)': the first two letters, a blank for each one after."""
+    return word[:2].upper() + '_' * (len(word) - 2) + f' ({len(word)})'
+
+
+def pangram_hints(words, letters, day, game):
+    """Spoiler-free hints for one day's board of a letters game (Blossom,
+    Smush): its pangrams (words using every one of its letters), or its
+    longest words on a day with none.
+
+    words   -- the words that fit the board by the game's own rules
+    letters -- the board's letters, as a set
+    day     -- the board's date, for the heading
+    game    -- the game's name, for the heading
+
+    Returns the facts (pangram_lengths, longest, starts, patterns, pangrams,
+    words) and the wording a page and its script both show: a heading and
+    four steps, opened one at a time, the last revealing the words. None if
+    no word fits. No total word count: a solver's list isn't the game's own
+    (players correct it), and a day's total runs to hundreds, which tells a
+    player nothing.
+    """
+    words = list(words)
+    if not words:
+        return None
+    longest = max(len(w) for w in words)
+    pangrams = sorted((w for w in words if set(w) >= letters), key=lambda w: (len(w), w))
+    if pangrams:
+        shown = pangrams
+        lengths = [len(w) for w in pangrams]
+        if len(pangrams) == 1:
+            first = f"1 pangram today: {lengths[0]} letters."
+        elif len(pangrams) <= 3:
+            first = f"{len(pangrams)} pangrams today: {_and_list(str(n) for n in lengths)} letters."
+        else:
+            first = f"{len(pangrams)} pangrams today, {lengths[0]} to {lengths[-1]} letters long."
+        first += f" Longest word: {longest} letters."
+        what = 'pangram' if len(pangrams) == 1 else 'pangrams'
+    else:
+        shown = sorted(w for w in words if len(w) == longest)
+        first = f"No pangram today. Longest word: {longest} letters."
+        what = 'longest word' if len(shown) == 1 else 'longest words'
+    listed = shown[:HINT_LIST_MAX]
+    starts = [w[0].upper() for w in listed]
+    patterns = [_hint_pattern(w) for w in listed]
+    if len(shown) == 1:
+        second = f"The {what} starts with {starts[0]}."
+    elif len(shown) <= HINT_LIST_MAX:
+        second = f"The {what} start with {_and_list(starts)}."
+    elif pangrams:
+        second = f"The {HINT_LIST_MAX} shortest pangrams start with {_and_list(starts)}."
+    else:
+        second = f"{HINT_LIST_MAX} of the longest words start with {_and_list(starts)}."
+    third = ', '.join(patterns)
+    if len(shown) > HINT_LIST_MAX:
+        third += f", and {len(shown) - HINT_LIST_MAX} more"
+    return {
+        'pangram_lengths': [len(w) for w in pangrams],
+        'longest': longest,
+        'starts': starts,
+        'patterns': patterns,
+        'pangrams': pangrams,
+        'words': [w.upper() for w in shown],
+        'heading': f"Today's {game} hints - {day:%A, %B} {day.day}",
+        'steps': [
+            {'summary': 'Hint 1', 'text': first},
+            {'summary': 'Hint 2', 'text': second},
+            {'summary': 'Hint 3', 'text': third},
+            {'summary': f'Show the {what}', 'text': ', '.join(w.upper() for w in shown)},
+        ],
+    }

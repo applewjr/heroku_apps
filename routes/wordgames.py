@@ -33,7 +33,7 @@ def run_wordle_revamp():
     schema_data = make_schema_data(
         "Wordle Solver - Beat Daily Wordle Puzzle Instantly",
         "Free Wordle solver and strategy tool. Get the best word suggestions to beat today's NYT Wordle puzzle. Smart algorithm finds optimal guesses instantly.",
-        "https://jamesapplewhite.com/wordle"
+        "https://www.jamesapplewhite.com/wordle"
     )
 
     if request.method == "POST":
@@ -104,7 +104,7 @@ def run_antiwordle_revamp():
     schema_data = make_schema_data(
         "Antiwordle Solver - Beat Antiwordle Game Instantly",
         "Free Antiwordle solver and strategy tool. Get the best word suggestions to beat Antiwordle game. Smart algorithm finds optimal moves instantly.",
-        "https://jamesapplewhite.com/antiwordle"
+        "https://www.jamesapplewhite.com/antiwordle"
     )
 
     if request.method == "POST":
@@ -164,7 +164,7 @@ def run_quordle_revamp():
     schema_data = make_schema_data(
         "Quordle Solver - Solve 4 Wordles at Once Instantly",
         "Free Quordle solver and strategy tool. Solve all 4 Wordle puzzles simultaneously with smart word suggestions. Beat daily Quordle and Sequence games easily.",
-        "https://jamesapplewhite.com/quordle"
+        "https://www.jamesapplewhite.com/quordle"
     )
 
     if request.method == "POST":
@@ -231,7 +231,7 @@ def any_word():
         "Any Word Finder - Search Words by Pattern",
         "Free word finder. Search a large dictionary by starts-with, ends-with, "
         "contained text, wildcard pattern, letters, and length.",
-        "https://jamesapplewhite.com/any_word",
+        "https://www.jamesapplewhite.com/any_word",
     )
 
     if request.method == "POST":
@@ -297,11 +297,30 @@ def parse_smush_word_list(data, key):
 @bp.route("/smush", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_smush():
+    return _smush_page(dev=False)
 
-    schema_data = make_schema_data(
+
+@bp.route("/smush_dev2", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
+@auth.login_required
+def run_smush_dev2():
+    """James's copy of the public /smush with today's board and hints on, to
+    watch them against his own game before players see them (James's call,
+    2026-10-23). /smush_dev, with ICE COLD, is another page and stays
+    unreleased. It posts to itself, so its votes are tagged dev in the vote
+    log; its boards and votes count like any player's. Not a page visit."""
+    return _smush_page(dev=True)
+
+
+def _smush_page(dev):
+    """/smush, or /smush_dev2 with `dev`: the page, a solve, or a JSON
+    action. Today's board (routes/smush.py) shows wherever show_board is on:
+    always on /smush_dev2, and on /smush once SMUSH_BOARD_LIVE."""
+    show_board = dev or smush_crowd.SMUSH_BOARD_LIVE
+    schema_data = None if dev else make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",
         "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
-        "https://jamesapplewhite.com/smush"
+        "https://www.jamesapplewhite.com/smush"
     )
 
     if request.method == "POST":
@@ -309,10 +328,13 @@ def run_smush():
         if not isinstance(data, dict):
             raise ValidationError('expected a JSON object')
 
-        # ✗ on a result, tapping a hidden word back, and the "Smush accepted a
-        # word that isn't listed?" box: crowd votes, not a solve.
+        # Logging the board and asking for today's, and the crowd votes: ✗ on
+        # a result, tapping a hidden word back, and the "Smush accepted a word
+        # that isn't listed?" box. Not a solve.
         if 'action' in data:
-            return smush_crowd.handle_vote(data)
+            if data.get('action') in smush_crowd.BOARD_ACTIONS:
+                return smush_crowd.handle_board_action(data, dev=dev)
+            return smush_crowd.handle_vote(data, dev=dev)
 
         center = data.get('center', '')
         if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
@@ -370,8 +392,15 @@ def run_smush():
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
     else:
-        log_page_visit('smush.html')
-        return render_template("smush.html", schema_data=schema_data)
+        if not dev:
+            log_page_visit('smush.html')
+        # The Pacific date's board, for search engines and the first paint;
+        # the page asks again for the player's own date if theirs differs.
+        todays_board, board_date = smush_crowd.page_board(show_board)
+        return render_template("smush.html", schema_data=schema_data,
+                               post_url='/smush_dev2' if dev else '/smush', dev=dev,
+                               show_board=show_board, todays_board=todays_board,
+                               board_date=board_date)
 
 
 def _ribbit_post(dev=False):
@@ -414,7 +443,7 @@ def run_ribbit():
     schema_data = make_schema_data(
         "Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit",
         "Solve Puzzmo's Ribbit in seconds - recreate the board, then see every word you can trace, longest first, with rare words flagged. Free solver for the daily frog word game.",
-        "https://jamesapplewhite.com/ribbit"
+        "https://www.jamesapplewhite.com/ribbit"
     )
     log_page_visit('ribbit.html')
     return render_template("ribbit.html", schema_data=schema_data,
@@ -484,7 +513,7 @@ def run_wordiply():
     schema_data = make_schema_data(
         "Wordiply Solver - Today's Answers & Longest Words",
         "Free Wordiply solver and word finder. Find the longest words containing your letters for today's Wordiply puzzle. Smart algorithm finds optimal answers instantly.",
-        "https://jamesapplewhite.com/wordiply"
+        "https://www.jamesapplewhite.com/wordiply"
     )
 
     if request.method == "POST":

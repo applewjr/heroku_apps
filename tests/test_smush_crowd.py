@@ -455,12 +455,13 @@ def test_admin_report_text_is_green_unless_invalid(client, smush_db, monkeypatch
 
 def test_admin_forms_carry_the_search(client, smush_db, monkeypatch):
     smush_db(rows=_sweep_rows())
-    html = client.get(f"/smush_admin?q={PUZZLE_TAG}&settled=1",
+    html = client.get(f"/smush_admin?q={PUZZLE_TAG}&settled=1&tab=reports",
                       headers=_admin_headers(monkeypatch)).get_data(as_text=True)
-    # The top form plus the board's two report rows.
-    assert html.count(f'<input type="hidden" name="q" value="{PUZZLE_TAG}">') == 3
+    # The word form, Today's Board's Approve form, and the board's two
+    # report rows.
+    assert html.count(f'<input type="hidden" name="q" value="{PUZZLE_TAG}">') == 4
     assert html.count('<input type="hidden" name="settled" value="1">') >= 3
-    assert html.count('<input type="hidden" name="tab" value="reports" class="keep-tab">') == 3
+    assert html.count('<input type="hidden" name="tab" value="reports" class="keep-tab">') == 4
 
 
 def test_admin_actions_keep_the_search(client, smush_db, monkeypatch):

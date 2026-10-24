@@ -852,6 +852,16 @@ No panel reads `vw_prod_blossom_errors` or the six `vw_prod_*_votes_*` /
 `vw_prod_*_crowd_changes` views any more. Drop them, and their files,
 whenever convenient.
 
+#### Solver to Solver - 2026-10-23
+
+One more view for the Trends round, `vw_prod_internal_flow`, behind the
+"Solver to Solver" panel. It counts visits that came from one of this site's
+pages to a solver, one row per from -> to pair, last 7 days against the 7
+before. It scores the "More daily puzzle solvers" cards at the bottom of every
+solver page (`templates/_related_solvers.html`). It reads `app_visits` with the
+same filter as the four views above. It only reads, so creating it before the
+deploy that adds the panel means the panel never shows the missing-table error.
+
 ### 8. Test the dead-man's switch
 
 Disable the `run_checks` Scheduler entry, wait for the email, then **re-enable

@@ -3,6 +3,7 @@
 import ctypes
 import ipaddress
 import math
+import re
 from datetime import date, datetime, timezone
 
 import pytz
@@ -270,6 +271,33 @@ def parse_letters(value, field, max_len=25, default=''):
     if len(value) > max_len:
         raise ValidationError(f"{field} must be at most {max_len} letters")
     return value
+
+
+PACIFIC = pytz.timezone('America/Los_Angeles')
+ISO_DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
+
+
+def pacific_today():
+    """Today's date on the Pacific coast: the site's own calendar."""
+    return datetime.now(PACIFIC).date()
+
+
+def parse_played_on(value, today):
+    """A daily-puzzle page's `played_on`, the player's own date (their game
+    rolls over at their own midnight), or None if it can't be today anywhere
+    on Earth: more than a day from `today`, Pacific's. That is a wrong clock,
+    not a reason to 400. A value that isn't a real YYYY-MM-DD date raises
+    ValidationError (-> 400).
+
+    `today` is the caller's: routes/ribbit.py and routes/blossom.py each pass
+    their own module-level _pacific_today(), so tests can set the day."""
+    if not (isinstance(value, str) and ISO_DATE.fullmatch(value)):
+        raise ValidationError('played_on must be a date, YYYY-MM-DD')
+    try:
+        day = date.fromisoformat(value)
+    except ValueError:
+        raise ValidationError('played_on must be a real date')
+    return day if abs((day - today).days) <= 1 else None
 
 
 def make_schema_data(name, description, url, operating_system='Web'):
