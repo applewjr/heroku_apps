@@ -315,10 +315,11 @@ def smush_remove_word():
 # served for a later one. On the rare day with no new board, the game shows
 # the previous one again, and nothing is served.
 #
-# Shipped dark (James's call, 2026-10-23): /smush logs boards but serves none
-# until SMUSH_BOARD_LIVE, and /smush_dev2, his password-only copy of the
-# public page, serves them. (/smush_dev, with ICE COLD, isn't for release.)
-# Players are never told how a board is chosen (see crowd.py on why).
+# Live on /smush since 2026-10-24 (James's call), after a dark launch from
+# 2026-10-23 in which /smush only logged boards and /smush_dev2, his
+# password-only copy of the public page, served them. (/smush_dev, with ICE
+# COLD, isn't for release.) Players are never told how a board is chosen
+# (see crowd.py on why).
 
 # Players on one board that serve it, when nothing is approved (James,
 # 2026-10-23).
@@ -336,10 +337,10 @@ BOARD_SOURCES = ('typed', 'edited')
 # characters, and players can only send BOARD_SOURCES. It never counts as a
 # player.
 APPROVAL = 'admin'
-# Off: /smush logs boards but serves none, even to a direct call, and only
-# /smush_dev2 shows them (James's call, 2026-10-23). True puts the board and
-# the hints on /smush.
-SMUSH_BOARD_LIVE = False
+# Live on /smush (James's call, 2026-10-24). False goes back to the dark
+# launch: /smush logs boards but serves none, even to a direct call, and only
+# /smush_dev2 shows them.
+SMUSH_BOARD_LIVE = True
 # A date counts toward a puzzle's first_seen only once this many networks
 # logged it then, so one device with a wrong clock can't make today's puzzle
 # look like an older one.

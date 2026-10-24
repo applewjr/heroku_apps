@@ -304,18 +304,19 @@ def run_smush():
 @limiter.limit(INTERACTIVE_LIMITS)
 @auth.login_required
 def run_smush_dev2():
-    """James's copy of the public /smush with today's board and hints on, to
-    watch them against his own game before players see them (James's call,
-    2026-10-23). /smush_dev, with ICE COLD, is another page and stays
-    unreleased. It posts to itself, so its votes are tagged dev in the vote
-    log; its boards and votes count like any player's. Not a page visit."""
+    """James's copy of the public /smush, with today's board and hints on
+    even while SMUSH_BOARD_LIVE is off: how he watched them against his own
+    game before players saw them (2026-10-23 to 10-24). /smush_dev, with ICE
+    COLD, is another page and stays unreleased. It posts to itself, so its
+    votes are tagged dev in the vote log; its boards and votes count like
+    any player's. Not a page visit."""
     return _smush_page(dev=True)
 
 
 def _smush_page(dev):
     """/smush, or /smush_dev2 with `dev`: the page, a solve, or a JSON
     action. Today's board (routes/smush.py) shows wherever show_board is on:
-    always on /smush_dev2, and on /smush once SMUSH_BOARD_LIVE."""
+    always on /smush_dev2, and on /smush while SMUSH_BOARD_LIVE."""
     show_board = dev or smush_crowd.SMUSH_BOARD_LIVE
     schema_data = None if dev else make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",

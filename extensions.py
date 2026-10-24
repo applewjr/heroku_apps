@@ -179,14 +179,41 @@ else:
 # Set per checkout rather than once on the pool: pool_reset_session is True, so
 # a session variable is cleared when the connection goes back. Costs one extra
 # round-trip on the minority of requests that touch MySQL at all - the solver
-# pages do not on GET, except /blossom_dev and /smush_dev2 (and /blossom and
-# /smush once their live switches are on), which read today's board at most
-# once a minute, memoized and fail-safe (_board_for in routes/blossom.py and
-# routes/smush.py).
+# pages do not on GET, except /blossom and /smush (and their dev copies),
+# which read today's board at most once a minute, memoized and fail-safe
+# (_board_for in routes/blossom.py and routes/smush.py).
 #
 # MySQL applies max_execution_time to read-only SELECTs only, so the write-
 # behind drain's INSERTs below are unaffected.
 QUERY_TIMEOUT_MS = 10000
+
+
+def _close_quietly(thing, what):
+    """Close a cursor or connection, never raising.
+
+    For a pooled connection, close() is what hands it back to the pool, so it
+    has to run even when the connection died mid-request (a JawsDB restart, a
+    dropped network). The pool takes it back even though its session reset
+    then fails, and the next checkout pings it and reconnects, as it does for
+    any connection JawsDB drops while it sits idle. Until 2026-10-24 close()
+    ran only after an is_connected() ping, and the driver has no other
+    cleanup, so each such connection was lost for good: the pool has five,
+    and with none left every query failed with "pool exhausted" until the
+    dyno restarted, long after the database was back.
+
+    Never raising matters as much: an error here would replace the caller's
+    own exception, or turn work already committed into a reported failure.
+    A log line, not an alert: the connection is repaired at its next
+    checkout, and an outage that broke it is reported by the requests that
+    hit it.
+    """
+    if thing is None:
+        return
+    try:
+        thing.close()
+    except Exception as e:
+        print(f"db_cursor: closing the {what} failed ({type(e).__name__}: {alerts.scrub(e)})",
+              flush=True)
 
 
 @contextmanager
@@ -195,6 +222,7 @@ def db_cursor():
 
     Exceptions (including PoolError on an exhausted pool) propagate to the
     caller, which decides whether the operation is best-effort or fatal.
+    Closing never raises (see _close_quietly).
     """
     conn = get_db_connection()
     cursor = None
@@ -210,10 +238,10 @@ def db_cursor():
                                    exc=type(e).__name__, msg=e)
         yield conn, cursor
     finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+        # Both, whatever the other did, and the connection without a ping
+        # first (see _close_quietly).
+        _close_quietly(cursor, 'cursor')
+        _close_quietly(conn, 'connection')
 
 ##### write-behind logging #####
 

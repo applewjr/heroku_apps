@@ -49,19 +49,19 @@ def blossom_solver():
 @limiter.limit(INTERACTIVE_LIMITS)
 @auth.login_required
 def blossom_dev():
-    """James's copy of /blossom with today's board and hints on, to watch
-    them against his own game for a while before players see them (James's
-    call, 2026-10-23), as /ribbit_dev did for Ribbit's boards. It posts to
-    itself, so its votes are tagged dev in the vote log; its boards and
-    votes count like any player's. Not a page visit, and its solves are not
-    logged as solver clicks."""
+    """James's copy of /blossom, with today's board and hints on even while
+    TODAYS_BOARD_LIVE is off: how he watched them against his own game
+    before players saw them (2026-10-23 to 10-24), as /ribbit_dev did for
+    Ribbit's boards. It posts to itself, so its votes are tagged dev in the
+    vote log; its boards and votes count like any player's. Not a page
+    visit, and its solves are not logged as solver clicks."""
     return _blossom_page(dev=True)
 
 
 def _blossom_page(dev):
     """/blossom, or /blossom_dev with `dev`: the page, a solve (the form
     POST) or a JSON action. Today's board shows wherever show_board is on:
-    always on /blossom_dev, and on /blossom once TODAYS_BOARD_LIVE."""
+    always on /blossom_dev, and on /blossom while TODAYS_BOARD_LIVE."""
     post_url = '/blossom_dev' if dev else '/blossom'
     show_board = dev or TODAYS_BOARD_LIVE
     try:
@@ -605,10 +605,11 @@ def _suggest_missing(data, dev=False):
 # earlier date is an archive game, never served for a later day, though
 # anyone can still type it.
 #
-# Shipped dark (James's call, 2026-10-23): /blossom logs boards but serves
-# none until TODAYS_BOARD_LIVE, and /blossom_dev, his password-only copy,
-# serves them, so he can watch them against his own game first. Players are
-# never told how a board is chosen (see crowd.py on why).
+# Live on /blossom since 2026-10-24 (James's call), after a dark launch from
+# 2026-10-23 in which /blossom only logged boards and /blossom_dev, his
+# password-only copy, served them, so he could watch them against his own
+# game first. Players are never told how a board is chosen (see crowd.py on
+# why).
 
 # Players on one exact state that serve it, when nothing is approved (James,
 # 2026-10-22).
@@ -626,11 +627,10 @@ BOARD_SOURCES = ('typed', 'edited')
 # characters, and players can only send BOARD_SOURCES. It never counts as a
 # player.
 APPROVAL = 'admin'
-# Off: /blossom logs boards but serves none, even to a direct call, and only
-# /blossom_dev shows them (James's call, 2026-10-23, as Ribbit's
-# SHARED_BOARDS_LIVE started out). True puts the board and the hints on
-# /blossom.
-TODAYS_BOARD_LIVE = False
+# Live on /blossom (James's call, 2026-10-24). False goes back to the dark
+# launch: /blossom logs boards but serves none, even to a direct call, and
+# only /blossom_dev shows them.
+TODAYS_BOARD_LIVE = True
 # A date counts toward a puzzle's first_seen only once this many networks
 # logged it then, so one device with a wrong clock can't make today's puzzle
 # look like an archive game. A real archive puzzle had dozens on its day.
