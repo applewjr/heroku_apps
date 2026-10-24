@@ -36,7 +36,15 @@
         "@type": "Answer",
         "text": "Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the spicy letter, and mark words as played to automatically track letter wear as your game progresses. If you are already partway through a game, tap Add played word and type in the words you have used - the solver spends their letters for you."
       }
-    },
+    },{% if show_board %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type today's letters?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the grid: tap Load it and the nine letters fill in, each with all its uses. Check they match your game - the tiles can be in any order - and tap your game's spicy tile if it isn't set already. Playing an older board? Type its letters as usual."
+      }
+    },{% endif %}
     {
       "@type": "Question",
       "name": "Can I enter words I already played?",
@@ -780,12 +788,115 @@
     .results-container { padding: 10px 8px 20px; }
     .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
 }
+
+/* ---------- today's board ---------- */
+/* The bar offers today's board above the tiles, on one line down to a 360px
+   phone; the box under it is one collapsed row until opened, so the board
+   moves down by little more than the two of them. */
+.sm-today {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 10px;
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    padding: 8px 10px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+}
+.sm-today[hidden], .sm-hints[hidden], .sm-loaded-note[hidden] { display: none; }
+.sm-today-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+.sm-today-text strong { white-space: nowrap; }
+.sm-today-btn, .sm-hints-every {
+    min-height: 44px;
+    padding: 10px 14px;
+    background-color: #02484d;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.sm-today-btn:hover, .sm-hints-every:hover { background-color: #03595f; }
+.sm-loaded-note {
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #02484d;
+}
+.sm-hints {
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 8px auto 0;
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    text-align: left;
+}
+.sm-hints-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    cursor: pointer;
+    list-style: none;
+}
+.sm-hints-head::-webkit-details-marker { display: none; }
+.sm-hints-head::before {
+    content: '';
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 6px solid #02484d;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transition: transform 0.15s ease;
+}
+.sm-hints[open] > .sm-hints-head::before { transform: rotate(90deg); }
+.sm-hints-title { margin: 0; font-size: 15px; font-weight: 600; color: #02484d; line-height: 1.3; }
+.sm-hints-steps { padding: 0 14px; }
+.sm-hint { border-top: 1px solid #e9ecef; }
+.sm-hint > summary {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #02484d;
+    cursor: pointer;
+}
+.sm-hint > p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: #374151; overflow-wrap: anywhere; }
+.sm-hints-every { display: block; margin: 4px auto 14px; }
+
+/* The admin's own copy of the page says which copy it is. */
+.sm-dev-note {
+    max-width: 460px;
+    margin: 8px auto 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #02484d;
+    background-color: #eef4f4;
+    border: 1px dashed #4f9a97;
+    border-radius: 8px;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 
 <center>
+{% if dev %}
+<p class="sm-dev-note">/smush_dev2 - only you can see this copy. Today's board and hints are on here; your votes and boards count like any player's.</p>
+{% endif %}
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush Solver & Word Finder</h1>
 
@@ -827,6 +938,41 @@
         (+4 if it's your first word). Points = base × multiplier.
     </div>
 </div>
+
+{% if show_board and board_date %}
+{# Today's board (routes/smush.py): the bar offers it, the box under it
+   gives hints for it, both for the Pacific date the page was rendered on.
+   The script below asks again when the player's own date differs. #}
+<div class="sm-today" id="sm-today"{% if not todays_board %} hidden{% endif %}>
+    <span class="sm-today-text">Today's board: <strong id="sm-today-letters">{{ todays_board.text if todays_board else '' }}</strong></span>
+    <button type="button" class="sm-today-btn" id="sm-load">Load it</button>
+</div>
+<p class="sm-loaded-note" id="sm-loaded-note" hidden>Loaded today's board, entered by other players. Check the letters match your game - the tiles can be in any order.</p>
+{% set hints = todays_board.hints if todays_board else none %}
+<details class="sm-hints" id="sm-hints"{% if not hints %} hidden{% endif %}>
+    <summary class="sm-hints-head"><h2 class="sm-hints-title" id="sm-hints-title">{{ hints.heading if hints else '' }}</h2></summary>
+    <div class="sm-hints-steps" id="sm-hints-steps">
+        {% if hints %}{% for step in hints['steps'] %}
+        <details class="sm-hint"><summary>{{ step.summary }}</summary><p>{{ step.text }}</p></details>
+        {% endfor %}{% endif %}
+    </div>
+    <button type="button" class="sm-hints-every" id="sm-every">See every word</button>
+</details>
+<script>
+    // Before the bar and box paint: hide them if this player's own date isn't
+    // the one they were rendered for (Smush rolls over at each player's
+    // midnight). The page's script then asks for the player's date.
+    (function () {
+        var d = new Date();
+        var mine = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                   String(d.getDate()).padStart(2, '0');
+        if (mine !== {{ board_date | tojson }}) {
+            document.getElementById('sm-today').hidden = true;
+            document.getElementById('sm-hints').hidden = true;
+        }
+    })();
+</script>
+{% endif %}
 
 <div class="smush-board" id="smush-board" role="group" aria-label="Smush board letters"></div>
 
@@ -943,6 +1089,12 @@
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Smush solver work?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Enter your nine letters into the grid with the gold center letter in the middle. The solver instantly ranks every playable word by points using the game's exact scoring. Tap a tile to set the 🌶 spicy letter - or use ✏️ Fix a tile to adjust remaining uses - and mark words as played to automatically track letter wear as your game progresses.</p>
     </div>
+    {% if show_board %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type today's letters?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the grid: tap Load it and the nine letters fill in, each with all its uses. Check they match your game - the tiles can be in any order - and tap your game's 🌶 spicy tile if it isn't set already. Playing an older board? Type its letters as usual.</p>
+    </div>
+    {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can I enter words I already played?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Tap ➕ Add played word under the board, type in each word you've used, and hit ✓ Played - the solver spends its letters and adds it to your played pile, so the rest of its suggestions fit the uses you actually have left. This is the fast way to pick the solver up mid-game when you're down to the last few letters. The box accepts any word your board can spell, whether or not it's one we suggested, so you don't need to find it in the ranked list first. One caveat: it scores the word with whatever 🌶 spicy letter is set right now, so words you're catching up on can score low - the letters they spend are still exact.</p>
@@ -1000,6 +1152,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // under its own key and survives board resets and the daily wipe.
     const SORT_KEY = 'smushSortMode_v1';
     const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
+    // This copy's own address: /smush, or James's /smush_dev2.
+    const POST_URL = {{ (post_url or '/smush') | tojson }};
 
     /* ---------- state ---------- */
     let letters = Array(9).fill('');         // board letters, index 4 = center
@@ -1020,6 +1174,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibleCount = WORDS_FIRST;
     let fetchTimer = null;
     let fetchSeq = 0;
+    // How the letters got on the board (see "today's board" below): 'typed',
+    // 'loaded' (today's board) or 'edited' (loaded, then a letter changed).
+    let boardSource = 'typed';
+    let loggedSig = '';                      // the board as last sent to the board log
 
     const board = document.getElementById('smush-board');
     const resultsContainer = document.getElementById('results-container');
@@ -1080,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const old = letters[i];
         letters[i] = ch;
         input.value = ch.toUpperCase();
+        noteLetterChange();
         if (i !== CENTER) {
             uses[ch] = (old && uses[old] !== undefined) ? uses[old] : MAX_USES;
         }
@@ -1101,6 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function removeLetter(i) {
         const old = letters[i];
         letters[i] = '';
+        noteLetterChange();
         if (old) { delete uses[old]; if (spicy === old) spicy = ''; }
         if (solveMode) exitSolveMode();
         renderBoard();
@@ -1325,6 +1485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStatus();
         renderPlayed();
         renderEntry();
+        maybeLogBoard();
         persist();
         scheduleFetch();
     }
@@ -1342,7 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchResults(seq) {
         const outerUses = {};
         letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
-        fetch('/smush', {
+        fetch(POST_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1634,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // mode: the tab the vote came from, kept in the server's vote log only
     // (a ✗ on All 8 also re-plans, so some of those steer rather than report).
     function postVote(payload) {
-        return fetch('/smush', {
+        return fetch(POST_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(Object.assign(payload, boardLetters(), {mode: sortMode}))
@@ -1793,6 +1954,7 @@ document.addEventListener('DOMContentLoaded', () => {
         letters = Array(9).fill('');
         uses = {}; spicy = ''; played = []; rejected = []; score = 0; history = [];
         solveMode = false; selected = -1; fixMode = false;
+        boardSource = 'typed'; loggedSig = '';
         lastResults = []; planData = null; totalPlayable = 0; pangramStatus = 'none';
         board.classList.remove('solve-mode');
         boardTools.classList.remove('visible');
@@ -1809,6 +1971,7 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestStatus.textContent = '';
         renderControls(); renderStatus(); renderPlayed(); renderBoard();
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        offerBoardAgain();
         inputOf(CENTER).focus();
     }
 
@@ -1816,7 +1979,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(
                 {letters, uses, spicy, played, rejected, score, history, solveMode,
-                 savedAt: Date.now()}));
+                 boardSource, loggedSig, savedAt: Date.now()}));
         } catch (_) {}
     }
 
@@ -1849,6 +2012,8 @@ document.addEventListener('DOMContentLoaded', () => {
         rejected = (Array.isArray(s.rejected) ? s.rejected : [])
             .filter(w => typeof w === 'string');
         score = s.score || 0; history = Array.isArray(s.history) ? s.history : [];
+        boardSource = ['typed', 'loaded', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig : '';
         letters.forEach((ch, i) => { inputOf(i).value = ch.toUpperCase(); });
         if (s.solveMode && letters.every(l => l)) {
             enterSolveMode();
@@ -1934,10 +2099,172 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textarea);
     }
 
+    /* ---------- today's board (routes/smush.py, "today's board") ---------- */
+    /* When today's board is known, the bar above the tiles offers it and the
+       box under the bar holds hints for it. Both come with the page for the
+       Pacific date; when the player's own date differs (Smush rolls over at
+       each player's midnight), the page asks for theirs and shows that, or
+       nothing. A board the player typed is logged once its nine letters are
+       in, and again if they set the spicy tile before playing a word: every
+       game starts with the same spicy letter, and it moves after each word.
+       A loaded board never is, so the board on offer can't vote for itself. */
+    const BOARD_ON_PAGE = {{ 'true' if show_board and board_date else 'false' }};
+    const BOARD_DATE = {{ (board_date or '') | tojson }};
+    let todaysBoard = {{ (todays_board or none) | tojson }};
+
+    // The player's own date, the one Smush gives them a board for.
+    function localISO() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
+    }
+
+    // Called from afterStateChange: nothing goes unless there's something
+    // new to say. Nothing in here may stop the board working.
+    function maybeLogBoard() {
+        try {
+            if (!solveMode || boardSource === 'loaded') return;
+            const center = letters[CENTER];
+            const outer = letters.filter((_, i) => i !== CENTER).sort().join('');
+            if (!center || outer.length !== 8) return;
+            const fresh = played.length === 0 &&
+                letters.every((ch, i) => i === CENTER || (uses[ch] ?? MAX_USES) === MAX_USES);
+            const spice = fresh ? spicy : '';
+            const day = localISO();
+            const sent = day + '|' + center + outer + '|';
+            // This board already went, and there's no fresh spicy letter to add.
+            if (loggedSig === sent + spice || (!spice && loggedSig.startsWith(sent))) return;
+            loggedSig = sent + spice;
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', center: center, outer: outer,
+                                      spicy: spice, played_on: day, source: boardSource})
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // Any letter the player changes: a loaded board becomes their own edit,
+    // and the offer goes once the board has letters in it.
+    function noteLetterChange() {
+        try {
+            if (boardSource === 'loaded') {
+                boardSource = 'edited';
+                const note = document.getElementById('sm-loaded-note');
+                if (note) note.hidden = true;
+            }
+            const bar = document.getElementById('sm-today');
+            if (bar && letters.some(l => l)) bar.hidden = true;
+        } catch (_) {}
+    }
+
+    const isBoard = b => !!b && typeof b.date === 'string' && typeof b.center === 'string' &&
+        /^[a-z]$/.test(b.center) && typeof b.outer === 'string' && /^[a-z]{8}$/.test(b.outer) &&
+        new Set(b.center + b.outer).size === 9 &&
+        (!b.spicy || (typeof b.spicy === 'string' && b.outer.includes(b.spicy)));
+
+    // Fill the board with today's: the center in the middle, the other
+    // eight around it (the game shuffles them anyway), every use left, and
+    // the starting spicy letter when it's known.
+    function loadBoard(b) {
+        if (!isBoard(b)) return;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        letters = Array(9).fill('');
+        letters[CENTER] = b.center;
+        ENTRY_ORDER.filter(i => i !== CENTER).forEach((i, k) => { letters[i] = b.outer[k]; });
+        uses = {};
+        b.outer.split('').forEach(ch => { uses[ch] = MAX_USES; });
+        spicy = b.spicy || '';
+        played = []; rejected = []; score = 0; history = [];
+        tiles.forEach((t, i) => { t.querySelector('input').value = letters[i].toUpperCase(); });
+        boardSource = 'loaded';
+        loggedSig = localISO() + '|' + b.center + b.outer + '|' + (b.spicy || '');
+        document.getElementById('sm-today').hidden = true;
+        document.getElementById('sm-loaded-note').hidden = false;
+        enterSolveMode();
+    }
+
+    // Put a board, or none, in the bar and the hints box: the one the page
+    // came with, or the reply for the player's own date. Text only, never
+    // markup from the reply.
+    function showBoard(b) {
+        const bar = document.getElementById('sm-today');
+        const box = document.getElementById('sm-hints');
+        todaysBoard = isBoard(b) ? b : null;
+        if (!todaysBoard) {
+            bar.hidden = true;
+            box.hidden = true;
+            return;
+        }
+        document.getElementById('sm-today-letters').textContent = todaysBoard.text ||
+            todaysBoard.center.toUpperCase() + ' · ' + todaysBoard.outer.toUpperCase().split('').join(' ');
+        bar.hidden = letters.some(l => l);
+        const hints = todaysBoard.hints;
+        if (!hints || !Array.isArray(hints.steps)) {
+            box.hidden = true;
+            return;
+        }
+        document.getElementById('sm-hints-title').textContent = hints.heading || '';
+        const steps = document.getElementById('sm-hints-steps');
+        steps.textContent = '';
+        hints.steps.forEach(step => {
+            const hint = document.createElement('details');
+            hint.className = 'sm-hint';
+            const summary = document.createElement('summary');
+            summary.textContent = String(step.summary || '');
+            const text = document.createElement('p');
+            text.textContent = String(step.text || '');
+            hint.append(summary, text);
+            steps.appendChild(hint);
+        });
+        box.open = false;
+        box.hidden = false;
+    }
+
+    // After a Reset the board is empty again, so today's board is on offer.
+    function offerBoardAgain() {
+        try {
+            const bar = document.getElementById('sm-today');
+            if (bar && isBoard(todaysBoard)) bar.hidden = false;
+            const note = document.getElementById('sm-loaded-note');
+            if (note) note.hidden = true;
+        } catch (_) {}
+    }
+
+    function setupTodaysBoard() {
+        if (!BOARD_ON_PAGE) return;
+        document.getElementById('sm-load').addEventListener('click', () => loadBoard(todaysBoard));
+        document.getElementById('sm-every').addEventListener('click', () => {
+            loadBoard(todaysBoard);
+            const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            resultsContainer.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+        });
+        if (localISO() === BOARD_DATE) {
+            // The page came with this player's board. Only keep the offer off
+            // a board that already has letters in it (a game in progress).
+            if (letters.some(l => l)) document.getElementById('sm-today').hidden = true;
+            return;
+        }
+        showBoard(null);
+        fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'todays_board', played_on: localISO()})
+        })
+            .then(r => { if (!r.ok) throw new Error('board failed: ' + r.status); return r.json(); })
+            .then(data => showBoard(data && data.board))
+            .catch(() => showBoard(null));
+    }
+
     if (!restore()) {
         renderBoard();
         inputOf(CENTER).focus();
     }
+
+    try {
+        setupTodaysBoard();
+    } catch (_) {}
 });
 </script>
 

@@ -179,9 +179,10 @@ else:
 # Set per checkout rather than once on the pool: pool_reset_session is True, so
 # a session variable is cleared when the connection goes back. Costs one extra
 # round-trip on the minority of requests that touch MySQL at all - the solver
-# pages do not on GET, except /blossom_dev (and /blossom once its
-# TODAYS_BOARD_LIVE is on), which reads today's board at most once a minute,
-# memoized and fail-safe (routes/blossom.py, _board_for).
+# pages do not on GET, except /blossom_dev and /smush_dev2 (and /blossom and
+# /smush once their live switches are on), which read today's board at most
+# once a minute, memoized and fail-safe (_board_for in routes/blossom.py and
+# routes/smush.py).
 #
 # MySQL applies max_execution_time to read-only SELECTs only, so the write-
 # behind drain's INSERTs below are unaffected.
