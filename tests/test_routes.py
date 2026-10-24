@@ -627,6 +627,83 @@ def test_wordiply_post_returns_matches(client):
     assert all("zz" in word for word in body["results"])
 
 
+##### admin login: wrong passwords are capped per visitor #####
+
+def _basic(password):
+    import base64
+    return {"Authorization": "Basic " + base64.b64encode(f"james:{password}".encode()).decode()}
+
+
+def _through_cloudflare(visitor):
+    # Heroku appends the edge (inside Cloudflare's 162.158.0.0/15); the
+    # visitor is in CF-Connecting-IP. See test_client_ip in test_blossom.py.
+    return {"X-Forwarded-For": f"{visitor}, 162.158.10.20", "CF-Connecting-IP": visitor}
+
+
+@pytest.fixture
+def login_cap(monkeypatch):
+    """extensions.ADMIN_LOGIN_FAILURE_LIMITS switched on, with no counts
+    either side of the test."""
+    import config
+    from extensions import limiter
+    monkeypatch.setattr(config, "GOOGLE_FORM_PASS", "test-pass")
+    limiter.enabled = True
+    limiter.reset()
+    yield
+    limiter.enabled = False
+    limiter.reset()
+
+
+def test_wrong_passwords_lock_out_that_visitor(client, login_cap):
+    scanner = _through_cloudflare("198.51.100.7")
+    codes = [client.get("/espresso", headers={**scanner, **_basic(f"guess{i}")}).status_code
+             for i in range(10)]
+    assert codes == [401] * 10
+    # Past the cap even the right password is refused, so guessing on learns nothing.
+    assert client.get("/espresso", headers={**scanner, **_basic("test-pass")}).status_code == 401
+    # Keyed on the visitor, not the shared Cloudflare edge: James still gets in.
+    james = _through_cloudflare("203.0.113.5")
+    assert client.get("/espresso", headers={**james, **_basic("test-pass")}).status_code == 302
+
+
+def test_the_login_prompt_is_not_a_wrong_password(client, login_cap):
+    # A browser's first request carries no credentials; that's what brings up
+    # the prompt, so any number of them leaves the cap untouched.
+    for _ in range(15):
+        assert client.get("/espresso").status_code == 401
+        assert client.get("/espresso", headers=_basic("")).status_code == 401
+    assert client.get("/espresso", headers=_basic("test-pass")).status_code == 302
+
+
+def test_a_few_typos_dont_lock_anyone_out(client, login_cap):
+    for i in range(3):
+        assert client.get("/espresso", headers=_basic(f"typo{i}")).status_code == 401
+    assert client.get("/espresso", headers=_basic("test-pass")).status_code == 302
+
+
+def test_an_unset_password_opens_nothing(client, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "GOOGLE_FORM_PASS", None)
+    for password in ("", "None"):
+        assert client.get("/espresso", headers=_basic(password)).status_code == 401
+
+
+def test_validate_password_needs_the_login(client, monkeypatch):
+    # Otherwise it would test guesses past the cap.
+    import config
+    monkeypatch.setattr(config, "GOOGLE_FORM_PASS", "test-pass")
+    monkeypatch.setattr(config, "GOOGLE_FORM_URL", "https://example.com/form")
+    form = {"password": "test-pass"}
+    assert client.post("/validate_password", data=form).status_code == 401
+    resp = client.post("/validate_password", data=form, headers=_basic("test-pass"))
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "https://example.com/form"
+    resp = client.post("/validate_password", data={"password": "nope"},
+                       headers=_basic("test-pass"))
+    assert resp.status_code == 302
+    assert resp.headers["Location"] != "https://example.com/form"
+
+
 ##### feedback forms: bots are dropped, a person never loses a message #####
 
 import contextlib

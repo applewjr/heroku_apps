@@ -4,6 +4,7 @@ cache and limiter use the init_app pattern; app.py binds them to the Flask app.
 """
 
 import atexit
+import hmac
 import json
 import queue
 import threading
@@ -21,8 +22,10 @@ from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from limits import parse_many
 
 import config
+from helpers import client_ip
 from monitoring import alerts
 
 ##### cache / rate limiter #####
@@ -58,9 +61,50 @@ FEEDBACK_POST_LIMITS = "3 per minute; 10 per day"
 
 auth = HTTPBasicAuth()
 
+# Wrong admin passwords, per visitor. Every protected page shares the one
+# password and the username is ignored, so before this a guesser had each
+# route's default budget to spend - roughly 80,000 tries a day across the ~40
+# protected routes. Keyed on helpers.client_ip like FEEDBACK_POST_LIMITS, so a
+# scanner locks out only itself. Past the cap even the right password is
+# refused, so further guesses learn nothing. 30 a day is far more than anyone
+# mistypes.
+ADMIN_LOGIN_FAILURE_LIMITS = parse_many("10 per minute; 30 per day")
+
+
+def password_matches(value):
+    """Is `value` the admin password? Constant-time, and False whenever the
+    password isn't configured, so a missing config var can't open the door."""
+    expected = config.GOOGLE_FORM_PASS
+    if not expected or not value:
+        return False
+    return hmac.compare_digest(value.encode('utf-8'), expected.encode('utf-8'))
+
+
+def _login_locked(ip):
+    return not all(limiter.limiter.test(item, 'admin_login', ip)
+                   for item in ADMIN_LOGIN_FAILURE_LIMITS)
+
+
 @auth.verify_password
 def verify_password(username, password):
-    return password == config.GOOGLE_FORM_PASS
+    if not password:
+        # The browser's first request carries no credentials. That's what
+        # brings up the login prompt, not a guess, so it isn't counted.
+        return False
+    if not limiter.enabled:  # the test suite (conftest.py)
+        return password_matches(password)
+    ip = client_ip()
+    if _login_locked(ip):
+        return False
+    if password_matches(password):
+        return True
+    for item in ADMIN_LOGIN_FAILURE_LIMITS:
+        limiter.limiter.hit(item, 'admin_login', ip)
+    if _login_locked(ip):
+        # Once per lockout: later attempts return above without counting.
+        # A log line, not an alert - the cap doing its job needs no action.
+        print(f"admin login locked for {ip} after repeated wrong passwords", flush=True)
+    return False
 
 @auth.error_handler
 def custom_error():

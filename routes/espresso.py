@@ -16,7 +16,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 
 import config
 from data import espresso_points
-from extensions import auth, cache
+from extensions import auth, cache, password_matches
 from functions import espresso
 from helpers import ValidationError, parse_choice, parse_float, parse_int
 
@@ -62,10 +62,14 @@ def get_espresso_data():
 
 
 @bp.route('/validate_password', methods=['POST'])
+@auth.login_required
 def validate_password():
+    # Behind the login as well: its only form is on espresso_home.html, which
+    # already is, and without it anyone could test guesses here past the
+    # per-visitor cap on wrong passwords (extensions.ADMIN_LOGIN_FAILURE_LIMITS).
     user_password = request.form['password']
 
-    if user_password == config.GOOGLE_FORM_PASS:
+    if password_matches(user_password):
         return redirect(config.GOOGLE_FORM_URL)
     else:
         referrer = request.headers.get("Referer")
