@@ -13,8 +13,10 @@ everyone after them. A player's board is logged when they solve it; once
 enough players agree on a board, later players are offered it ("Load today's
 board"), and anyone who types a known board's letters - an archive puzzle
 too - gets its links filled in. Nothing is guessed: every link served was
-drawn by players. /ribbit_admin can also approve the latest board for a set
-of letters (James's own, entered just before), which serves it at once.
+drawn by players. /ribbit_admin can also approve a board, which serves it at
+once: one James enters on /ribbit_admin/board (the solver's own editor), or
+the latest board for a set of letters (his own, entered just before on
+/ribbit).
 
 More than one Ribbit board can be real on one day: several players at a time
 type boards, alike, that James's game on puzzmo.com never shows him (seen in
@@ -760,7 +762,7 @@ def ribbit_admin():
     days, load_error = _admin_days()
     return render_template('ribbit_admin.html', **view,
                            crowd_error=crowd_error, days=days, load_error=load_error,
-                           shared_live=SHARED_BOARDS_LIVE,
+                           shared_live=SHARED_BOARDS_LIVE, pacific_today=_pacific_today(),
                            serve_identical=SERVE_IDENTICAL, serve_majority=SERVE_MAJORITY,
                            todays_boards_max=TODAYS_BOARDS_MAX,
                            word_pop=word_pop,
@@ -768,6 +770,26 @@ def ribbit_admin():
                            crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
                            crowd_add_votes=CROWD_ADD_VOTES,
                            crowd_window_days=CROWD_WINDOW_DAYS)
+
+
+@bp.route(ADMIN + '/board', methods=['GET', 'POST'])
+@auth.login_required
+def ribbit_admin_board():
+    """James's board entry: /ribbit's own board editor (Type, Link, Erase,
+    drag across a row, Rotate), with an Approve bar under the board in place
+    of the solving (James asked, 2026-10-24). Approve posts to
+    approve_typed_board. Its JSON posts are only the editor's own: today's
+    boards to load, and the links players drew for the letters typed. It
+    never solves, logs a board or votes, so nothing here counts as a
+    player."""
+    if request.method == 'POST':
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or data.get('action') not in ('shared_board', 'board_links'):
+            raise ValidationError('only shared_board and board_links here')
+        return handle_action(data, dev=True)
+    return render_template('ribbit.html', schema_data=None, shared_boards=True,
+                           post_url=ADMIN + '/board', dev=False, approve=True,
+                           pacific_today=_pacific_today())
 
 
 def _is_letters(value):
@@ -827,6 +849,41 @@ def ribbit_approve_board():
         print(f"Error approving ribbit board: {e}")
         return _back(error='Database error')
     return _back(success=f"Approved the board last updated {newest[UPDATED]:%m-%d %H:%M}: its links are served now")
+
+
+@bp.route(ADMIN + '/approve_typed_board', methods=['POST'])
+@auth.login_required
+def ribbit_approve_typed_board():
+    """Serve a board James entered on /ribbit_admin/board, letters and
+    links, to every player whose date is `played_on`, straight away: the
+    same approval as Add, with no solving on /ribbit first (James asked,
+    2026-10-24). `cells` is the 16 letters row by row and `links` the links
+    as _links_text writes them, in the view on his screen; any turn or flip
+    of his game's board is the same board."""
+    cells = request.form.get('cells', '').strip().lower()
+    played_on = request.form.get('played_on', '')
+    if not (len(cells) == CELLS and cells.isascii() and cells.isalpha()
+            and _DATE.fullmatch(played_on)):
+        return _back(error='Not a board: 16 letters a-z, and a date')
+    try:
+        day = date.fromisoformat(played_on)
+    except ValueError:
+        return _back(error='Not a board: 16 letters a-z, and a date')
+    try:
+        letters, links = _grid_board({
+            'nodes': [{'id': i, 'letter': ch} for i, ch in enumerate(cells)],
+            'edges': [list(pair) for pair in _parse_links(request.form.get('links', ''))]})
+    except (ValueError, ValidationError):
+        return _back(error='Not a board: links can only join neighbouring tiles')
+    if not _every_tile_linked(links):
+        return _back(error='Every tile needs a link: draw the rest, then approve again')
+    canon_letters, canon_links, t = canonical(letters, links)
+    try:
+        store_approval(day, canon_letters, canon_links, t)
+    except Exception as e:
+        print(f"Error approving typed ribbit board: {e}")
+        return _back(error='Database error')
+    return _back(success=f"Approved your board for {day:%m-%d}: its links are served now")
 
 
 @bp.route(ADMIN + '/unapprove_board', methods=['POST'])

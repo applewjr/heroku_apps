@@ -530,6 +530,92 @@ def test_pool_retries_once_the_cooldown_has_passed(monkeypatch):
     assert len(attempts) == 3
 
 
+class _ClosingCursor:
+    def __init__(self, fails):
+        self.fails = fails
+
+    def execute(self, sql, params=None):
+        pass
+
+    def close(self):
+        if self.fails:
+            raise RuntimeError("Lost connection to MySQL server during query")
+
+
+class _ClosingConn:
+    """A connection that records how db_cursor leaves it: on Heroku, close()
+    is what hands a pooled connection back to the pool."""
+
+    def __init__(self, cursor_fails=False):
+        self.alive = True
+        self.closes = 0
+        self.pings = 0
+        self._cursor = _ClosingCursor(cursor_fails)
+
+    def cursor(self):
+        return self._cursor
+
+    def is_connected(self):
+        self.pings += 1
+        return self.alive
+
+    def close(self):
+        self.closes += 1
+
+
+@pytest.fixture
+def checkout(monkeypatch):
+    def install(conn):
+        monkeypatch.setattr(extensions, "get_db_connection", lambda: conn)
+        return conn
+    return install
+
+
+def test_a_connection_that_died_mid_request_still_goes_back(checkout):
+    # Closed only after a ping said it was alive, a connection that died
+    # mid-request (a JawsDB restart) was never handed back, and five of
+    # those emptied the pool until the dyno restarted.
+    conn = checkout(_ClosingConn())
+    with extensions.db_cursor():
+        conn.alive = False
+    assert conn.closes == 1
+    assert conn.pings == 0                  # and the way out costs no round trip
+
+
+def test_a_failing_cursor_close_still_closes_the_connection(checkout, capsys):
+    conn = checkout(_ClosingConn(cursor_fails=True))
+    with extensions.db_cursor():
+        pass                                # nothing escapes the way out
+    assert conn.closes == 1
+    assert "db_cursor: closing the cursor failed (RuntimeError" in capsys.readouterr().out
+
+
+def test_a_failing_connection_close_never_raises(checkout, capsys):
+    # The pool's close() resets the session, which fails on a dead
+    # connection; the pool has taken it back by then.
+    conn = checkout(_ClosingConn())
+
+    def reset_fails():
+        conn.closes += 1
+        raise RuntimeError("session reset failed")
+
+    conn.close = reset_fails
+    with extensions.db_cursor():
+        pass
+    assert conn.closes == 1
+    out = capsys.readouterr().out
+    assert "db_cursor: closing the connection failed (RuntimeError" in out
+    assert "JJ_ALERT" not in out            # a log line, not an email
+
+
+def test_the_callers_own_error_still_propagates(checkout):
+    conn = checkout(_ClosingConn(cursor_fails=True))
+    with pytest.raises(ValueError, match="the caller's"):
+        with extensions.db_cursor():
+            raise ValueError("the caller's")
+    assert conn.closes == 1
+
+
 ##### one bad check must not silence the rest #####
 
 class _StubCursor:

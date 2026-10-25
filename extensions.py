@@ -4,6 +4,7 @@ cache and limiter use the init_app pattern; app.py binds them to the Flask app.
 """
 
 import atexit
+import hmac
 import json
 import queue
 import threading
@@ -21,8 +22,10 @@ from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from limits import parse_many
 
 import config
+from helpers import client_ip
 from monitoring import alerts
 
 ##### cache / rate limiter #####
@@ -58,9 +61,50 @@ FEEDBACK_POST_LIMITS = "3 per minute; 10 per day"
 
 auth = HTTPBasicAuth()
 
+# Wrong admin passwords, per visitor. Every protected page shares the one
+# password and the username is ignored, so before this a guesser had each
+# route's default budget to spend - roughly 80,000 tries a day across the ~40
+# protected routes. Keyed on helpers.client_ip like FEEDBACK_POST_LIMITS, so a
+# scanner locks out only itself. Past the cap even the right password is
+# refused, so further guesses learn nothing. 30 a day is far more than anyone
+# mistypes.
+ADMIN_LOGIN_FAILURE_LIMITS = parse_many("10 per minute; 30 per day")
+
+
+def password_matches(value):
+    """Is `value` the admin password? Constant-time, and False whenever the
+    password isn't configured, so a missing config var can't open the door."""
+    expected = config.GOOGLE_FORM_PASS
+    if not expected or not value:
+        return False
+    return hmac.compare_digest(value.encode('utf-8'), expected.encode('utf-8'))
+
+
+def _login_locked(ip):
+    return not all(limiter.limiter.test(item, 'admin_login', ip)
+                   for item in ADMIN_LOGIN_FAILURE_LIMITS)
+
+
 @auth.verify_password
 def verify_password(username, password):
-    return password == config.GOOGLE_FORM_PASS
+    if not password:
+        # The browser's first request carries no credentials. That's what
+        # brings up the login prompt, not a guess, so it isn't counted.
+        return False
+    if not limiter.enabled:  # the test suite (conftest.py)
+        return password_matches(password)
+    ip = client_ip()
+    if _login_locked(ip):
+        return False
+    if password_matches(password):
+        return True
+    for item in ADMIN_LOGIN_FAILURE_LIMITS:
+        limiter.limiter.hit(item, 'admin_login', ip)
+    if _login_locked(ip):
+        # Once per lockout: later attempts return above without counting.
+        # A log line, not an alert - the cap doing its job needs no action.
+        print(f"admin login locked for {ip} after repeated wrong passwords", flush=True)
+    return False
 
 @auth.error_handler
 def custom_error():
@@ -179,14 +223,41 @@ else:
 # Set per checkout rather than once on the pool: pool_reset_session is True, so
 # a session variable is cleared when the connection goes back. Costs one extra
 # round-trip on the minority of requests that touch MySQL at all - the solver
-# pages do not on GET, except /blossom_dev and /smush_dev2 (and /blossom and
-# /smush once their live switches are on), which read today's board at most
-# once a minute, memoized and fail-safe (_board_for in routes/blossom.py and
-# routes/smush.py).
+# pages do not on GET, except /blossom and /smush (and their dev copies),
+# which read today's board at most once a minute, memoized and fail-safe
+# (_board_for in routes/blossom.py and routes/smush.py).
 #
 # MySQL applies max_execution_time to read-only SELECTs only, so the write-
 # behind drain's INSERTs below are unaffected.
 QUERY_TIMEOUT_MS = 10000
+
+
+def _close_quietly(thing, what):
+    """Close a cursor or connection, never raising.
+
+    For a pooled connection, close() is what hands it back to the pool, so it
+    has to run even when the connection died mid-request (a JawsDB restart, a
+    dropped network). The pool takes it back even though its session reset
+    then fails, and the next checkout pings it and reconnects, as it does for
+    any connection JawsDB drops while it sits idle. Until 2026-10-24 close()
+    ran only after an is_connected() ping, and the driver has no other
+    cleanup, so each such connection was lost for good: the pool has five,
+    and with none left every query failed with "pool exhausted" until the
+    dyno restarted, long after the database was back.
+
+    Never raising matters as much: an error here would replace the caller's
+    own exception, or turn work already committed into a reported failure.
+    A log line, not an alert: the connection is repaired at its next
+    checkout, and an outage that broke it is reported by the requests that
+    hit it.
+    """
+    if thing is None:
+        return
+    try:
+        thing.close()
+    except Exception as e:
+        print(f"db_cursor: closing the {what} failed ({type(e).__name__}: {alerts.scrub(e)})",
+              flush=True)
 
 
 @contextmanager
@@ -195,6 +266,7 @@ def db_cursor():
 
     Exceptions (including PoolError on an exhausted pool) propagate to the
     caller, which decides whether the operation is best-effort or fatal.
+    Closing never raises (see _close_quietly).
     """
     conn = get_db_connection()
     cursor = None
@@ -210,10 +282,10 @@ def db_cursor():
                                    exc=type(e).__name__, msg=e)
         yield conn, cursor
     finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None and conn.is_connected():
-            conn.close()
+        # Both, whatever the other did, and the connection without a ping
+        # first (see _close_quietly).
+        _close_quietly(cursor, 'cursor')
+        _close_quietly(conn, 'connection')
 
 ##### write-behind logging #####
 

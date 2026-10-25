@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit{% endblock %}
+{% block title %}{% if approve %}Approve your Ribbit board{% else %}Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit{% endif %}{% endblock %}
 
 {% block meta %}
 <meta name="description" content="Today's Ribbit answers for Puzzmo or Yahoo: type the 4x4 board, draw the connections, and see every word you can trace, longest first.">
@@ -220,6 +220,8 @@
 
 /* The admin's own copy of the page says which copy it is. */
 .rb-dev-note {
+    box-sizing: border-box;
+    width: calc(100% - 24px);
     max-width: 460px;
     margin: 8px auto 0;
     padding: 8px 12px;
@@ -230,6 +232,38 @@
     border: 1px dashed #4f9a97;
     border-radius: 8px;
 }
+{% if approve %}
+{# James's board entry: the Approve bar under the board, in place of the
+   solving. #}
+.rb-approve {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    box-sizing: border-box;
+    width: calc(100% - 24px);
+    max-width: 460px;
+    margin: 14px auto 0;
+    padding: 12px;
+    background-color: #eef4f4;
+    border: 1px solid #4f9a97;
+    border-radius: 8px;
+}
+.rb-approve label { font-size: 14px; font-weight: 600; color: #02484d; }
+.rb-approve input[type=date] {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 6px 8px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+}
+.rb-approve-btn { background-color: #02484d; color: #fff; border-color: #02484d; }
+.rb-approve-btn:disabled, .rb-approve-btn:disabled:hover {
+    background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed;
+}
+.rb-approve-status { flex: 0 0 100%; margin: 0; font-size: 13px; color: #6b7280; }
+{% endif %}
 
 /* ---------- board (fixed 4x4 grid) ---------- */
 .rb-board-wrap {
@@ -655,12 +689,16 @@
 
 <center>
 <br>
-<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Ribbit Solver &amp; Answers</h1>
+<h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">{% if approve %}Approve your game's board{% else %}Ribbit Solver &amp; Answers{% endif %}</h1>
 {% if dev %}
 <p class="rb-dev-note">/ribbit_dev - only you can see this copy. Your ✗ votes and boards count like any player's.</p>
 {% endif %}
+{% if approve %}
+<p class="rb-dev-note">Enter your game's board: type it, drag the links, rotate it to match. Then press Approve under the board: it's served to every player whose date you pick, first of the day's boards. Nothing here solves or counts as a player. <a href="/ribbit_admin?tab=boards">Back to Ribbit admin</a></p>
+{% endif %}
 
-<div class="instructions collapsed" id="instructions-panel">
+{# Hidden, not left out, on the approve page: the script below wires it. #}
+<div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
     <div class="instructions-header" id="instructions-toggle">
         <strong>How to use</strong>
         <span class="instructions-toggle-icon">&#9660;</span>
@@ -697,8 +735,9 @@
 </div>
 
 <div class="rb-phase" role="group" aria-label="Mode">
-    <button type="button" class="rb-phase-btn active" id="phase-edit">✏️ Edit board</button>
-    <button type="button" class="rb-phase-btn" id="phase-solve">▶ Solve</button>
+    {# The approve page only edits: no Solve, so no Edit to come back to. #}
+    <button type="button" class="rb-phase-btn active" id="phase-edit"{% if approve %} hidden{% endif %}>✏️ Edit board</button>
+    <button type="button" class="rb-phase-btn" id="phase-solve"{% if approve %} hidden{% endif %}>▶ Solve</button>
     {% if shared_boards %}<button type="button" class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>🔄 Clear board</button>{% endif %}
 </div>
 
@@ -726,6 +765,19 @@
 <div class="rb-board-controls">
     <button type="button" class="rb-ctrl" id="rotate-btn">↻ Rotate</button>
 </div>
+
+{% if approve %}
+{# The board as it stands goes in cells and links when Approve is pressed
+   (see renderApprove in the script); routes/ribbit.py checks it again. #}
+<form method="POST" action="/ribbit_admin/approve_typed_board" class="rb-approve" id="rb-approve">
+    <label>Date <input type="date" name="played_on" id="rb-approve-date" value="{{ pacific_today.strftime('%Y-%m-%d') }}" required></label>
+    <input type="hidden" name="cells" id="rb-approve-cells">
+    <input type="hidden" name="links" id="rb-approve-links">
+    <input type="hidden" name="tab" value="boards">
+    <button type="submit" class="rb-ctrl rb-approve-btn" id="rb-approve-btn" disabled>✅ Approve this board</button>
+    <p class="rb-approve-status" id="rb-approve-status" aria-live="polite"></p>
+</form>
+{% endif %}
 
 <div class="rb-status" id="rb-status" style="display: none;">
     <span class="status-chip">Words found: <b id="chip-found">0</b></span>
@@ -756,10 +808,13 @@
     <div class="we-status" id="suggest-status" aria-live="polite"></div>
 </div>
 
+{% if not approve %}
 {% with ad_page='ribbit', ad_gate='#results-container .word-result' %}{% include '_ad_slot.html' %}{% endwith %}
+{% endif %}
 
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
+    {% if not approve %}
     <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link" target="_blank" rel="noopener noreferrer" style="
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
         border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
@@ -768,6 +823,7 @@
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
         border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
         transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    {% endif %}
     <button type="button" id="clear-btn" style="
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
         border-radius: 8px; display: inline-block; margin: 4px; font-size: 14px; font-family: inherit;
@@ -775,6 +831,7 @@
         transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🔄 Clear board</button>
 </div>
 
+{% if not approve %}
 {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
 
 <section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
@@ -816,6 +873,7 @@
     </div>
   </div>
 </section>
+{% endif %}
 <br>
 <br>
 </center>
@@ -826,7 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const RARE_ZIPF = 2;          // Zipf popularity below this gets the ⚠ rare flag
     const WORDS_STEP = 25;
     const N = 4;                  // fixed 4x4 board
-    const STORAGE_KEY = 'ribbitSolverState_v2';
+    {# James's board entry (approve: /ribbit_admin/board) saves a board of its
+       own, so it never touches his game on /ribbit. Jinja comments here and
+       below keep that page's address out of the public page. #}
+    const STORAGE_KEY = {% if approve %}'ribbitApproveState_v1'{% else %}'ribbitSolverState_v2'{% endif %};
     // Set by the route: whether this copy of the page offers shared boards
     // (it always logs them), and where it posts.
     const SHARED_BOARDS = {{ 'true' if shared_boards else 'false' }};
@@ -1058,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 badge.hidden = true;
             }
         }
+        renderApprove();
     }
 
     function renderEdges() {
@@ -1070,6 +1132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     '" x2="' + B.x + '" y2="' + B.y + '" vector-effect="non-scaling-stroke"></line>';
         });
         svg.innerHTML = html;
+        renderApprove();
     }
 
     // cells + edge keys to light up for the active word's stored path
@@ -1719,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
         boardSource = 'shared'; loggedSig = boardSig();
         sharedBoards = []; offerClear = true;
         renderAll(); renderShared(); persist();
-        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then hit ▶ Solve, or 🔄 Clear board if it doesn't.";
+        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then {% if approve %}approve it{% else %}hit ▶ Solve{% endif %}, or 🔄 Clear board if it doesn't.";
     });
 
     // All 16 letters typed and nothing linked yet: if other players have
@@ -1755,6 +1818,41 @@ document.addEventListener('DOMContentLoaded', () => {
         postBoard({action: 'log_board', nodes: boardNodes(), edges: edges.map(e => [e.a, e.b]),
                    played_on: localISO(), source: boardSource}).catch(() => {});
     }
+
+    {% if approve %}
+    /* ---------- approve ---------- */
+    // Approve is ready once the board is whole: 16 letters, every tile
+    // linked, the same rule a player's board needs to count. Called from
+    // renderCells and renderEdges, so it follows typing and every drag.
+    const approveForm = document.getElementById('rb-approve');
+    function renderApprove() {
+        const missing = cells.filter(c => !c).length;
+        const linked = new Set();
+        edges.forEach(e => { linked.add(e.a); linked.add(e.b); });
+        const unlinked = N * N - linked.size;
+        document.getElementById('rb-approve-status').textContent =
+            missing ? missing + (missing === 1 ? ' letter' : ' letters') + ' to go.'
+            : unlinked ? unlinked + (unlinked === 1 ? ' tile has' : ' tiles have') + ' no link yet.'
+            : 'Ready: ' + edges.length + ' links.';
+        document.getElementById('rb-approve-btn').disabled = Boolean(missing || unlinked);
+    }
+    approveForm.addEventListener('submit', e => {
+        renderApprove();
+        const day = document.getElementById('rb-approve-date').value;
+        if (document.getElementById('rb-approve-btn').disabled ||
+            !confirm('Serve this board to every player whose date is ' + day + '?')) {
+            e.preventDefault();
+            return;
+        }
+        document.getElementById('rb-approve-cells').value = cells.join('');
+        document.getElementById('rb-approve-links').value =
+            edges.map(edge => edgeKey(edge.a, edge.b)).join(',');
+        // Approved, so the next board starts empty (the Yahoo one, say).
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    });
+    {% else %}
+    function renderApprove() {}
+    {% endif %}
 
     /* ---------- persistence ---------- */
     function persist() {

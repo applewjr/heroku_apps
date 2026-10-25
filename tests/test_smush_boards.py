@@ -407,8 +407,15 @@ def test_a_failed_read_costs_the_board_never_the_page(client, boards, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# The dark launch, and /smush_dev2
+# Live on /smush, the dark launch the flag goes back to, and /smush_dev2
 # ---------------------------------------------------------------------------
+
+def test_todays_board_is_live_on_smush(client):
+    # James's call, 2026-10-24. The other tests here set the flag; this one
+    # reads it as the code ships, so going dark again is a deliberate change.
+    html = client.get("/smush").get_data(as_text=True)
+    assert 'id="sm-today"' in html and ">Do I have to type today's letters?<" in html
+
 
 def test_while_dark_smush_logs_boards_and_serves_none(client, boards, monkeypatch):
     monkeypatch.setattr(smush, "SMUSH_BOARD_LIVE", False)

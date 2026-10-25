@@ -443,8 +443,15 @@ def test_a_failed_read_costs_the_board_never_the_page(client, boards, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# The dark launch, and /blossom_dev
+# Live on /blossom, the dark launch the flag goes back to, and /blossom_dev
 # ---------------------------------------------------------------------------
+
+def test_todays_board_is_live_on_blossom(client):
+    # James's call, 2026-10-24. The other tests here set the flag; this one
+    # reads it as the code ships, so going dark again is a deliberate change.
+    html = client.get("/blossom").get_data(as_text=True)
+    assert 'id="bl-today"' in html and ">Do I have to type today's letters?<" in html
+
 
 def test_while_dark_blossom_logs_boards_and_serves_none(client, boards, monkeypatch):
     monkeypatch.setattr(blossom, "TODAYS_BOARD_LIVE", False)

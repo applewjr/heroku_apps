@@ -554,7 +554,7 @@ def test_the_readers_ask_for_the_right_rows(client, board_db):
 
 def test_admin_needs_the_password(client, boards):
     assert client.get("/ribbit_admin").status_code == 401
-    for action in ("remove_board", "approve_board", "unapprove_board"):
+    for action in ("remove_board", "approve_board", "approve_typed_board", "unapprove_board"):
         assert client.post(f"/ribbit_admin/{action}", data={}).status_code == 401
 
 
@@ -744,6 +744,169 @@ def test_the_approval_sql(client, board_db, monkeypatch):
                 data={"letters": canon_letters})
     assert db.statements("DELETE FROM ribbit_boards") == [
         ("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s", (canon_letters, "admin"))]
+
+
+# ---------------------------------------------------------------------------
+# Approve your game's board: typed into /ribbit_admin itself
+# ---------------------------------------------------------------------------
+
+def _text(links):
+    """Links as the form sends them (routes.ribbit._links_text)."""
+    return links if isinstance(links, str) else ",".join(f"{a}-{b}" for a, b in links)
+
+
+def _typed(client, monkeypatch, cells=LETTERS, links=LINKS, played_on=DAY.isoformat()):
+    return client.post("/ribbit_admin/approve_typed_board", headers=_admin_headers(monkeypatch),
+                       data={"cells": cells, "links": _text(links), "played_on": played_on,
+                             "tab": "boards"})
+
+
+def test_a_board_you_type_in_is_served_at_once(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    # No player has entered it: the approval alone makes it the day's board.
+    resp = _typed(client, monkeypatch)
+    assert resp.status_code == 302
+    assert "success=Approved+your+board+for+10-17" in resp.headers["Location"]
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
+    assert _links_for(client, LETTERS) == [list(p) for p in LINKS]
+    result = ribbit.consensus(boards.with_letters(ribbit.canonical(LETTERS)[0]))
+    assert result["approved"] and result["players"] == 0     # never a player
+
+
+def test_a_typed_board_turned_is_the_same_board_shown_as_typed(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    letters, links = _turned(LETTERS, LINKS)
+    _typed(client, monkeypatch, cells=letters, links=links)
+    [row] = boards.approvals()
+    canon_letters, canon_links, _t = ribbit.canonical(LETTERS, tuple(LINKS))
+    assert (row[ribbit.LETTERS], row[ribbit.LINKS]) == (canon_letters, ribbit._links_text(canon_links))
+    # With no player boards it's offered the way it was typed, and anyone
+    # who types it the other way round still gets its links.
+    assert _todays(client) == [_as_board(letters, links)]
+    assert _links_for(client, LETTERS) == [list(p) for p in LINKS]
+
+
+def test_a_typed_board_comes_first_next_to_the_players_board(client, boards, monkeypatch):
+    for p in (1, 2, 3):
+        _log(client, p, letters="abcdefghijklmnop")
+    _typed(client, monkeypatch)
+    assert _todays(client) == [_as_board(LETTERS, LINKS), _as_board("abcdefghijklmnop", LINKS)]
+
+
+@pytest.mark.parametrize("form, error", [
+    ({"cells": LETTERS[:15]}, "Not+a+board"),
+    ({"cells": LETTERS[:15] + "1"}, "Not+a+board"),
+    ({"cells": LETTERS[:15] + "é"}, "Not+a+board"),
+    ({"links": LINKS + [(0, 2)]}, "Not+a+board"),                # not neighbours
+    ({"links": LINKS + [(5, 5)]}, "Not+a+board"),
+    ({"links": "a-b"}, "Not+a+board"),
+    ({"links": "1-2-3"}, "Not+a+board"),
+    ({"links": "40-41"}, "Not+a+board"),
+    ({"links": [p for p in LINKS if 12 not in p]}, "Every+tile+needs+a+link"),
+    ({"links": ""}, "Every+tile+needs+a+link"),
+    ({"played_on": "2026-02-30"}, "Not+a+board"),
+    ({"played_on": "yesterday"}, "Not+a+board"),
+])
+def test_typed_approve_refuses_anything_but_a_finished_board(client, boards, monkeypatch,
+                                                              form, error):
+    resp = _typed(client, monkeypatch, **form)
+    assert resp.status_code == 302 and f"error={error}" in resp.headers["Location"]
+    assert "tab=boards" in resp.headers["Location"]
+    assert boards.approvals() == []
+
+
+def test_admin_links_to_the_board_entry(client, boards, monkeypatch):
+    _log(client, 1)
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert '<a href="/ribbit_admin/board" class="btn btn-success">Enter your board</a>' in html
+    # Above the day's boards, as Blossom's Approve form is.
+    assert html.index('id="approve-entry"') < html.index("<h3>2026-10-17</h3>")
+
+
+def _entry_page(client, monkeypatch):
+    return client.get("/ribbit_admin/board",
+                      headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+
+
+def test_board_entry_needs_the_password(client):
+    assert client.get("/ribbit_admin/board").status_code == 401
+    assert client.post("/ribbit_admin/board", json={"action": "shared_board"}).status_code == 401
+
+
+def test_board_entry_is_the_ribbit_editor_with_an_approve_bar(client, boards, monkeypatch):
+    html = _entry_page(client, monkeypatch)
+    # /ribbit's own editor: tools, the board, Rotate, Clear, and today's boards to load.
+    for hook in ('id="rb-tools"', 'data-tool="link"', 'data-tool="erase"', 'id="rb-board-wrap"',
+                 'id="rotate-btn"', 'id="clear-btn"', 'id="rb-shared"',
+                 "const SHARED_BOARDS = true;", 'const POST_URL = "/ribbit_admin/board";',
+                 "const STORAGE_KEY = 'ribbitApproveState_v1';", "function renderApprove() {"):
+        assert hook in html, f"the board entry lost {hook}"
+    form = re.search(r'<form method="POST" action="/ribbit_admin/approve_typed_board".*?</form>',
+                     html, re.S).group(0)
+    assert 'name="played_on" id="rb-approve-date" value="2026-10-17"' in form   # Pacific today
+    assert 'name="cells"' in form and 'name="links"' in form
+    assert 'name="tab" value="boards"' in form
+    assert 'id="rb-approve-btn" disabled>' in form
+    # Edit only: no Solve, and none of the solver's page around it.
+    assert 'id="phase-solve" hidden>' in html and 'id="phase-edit" hidden>' in html
+    for gone in ("Frequently Asked Questions", "💬 Give Feedback", 'class="jj-ad"',
+                 "Ribbit Solver &amp; Answers"):
+        assert gone not in html, f"the board entry shows {gone!r}"
+    assert "<title>Approve your Ribbit board</title>" in html
+
+
+def test_board_entry_loads_todays_boards_and_fills_in_links(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", False)           # even while dark
+    _log(client, 1)
+    _log(client, 2)
+    headers = {**_player(9), **_admin_headers(monkeypatch)}
+    served = client.post("/ribbit_admin/board", headers=headers, json={
+        "action": "shared_board", "played_on": DAY.isoformat()}).get_json()["boards"]
+    assert served == [_as_board(LETTERS, LINKS)]
+    edges = client.post("/ribbit_admin/board", headers=headers, json={
+        "action": "board_links", "nodes": _nodes(LETTERS)}).get_json()["edges"]
+    assert edges == [list(p) for p in LINKS]
+
+
+@pytest.mark.parametrize("body", [
+    {"action": "log_board", "nodes": _nodes(LETTERS), "edges": [list(p) for p in LINKS],
+     "played_on": DAY.isoformat(), "source": "typed"},
+    {"nodes": _nodes(LETTERS), "edges": [list(p) for p in LINKS]},           # a solve
+    {"action": "reject", "word": "frog", "nodes": _nodes(LETTERS), "edges": []},
+])
+def test_board_entry_never_logs_solves_or_votes(client, boards, monkeypatch, body):
+    resp = client.post("/ribbit_admin/board", headers=_admin_headers(monkeypatch), json=body)
+    assert resp.status_code == 400
+    assert boards.rows == {}
+
+
+def test_ribbit_has_no_approve_bar(client):
+    # The public page keeps its own saved game, its Solve, and no trace of
+    # the board entry beyond a hook that does nothing.
+    html = client.get("/ribbit").get_data(as_text=True)
+    assert "const STORAGE_KEY = 'ribbitSolverState_v2';" in html
+    assert "function renderApprove() {}" in html
+    assert 'id="rb-approve"' not in html and "/ribbit_admin" not in html
+    assert 'id="phase-solve">▶ Solve</button>' in html
+
+
+def test_the_typed_approval_sql(client, board_db, monkeypatch):
+    import routes.ribbit as ribbit
+    db = board_db()
+    letters, links = _turned(LETTERS, LINKS)
+    resp = _typed(client, monkeypatch, cells=letters, links=links)
+    assert "success=Approved" in resp.headers["Location"]
+    [(sql, params)] = db.statements("INSERT INTO ribbit_boards")
+    canon_letters, canon_links, t = ribbit.canonical(letters, tuple(links))
+    assert params[:6] == (DAY, "admin", canon_letters, ribbit._links_text(canon_links), t, "admin")
+    assert "ON DUPLICATE KEY UPDATE" in sql and db.commits == 1
+
+
+def test_a_typed_approval_says_when_the_database_fails(client, board_db, monkeypatch):
+    board_db(fail="ribbit_boards")
+    resp = _typed(client, monkeypatch)
+    assert "error=Database+error" in resp.headers["Location"]
 
 
 # ---------------------------------------------------------------------------
