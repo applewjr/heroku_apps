@@ -41,31 +41,22 @@ def google_sheets_base(GOOGLE_SHEETS_JSON):
     google_credentials = gspread.authorize(credentials)
     return google_credentials
 
+def _sheet_df(google_credentials, url):
+    """The first worksheet at `url` as a DataFrame, its first row the columns."""
+    data = google_credentials.open_by_url(url).get_worksheet(0).get_all_values()
+    return pd.DataFrame(data[1:], columns=data[0])
+
 def get_google_sheets_bean(google_credentials, GOOGLE_SHEETS_URL_BEAN):
-    gc = google_credentials
-    sheet = gc.open_by_url(GOOGLE_SHEETS_URL_BEAN)
-    worksheet = sheet.get_worksheet(0)
-    data = worksheet.get_all_values()
-    df_bean = pd.DataFrame(data[1:], columns=data[0])
-    return df_bean
+    return _sheet_df(google_credentials, GOOGLE_SHEETS_URL_BEAN)
     
 def get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE):
-    gc = google_credentials
-    sheet = gc.open_by_url(GOOGLE_SHEETS_URL_PROFILE)
-    worksheet = sheet.get_worksheet(0)
-    data = worksheet.get_all_values()
-    df_profile = pd.DataFrame(data[1:], columns=data[0])
+    df_profile = _sheet_df(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
     df_profile['profile_start_date'] = pd.to_datetime(df_profile['profile_start_date'], format='%m/%d/%Y %H:%M:%S')
     df_profile['profile_stop_date'] = pd.to_datetime(df_profile['profile_stop_date'], format='%m/%d/%Y %H:%M:%S')
     return df_profile
     
 def get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO):
-    gc = google_credentials
-    sheet = gc.open_by_url(GOOGLE_SHEETS_URL_ESPRESSO)
-    worksheet = sheet.get_worksheet(0)
-    data = worksheet.get_all_values()
-    df_espresso_initial = pd.DataFrame(data[1:], columns=data[0])
-    return df_espresso_initial
+    return _sheet_df(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
 
 
 def get_user_roast_values(df_espresso_initial):

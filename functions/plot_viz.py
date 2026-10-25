@@ -59,15 +59,16 @@ def format_tick_value(value):
         return str(value)
 
 
-def fig_to_data_uri(fig):
+def fig_to_data_uri(fig, dpi=150, bbox_inches='tight'):
     """Render a matplotlib figure to a base64 PNG data URI and close it.
 
     Returns a self-contained 'data:image/png;base64,...' string so cached
     pages embed the plot inline instead of pointing at a file on the
-    ephemeral per-dyno filesystem.
+    ephemeral per-dyno filesystem. dpi=None and bbox_inches=None give
+    matplotlib's own defaults (the espresso pages).
     """
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=dpi, bbox_inches=bbox_inches)
     plt.close(fig)
     encoded = base64.b64encode(buf.getvalue()).decode('ascii')
     return f'data:image/png;base64,{encoded}'
@@ -183,14 +184,16 @@ def yt_stacked_bar_plot():
 
     return fig
 
-def yt_video_scatter(latest_date):
+def _outlier_scatter(latest_date, x_col, y_col, x_label, y_label, title, note):
+    """Each channel's best x_col against its best y_col over the last 7
+    days, the 5 farthest from the mean y tagged with their names."""
     conn = mysql.connector.connect(**config)
     cursor = conn.cursor()
 
     # Window off the latest available day (not CURDATE()) so the chart matches the
     # rest of the page on an ETL-gap day.
     sql_query = f"""
-        SELECT MAX(vid_likes), MAX(vid_views), chnl
+        SELECT MAX({x_col}), MAX({y_col}), chnl
         FROM {NOW_FEED} AS yt
         WHERE collected_date >= %s - INTERVAL 7 DAY
         GROUP BY chnl;
@@ -219,10 +222,10 @@ def yt_video_scatter(latest_date):
 
     adjust_text(texts, arrowprops=dict(arrowstyle='->', color=YT_ANNOTATION))
 
-    ax.set_xlabel('Video Likes')
-    ax.set_ylabel('Video Views')
-    fig.suptitle('Trending Videos: Views ~ Likes', fontsize=16, color=YT_BRAND)
-    ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Video Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    fig.suptitle(title, fontsize=16, color=YT_BRAND)
+    ax.text(0.5, -0.17, note, fontsize=10, ha='center', transform=ax.transAxes)
 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
@@ -230,51 +233,14 @@ def yt_video_scatter(latest_date):
     fig.tight_layout()
     return fig
 
+
+def yt_video_scatter(latest_date):
+    return _outlier_scatter(latest_date, 'vid_likes', 'vid_views', 'Video Likes', 'Video Views',
+                            'Trending Videos: Views ~ Likes',
+                            'Last 7 days, Top 5 Outlier Video Channels Tagged')
 
 
 def yt_chnl_scatter(latest_date):
-    conn = mysql.connector.connect(**config)
-    cursor = conn.cursor()
-
-    # Window off the latest available day (not CURDATE()) so the chart matches the
-    # rest of the page on an ETL-gap day.
-    sql_query = f"""
-        SELECT  MAX(chnl_subs), MAX(chnl_views), chnl
-        FROM {NOW_FEED} AS yt
-        WHERE collected_date >= %s - INTERVAL 7 DAY
-        GROUP BY chnl;
-        """
-
-    cursor.execute(sql_query, (latest_date,))
-    data = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    # Separate x, y, and names
-    x = [item[0] for item in data]
-    y = [item[1] for item in data]
-    names = [item[2] for item in data]
-
-    fig, ax = plt.subplots()
-
-    ax.scatter(x, y, alpha=0.75, edgecolors='white', linewidths=0.5, s=45)
-
-    extreme_indices = sorted(range(len(y)), key=lambda i: abs(y[i] - sum(y) / len(y)), reverse=True)[:5]
-
-    texts = []
-    for i in extreme_indices:
-        texts.append(ax.text(x[i], y[i], names[i], ha='left', va='bottom'))
-
-    adjust_text(texts, arrowprops=dict(arrowstyle='->', color=YT_ANNOTATION))
-
-    ax.set_xlabel('Channel Subs')
-    ax.set_ylabel('Channel Views')
-    fig.suptitle('Channels with Trending Videos: Views ~ Subs', fontsize=16, color=YT_BRAND)
-    ax.text(0.5, -0.17, 'Last 7 days, Top 5 Outlier Channels Tagged', fontsize=10, ha='center', transform=ax.transAxes)
-
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: format_tick_value(x)))
-    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: format_tick_value(y)))
-
-    fig.tight_layout()
-    return fig
+    return _outlier_scatter(latest_date, 'chnl_subs', 'chnl_views', 'Channel Subs', 'Channel Views',
+                            'Channels with Trending Videos: Views ~ Subs',
+                            'Last 7 days, Top 5 Outlier Channels Tagged')

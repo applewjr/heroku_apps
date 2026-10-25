@@ -43,11 +43,10 @@ def gtp_db(monkeypatch):
     import routes.guess_the_phrase as g
 
     monkeypatch.setattr(g, '_static', {'data': _Static(), 'failed_at': 0.0})
-    monkeypatch.setattr(g, '_overlay', {'solver': None, 'expires': 0.0})
+    monkeypatch.setattr(g, '_overlay', {'value': None, 'expires': 0.0})
 
     def install(answers=None, rows=None, rowcount=1, fail=None):
         db = _ScriptedDB(answers, rows, rowcount, fail)
-        monkeypatch.setattr(g, 'db_cursor', db)
         monkeypatch.setattr(crowd, 'db_cursor', db)
         return db
 
@@ -60,7 +59,7 @@ def no_list(monkeypatch):
     """The shipped files failed to load a moment ago."""
     import routes.guess_the_phrase as g
     monkeypatch.setattr(g, '_static', {'data': None, 'failed_at': time.time()})
-    monkeypatch.setattr(g, '_overlay', {'solver': None, 'expires': 0.0})
+    monkeypatch.setattr(g, '_overlay', {'value': None, 'expires': 0.0})
 
 
 def _solve(client, board=BOARD, tried='', category='song'):

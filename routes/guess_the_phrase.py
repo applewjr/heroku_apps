@@ -16,9 +16,8 @@ import time
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from crowd import CROWD_ADD_VOTES
 from data import data_folder
-from extensions import auth, db_cursor
+from extensions import auth
 from functions import phrase_solver as ps
 from helpers import ValidationError, release_memory
 from monitoring import alerts
@@ -43,7 +42,7 @@ MAX_WORD_LEN = 20
 # Module memos, not SimpleCache: SimpleCache pickles, so every get would
 # rebuild ~23 MB (see routes/smush.py and memory_creep_plan.md).
 _static = {'data': None, 'failed_at': 0.0}
-_overlay = {'solver': None, 'expires': 0.0}
+_overlay = {'value': None, 'expires': 0.0}
 _load_lock = threading.Lock()
 # After a failed load, wait this long before trying again, so a broken file
 # costs one attempt per window rather than one per request.
@@ -93,28 +92,15 @@ def get_solver():
 
     Refreshed every 12 hours, or straight away after a change. A DB blip
     keeps the last good corrections (or none) and retries in 5 minutes,
-    so the solver itself never depends on the database.
+    so the solver itself never depends on the database (see
+    crowd.CrowdList.corrected).
     """
     static = _load_static()
     if static is None:
         return None
-    if _overlay['solver'] is not None and time.time() < _overlay['expires']:
-        return _overlay['solver']
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM gtp_invalid_words")
-            removed = {row[0].upper() for row in cursor.fetchall()}
-            cursor.execute("SELECT word FROM gtp_added_words")
-            added = {row[0].upper() for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Error fetching guess the phrase corrections: {e}")
-        if _overlay['solver'] is None:
-            _overlay['solver'] = _Solver(static, ps.OverlayBank(static.bank))
-        _overlay['expires'] = time.time() + 300
-        return _overlay['solver']
-    _overlay['solver'] = _Solver(static, ps.OverlayBank(static.bank, added, removed))
-    _overlay['expires'] = time.time() + 43200
-    return _overlay['solver']
+    return GTP_CROWD.corrected(
+        _overlay, lambda removed, added: _Solver(static, ps.OverlayBank(static.bank, added, removed)),
+        case=str.upper)
 
 
 def page_context():
@@ -217,15 +203,6 @@ def handle_vote(data):
 
 ##### admin #####
 
-def _admin_form():
-    """The phrase's match key and its list, or None for the list if no
-    choice was sent. Nothing is assumed: a missing choice must not count as
-    a removal."""
-    key = ps.phrase_key(request.form.get('word', ''))
-    kind = request.form.get('word_type')
-    return key, kind if kind in ('invalid', 'missing') else None
-
-
 NO_CHOICE = 'Choose Remove phrase or Add phrase first'
 ADMIN = '/guess_the_phrase_admin'
 
@@ -278,9 +255,7 @@ def gtp_admin():
     try:
         view = GTP_CROWD.admin_view(request.args.to_dict(), request.path)
         return render_template('guess_the_phrase_admin.html', **view,
-                               phrase=_phrase_status(view['query']),
-                               crowd_add_votes=CROWD_ADD_VOTES,
-                               crowd_window_days=GTP_WINDOW_DAYS)
+                               phrase=_phrase_status(view['query']))
     except Exception as e:
         print(f"Error loading guess the phrase admin: {e}")
         return render_template('error.html', return_type='Admin Error'), 500
@@ -290,7 +265,7 @@ def gtp_admin():
 @auth.login_required
 def gtp_add_word():
     """Take a phrase out of the list ('invalid') or put one in ('missing')."""
-    key, kind = _admin_form()
+    key, kind = crowd.admin_form(ps.phrase_key)
     if kind is None:
         return _back(error=NO_CHOICE)
     if not key:
@@ -315,7 +290,7 @@ def gtp_add_word():
 @auth.login_required
 def gtp_remove_word():
     """Undo an entry in either list, and reset that phrase's votes."""
-    key, kind = _admin_form()
+    key, kind = crowd.admin_form(ps.phrase_key)
     if kind is None:
         return _back(error=NO_CHOICE)
     if not key:

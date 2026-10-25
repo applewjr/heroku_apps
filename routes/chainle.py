@@ -21,15 +21,14 @@ from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 import numpy as np
-import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from crowd import CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE, CROWD_WINDOW_DAYS
-from data import data_folder, word_pop
+from data import data_folder
 from extensions import auth, db_cursor, pst_now_str
 from functions import chainle as ch
 from helpers import ValidationError, release_memory
+from helpers import pacific_today as _today
 from monitoring import alerts
 
 bp = Blueprint('chainle', __name__)
@@ -147,7 +146,6 @@ def solve_request(data):
 # word list. The memo of how the solver rates logged rounds is dropped with
 # it, since corrections change those ranks.
 _corrections = {'value': None, 'expires': 0.0}
-NO_CORRECTIONS = (frozenset(), frozenset())
 
 
 def _forget_corrections():
@@ -158,26 +156,11 @@ def _forget_corrections():
 
 def get_corrections():
     """(removed, kept): the words /chainle_admin took off the list, and the
-    words it keeps on it, lower case. Refreshed every
-    12 hours, or straight away after a change."""
-    if _corrections['value'] is not None and time.time() < _corrections['expires']:
-        return _corrections['value']
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM chainle_invalid_words")
-            removed = frozenset(row[0].lower() for row in cursor.fetchall())
-            cursor.execute("SELECT word FROM chainle_added_words")
-            kept = frozenset(row[0].lower() for row in cursor.fetchall())
-    except Exception as e:
-        print(f"Error fetching chainle word corrections: {e}")
-        # A DB blip must not drop the corrections for 12 hours: keep the
-        # last good lists (or none) and retry soon.
-        _corrections['value'] = _corrections['value'] or NO_CORRECTIONS
-        _corrections['expires'] = time.time() + 300
-        return _corrections['value']
-    _corrections['value'] = (removed, kept)
-    _corrections['expires'] = time.time() + 43200
-    return _corrections['value']
+    words it keeps on it, lower case. Refreshed every 12 hours, or straight
+    away after a change; none while the DB has never been reachable (see
+    crowd.CrowdList.corrected)."""
+    return CHAINLE_CROWD.corrected(
+        _corrections, lambda removed, kept: (frozenset(removed), frozenset(kept)))
 
 
 CHAINLE_CROWD = crowd.CrowdList('chainle', on_change=_forget_corrections)
@@ -245,10 +228,6 @@ def _versions(rows):
              'judged': int(judged or 0), 'top1': int(top1 or 0), 'top3': int(top3 or 0),
              'took': int(took or 0), 'first': str(first), 'last': str(last)}
             for v, n, avg, judged, top1, top3, took, first, last in rows]
-
-
-def _today():
-    return datetime.now(pytz.timezone('America/Los_Angeles')).date()
 
 
 def _back_to_log(**message):
@@ -425,18 +404,6 @@ def assess_rounds(data, rows):
 ADMIN_TABS = ('reports', 'invalid', 'added', 'log')
 
 
-def _empty_view(active_tab):
-    """The word tabs when their tables can't be read, so the round log still
-    works (and the page says what's wrong)."""
-    pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
-    return {'reports': [], 'invalid_words': [], 'added_words': [],
-            'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
-            'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
-            'show_settled': False, 'settled_url': ADMIN, 'query': '', 'clear_url': ADMIN,
-            'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
-            'votes_needed': CHAINLE_CROWD.threshold}
-
-
 def _round_log():
     """(context, error) for the Round Log tab: the newest logged rounds with
     how the solver rates each, and the summary by solver version."""
@@ -476,7 +443,7 @@ def chainle_admin():
         view, crowd_error = CHAINLE_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:
         print(f"Error loading chainle admin word lists: {e}")
-        view = _empty_view(args['tab'] if args.get('tab') in ADMIN_TABS else 'reports')
+        view = CHAINLE_CROWD.empty_view(ADMIN, args['tab'] if args.get('tab') in ADMIN_TABS else 'reports')
         crowd_error = f'{type(e).__name__}: {e}'
     log, log_error = _round_log()
     form_date, form_round = _form_defaults(request.args)
@@ -484,10 +451,7 @@ def chainle_admin():
                            log_error=log_error, form_date=form_date, form_round=form_round,
                            sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
                            data_ok=get_data() is not None, recent=RECENT_ROUNDS,
-                           version=solver_version(), word_pop=word_pop,
-                           crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
-                           crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
-                           crowd_window_days=CROWD_WINDOW_DAYS)
+                           version=solver_version())
 
 
 @bp.route(ADMIN + '/log_round', methods=['POST'])
@@ -536,14 +500,6 @@ def chainle_delete_round():
     return _back_to_log(success='Round deleted')
 
 
-def _admin_form():
-    """The word and its list, or None for the list if no choice was sent.
-    Nothing is assumed: a missing choice must not count as a removal."""
-    word = request.form.get('word', '').strip().lower()
-    kind = request.form.get('word_type')
-    return word, kind if kind in ('invalid', 'missing') else None
-
-
 NO_CHOICE = 'Choose Remove word or Allow word first'
 
 
@@ -562,7 +518,7 @@ def _check_word(word):
 def chainle_add_word():
     """Take a word off the list ('invalid') or keep one on it ('missing':
     the -s filter and player reports leave it alone)."""
-    word, kind = _admin_form()
+    word, kind = crowd.admin_form()
     if kind is None:
         return _back(error=NO_CHOICE)
     error = _check_word(word)
@@ -581,7 +537,7 @@ def chainle_add_word():
 @auth.login_required
 def chainle_remove_word():
     """Undo an entry in either list, and reset that word's votes."""
-    word, kind = _admin_form()
+    word, kind = crowd.admin_form()
     if kind is None:
         return _back(error=NO_CHOICE)
     if not word.isalpha():

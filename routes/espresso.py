@@ -8,34 +8,23 @@ more once a model is fitted), which stay resident until the next restart, and
 the plots render matplotlib figures. The password keeps visitors and bots from
 triggering either."""
 
-import base64
-import io
-
-import matplotlib.pyplot as plt
 from flask import Blueprint, redirect, render_template, request, url_for
 
 import config
 from data import espresso_points
 from extensions import auth, cache, password_matches
-from functions import espresso
+from functions import espresso, plot_viz
 from helpers import ValidationError, parse_choice, parse_float, parse_int
 
 bp = Blueprint('espresso', __name__)
 
 
 def fig_to_data_uri(fig):
-    """Render a matplotlib figure to an inline PNG data URI and close it.
-
-    Embedding the bytes in the HTML response avoids writing a shared file to
-    Heroku's ephemeral, per-dyno filesystem (where the follow-up image request
-    can hit a different dyno) and sidesteps browser caching of a constant URL.
-    """
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png')
-    plt.close(fig)
-    buf.seek(0)
-    encoded = base64.b64encode(buf.read()).decode('ascii')
-    return f'data:image/png;base64,{encoded}'
+    """An inline PNG of the figure, at matplotlib's default size: embedding
+    the bytes avoids a shared file on Heroku's per-dyno filesystem (where the
+    follow-up image request can hit a different dyno) and browser caching of
+    a constant URL."""
+    return plot_viz.fig_to_data_uri(fig, dpi=None, bbox_inches=None)
 
 
 def get_espresso_data():

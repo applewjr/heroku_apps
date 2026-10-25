@@ -19,15 +19,15 @@ anyone gaming this would want. Admin pages and the daily digest show them.
 import hashlib
 import hmac
 import ipaddress
+import time
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
-import pytz
-from flask import current_app
+from flask import current_app, request
 
 from data import word_pop
 from extensions import db_cursor, pst_now_str
-from helpers import client_ip
+from helpers import PACIFIC, client_ip
 from monitoring import alerts
 from monitoring.crowd_report import CROWD_GAMES, report_sql
 
@@ -69,6 +69,12 @@ CROWD_WINDOW_DAYS = 7
 CROWD_MAX_VOTES_PER_DAY = 30
 
 _CROWD_OPPOSITE = {'invalid': 'missing', 'missing': 'invalid'}
+
+# How long a game's corrected word list is reused before it is read again
+# (straight away after a change: on_change), and how soon a failed read is
+# tried again while the last good list keeps serving.
+CORRECTIONS_REFRESH_SECONDS = 12 * 60 * 60
+CORRECTIONS_RETRY_SECONDS = 5 * 60
 
 # Admin pages: rows per page, and the report results a change has already
 # settled. Settled reports are hidden from the list unless the admin asks.
@@ -140,13 +146,20 @@ def remove_votes_needed(word):
 
 def _pst_days_ago(days):
     """pst_now_str's format, `days` back - for comparing against created_at."""
-    then = datetime.now(pytz.timezone('America/Los_Angeles')) - timedelta(days=days)
+    then = datetime.now(PACIFIC) - timedelta(days=days)
     return then.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def _pst_today_start():
     """Midnight Pacific today, in created_at's format."""
-    return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d 00:00:00')
+    return datetime.now(PACIFIC).strftime('%Y-%m-%d 00:00:00')
+
+
+def with_corrections(base):
+    """A `build` for CrowdList.corrected: `base` minus the removed words plus
+    the added ones. With nothing to correct it is `base` itself, so no copy
+    of the word list is held at all."""
+    return lambda invalid, added: (base - invalid) | added if invalid or added else base
 
 
 def _admin_url(path, args, **changes):
@@ -212,6 +225,51 @@ def _matching(rows, query, board_col=None):
     return [row for row in rows if query in row[0].lower()]
 
 
+NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
+
+
+def admin_form(normalize=lambda word: word.strip().lower()):
+    """(word, kind) from an admin page's word form, the word through
+    `normalize`; kind is None if no list was chosen. Nothing is assumed: a
+    missing choice must not count as a removal."""
+    word = normalize(request.form.get('word', ''))
+    kind = request.form.get('word_type')
+    return word, kind if kind in ('invalid', 'missing') else None
+
+
+def admin_add_word(crowd_list, back):
+    """An admin page's Submit: remove a word from the game's list
+    ('invalid') or add one ('missing'). `back` redirects with a message."""
+    word, kind = admin_form()
+    if kind is None:
+        return back(error=NO_CHOICE)
+    if not word.isalpha():
+        return back(error='Word must be letters only')
+    try:
+        crowd_list.admin_set(word, kind)
+    except Exception as e:
+        print(f"Error adding {crowd_list.game} word: {e}")
+        return back(error='Database error')
+    done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
+    return back(success=f'{word} {done}')
+
+
+def admin_undo_word(crowd_list, back):
+    """An admin page's Undo: take a word out of either list, and reset its
+    votes."""
+    word, kind = admin_form()
+    if kind is None:
+        return back(error=NO_CHOICE)
+    if not word.isalpha():
+        return back(error='Word must be letters only')
+    try:
+        crowd_list.admin_remove(word, kind)
+    except Exception as e:
+        print(f"Error removing {crowd_list.game} word: {e}")
+        return back(error='Database error')
+    return back(success=f'{word} undone')
+
+
 class CrowdList:
     """One game's crowd-corrected word list, kept in <game>_word_votes (one
     row per word, kind of vote and player), <game>_invalid_words (removed
@@ -255,6 +313,35 @@ class CrowdList:
     def voter_hash(self):
         """Who is voting (see player_hash)."""
         return player_hash(self.game)
+
+    def corrected(self, memo, build, case=str.lower):
+        """build(invalid, added) over this game's two word tables, memoized
+        in `memo` ({'value', 'expires'}: a module attribute of the game's,
+        so tests can reset it, and on_change zeroes 'expires').
+
+        Read again after CORRECTIONS_REFRESH_SECONDS. A failed read keeps
+        the last good value (build(set(), set()) if there has never been
+        one) and retries after CORRECTIONS_RETRY_SECONDS, so a database blip
+        at refresh time can't evict the corrections for hours. Callers share
+        the value, so they must only read it.
+        """
+        if memo['value'] is not None and time.time() < memo['expires']:
+            return memo['value']
+        try:
+            with db_cursor() as (conn, cursor):
+                cursor.execute(f"SELECT word FROM {self.invalid_table}")
+                invalid = {case(row[0]) for row in cursor.fetchall()}
+                cursor.execute(f"SELECT word FROM {self.added_table}")
+                added = {case(row[0]) for row in cursor.fetchall()}
+        except Exception as e:
+            print(f"Error fetching {self.game} word corrections: {e}")
+            if memo['value'] is None:
+                memo['value'] = build(set(), set())
+            memo['expires'] = time.time() + CORRECTIONS_RETRY_SECONDS
+            return memo['value']
+        memo['value'] = build(invalid, added)
+        memo['expires'] = time.time() + CORRECTIONS_REFRESH_SECONDS
+        return memo['value']
 
     def _count_players(self, cursor, word, kind):
         """Distinct players behind a change to this word, inside the vote window.
@@ -562,4 +649,25 @@ class CrowdList:
             'active_tab': active_tab,
             'in_both': in_both,
             'votes_needed': self.threshold,
+            **self._admin_constants(),
         }
+
+    def empty_view(self, path, active_tab):
+        """What admin_view gives when this game's tables can't be read, so an
+        admin page's other tabs still work (and say what's wrong)."""
+        pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
+        return {'reports': [], 'invalid_words': [], 'added_words': [],
+                'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
+                'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
+                'show_settled': False, 'settled_url': path, 'query': '', 'clear_url': path,
+                'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
+                'votes_needed': self.threshold, **self._admin_constants()}
+
+    def _admin_constants(self):
+        """The thresholds an admin page explains, and word_pop for its
+        Popularity column."""
+        return {'word_pop': word_pop,
+                'crowd_remove_bands': CROWD_REMOVE_VOTES_BY_POP,
+                'crowd_remove_rare': CROWD_REMOVE_VOTES_RARE,
+                'crowd_add_votes': CROWD_ADD_VOTES,
+                'crowd_window_days': self.window_days}

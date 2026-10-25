@@ -6,18 +6,15 @@ JSON body carrying an `action` to handle_board_action or handle_vote here.
 
 import time
 from collections import Counter
-from datetime import date, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from crowd import (CROWD_ADD_VOTES, CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
-                   CROWD_WINDOW_DAYS)
-from data import word_pop, words
+from data import words
 from extensions import auth, db_cursor, pst_now_str
 from functions import all_words
-from helpers import ISO_DATE as _DATE
-from helpers import ValidationError, parse_letters, parse_played_on
+from helpers import ValidationError, parse_iso_day, parse_letters, parse_played_on
 # _pacific_today is a name of this module's own so tests can set the day.
 from helpers import pacific_today as _pacific_today
 from monitoring import alerts
@@ -47,39 +44,11 @@ def get_smush_words():
 
     Only smush_* tables. Blossom's corrections stay in Blossom: until
     2026-10-04 this read blossom_invalid_words / blossom_added_words, which
-    James never meant to reach Smush. Falls back to the raw list if the DB is
-    unreachable. Refreshed every 12 hours, or straight away after a change.
+    James never meant to reach Smush. Refreshed every 12 hours, or straight
+    away after a change; the raw list if the DB has never been reachable
+    (see crowd.CrowdList.corrected).
     """
-    if _smush_words['value'] is not None and time.time() < _smush_words['expires']:
-        return _smush_words['value']
-
-    invalid_words, added_words = set(), set()
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM smush_invalid_words")
-            invalid_words = {row[0].lower() for row in cursor.fetchall()}
-            cursor.execute("SELECT word FROM smush_added_words")
-            added_words = {row[0].lower() for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Error fetching smush word corrections: {e}")
-        # A DB blip at refresh time must not evict the corrections for 12
-        # hours: keep serving the last good list (or the raw list if there
-        # has never been one) and retry soon.
-        fallback = _smush_words['value'] if _smush_words['value'] is not None else words
-        _smush_words['value'] = fallback
-        _smush_words['expires'] = time.time() + 300
-        return fallback
-
-    # data.py's word set is already lowercase; only build a corrected copy
-    # when there is actually something to correct.
-    if invalid_words or added_words:
-        smush_words = (words - invalid_words) | added_words
-    else:
-        smush_words = words
-
-    _smush_words['value'] = smush_words
-    _smush_words['expires'] = time.time() + 43200
-    return smush_words
+    return SMUSH_CROWD.corrected(_smush_words, crowd.with_corrections(words))
 
 
 ##### crowd corrections #####
@@ -186,17 +155,6 @@ def handle_vote(data, dev=False):
 
 ##### admin #####
 
-def _admin_form():
-    """The word and its list, or None for the list if no choice was sent.
-    Nothing is assumed: a missing choice must not count as a removal."""
-    word = request.form.get('word', '').strip().lower()
-    kind = request.form.get('word_type')
-    return word, kind if kind in ('invalid', 'missing') else None
-
-
-NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
-
-
 ADMIN = '/smush_admin'
 # Today's Board first: approving the day's board is the daily visit.
 ADMIN_TABS = ('board', 'reports', 'invalid', 'added')
@@ -205,18 +163,6 @@ ADMIN_TABS = ('board', 'reports', 'invalid', 'added')
 def _back(**message):
     """Back to /smush_admin as the admin left it, with a message."""
     return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
-
-
-def _empty_view(active_tab):
-    """The word-list half of the page when its tables can't be read, so the
-    Today's Board tab still works (and says what's wrong)."""
-    pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
-    return {'reports': [], 'invalid_words': [], 'added_words': [],
-            'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
-            'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
-            'show_settled': False, 'settled_url': ADMIN, 'query': '', 'clear_url': ADMIN,
-            'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
-            'votes_needed': SMUSH_CROWD.threshold}
 
 
 @bp.route(ADMIN)
@@ -231,7 +177,7 @@ def smush_admin():
         view, crowd_error = SMUSH_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:
         print(f"Error loading smush admin word lists: {e}")
-        view = _empty_view(args['tab'] if args['tab'] in ADMIN_TABS else 'board')
+        view = SMUSH_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'board')
         crowd_error = f'{type(e).__name__}: {e}'
     days, load_error = _admin_days()
     try:
@@ -241,12 +187,7 @@ def smush_admin():
                                days=days, load_error=load_error,
                                board_live=SMUSH_BOARD_LIVE,
                                serve_crowd=SERVE_CROWD,
-                               pacific_today=_pacific_today(),
-                               word_pop=word_pop,
-                               crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
-                               crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
-                               crowd_add_votes=CROWD_ADD_VOTES,
-                               crowd_window_days=CROWD_WINDOW_DAYS)
+                               pacific_today=_pacific_today())
     except Exception as e:
         print(f"Error loading smush admin: {e}")
         return render_template('error.html', return_type='Admin Error'), 500
@@ -256,35 +197,14 @@ def smush_admin():
 @auth.login_required
 def smush_add_word():
     """Remove a word from Smush's list ('invalid') or add one ('missing')."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        SMUSH_CROWD.admin_set(word, kind)
-    except Exception as e:
-        print(f"Error adding smush word: {e}")
-        return _back(error='Database error')
-    done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
-    return _back(success=f'{word} {done}')
+    return crowd.admin_add_word(SMUSH_CROWD, _back)
 
 
 @bp.route('/smush_admin/remove_word', methods=['POST'])
 @auth.login_required
 def smush_remove_word():
     """Undo an entry in either list, and reset that word's votes."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        SMUSH_CROWD.admin_remove(word, kind)
-    except Exception as e:
-        print(f"Error removing smush word: {e}")
-        return _back(error='Database error')
-    return _back(success=f'{word} undone')
+    return crowd.admin_undo_word(SMUSH_CROWD, _back)
 
 
 ##### today's board #####
@@ -716,12 +636,8 @@ def _board_form():
     one: a puzzle row sends letters (its spicy and date too); the Approve
     form sends the center, the other eight in any order, an optional spicy
     letter and a date. The same rules as a player's board."""
-    played_on = request.form.get('played_on', '')
-    if not _DATE.fullmatch(played_on):
-        return None
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if day is None:
         return None
     if 'letters' in request.form:
         letters = request.form.get('letters', '')
@@ -766,12 +682,8 @@ def smush_unapprove_board():
     """Undo the approval of one puzzle on one day: the players' boards
     decide again, and none of them is touched."""
     letters = request.form.get('letters', '')
-    played_on = request.form.get('played_on', '')
-    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
-        return _back(error='Not a board')
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
         return _back(error='Not a board')
     try:
         removed = remove_approval(letters, day)
@@ -790,12 +702,8 @@ def smush_remove_board():
     """Delete the players' entries of one puzzle on one day: test boards
     (staging writes the same table) or junk. An approval stays."""
     letters = request.form.get('letters', '')
-    played_on = request.form.get('played_on', '')
-    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
-        return _back(error='Not a board')
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
         return _back(error='Not a board')
     try:
         removed = remove_puzzle(letters, day)
