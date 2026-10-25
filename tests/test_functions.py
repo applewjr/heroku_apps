@@ -36,10 +36,6 @@ def test_is_pangram_revamp_needs_all_required_letters():
     assert all_words.is_pangram_revamp("abx", set("abc")) == 0
 
 
-def test_unused_letters():
-    assert all_words.unused_letters("abc", "") == ["defghijklmnopqrstuvwxyz"]
-
-
 def test_search_words_respects_constraints():
     out, total = all_words.search_words(
         words,

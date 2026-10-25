@@ -7,7 +7,6 @@ from datetime import datetime
 from decimal import Decimal
 
 import pandas as pd
-import pytz
 import requests
 from flask import Blueprint, abort, redirect, render_template, url_for
 
@@ -15,6 +14,7 @@ import config
 from data import ETL_ROUND_NAMES, etl_dash_queries
 from extensions import auth, db_cursor
 from functions import plot_viz, youtube_stats, youtube_revamp_stats
+from helpers import PACIFIC as PST
 from helpers import make_trending_jsonld
 
 bp = Blueprint('dashboards', __name__)
@@ -22,7 +22,6 @@ bp = Blueprint('dashboards', __name__)
 # MTG price data is published once a day to a fixed CloudFront URL (the object is
 # overwritten in place). We key freshness off the CSV's own date stamp rather than
 # a timer, so the route never assumes *when* the daily refresh lands.
-PST = pytz.timezone('America/Los_Angeles')
 # Backstop only: the last good render survives an extended upstream outage this
 # long. Normal freshness comes from the data-date check + conditional GET below.
 MTG_CACHE_TIMEOUT = 60 * 60 * 48

@@ -911,7 +911,7 @@ def test_a_typed_approval_says_when_the_database_fails(client, board_db, monkeyp
 
 # ---------------------------------------------------------------------------
 # Live on /ribbit, and the dark launch the flag goes back to: /ribbit logs
-# boards, only /ribbit_dev serves them
+# boards, only /ribbit_admin/board serves them
 # ---------------------------------------------------------------------------
 
 def test_shared_boards_are_live_on_ribbit(client):
@@ -928,12 +928,12 @@ def test_while_dark_ribbit_logs_but_serves_nothing(client, boards, monkeypatch):
     assert len(boards.rows) == 2                     # logged...
     assert _todays(client) == []                   # ...but not served, even when asked directly
     assert _links_for(client, LETTERS) is None
-    # /ribbit_dev serves it, behind the password.
+    # James's board entry serves it, behind the password.
     headers = {**_player(9), **_admin_headers(monkeypatch)}
-    served = client.post("/ribbit_dev", headers=headers, json={
+    served = client.post("/ribbit_admin/board", headers=headers, json={
         "action": "shared_board", "played_on": DAY.isoformat()}).get_json()["boards"]
     assert served == [_as_board(LETTERS, LINKS)]
-    edges = client.post("/ribbit_dev", headers=headers, json={
+    edges = client.post("/ribbit_admin/board", headers=headers, json={
         "action": "board_links", "nodes": _nodes(LETTERS)}).get_json()["edges"]
     assert edges == [list(p) for p in LINKS]
 
@@ -943,21 +943,11 @@ def test_while_dark_the_public_page_shows_none_of_it(client, monkeypatch):
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", False)
     html = client.get("/ribbit").get_data(as_text=True)
     for hidden in ('id="rb-shared"', "Players entered more than one board today",
-                   "Do I have to type the board in?",
-                   "/ribbit_dev", 'id="phase-clear"'):
+                   "Do I have to type the board in?", 'id="phase-clear"'):
         assert hidden not in html, f"/ribbit shows {hidden!r} before it's live"
     # It still logs: the page sends finished boards, to its own route.
     assert "action: 'log_board'" in html
     assert "const SHARED_BOARDS = false;" in html and 'const POST_URL = "/ribbit";' in html
-
-
-def test_ribbit_dev_has_the_shared_board_on(client, monkeypatch):
-    html = client.get("/ribbit_dev", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
-    for hook in ('id="rb-shared"', "Players entered more than one board today",
-                 "Do I have to type the board in?",
-                 "const SHARED_BOARDS = true;", 'const POST_URL = "/ribbit_dev";',
-                 "only you can see this copy"):
-        assert hook in html, f"/ribbit_dev lost {hook}"
 
 
 def test_going_live_is_one_flag(client, monkeypatch):

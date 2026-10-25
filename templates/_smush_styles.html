@@ -1,0 +1,676 @@
+{# The CSS smush.html and smush_dev.html share. Each includes it at the top of
+   its head block, then adds its own <style>. #}
+<style>
+/* ---------- board ---------- */
+.smush-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: min(92vw, 360px);
+    /* 3 square tiles + 2 gaps make the board exactly as tall as it is wide;
+       reserving that space stops the page jumping when JS builds the tiles */
+    aspect-ratio: 1;
+    margin: 18px auto 6px;
+}
+
+/* Tiles use the site's blossom-solver language: teal tiles with white
+   letters, gold center with teal text. */
+.smush-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background-color: #02484d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.25s ease, background-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.smush-tile:hover { background-color: #03595f; }
+.smush-tile:active { transform: translateY(1px); }
+
+.smush-tile.center-tile {
+    background-color: #ffd700;
+    border-color: #02484d;
+}
+
+.smush-tile.center-tile:hover { background-color: #f2ce00; }
+
+.smush-tile.spicy-tile { border-color: #e55555; }
+
+.smush-tile.dead-tile {
+    opacity: 0.4;
+    filter: grayscale(0.9);
+    box-shadow: none;
+}
+
+.smush-tile.selected-tile {
+    outline: 3px solid #ffd700;
+    outline-offset: 2px;
+}
+
+.smush-tile.center-tile.selected-tile { outline-color: #02484d; }
+
+.smush-tile input {
+    width: 100%;
+    height: 58%;
+    background: transparent !important;
+    border: none !important;
+    text-align: center;
+    font-size: clamp(26px, 8vw, 36px);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    outline: none;
+    padding: 0 !important;
+    margin: 12% 0 0 !important;
+    border-radius: 0 !important;
+    caret-color: #ffd700;
+}
+
+.smush-tile.center-tile input {
+    color: #02484d !important;
+    -webkit-text-fill-color: #02484d !important;
+    caret-color: #02484d;
+}
+
+.smush-tile input::placeholder { color: rgba(255, 255, 255, 0.25); opacity: 1; }
+.smush-tile.center-tile input::placeholder { color: rgba(2, 72, 77, 0.25); }
+
+.smush-board.solve-mode .smush-tile input { pointer-events: none; }
+.smush-board.solve-mode .smush-tile input.editing { pointer-events: auto; }
+
+.tile-value {
+    position: absolute;
+    top: 6px;
+    right: 9px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.smush-tile.center-tile .tile-value { color: rgba(2, 72, 77, 0.6); }
+
+.tile-spice-tag {
+    position: absolute;
+    top: 5px;
+    left: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #c0392b;
+    background-color: rgba(255, 255, 255, 0.92);
+    border-radius: 8px;
+    padding: 1px 5px;
+}
+
+.tile-pips {
+    position: absolute;
+    bottom: 9px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+
+.tile-pips .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+.tile-pips .pip.spent { background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.4); }
+
+.center-infinity {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(2, 72, 77, 0.65);
+}
+
+/* entry-phase glow on the tile about to receive a letter */
+@keyframes smushNextPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(255, 215, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2); }
+}
+@keyframes smushNextPulseCenter {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(2, 72, 77, 0.85), 0 2px 4px rgba(0, 0, 0, 0.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(2, 72, 77, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2); }
+}
+.smush-tile.next-entry { animation: smushNextPulse 1.1s ease-in-out infinite; }
+.smush-tile.center-tile.next-entry { animation-name: smushNextPulseCenter; }
+
+/* ---------- tile control strip ---------- */
+.tile-controls {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 10px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.tile-controls.visible { display: flex; }
+
+.tile-controls .tc-label { font-weight: 600; color: #374151; flex-basis: 100%; }
+
+.tc-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tc-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.tc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tc-btn:disabled:hover { background-color: #fff; color: #02484d; border-color: #cdd8d7; }
+.tc-btn.tc-spicy-on { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.board-hint { font-size: 13px; color: #6b7280; margin: 8px auto 0; max-width: 420px; }
+
+/* The two hand-correction tools share one row. Both open a panel below
+   instead of living on the page: the strip between the board and the word
+   list is the page's most valuable space, so nothing parks there uninvited. */
+.board-tools {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px auto 0;
+}
+
+.board-tools.visible { display: flex; }
+
+.tool-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    min-height: 40px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tool-btn:hover, .tool-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+/* ---------- status chips ---------- */
+.smush-status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px auto 4px;
+    max-width: 560px;
+}
+
+.status-chip {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.status-chip b { color: #02484d; }
+.status-chip.spicy-chip b { color: #c0392b; }
+
+.pangram-banner {
+    max-width: 480px;
+    margin: 12px auto 0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+}
+
+.pangram-banner.gone { display: block; background-color: #f3f4f6; border: 1px solid #e5e7eb; color: #6b7280; }
+
+/* ---------- results ---------- */
+.results-container {
+    max-width: 620px;
+    margin: 10px auto;
+    padding: 10px 20px 20px;
+    min-height: 200px;
+}
+
+.results-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.results-count { font-size: 14px; color: #6b7280; }
+
+.sort-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.sort-chip {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sort-chip.active, .sort-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.plan-banner {
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    color: #02484d;
+}
+
+.plan-banner.partial { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
+.word-result {
+    background-color: #f8f9fa;
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.word-result:hover { background-color: #e9ecef; transform: translateX(4px); }
+
+.word-result.pangram-word {
+    background-color: #fefdf5;
+    border-color: #f0ebb8;
+    border-left: 4px solid #e8d44d;
+}
+
+.word-result.pangram-word:hover { background-color: #fdfae8; }
+
+.word-result.copied { background-color: #6aaa64; border-color: #6aaa64; }
+.word-result.copied .word-text, .word-result.copied .word-bonuses { color: white; }
+
+.word-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #1f2937;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.word-bonuses { font-size: 13px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
+
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+.word-pts {
+    background-color: #02484d;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 44px;
+    text-align: center;
+}
+
+.word-result.pangram-word .word-pts { background-color: #b7960b; }
+
+.played-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.played-btn:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+
+.reject-btn {
+    flex-shrink: 0;
+    background-color: #fff;
+    border: 1px solid #e0d5d5;
+    border-radius: 6px;
+    color: #a55;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 9px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+
+.define-link {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #02484d;
+    text-decoration: none;
+    padding: 8px 8px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    background-color: #fff;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.define-link:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+
+.copy-feedback {
+    position: absolute;
+    right: 50%;
+    transform: translateX(50%);
+    top: -28px;
+    background-color: #333;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+}
+
+.copy-feedback.show { opacity: 1; }
+
+.show-more-btn {
+    display: block;
+    margin: 16px auto 4px;
+    background-color: #02484d;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.show-more-btn:hover { background-color: #03595f; }
+
+.no-results { text-align: center; color: #6b7280; font-style: italic; margin: 30px 0; }
+.loading { text-align: center; color: #6b7280; margin: 20px 0; }
+
+/* ---------- type in a word you already played ---------- */
+/* Words the results list can't offer - below the ranked cutoff, or missing
+   from our dictionary entirely - still spent their letters in the real game,
+   so players catching the solver up mid-board type them in here. Collapsed
+   until ➕ Add played word is tapped; catching up is a once-a-session job. */
+.word-entry {
+    display: none;
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 12px 14px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.word-entry.visible { display: block; }
+
+.we-row { display: flex; gap: 8px; }
+
+/* Beats base.html's input[type=text] on specificity, so the field can drop
+   that rule's wide padding without reaching for !important. */
+.word-entry .we-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    /* 16px: anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+.word-entry .we-input::placeholder {
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+    color: #9ca3af;
+}
+
+.we-btn {
+    flex-shrink: 0;
+    background-color: #02484d;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    min-height: 44px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.we-btn:hover:not(:disabled) { background-color: #03595f; }
+.we-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Reserve the line so the panel doesn't jump as the message appears. */
+.we-status { font-size: 13px; line-height: 1.4; margin-top: 8px; min-height: 18px; color: #6b7280; }
+.we-status.good { color: #02484d; }
+.we-status.bad { color: #a55; }
+
+.we-note { font-size: 12px; line-height: 1.45; color: #6b7280; margin-top: 6px; }
+
+/* ---------- "Smush accepted a word that isn't listed?" ---------- */
+/* Borrows the played-word box's look (.word-entry / .we-*). Shown only while
+   solving: a suggestion is checked against the board's letters. */
+.suggest-box { margin-top: 20px; }
+
+.suggest-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #555;
+}
+
+/* ---------- played pile ---------- */
+.played-section {
+    display: none;
+    max-width: 620px;
+    margin: 6px auto 0;
+    padding: 12px 20px;
+    text-align: center;
+}
+
+.played-section.visible { display: block; }
+
+.played-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+
+.played-pile {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.played-chip {
+    background-color: #eef4f4;
+    border: 1px solid #cfe0e0;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #02484d;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.played-chip small { color: #6b7280; font-weight: 400; text-transform: none; }
+
+.rejected-chip {
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #a55;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-decoration: line-through;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.rejected-chip:hover { background-color: #e55555; border-color: #e55555; color: #fff; text-decoration: none; }
+
+.undo-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 12px;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: pointer;
+    margin-top: 8px;
+    padding: 6px;
+}
+
+.undo-btn:hover { color: #02484d; }
+
+/* ---------- shared bits ---------- */
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+
+.smush-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+
+.smush-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@keyframes toastSlideIn {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.smush-toast { animation: toastSlideIn 0.3s ease-out; }
+
+@media (max-width: 480px) {
+    /* Word + buttons stay on the top line; bonus/rarity icons drop small to a full-width second line. */
+    .word-result { padding: 6px 10px; margin: 5px 0; min-height: 0; gap: 3px 7px; flex-wrap: wrap; }
+    .word-text { font-size: 15px; letter-spacing: 0.5px; }
+    .word-bonuses { order: 1; flex: 0 0 100%; font-size: 11px; line-height: 1; }
+    .word-bonuses:empty { display: none; }
+    .rare-flag { font-size: 12px; padding: 0 2px; }
+    .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
+    .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
+    .results-container { padding: 10px 8px 20px; }
+    .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>

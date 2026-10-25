@@ -15,7 +15,6 @@ from datetime import datetime
 import mysql.connector
 import mysql.connector.pooling
 from mysql.connector import Error
-import pytz
 import redis
 from flask import Response, has_request_context, request
 from flask_caching import Cache
@@ -25,7 +24,7 @@ from flask_limiter.util import get_remote_address
 from limits import parse_many
 
 import config
-from helpers import client_ip
+from helpers import PACIFIC, client_ip
 from monitoring import alerts
 
 ##### cache / rate limiter #####
@@ -223,9 +222,9 @@ else:
 # Set per checkout rather than once on the pool: pool_reset_session is True, so
 # a session variable is cleared when the connection goes back. Costs one extra
 # round-trip on the minority of requests that touch MySQL at all - the solver
-# pages do not on GET, except /blossom and /smush (and their dev copies),
-# which read today's board at most once a minute, memoized and fail-safe
-# (_board_for in routes/blossom.py and routes/smush.py).
+# pages do not on GET, except /blossom and /smush, which read today's board
+# at most once a minute, memoized and fail-safe (_board_for in
+# routes/blossom.py and routes/smush.py).
 #
 # MySQL applies max_execution_time to read-only SELECTs only, so the write-
 # behind drain's INSERTs below are unaffected.
@@ -322,7 +321,7 @@ def pst_now_str():
     distorting vw_prod_blossom_hourly_average and potentially masking the very
     outage that caused the backup.
     """
-    return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.now(PACIFIC).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def _drain_batch(batch):
@@ -481,12 +480,5 @@ for attempt in range(max_retries):
             print("Failed to connect after several attempts.")
 
 def add_data_to_stream(stream_name, data):
-    # Current datetime as a string
-    pst_timezone = pytz.timezone('America/Los_Angeles')
-    current_datetime_pst = datetime.now(pst_timezone).strftime('%Y-%m-%d %H:%M:%S')
-
-    # Serialize data to JSON format
-    json_text = json.dumps(data)
-
     # Add data to Redis stream with auto-generated ID
-    r.xadd(stream_name, {'datetime': current_datetime_pst, 'json': json_text})
+    r.xadd(stream_name, {'datetime': pst_now_str(), 'json': json.dumps(data)})

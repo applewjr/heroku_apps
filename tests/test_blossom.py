@@ -137,10 +137,13 @@ def _fake_db_cursor():
 @pytest.fixture
 def blossom_client(client, monkeypatch):
     # Stub the DB so the POST path is hermetic (no real MySQL): invalid/added
-    # word lists come back empty and the solver runs on the in-memory list.
-    # The word-list memo starts empty, so no other test's list leaks in.
+    # word lists (read through crowd.py) come back empty and the solver runs
+    # on the in-memory list. The word-list memo starts empty, so no other
+    # test's list leaks in.
+    import crowd
     import routes.blossom as blossom
     monkeypatch.setattr(blossom, "db_cursor", _fake_db_cursor)
+    monkeypatch.setattr(crowd, "db_cursor", _fake_db_cursor)
     monkeypatch.setattr(blossom, "_blossom_words", {"value": None, "expires": 0.0})
     return client
 
@@ -549,8 +552,9 @@ def test_solves_share_one_word_list(fresh_word_cache, monkeypatch):
     # The memo hands every solve the same set: no per-request copy (the
     # SimpleCache it replaced unpickled ~9 MB of strings per solve). With no
     # corrections that set is data.py's list itself.
+    import crowd
     import data
-    monkeypatch.setattr(fresh_word_cache, "db_cursor", _fake_db_cursor)
+    monkeypatch.setattr(crowd, "db_cursor", _fake_db_cursor)
     first = fresh_word_cache.get_filtered_blossom_words()
     assert fresh_word_cache.get_filtered_blossom_words() is first
     assert first is data.words_blossom
@@ -565,7 +569,7 @@ def test_a_db_blip_keeps_the_last_good_list(fresh_word_cache, monkeypatch):
         raise RuntimeError("db down")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(fresh_word_cache, "db_cursor", down)
+    monkeypatch.setattr("crowd.db_cursor", down)
     assert fresh_word_cache.get_filtered_blossom_words() is good
     # ...and retries in 5 minutes, not 12 hours.
     assert fresh_word_cache._blossom_words["expires"] < time.time() + 301
@@ -590,7 +594,7 @@ def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache
 
 
 def test_votes_past_the_daily_cap_are_ignored(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_MAX_VOTES_PER_DAY
+    from crowd import CROWD_MAX_VOTES_PER_DAY
     db = crowd_db(_votes(players=99, today=CROWD_MAX_VOTES_PER_DAY))
     resp = _flag(client, "nastier")
     # The player's own row still strikes out; the vote just isn't counted.
@@ -621,7 +625,7 @@ def test_a_player_crossing_words_off_does_not_count(client, crowd_db, fresh_word
     # More than CROWD_MAX_INVALID_PER_DAY ticks in a day reads as using
     # Invalid like Used. The vote is still recorded, for calibrating the limit
     # later, but changes nothing however many other players agree.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(_votes(players=99, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1))
     assert _flag(client, "nastier").status_code == 200
     assert db.statements("INSERT INTO blossom_word_votes")
@@ -634,7 +638,7 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     # passed the limit. Once they do, any of those words left without enough
     # counting players goes back on the list.
     from crowd import remove_votes_needed
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(
         _votes(players=remove_votes_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
         rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
@@ -650,7 +654,7 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
 def test_only_invalid_counts_apply_the_daily_limit(client, crowd_db, fresh_word_cache):
     # The fake can't run SQL, so pin the shape: Invalid counts skip any vote
     # whose player went over the limit that day; missing-word counts don't.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(_votes(players=1))
     _flag(client, "nastier")
     _suggest(client, NOT_LISTED)
@@ -767,7 +771,7 @@ def test_admin_page_shows_who_made_each_change(client, crowd_db, monkeypatch):
 def test_admin_page_shows_word_popularity(client, crowd_db, monkeypatch):
     from datetime import datetime
     when = datetime(2026, 9, 30, 8, 0)
-    monkeypatch.setattr("routes.blossom.word_pop", {"figuline": 0.84, "nastier": 3.4})
+    monkeypatch.setattr("crowd.word_pop", {"figuline": 0.84, "nastier": 3.4})
     crowd_db(rows={
         "FROM blossom_invalid_words": [("figuline", when, "crowd"), ("yatagan", when, "admin")],
         "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, None)],

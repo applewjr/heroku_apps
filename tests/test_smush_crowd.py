@@ -313,7 +313,7 @@ def test_admin_page_shows_lists_and_reports(client, smush_db, monkeypatch):
 def test_admin_page_shows_word_popularity(client, smush_db, monkeypatch):
     from datetime import datetime
     when = datetime(2026, 10, 4, 8, 0)
-    monkeypatch.setattr("routes.smush.word_pop", {"glop": 1.23, "flagellum": 2.5})
+    monkeypatch.setattr("crowd.word_pop", {"glop": 1.23, "flagellum": 2.5})
     smush_db(rows={
         "FROM smush_invalid_words": [("glop", when, "crowd"), ("zarf", when, "admin")],
         "FROM smush_word_votes v": [("flagellum", "invalid", 3, when, "waiting", when, None)],

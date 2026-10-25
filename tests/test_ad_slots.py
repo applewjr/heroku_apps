@@ -105,8 +105,8 @@ def test_password_only_pages_load_no_ads(client, slots, monkeypatch):
     monkeypatch.setattr(crowd, "db_cursor", _ScriptedDB())
     monkeypatch.setattr(ribbit, "db_cursor", _ScriptedDB())
     headers = _admin_headers(monkeypatch)
-    dev = _page(client, "/ribbit_dev", headers=headers)
-    assert UNIT not in dev and LOADER not in dev
+    board = _page(client, "/ribbit_admin/board", headers=headers)
+    assert UNIT not in board and LOADER not in board
     assert LOADER not in _page(client, "/ribbit_admin", headers=headers)
     # The same browser, back on a public page, gets them again.
     assert LOADER in _page(client, "/ribbit", headers=headers)

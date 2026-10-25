@@ -257,6 +257,16 @@ def parse_choice(value, field, options, default):
     return value
 
 
+def json_object(silent=False):
+    """The request's JSON body, which must be an object: anything else raises
+    ValidationError (-> 400). silent=True reads a body that isn't JSON as
+    None, so that is a 400 too, rather than get_json's own error."""
+    data = request.get_json(silent=silent)
+    if not isinstance(data, dict):
+        raise ValidationError('expected a JSON object')
+    return data
+
+
 def parse_letters(value, field, max_len=25, default=''):
     """Parse a form value that should be a short run of letters (solver
     inputs). Blank input returns ``default``; anything non-alphabetic or
@@ -280,6 +290,16 @@ ISO_DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
 def pacific_today():
     """Today's date on the Pacific coast: the site's own calendar."""
     return datetime.now(PACIFIC).date()
+
+
+def parse_iso_day(value):
+    """An admin form's YYYY-MM-DD date, or None if it isn't a real one."""
+    if not (isinstance(value, str) and ISO_DATE.fullmatch(value)):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def parse_played_on(value, today):
@@ -338,7 +358,7 @@ def is_new(path):
     """True while the page at `path` is still tagged NEW (see NEW_UNTIL).
     Templates call it: app.py registers it as a template global."""
     until = NEW_UNTIL.get(path)
-    return until is not None and datetime.now(pytz.timezone('America/Los_Angeles')).date() <= until
+    return until is not None and pacific_today() <= until
 
 
 def make_trending_jsonld(items, list_name="YouTube Trending - Top videos today"):

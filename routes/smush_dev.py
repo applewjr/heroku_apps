@@ -11,9 +11,7 @@ routes.wordgames, routes.smush, crowd and functions.all_words.
 
 import threading
 import time
-from datetime import datetime
 
-import pytz
 from flask import Blueprint, jsonify, render_template, request
 
 from crowd import CROWD_MAX_INVALID_PER_DAY
@@ -21,11 +19,11 @@ from data import word_pop
 from extensions import INTERACTIVE_LIMITS, auth, db_cursor, limiter
 from functions import all_words
 from functions import smush_ice_cold as ice
-from helpers import ValidationError
+from helpers import ValidationError, json_object, pacific_today
 from monitoring import alerts
 from routes import smush as smush_crowd
 from routes.smush import get_smush_words
-from routes.wordgames import parse_smush_word_list
+from routes.wordgames import parse_solve
 
 bp = Blueprint('smush_dev', __name__)
 
@@ -49,13 +47,9 @@ _played_lock = threading.Lock()
 _played = {'day': None, 'boards': {}}        # tag -> {word: {voter hashes}}
 
 
-def _pacific_day():
-    return datetime.now(pytz.timezone('America/Los_Angeles')).strftime('%Y-%m-%d')
-
-
 def record_played(tag, words, voter):
     """Remember that this player played `words` on this board today."""
-    day = _pacific_day()
+    day = pacific_today().isoformat()
     with _played_lock:
         if _played['day'] != day:
             _played['day'], _played['boards'] = day, {}
@@ -67,7 +61,7 @@ def record_played(tag, words, voter):
 def played_words(tag):
     """Words enough players have played on this board today."""
     with _played_lock:
-        if _played['day'] != _pacific_day():
+        if _played['day'] != pacific_today().isoformat():
             return frozenset()
         board = _played['boards'].get(tag, {})
         return frozenset(w for w, voters in board.items()
@@ -225,52 +219,6 @@ def _with_efficiency(rows):
     return rows
 
 
-def _parse_solve(data):
-    """The same checks /smush makes (routes/wordgames.py run_smush), copied
-    so that route stays untouched."""
-    center = data.get('center', '')
-    if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
-        raise ValidationError('center must be a single letter a-z')
-
-    outer_uses = data.get('outer_uses')
-    if not (isinstance(outer_uses, dict) and len(outer_uses) == 8):
-        raise ValidationError('outer_uses must contain exactly 8 letters')
-    seen_letters = set()
-    for letter, uses in outer_uses.items():
-        if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
-            raise ValidationError('outer_uses keys must be single letters a-z')
-        if not (isinstance(uses, int) and not isinstance(uses, bool) and 0 <= uses <= 5):
-            raise ValidationError('outer_uses values must be whole numbers 0-5')
-        seen_letters.add(letter.lower())
-    if len(seen_letters) != 8 or center.lower() in seen_letters:
-        raise ValidationError('outer_uses must be 8 distinct letters, none matching the center')
-
-    spicy = data.get('spicy', '')
-    if not (isinstance(spicy, str) and (spicy == '' or (len(spicy) == 1 and spicy.isalpha()))):
-        raise ValidationError('spicy must be a single letter or empty')
-
-    first_word = data.get('first_word', False)
-    if not isinstance(first_word, bool):
-        raise ValidationError('first_word must be a boolean')
-
-    rejected = parse_smush_word_list(data, 'rejected')
-    played = parse_smush_word_list(data, 'played')
-
-    want_plan = data.get('plan', False)
-    if not isinstance(want_plan, bool):
-        raise ValidationError('plan must be a boolean')
-
-    ice_cold = data.get('ice_cold', False)
-    if not isinstance(ice_cold, bool):
-        raise ValidationError('ice_cold must be a boolean')
-
-    outer_uses = {letter.lower(): uses for letter, uses in outer_uses.items()}
-    # A non-empty pile contradicts first_word; trust the pile.
-    first_word = first_word and not played
-    return (center.lower(), outer_uses, spicy.lower(), first_word,
-            [w.lower() for w in rejected], [w.lower() for w in played], want_plan, ice_cold)
-
-
 @bp.route('/smush_dev', methods=['GET', 'POST'])
 @limiter.limit(INTERACTIVE_LIMITS)
 @auth.login_required
@@ -278,16 +226,18 @@ def smush_dev():
     if request.method == 'GET':
         return render_template('smush_dev.html')
 
-    data = request.get_json()
-    if not isinstance(data, dict):
-        raise ValidationError('expected a JSON object')
+    data = json_object()
 
     # ✗, restoring a hidden word and the "Smush accepted a word" box: the
     # same crowd votes /smush records - a refusal here is a real refusal.
     if 'action' in data:
         return smush_crowd.handle_vote(data, dev=True)
 
-    center, outer_uses, spicy, first_word, rejected, played, want_plan, ice_cold = _parse_solve(data)
+    # The same checks /smush makes, plus Ice Cold.
+    center, outer_uses, spicy, first_word, rejected, played, want_plan = parse_solve(data)
+    ice_cold = data.get('ice_cold', False)
+    if not isinstance(ice_cold, bool):
+        raise ValidationError('ice_cold must be a boolean')
     smush_words = get_smush_words()
     results, total_playable, pangram_status = all_words.smush_solver(
         center, outer_uses, spicy, first_word, smush_words,

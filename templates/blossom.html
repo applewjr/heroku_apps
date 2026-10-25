@@ -1101,18 +1101,6 @@ table.blossom-results td.show-letter-cell { width: 80px; }
 .bl-hint > p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: #374151; overflow-wrap: anywhere; }
 .bl-hints-every { display: block; margin: 4px auto 14px; }
 
-/* The admin's own copy of the page says which copy it is. */
-.bl-dev-note {
-    max-width: 460px;
-    margin: 8px auto 0;
-    padding: 8px 12px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #02484d;
-    background-color: #eef4f4;
-    border: 1px dashed #4f9a97;
-    border-radius: 8px;
-}
 
 </style>
 
@@ -1123,7 +1111,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
 
 <div id="blossom-toast" class="blossom-toast" role="status" aria-live="polite"></div>
 
-<form name="form1" action="{{ post_url or '/blossom' }}" method="post">
+<form name="form1" action="/blossom" method="post">
   <center>
 
   <div id="center-warning" style="
@@ -1153,9 +1141,6 @@ table.blossom-results td.show-letter-cell { width: 80px; }
        loaded board is never logged as the player's own there either. -->
   <input type="hidden" name="board_source" value="{{ board_source or 'typed' }}">
 
-  {% if dev %}
-  <p class="bl-dev-note">/blossom_dev - only you can see this copy. Today's board and hints are on here; your votes and boards count like any player's.</p>
-  {% endif %}
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
 
@@ -1275,7 +1260,7 @@ table.blossom-results td.show-letter-cell { width: 80px; }
            element: form1 spans this section, and the HTML parser drops a nested
            form start tag while letting its closing tag end form1 early. -->
       <button type="submit" name="load_more" value="true" class="show-more-btn"
-              formaction="{{ post_url or '/blossom' }}#words" onclick="showLoadingOverlay()">Show {{ list_step }} more words</button>
+              formaction="/blossom#words" onclick="showLoadingOverlay()">Show {{ list_step }} more words</button>
       {% endif %}
     </div>
     {% if blossom_table %}
@@ -1301,42 +1286,9 @@ table.blossom-results td.show-letter-cell { width: 80px; }
   <br>
 
   <div style="margin: 20px 0; text-align: center;">
-    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🌸 Play Blossom</a>
-    <a href="/blossom_feedback" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🚫 Report Invalid/Missing Word</a>
-    <a href="/feedback" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Feedback</a>
+    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" class="action-btn">🌸 Play Blossom</a>
+    <a href="/blossom_feedback" class="action-btn">🚫 Report Invalid/Missing Word</a>
+    <a href="/feedback" class="action-btn">💬 Feedback</a>
     </div>    
     {% with current='/blossom' %}{% include '_related_solvers.html' %}{% endwith %}
   </div>
@@ -1424,14 +1376,14 @@ function initializeBlossomApp() {
   let petalLetters = ['', '', '', '', '', ''];
   let selectedPetal = '';
 
-  // This copy's own address (/blossom, or James's /blossom_dev), and where
-  // its Reset goes. boardSource is how the player got the letters in the
-  // flower: 'typed', 'loaded' (today's board) or 'edited' (loaded, then
-  // changed). It rides along with the form, so a results page knows it too.
+  // Where the page posts, and where its Reset goes. boardSource is how the
+  // player got the letters in the flower: 'typed', 'loaded' (today's board)
+  // or 'edited' (loaded, then changed). It rides along with the form, so a
+  // results page knows it too.
   // Declared up here, before anything in init can throw, because the letter
   // handlers below use it.
-  const POST_URL = {{ (post_url or '/blossom') | tojson }};
-  const RESET_URL = {{ ('/blossom/reset?to=dev' if dev else '/blossom/reset') | tojson }};
+  const POST_URL = "/blossom";
+  const RESET_URL = "/blossom/reset";
   const sourceInput = document.querySelector('input[name="board_source"]');
   let boardSource = (sourceInput && ['typed', 'loaded', 'edited'].indexOf(sourceInput.value) !== -1)
     ? sourceInput.value : 'typed';

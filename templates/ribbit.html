@@ -218,7 +218,7 @@
 }
 .rb-shared-pick:hover .rb-shared-btn { background-color: #03595f; }
 
-/* The admin's own copy of the page says which copy it is. */
+/* The approve page's note on what it does. */
 .rb-dev-note {
     box-sizing: border-box;
     width: calc(100% - 24px);
@@ -690,9 +690,6 @@
 <center>
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">{% if approve %}Approve your game's board{% else %}Ribbit Solver &amp; Answers{% endif %}</h1>
-{% if dev %}
-<p class="rb-dev-note">/ribbit_dev - only you can see this copy. Your ✗ votes and boards count like any player's.</p>
-{% endif %}
 {% if approve %}
 <p class="rb-dev-note">Enter your game's board: type it, drag the links, rotate it to match. Then press Approve under the board: it's served to every player whose date you pick, first of the day's boards. Nothing here solves or counts as a player. <a href="/ribbit_admin?tab=boards">Back to Ribbit admin</a></p>
 {% endif %}
@@ -815,14 +812,8 @@
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
     {% if not approve %}
-    <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link" target="_blank" rel="noopener noreferrer" style="
-        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
-        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
-        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🐸 Play Ribbit</a>
-    <a href="/feedback" style="
-        background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
-        border-radius: 8px; text-decoration: none; display: inline-block; margin: 4px; font-size: 14px;
-        transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Give Feedback</a>
+    <a href="https://www.puzzmo.com/puzzle/ribbit" class="puzzmo-ribbit-link action-btn" target="_blank" rel="noopener noreferrer">🐸 Play Ribbit</a>
+    <a href="/feedback" class="action-btn">💬 Give Feedback</a>
     {% endif %}
     <button type="button" id="clear-btn" style="
         background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;

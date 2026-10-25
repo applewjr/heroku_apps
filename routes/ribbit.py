@@ -1,9 +1,8 @@
 """Ribbit's word list, crowd word corrections, shared boards, and
 /ribbit_admin.
 
-The solver routes themselves are run_ribbit and run_ribbit_dev in
-routes/wordgames.py; they hand any JSON body carrying an `action` to
-handle_action here.
+The solver route itself is run_ribbit in routes/wordgames.py; it hands any
+JSON body carrying an `action` to handle_action here.
 
 Shared boards: entering a Ribbit board means typing 16 letters and drawing
 every link, and the links can't be worked out from the letters (tried
@@ -27,21 +26,18 @@ that matches their game: James's approvals, plus any board the players
 settled on their own.
 """
 
-import time
 from collections import Counter
 from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from crowd import (CROWD_ADD_VOTES, CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
-                   CROWD_WINDOW_DAYS)
-from data import word_pop, words
+from data import words
 from extensions import auth, db_cursor, pst_now_str
 from functions import all_words
-# _pacific_today is a name of this module's own so tests can set the day.
 from helpers import ISO_DATE as _DATE
-from helpers import ValidationError, parse_letters, parse_played_on
+from helpers import ValidationError, parse_iso_day, parse_letters, parse_played_on
+# _pacific_today is a name of this module's own so tests can set the day.
 from helpers import pacific_today as _pacific_today
 from monitoring import alerts
 
@@ -118,37 +114,11 @@ def get_ribbit_words():
     players or /ribbit_admin removed taken out, words added put in.
 
     Only ribbit_* tables: Smush's and Blossom's corrections are about those
-    games' lists. Falls back to the raw list if the DB is unreachable.
-    Refreshed every 12 hours, or straight away after a change.
+    games' lists. Refreshed every 12 hours, or straight away after a change;
+    the raw list if the DB has never been reachable (see
+    crowd.CrowdList.corrected).
     """
-    if _ribbit_words['value'] is not None and time.time() < _ribbit_words['expires']:
-        return _ribbit_words['value']
-
-    invalid_words, added_words = set(), set()
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM ribbit_invalid_words")
-            invalid_words = {row[0].lower() for row in cursor.fetchall()}
-            cursor.execute("SELECT word FROM ribbit_added_words")
-            added_words = {row[0].lower() for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Error fetching ribbit word corrections: {e}")
-        # A DB blip at refresh time must not evict the corrections for 12
-        # hours: keep serving the last good list (or the raw list if there
-        # has never been one) and retry soon.
-        fallback = _ribbit_words['value'] if _ribbit_words['value'] is not None else words
-        _ribbit_words['value'] = fallback
-        _ribbit_words['expires'] = time.time() + 300
-        return fallback
-
-    if invalid_words or added_words:
-        ribbit_words = (words - invalid_words) | added_words
-    else:
-        ribbit_words = words
-
-    _ribbit_words['value'] = ribbit_words
-    _ribbit_words['expires'] = time.time() + 43200
-    return ribbit_words
+    return RIBBIT_CROWD.corrected(_ribbit_words, crowd.with_corrections(words))
 
 
 ##### shared boards #####
@@ -178,8 +148,9 @@ BOARDS_PER_PLAYER_PER_DAY = 10
 # _links_to_log).
 BOARD_SOURCES = ('typed', 'edited')
 # Live on /ribbit (James's call, 2026-10-18) after a dark launch from
-# 2026-10-17, when /ribbit only logged boards and /ribbit_dev alone offered
-# them back. False goes back to that: boards still logged, none offered.
+# 2026-10-17, when /ribbit only logged boards and /ribbit_dev (removed
+# 2026-10-25) alone offered them back. False goes back to that: boards still
+# logged, none offered (except on /ribbit_admin/board).
 SHARED_BOARDS_LIVE = True
 # An approval from /ribbit_admin (the Shared Boards tab's Add) is a row of
 # its own in ribbit_boards, with this as its source and in place of a player
@@ -294,18 +265,7 @@ def consensus(rows):
     """
     approvals = [row for row in rows if row[SOURCE] == APPROVAL]
     player_rows = [row for row in rows if row[SOURCE] != APPROVAL]
-    latest = {}
-    for row in player_rows:
-        mine = latest.get(row[VOTER])
-        if mine is None or row[UPDATED] > mine[UPDATED]:
-            latest[row[VOTER]] = row
-    # Then one per network. A second step, so a player with a board from
-    # before prefix_hash and one since still counts once.
-    networks = {}
-    for row in latest.values():
-        network = row[PREFIX] or row[VOTER]
-        if network not in networks or row[UPDATED] > networks[network][UPDATED]:
-            networks[network] = row
+    networks = crowd.one_per_network(player_rows, VOTER, PREFIX, UPDATED)
     boards = [(row, _parse_links(row[LINKS])) for row in networks.values()]
     finished = [(row, links) for row, links in boards if _every_tile_linked(links)]
     players = len(finished)
@@ -620,14 +580,12 @@ def _parse_word(value):
     return word
 
 
-def _vote_mode(data, dev):
-    """The sort chip the player voted from, for the vote log only:
-    'dev_<chip>' from /ribbit_dev. None when the page didn't say or said
-    something else - never a reason to refuse the vote."""
+def _vote_mode(data):
+    """The sort chip the player voted from, for the vote log only. None when
+    the page didn't say or said something else - never a reason to refuse
+    the vote."""
     chip = data.get('mode')
-    if chip not in RIBBIT_SORT_MODES:
-        return None
-    return ('dev_' if dev else '') + chip
+    return chip if chip in RIBBIT_SORT_MODES else None
 
 
 def puzzle_tag(letters):
@@ -646,13 +604,13 @@ def _traceable(word, letters, links):
     return bool(found)
 
 
-def handle_vote(data, dev=False):
-    """A crowd vote posted to /ribbit, or /ribbit_dev with `dev`. Every reply
-    is the same whether or not the vote changed the list (see crowd.py)."""
+def handle_vote(data):
+    """A crowd vote posted to /ribbit. Every reply is the same whether or not
+    the vote changed the list (see crowd.py)."""
     action = data.get('action')
     word = _parse_word(data.get('word'))
     letters, links = _grid_board(data, whole=False)
-    tag, mode = puzzle_tag(letters), _vote_mode(data, dev)
+    tag, mode = puzzle_tag(letters), _vote_mode(data)
 
     if action == 'reject':
         # Only a word actually on offer, on a board it can be traced on:
@@ -676,20 +634,21 @@ def handle_vote(data, dev=False):
     return jsonify(status='success', result='recorded')
 
 
-def handle_action(data, dev=False):
-    """A JSON body posted to /ribbit, or /ribbit_dev with `dev`, carrying an
-    `action`: a shared board or a crowd vote, not a solve."""
+def handle_action(data, serve_dark=False):
+    """A JSON body posted to /ribbit carrying an `action`: a shared board or
+    a crowd vote, not a solve. `serve_dark` (only /ribbit_admin/board) serves
+    boards even while SHARED_BOARDS_LIVE is off."""
     action = data.get('action')
     if action == 'log_board':
         return log_board(data)
     if action in ('shared_board', 'board_links'):
-        if not (dev or SHARED_BOARDS_LIVE):
+        if not (serve_dark or SHARED_BOARDS_LIVE):
             # The dark launch: /ribbit logs boards but serves none yet, even
             # to someone calling it directly.
             return jsonify(boards=[]) if action == 'shared_board' else jsonify(edges=None)
         return shared_board(data) if action == 'shared_board' else board_links(data)
     if action in VOTE_ACTIONS:
-        return handle_vote(data, dev)
+        return handle_vote(data)
     raise ValidationError('unknown action')
 
 
@@ -734,18 +693,6 @@ def _admin_days():
     return days, None
 
 
-def _empty_view(active_tab):
-    """The word-list half of the page when its tables can't be read, so the
-    Shared boards tab still works (and says what's wrong)."""
-    pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
-    return {'reports': [], 'invalid_words': [], 'added_words': [],
-            'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
-            'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
-            'show_settled': False, 'settled_url': ADMIN, 'query': '', 'clear_url': ADMIN,
-            'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
-            'votes_needed': RIBBIT_CROWD.threshold}
-
-
 @bp.route(ADMIN)
 @auth.login_required
 def ribbit_admin():
@@ -757,19 +704,14 @@ def ribbit_admin():
         view, crowd_error = RIBBIT_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:
         print(f"Error loading ribbit admin word lists: {e}")
-        view = _empty_view(args['tab'] if args['tab'] in ADMIN_TABS else 'boards')
+        view = RIBBIT_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'boards')
         crowd_error = f'{type(e).__name__}: {e}'
     days, load_error = _admin_days()
     return render_template('ribbit_admin.html', **view,
                            crowd_error=crowd_error, days=days, load_error=load_error,
                            shared_live=SHARED_BOARDS_LIVE, pacific_today=_pacific_today(),
                            serve_identical=SERVE_IDENTICAL, serve_majority=SERVE_MAJORITY,
-                           todays_boards_max=TODAYS_BOARDS_MAX,
-                           word_pop=word_pop,
-                           crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
-                           crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
-                           crowd_add_votes=CROWD_ADD_VOTES,
-                           crowd_window_days=CROWD_WINDOW_DAYS)
+                           todays_boards_max=TODAYS_BOARDS_MAX)
 
 
 @bp.route(ADMIN + '/board', methods=['GET', 'POST'])
@@ -786,9 +728,9 @@ def ribbit_admin_board():
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or data.get('action') not in ('shared_board', 'board_links'):
             raise ValidationError('only shared_board and board_links here')
-        return handle_action(data, dev=True)
+        return handle_action(data, serve_dark=True)
     return render_template('ribbit.html', schema_data=None, shared_boards=True,
-                           post_url=ADMIN + '/board', dev=False, approve=True,
+                           post_url=ADMIN + '/board', approve=True,
                            pacific_today=_pacific_today())
 
 
@@ -827,12 +769,8 @@ def ribbit_approve_board():
     the page showed it; if a newer board has come in since, nothing is
     approved, so a stranger's board can't be approved in its place."""
     letters = request.form.get('letters', '')
-    played_on = request.form.get('played_on', '')
-    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
-        return _back(error='Not a board')
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
         return _back(error='Not a board')
     try:
         boards = [row for row in rows_with_letters(letters) if row[SOURCE] != APPROVAL]
@@ -861,13 +799,8 @@ def ribbit_approve_typed_board():
     as _links_text writes them, in the view on his screen; any turn or flip
     of his game's board is the same board."""
     cells = request.form.get('cells', '').strip().lower()
-    played_on = request.form.get('played_on', '')
-    if not (len(cells) == CELLS and cells.isascii() and cells.isalpha()
-            and _DATE.fullmatch(played_on)):
-        return _back(error='Not a board: 16 letters a-z, and a date')
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not (len(cells) == CELLS and cells.isascii() and cells.isalpha() and day is not None):
         return _back(error='Not a board: 16 letters a-z, and a date')
     try:
         letters, links = _grid_board({
@@ -904,47 +837,15 @@ def ribbit_unapprove_board():
     return _back(success="Approval undone: the players' boards decide again")
 
 
-def _admin_form():
-    """The word and its list, or None for the list if no choice was sent.
-    Nothing is assumed: a missing choice must not count as a removal."""
-    word = request.form.get('word', '').strip().lower()
-    kind = request.form.get('word_type')
-    return word, kind if kind in ('invalid', 'missing') else None
-
-
-NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
-
-
 @bp.route(ADMIN + '/add_word', methods=['POST'])
 @auth.login_required
 def ribbit_add_word():
     """Remove a word from Ribbit's list ('invalid') or add one ('missing')."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        RIBBIT_CROWD.admin_set(word, kind)
-    except Exception as e:
-        print(f"Error adding ribbit word: {e}")
-        return _back(error='Database error')
-    done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
-    return _back(success=f'{word} {done}')
+    return crowd.admin_add_word(RIBBIT_CROWD, _back)
 
 
 @bp.route(ADMIN + '/remove_word', methods=['POST'])
 @auth.login_required
 def ribbit_remove_word():
     """Undo an entry in either list, and reset that word's votes."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        RIBBIT_CROWD.admin_remove(word, kind)
-    except Exception as e:
-        print(f"Error removing ribbit word: {e}")
-        return _back(error='Database error')
-    return _back(success=f'{word} undone')
+    return crowd.admin_undo_word(RIBBIT_CROWD, _back)

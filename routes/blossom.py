@@ -1,23 +1,18 @@
-"""Blossom solver (and /blossom_dev, James's copy of it), today's board,
-admin word management, and feedback routes."""
+"""Blossom solver, today's board, admin word management, and feedback routes."""
 
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
 import crowd
-# The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
-from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
-                   CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
-                   CROWD_WINDOW_DAYS)
-from data import word_pop, words_blossom
+from data import words_blossom
 from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
                         limiter, log_page_visit, pst_now_str)
 from functions import all_words
-from helpers import ISO_DATE as _DATE
 from helpers import (ValidationError, bot_reason, client_ip, feedback_flooded, issue_form_token,
-                     log_dropped, make_schema_data, parse_int, parse_letters, parse_played_on)
+                     json_object, log_dropped, make_schema_data, parse_int, parse_iso_day,
+                     parse_letters, parse_played_on)
 # _pacific_today is a name of this module's own so tests can set the day.
 from helpers import pacific_today as _pacific_today
 from monitoring import alerts
@@ -42,31 +37,12 @@ BLOSSOM_LIST_STEP = 25
 @bp.route("/blossom", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def blossom_solver():
-    return _blossom_page(dev=False)
-
-
-@bp.route("/blossom_dev", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def blossom_dev():
-    """James's copy of /blossom, with today's board and hints on even while
-    TODAYS_BOARD_LIVE is off: how he watched them against his own game
-    before players saw them (2026-10-23 to 10-24), as /ribbit_dev did for
-    Ribbit's boards. It posts to itself, so its votes are tagged dev in the
-    vote log; its boards and votes count like any player's. Not a page
-    visit, and its solves are not logged as solver clicks."""
-    return _blossom_page(dev=True)
-
-
-def _blossom_page(dev):
-    """/blossom, or /blossom_dev with `dev`: the page, a solve (the form
-    POST) or a JSON action. Today's board shows wherever show_board is on:
-    always on /blossom_dev, and on /blossom while TODAYS_BOARD_LIVE."""
-    post_url = '/blossom_dev' if dev else '/blossom'
-    show_board = dev or TODAYS_BOARD_LIVE
+    """The page, a solve (the form POST) or a JSON action. Today's board
+    shows while TODAYS_BOARD_LIVE."""
+    show_board = TODAYS_BOARD_LIVE
     try:
 
-        schema_data = None if dev else make_schema_data(
+        schema_data = make_schema_data(
             "Blossom Solver & Word Finder - Today's Hints & Answers",
             "Free Blossom word finder & solver. Instantly find all words and answers to solve today's Merriam-Webster Blossom puzzle.",
             "https://www.jamesapplewhite.com/blossom",
@@ -78,13 +54,11 @@ def _blossom_page(dev):
             if request.is_json:
                 # silent: a body that isn't JSON used to raise BadRequest inside
                 # the broad except below and come back as a logged 500.
-                data = request.get_json(silent=True)
-                if not isinstance(data, dict):
-                    raise ValidationError("expected a JSON object")
+                data = json_object(silent=True)
                 if data.get('action') == 'toggle_invalid':
-                    return _toggle_invalid(data, dev)
+                    return _toggle_invalid(data)
                 if data.get('action') == 'suggest_missing':
-                    return _suggest_missing(data, dev)
+                    return _suggest_missing(data)
                 if data.get('action') == 'log_board':
                     return _log_board(data)
                 if data.get('action') == 'todays_board':
@@ -155,15 +129,13 @@ def _blossom_page(dev):
             # rather than written inline: this POST fires on every keystroke,
             # so an INSERT here would sit between the user typing and the
             # solver answering. enqueue_write never blocks and never raises.
-            # Not from /blossom_dev: James's own checks aren't player traffic.
-            if not dev:
-                enqueue_write(BLOSSOM_CLICKS_SQL, (
-                    pst_now_str(),
-                    must_have,
-                    may_have,
-                    petal_letter,
-                    min(current_count, total_valid_words),
-                ))
+            enqueue_write(BLOSSOM_CLICKS_SQL, (
+                pst_now_str(),
+                must_have,
+                may_have,
+                petal_letter,
+                min(current_count, total_valid_words),
+            ))
 
             return render_template("blossom.html",
                                 blossom_table=blossom_table,
@@ -177,7 +149,7 @@ def _blossom_page(dev):
                                 list_step=BLOSSOM_LIST_STEP,
                                 pangrams=pangrams,
                                 schema_data=schema_data,
-                                post_url=post_url, dev=dev, show_board=show_board,
+                                show_board=show_board,
                                 board_source=board_source)
 
         else:
@@ -189,8 +161,7 @@ def _blossom_page(dev):
             session.permanent = True
 
             used_words = session.get('used_words', [])
-            if not dev:
-                log_page_visit('blossom.html')
+            log_page_visit('blossom.html')
 
             # Today's board for the Pacific date, which is what search
             # engines and the first paint get; the page asks again for the
@@ -213,7 +184,7 @@ def _blossom_page(dev):
                                 current_count=BLOSSOM_LIST_FIRST,
                                 show_load_more=False,
                                 schema_data=schema_data,
-                                post_url=post_url, dev=dev, show_board=show_board,
+                                show_board=show_board,
                                 todays_board=todays_board, board_date=board_date)
 
     except ValidationError:
@@ -235,23 +206,7 @@ def blossom_reset():
     # Clear the used_words from session
     session.pop('used_words', None)
     session.modified = True
-
-    # Back to the page the Reset came from: /blossom_dev sends to=dev. A
-    # fixed choice, never a URL, so this can't redirect anywhere else.
-    if request.args.get('to') == 'dev':
-        return redirect(url_for('blossom.blossom_dev'))
     return redirect(url_for('blossom.blossom_solver'))
-
-
-def _admin_form():
-    """The word and its list, or None for the list if no choice was sent.
-    Nothing is assumed: a missing choice must not count as a removal."""
-    word = request.form.get('word', '').strip().lower()
-    kind = request.form.get('word_type')
-    return word, kind if kind in ('invalid', 'missing') else None
-
-
-NO_CHOICE = 'Choose Remove invalid word or Add missing word first'
 
 
 ADMIN = '/blossom_admin'
@@ -262,18 +217,6 @@ ADMIN_TABS = ('board', 'reports', 'feedback', 'invalid', 'added')
 def _back(**message):
     """Back to /blossom_admin as the admin left it, with a message."""
     return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
-
-
-def _empty_view(active_tab):
-    """The word-list half of the page when its tables can't be read, so the
-    Today's Board tab still works (and says what's wrong)."""
-    pager = {'page': 1, 'pages': 1, 'prev': None, 'next': None, 'numbers': []}
-    return {'reports': [], 'invalid_words': [], 'added_words': [],
-            'reports_pager': pager, 'invalid_pager': pager, 'added_pager': pager,
-            'open_count': 0, 'settled_count': 0, 'invalid_total': 0, 'added_total': 0,
-            'show_settled': False, 'settled_url': ADMIN, 'query': '', 'clear_url': ADMIN,
-            'keep': {'tab': active_tab}, 'active_tab': active_tab, 'in_both': [],
-            'votes_needed': BLOSSOM_CROWD.threshold}
 
 
 @bp.route(ADMIN)
@@ -290,7 +233,7 @@ def blossom_admin():
         view, crowd_error = BLOSSOM_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:
         print(f"Error loading blossom admin word lists: {e}")
-        view = _empty_view(args['tab'] if args['tab'] in ADMIN_TABS else 'board')
+        view = BLOSSOM_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'board')
         crowd_error = f'{type(e).__name__}: {e}'
 
     try:
@@ -316,12 +259,7 @@ def blossom_admin():
                              days=days, load_error=load_error,
                              board_live=TODAYS_BOARD_LIVE,
                              serve_crowd=SERVE_CROWD,
-                             pacific_today=_pacific_today(),
-                             word_pop=word_pop,
-                             crowd_remove_bands=CROWD_REMOVE_VOTES_BY_POP,
-                             crowd_remove_rare=CROWD_REMOVE_VOTES_RARE,
-                             crowd_add_votes=CROWD_ADD_VOTES,
-                             crowd_window_days=CROWD_WINDOW_DAYS)
+                             pacific_today=_pacific_today())
 
     except Exception as e:
         print(f"Error loading blossom admin: {e}")
@@ -332,35 +270,14 @@ def blossom_admin():
 @auth.login_required
 def add_word():
     """Remove a word from Blossom's list ('invalid') or add one ('missing')."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        BLOSSOM_CROWD.admin_set(word, kind)
-    except Exception as e:
-        print(f"Error adding word: {e}")
-        return _back(error='Database error')
-    done = 'added to the word list' if kind == 'missing' else 'removed from the word list'
-    return _back(success=f'{word} {done}')
+    return crowd.admin_add_word(BLOSSOM_CROWD, _back)
 
 
 @bp.route('/remove_word', methods=['POST'])
 @auth.login_required
 def remove_word():
     """Undo an entry in either list, and reset that word's votes."""
-    word, kind = _admin_form()
-    if kind is None:
-        return _back(error=NO_CHOICE)
-    if not word.isalpha():
-        return _back(error='Word must be letters only')
-    try:
-        BLOSSOM_CROWD.admin_remove(word, kind)
-    except Exception as e:
-        print(f"Error removing word: {e}")
-        return _back(error='Database error')
-    return _back(success=f'{word} undone')
+    return crowd.admin_undo_word(BLOSSOM_CROWD, _back)
 
 
 # Namespaces this form's token, as FEEDBACK_TOKEN_SALT does /feedback's.
@@ -441,33 +358,10 @@ def get_filtered_blossom_words():
 
     Refreshed every 12 hours, or straight away after a change. Callers share
     one set, so they must only read it. A DB blip keeps serving the last good
-    list (the raw one if there has never been one) and retries in 5 minutes.
+    list (the raw one if there has never been one) and retries in 5 minutes
+    (see crowd.CrowdList.corrected).
     """
-    if _blossom_words['value'] is not None and time.time() < _blossom_words['expires']:
-        return _blossom_words['value']
-
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("SELECT word FROM blossom_invalid_words")
-            invalid_words = {row[0].lower() for row in cursor.fetchall()}
-            cursor.execute("SELECT word FROM blossom_added_words")
-            added_words = {row[0].lower() for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Error fetching word lists: {e}")
-        fallback = _blossom_words['value'] if _blossom_words['value'] is not None else words_blossom
-        _blossom_words['value'] = fallback
-        _blossom_words['expires'] = time.time() + 300
-        return fallback
-
-    # data.py's list is already lowercase; only build a corrected copy when
-    # there is something to correct.
-    if invalid_words or added_words:
-        filtered = (words_blossom - invalid_words) | added_words
-    else:
-        filtered = words_blossom
-    _blossom_words['value'] = filtered
-    _blossom_words['expires'] = time.time() + 43200
-    return filtered
+    return BLOSSOM_CROWD.corrected(_blossom_words, crowd.with_corrections(words_blossom))
 
 
 ##### crowd corrections #####
@@ -524,18 +418,15 @@ def _puzzle_tag(center, petals):
     return center + ':' + ''.join(sorted(petals))
 
 
-def _vote_mode(data, dev=False):
+def _vote_mode(data):
     """'normal' or 'helper' (the page's Helper Mode, which masks the words but
-    keeps the Invalid box), for the vote log only: 'dev_normal' / 'dev_helper'
-    from /blossom_dev. None when the page didn't say - never a reason to
-    refuse the vote."""
+    keeps the Invalid box), for the vote log only. None when the page didn't
+    say - never a reason to refuse the vote."""
     mode = data.get('mode')
-    if mode not in ('normal', 'helper'):
-        return None
-    return ('dev_' if dev else '') + mode
+    return mode if mode in ('normal', 'helper') else None
 
 
-def _toggle_invalid(data, dev=False):
+def _toggle_invalid(data):
     """Tick or untick a word's Invalid box: the player says Blossom rejected it."""
     word = _parse_word(data.get('word'))
     center, petals = _parse_puzzle(data)
@@ -545,19 +436,19 @@ def _toggle_invalid(data, dev=False):
     flagged = session['invalid_words']
     if word in flagged:
         flagged.remove(word)
-        BLOSSOM_CROWD.retract_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data, dev))
+        BLOSSOM_CROWD.retract_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data))
     else:
         flagged.append(word)
         # Only a word actually on offer, on a board it fits: anything else is
         # not a result this player could have been shown.
         if word in get_filtered_blossom_words() and _fits_puzzle(word, center, petals):
-            BLOSSOM_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data, dev))
+            BLOSSOM_CROWD.record_vote(word, 'invalid', _puzzle_tag(center, petals), _vote_mode(data))
     session.modified = True
     # Same reply whether or not this vote removed the word (see crowd.py).
     return jsonify({'status': 'success', 'invalid_words': flagged})
 
 
-def _suggest_missing(data, dev=False):
+def _suggest_missing(data):
     """A word Blossom accepted that the solver doesn't list."""
     word = _parse_word(data.get('word'))
     center, petals = _parse_puzzle(data)
@@ -566,7 +457,7 @@ def _suggest_missing(data, dev=False):
     if word in get_filtered_blossom_words():
         return jsonify({'status': 'success', 'result': 'already_listed'})
     # 'recorded' whether or not this vote added the word (see crowd.py).
-    BLOSSOM_CROWD.record_vote(word, 'missing', _puzzle_tag(center, petals), _vote_mode(data, dev))
+    BLOSSOM_CROWD.record_vote(word, 'missing', _puzzle_tag(center, petals), _vote_mode(data))
     return jsonify({'status': 'success', 'result': 'recorded'})
 
 
@@ -607,9 +498,9 @@ def _suggest_missing(data, dev=False):
 #
 # Live on /blossom since 2026-10-24 (James's call), after a dark launch from
 # 2026-10-23 in which /blossom only logged boards and /blossom_dev, his
-# password-only copy, served them, so he could watch them against his own
-# game first. Players are never told how a board is chosen (see crowd.py on
-# why).
+# password-only copy (removed 2026-10-25), served them, so he could watch
+# them against his own game first. Players are never told how a board is
+# chosen (see crowd.py on why).
 
 # Players on one exact state that serve it, when nothing is approved (James,
 # 2026-10-22).
@@ -628,8 +519,7 @@ BOARD_SOURCES = ('typed', 'edited')
 # player.
 APPROVAL = 'admin'
 # Live on /blossom (James's call, 2026-10-24). False goes back to the dark
-# launch: /blossom logs boards but serves none, even to a direct call, and
-# only /blossom_dev shows them.
+# launch: /blossom logs boards but serves none, even to a direct call.
 TODAYS_BOARD_LIVE = True
 # A date counts toward a puzzle's first_seen only once this many networks
 # logged it then, so one device with a wrong clock can't make today's puzzle
@@ -688,11 +578,6 @@ def _fetch(sql, params):
     with db_cursor() as (conn, cursor):
         cursor.execute(sql, params)
         return cursor.fetchall()
-
-
-def rows_with_letters(letters):
-    """Every row for one puzzle, any date."""
-    return _fetch(f"SELECT {_COLUMNS} FROM blossom_boards WHERE letters = %s", (letters,))
 
 
 def rows_logged_between(first, last):
@@ -795,20 +680,8 @@ def consensus(rows, day):
     busy_days = [d for d, nets in networks_by_day.items() if len(nets) >= ARCHIVE_MIN_NETWORKS]
     first_seen = min(busy_days) if busy_days else min(row[PLAYED_ON] for row in rows)
 
-    latest = {}
-    for row in player_rows:
-        if row[PLAYED_ON] != day:
-            continue
-        mine = latest.get(row[VOTER])
-        if mine is None or row[UPDATED] > mine[UPDATED]:
-            latest[row[VOTER]] = row
-    # Then one per network. A second step, so a player who moved between
-    # networks still counts once.
-    networks = {}
-    for row in latest.values():
-        network = row[PREFIX] or row[VOTER]
-        if network not in networks or row[UPDATED] > networks[network][UPDATED]:
-            networks[network] = row
+    networks = crowd.one_per_network([row for row in player_rows if row[PLAYED_ON] == day],
+                                     VOTER, PREFIX, UPDATED)
 
     times_by_board = {}
     for row in networks.values():
@@ -991,12 +864,8 @@ def _board_form():
     one. A state row's buttons send letters, board and played_on; the
     Approve form sends its seven spots (center, p0-p5) and a date. The same
     rules as a player's board."""
-    played_on = request.form.get('played_on', '')
-    if not _DATE.fullmatch(played_on):
-        return None
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if day is None:
         return None
     if 'board' in request.form:
         board = request.form.get('board', '').strip().lower()
@@ -1039,12 +908,8 @@ def blossom_unapprove_board():
     """Undo the approval of one puzzle on one day: the players' boards
     decide again, and none of them is touched."""
     letters = request.form.get('letters', '')
-    played_on = request.form.get('played_on', '')
-    if not (_is_letters(letters) and _DATE.fullmatch(played_on)):
-        return _back(error='Not a board')
-    try:
-        day = date.fromisoformat(played_on)
-    except ValueError:
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
         return _back(error='Not a board')
     try:
         removed = remove_approval(letters, day)

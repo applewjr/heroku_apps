@@ -5,9 +5,9 @@ import re
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
 from functions import all_words, wordle
-from helpers import ValidationError, make_schema_data, parse_float, parse_int
+from helpers import ValidationError, json_object, make_schema_data, parse_float, parse_int
 from routes import chainle
 from routes import guess_the_phrase as gtp
 from routes import ribbit
@@ -294,94 +294,84 @@ def parse_smush_word_list(data, key):
     return values
 
 
+def parse_solve(data):
+    """A Smush solve's board and pile, from a /smush or /smush_dev POST:
+    (center, outer_uses, spicy, first_word, rejected, played, want_plan), all
+    lowercase."""
+    center = data.get('center', '')
+    if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
+        raise ValidationError('center must be a single letter a-z')
+
+    # A Smush board is always the center plus 8 distinct outer letters;
+    # enforce that so the solver never scores a collapsed/partial board.
+    outer_uses = data.get('outer_uses')
+    if not (isinstance(outer_uses, dict) and len(outer_uses) == 8):
+        raise ValidationError('outer_uses must contain exactly 8 letters')
+    seen_letters = set()
+    for letter, uses in outer_uses.items():
+        if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
+            raise ValidationError('outer_uses keys must be single letters a-z')
+        if not (isinstance(uses, int) and not isinstance(uses, bool) and 0 <= uses <= 5):
+            raise ValidationError('outer_uses values must be whole numbers 0-5')
+        seen_letters.add(letter.lower())
+    if len(seen_letters) != 8 or center.lower() in seen_letters:
+        raise ValidationError('outer_uses must be 8 distinct letters, none matching the center')
+
+    spicy = data.get('spicy', '')
+    if not (isinstance(spicy, str) and (spicy == '' or (len(spicy) == 1 and spicy.isalpha()))):
+        raise ValidationError('spicy must be a single letter or empty')
+
+    first_word = data.get('first_word', False)
+    if not isinstance(first_word, bool):
+        raise ValidationError('first_word must be a boolean')
+
+    # rejected: words the game refused (cost nothing, hidden for good).
+    # played: words already in the pile (a word can't be played twice).
+    rejected = parse_smush_word_list(data, 'rejected')
+    played = parse_smush_word_list(data, 'played')
+
+    # plan: also compute a set of words that smushes the whole board flat.
+    want_plan = data.get('plan', False)
+    if not isinstance(want_plan, bool):
+        raise ValidationError('plan must be a boolean')
+
+    # A non-empty pile contradicts first_word; trust the pile so the
+    # first-word pangram bonus can't be inflated.
+    first_word = first_word and not played
+    return (center.lower(), {letter.lower(): uses for letter, uses in outer_uses.items()},
+            spicy.lower(), first_word, [w.lower() for w in rejected],
+            [w.lower() for w in played], want_plan)
+
+
 @bp.route("/smush", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_smush():
-    return _smush_page(dev=False)
-
-
-@bp.route("/smush_dev2", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def run_smush_dev2():
-    """James's copy of the public /smush, with today's board and hints on
-    even while SMUSH_BOARD_LIVE is off: how he watched them against his own
-    game before players saw them (2026-10-23 to 10-24). /smush_dev, with ICE
-    COLD, is another page and stays unreleased. It posts to itself, so its
-    votes are tagged dev in the vote log; its boards and votes count like
-    any player's. Not a page visit."""
-    return _smush_page(dev=True)
-
-
-def _smush_page(dev):
-    """/smush, or /smush_dev2 with `dev`: the page, a solve, or a JSON
-    action. Today's board (routes/smush.py) shows wherever show_board is on:
-    always on /smush_dev2, and on /smush while SMUSH_BOARD_LIVE."""
-    show_board = dev or smush_crowd.SMUSH_BOARD_LIVE
-    schema_data = None if dev else make_schema_data(
+    """The page, a solve, or a JSON action. Today's board (routes/smush.py)
+    shows while SMUSH_BOARD_LIVE."""
+    show_board = smush_crowd.SMUSH_BOARD_LIVE
+    schema_data = make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",
         "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
         "https://www.jamesapplewhite.com/smush"
     )
 
     if request.method == "POST":
-        data = request.get_json()
-        if not isinstance(data, dict):
-            raise ValidationError('expected a JSON object')
+        data = json_object()
 
         # Logging the board and asking for today's, and the crowd votes: ✗ on
         # a result, tapping a hidden word back, and the "Smush accepted a word
         # that isn't listed?" box. Not a solve.
         if 'action' in data:
             if data.get('action') in smush_crowd.BOARD_ACTIONS:
-                return smush_crowd.handle_board_action(data, dev=dev)
-            return smush_crowd.handle_vote(data, dev=dev)
+                return smush_crowd.handle_board_action(data)
+            return smush_crowd.handle_vote(data)
 
-        center = data.get('center', '')
-        if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
-            raise ValidationError('center must be a single letter a-z')
-
-        # A Smush board is always the center plus 8 distinct outer letters;
-        # enforce that so the solver never scores a collapsed/partial board.
-        outer_uses = data.get('outer_uses')
-        if not (isinstance(outer_uses, dict) and len(outer_uses) == 8):
-            raise ValidationError('outer_uses must contain exactly 8 letters')
-        seen_letters = set()
-        for letter, uses in outer_uses.items():
-            if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
-                raise ValidationError('outer_uses keys must be single letters a-z')
-            if not (isinstance(uses, int) and not isinstance(uses, bool) and 0 <= uses <= 5):
-                raise ValidationError('outer_uses values must be whole numbers 0-5')
-            seen_letters.add(letter.lower())
-        if len(seen_letters) != 8 or center.lower() in seen_letters:
-            raise ValidationError('outer_uses must be 8 distinct letters, none matching the center')
-
-        spicy = data.get('spicy', '')
-        if not (isinstance(spicy, str) and (spicy == '' or (len(spicy) == 1 and spicy.isalpha()))):
-            raise ValidationError('spicy must be a single letter or empty')
-
-        first_word = data.get('first_word', False)
-        if not isinstance(first_word, bool):
-            raise ValidationError('first_word must be a boolean')
-
-        # rejected: words the game refused (cost nothing, hidden for good).
-        # played: words already in the pile (a word can't be played twice).
-        rejected = parse_smush_word_list(data, 'rejected')
-        played = parse_smush_word_list(data, 'played')
-
-        # plan: also compute a set of words that smushes the whole board flat.
-        want_plan = data.get('plan', False)
-        if not isinstance(want_plan, bool):
-            raise ValidationError('plan must be a boolean')
-
-        # A non-empty pile contradicts first_word; trust the pile so the
-        # first-word pangram bonus can't be inflated.
-        first_word = first_word and not played
+        center, outer_uses, spicy, first_word, rejected, played, want_plan = parse_solve(data)
 
         # Solve untruncated: the all-8 planner needs the cheap low-point words
         # that the ranked response cuts off.
         results, total_playable, pangram_status = all_words.smush_solver(
-            center, outer_uses, spicy.lower(), first_word, get_smush_words(),
+            center, outer_uses, spicy, first_word, get_smush_words(),
             list_len=None, exclude=rejected, played=played, popularity=word_pop)
 
         plan = None
@@ -393,53 +383,46 @@ def _smush_page(dev):
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
     else:
-        if not dev:
-            log_page_visit('smush.html')
+        log_page_visit('smush.html')
         # The Pacific date's board, for search engines and the first paint;
         # the page asks again for the player's own date if theirs differs.
         todays_board, board_date = smush_crowd.page_board(show_board)
         return render_template("smush.html", schema_data=schema_data,
-                               post_url='/smush_dev2' if dev else '/smush', dev=dev,
                                show_board=show_board, todays_board=todays_board,
                                board_date=board_date)
-
-
-def _ribbit_post(dev=False):
-    """A POST to /ribbit, or /ribbit_dev with `dev`: a solve, or an `action`
-    (shared boards and crowd votes, in routes/ribbit.py)."""
-    data = request.get_json()
-    if not isinstance(data, dict):
-        raise ValidationError('expected a JSON object')
-
-    if 'action' in data:
-        return ribbit.handle_action(data, dev=dev)
-
-    nodes, edges, disabled = parse_ribbit_board(data)
-
-    # rejected: words Ribbit refused; played: words already found. Both are
-    # simply dropped from suggestions - Ribbit has no per-letter budget, so
-    # a found word costs nothing beyond not being suggested again.
-    rejected = parse_smush_word_list(data, 'rejected')
-    played = parse_smush_word_list(data, 'played')
-
-    min_len = parse_int(data.get('min_len'), 'min_len',
-                        default=4, min_value=3, max_value=15)
-
-    # Ribbit's own list: the dictionary with Ribbit's crowd corrections,
-    # never Smush's or Blossom's - those are about their games' lists.
-    results, total_playable = all_words.ribbit_solver(
-        nodes, edges, ribbit.get_ribbit_words(), min_len=min_len,
-        exclude=set(rejected) | set(played), disabled=disabled,
-        popularity=word_pop, list_len=500)
-
-    return jsonify(results=results, total_playable=total_playable)
 
 
 @bp.route("/ribbit", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_ribbit():
+    """The page, a solve, or an `action` (shared boards and crowd votes, in
+    routes/ribbit.py)."""
     if request.method == "POST":
-        return _ribbit_post()
+        data = json_object()
+
+        if 'action' in data:
+            return ribbit.handle_action(data)
+
+        nodes, edges, disabled = parse_ribbit_board(data)
+
+        # rejected: words Ribbit refused; played: words already found. Both
+        # are simply dropped from suggestions - Ribbit has no per-letter
+        # budget, so a found word costs nothing beyond not being suggested
+        # again.
+        rejected = parse_smush_word_list(data, 'rejected')
+        played = parse_smush_word_list(data, 'played')
+
+        min_len = parse_int(data.get('min_len'), 'min_len',
+                            default=4, min_value=3, max_value=15)
+
+        # Ribbit's own list: the dictionary with Ribbit's crowd corrections,
+        # never Smush's or Blossom's - those are about their games' lists.
+        results, total_playable = all_words.ribbit_solver(
+            nodes, edges, ribbit.get_ribbit_words(), min_len=min_len,
+            exclude=set(rejected) | set(played), disabled=disabled,
+            popularity=word_pop, list_len=500)
+
+        return jsonify(results=results, total_playable=total_playable)
 
     schema_data = make_schema_data(
         "Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit",
@@ -448,21 +431,7 @@ def run_ribbit():
     )
     log_page_visit('ribbit.html')
     return render_template("ribbit.html", schema_data=schema_data,
-                           shared_boards=ribbit.SHARED_BOARDS_LIVE, post_url='/ribbit', dev=False)
-
-
-@bp.route("/ribbit_dev", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def run_ribbit_dev():
-    """James's copy of /ribbit with the shared board on, to check a few days
-    of served boards against his own game before players see them (James's
-    call, 2026-10-17). It posts to itself, so its votes are tagged dev in the
-    vote log; its boards and votes count like any player's. Not a page visit."""
-    if request.method == "POST":
-        return _ribbit_post(dev=True)
-    return render_template("ribbit.html", schema_data=None,
-                           shared_boards=True, post_url='/ribbit_dev', dev=True)
+                           shared_boards=ribbit.SHARED_BOARDS_LIVE, post_url='/ribbit')
 
 
 @bp.route("/guess_the_phrase", methods=["POST", "GET"])
@@ -476,9 +445,7 @@ def run_guess_the_phrase():
     )
 
     if request.method == "POST":
-        data = request.get_json()
-        if not isinstance(data, dict):
-            raise ValidationError('expected a JSON object')
+        data = json_object()
         if 'action' in data:
             return gtp.handle_vote(data)
         return gtp.solve_request(data)
@@ -498,9 +465,7 @@ def run_chainle():
     )
 
     if request.method == "POST":
-        data = request.get_json()
-        if not isinstance(data, dict):
-            raise ValidationError('expected a JSON object')
+        data = json_object()
         return chainle.solve_request(data)
     else:
         log_page_visit('chainle.html')

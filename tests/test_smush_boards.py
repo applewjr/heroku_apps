@@ -65,9 +65,6 @@ class MemoryBoards:
             del self.rows[key]
         return len(gone)
 
-    def with_letters(self, letters):
-        return [row for row in self.rows.values() if row[0] == letters]
-
     def logged_between(self, first, last):
         self.reads += 1
         seen = {row[0] for row in self.rows.values() if first <= row[5] <= last}
@@ -89,7 +86,6 @@ def boards(monkeypatch):
     monkeypatch.setattr(smush, "store_approval", memory.approve)
     monkeypatch.setattr(smush, "remove_approval", memory.unapprove)
     monkeypatch.setattr(smush, "remove_puzzle", memory.remove_puzzle)
-    monkeypatch.setattr(smush, "rows_with_letters", memory.with_letters)
     monkeypatch.setattr(smush, "rows_logged_between", memory.logged_between)
     monkeypatch.setattr(smush, "get_smush_words", lambda: set(WORDS))
     monkeypatch.setattr(smush, "_pacific_today", lambda: DAY)
@@ -407,7 +403,7 @@ def test_a_failed_read_costs_the_board_never_the_page(client, boards, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# Live on /smush, the dark launch the flag goes back to, and /smush_dev2
+# Live on /smush, and the dark launch the flag goes back to
 # ---------------------------------------------------------------------------
 
 def test_todays_board_is_live_on_smush(client):
@@ -429,63 +425,17 @@ def test_while_dark_smush_logs_boards_and_serves_none(client, boards, monkeypatc
     assert _todays(client) is None             # not even to a direct call
 
 
-def test_smush_dev2_shows_the_board_and_hints_while_dark(client, boards, monkeypatch):
-    monkeypatch.setattr(smush, "SMUSH_BOARD_LIVE", False)
-    for n in range(1, 6):
-        _log(client, n)
-    headers = _admin_headers(monkeypatch)
-    html = client.get("/smush_dev2", headers=headers).get_data(as_text=True)
-    assert '<div class="sm-today" id="sm-today">' in html and "E · A D I L N R S T" in html
-    assert "Today&#39;s Smush hints - Friday, October 23" in html
-    assert ">Do I have to type today's letters?<" in html
-    assert "/smush_dev2 - only you can see this copy" in html
-    assert 'const POST_URL = "/smush_dev2";' in html
-    # No ICE COLD: this is the public page, to be released.
-    assert "ice" not in re.sub(r"[^a-z]", " ", html.lower()).split()
-    assert _served(client, path="/smush_dev2", headers=headers) == LETTERS
-    # Its own boards count like any player's.
-    _log(client, 6, OTHER, path="/smush_dev2", headers=headers)
-    assert OTHER in {row[0] for row in boards.rows.values()}
-
-
-def test_smush_dev2_solves_and_its_votes_are_tagged_dev(client, monkeypatch):
-    import crowd
-    import routes.wordgames as wordgames
-    from data import words
-    monkeypatch.setattr(wordgames, "get_smush_words", lambda: words)
-    headers = _admin_headers(monkeypatch)
-    resp = client.post("/smush_dev2", headers=headers, json={
-        "center": "e", "outer_uses": {ch: 5 for ch in LETTERS[1:]}, "spicy": ""})
-    assert resp.status_code == 200 and resp.get_json()["results"]
-    db = _ScriptedDB({"WHERE voter_hash = %s AND created_at": (0,),
-                      "WHERE voter_hash = %s AND vote = 'invalid'": (1,),
-                      "FROM smush_word_votes v WHERE v.word": (1,)})
-    monkeypatch.setattr(crowd, "db_cursor", db)
-    monkeypatch.setattr(smush, "db_cursor", db)
-    monkeypatch.setattr(smush, "_smush_words", {"value": None, "expires": 0.0})
-    client.post("/smush_dev2", headers=headers, json={
-        "action": "reject", "word": "tinsel", "center": "e", "outer": LETTERS[1:],
-        "mode": "pts"})
-    [row] = db.log_rows("smush")
-    assert row["mode"] == "dev_pts"
-
-
-def test_with_the_switch_on_smush_matches_smush_dev2(client, boards):
+def test_with_the_switch_on_smush_shows_the_board(client, boards):
     for n in range(1, 6):
         _log(client, n)
     html = client.get("/smush").get_data(as_text=True)
     assert '<div class="sm-today" id="sm-today">' in html
     assert ">Do I have to type today's letters?<" in html
-    assert "only you can see this copy" not in html
     assert 'const POST_URL = "/smush";' in html
 
 
-def test_smush_dev2_is_not_a_page_visit_and_carries_no_ad(client, boards, slots, monkeypatch):
+def test_smush_is_a_page_visit_and_carries_the_ad(client, boards, slots):
     import extensions
-    headers = _admin_headers(monkeypatch)
-    html = client.get("/smush_dev2", base_url=LIVE, headers=headers).get_data(as_text=True)
-    assert 'id="jj-ad"' not in html
-    assert extensions._log_queue.qsize() == 0
     assert 'id="jj-ad"' in client.get("/smush", base_url=LIVE).get_data(as_text=True)
     assert extensions._log_queue.qsize() == 1
 
@@ -510,7 +460,7 @@ def test_admin_opens_on_the_board_tab_and_shows_each_board(client, boards, monke
     assert "S (2), T (1)" in html
     assert "needs 1 more player" in html
     assert f"served once {smush.SERVE_CROWD} of them have" in html
-    assert "logging only; served on /smush_dev2" not in html     # live in this fixture
+    assert "logging only" not in html     # live in this fixture
 
 
 def test_an_approval_from_the_admin_tab_serves_at_once_and_undoes(client, boards, monkeypatch):
@@ -679,7 +629,6 @@ def test_players_are_never_told_how_a_board_is_chosen(client, boards, monkeypatc
         _log(client, n, spicy="s")
     texts = [
         client.get("/smush").get_data(as_text=True),
-        client.get("/smush_dev2", headers=_admin_headers(monkeypatch)).get_data(as_text=True),
         json.dumps(_todays(client)),
         json.dumps(_todays(client, played_on=DAY + timedelta(days=1))),
         json.dumps(_log(client, 6).get_json()),
