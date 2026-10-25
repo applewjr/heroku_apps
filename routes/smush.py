@@ -412,11 +412,6 @@ def _fetch(sql, params):
         return cursor.fetchall()
 
 
-def rows_with_letters(letters):
-    """Every row for one puzzle, any date."""
-    return _fetch(f"SELECT {_COLUMNS} FROM smush_boards WHERE letters = %s", (letters,))
-
-
 def rows_logged_between(first, last):
     """Every row, any date, for each puzzle logged between these days."""
     return _fetch(

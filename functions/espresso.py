@@ -65,7 +65,6 @@ def get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO):
     worksheet = sheet.get_worksheet(0)
     data = worksheet.get_all_values()
     df_espresso_initial = pd.DataFrame(data[1:], columns=data[0])
-    len(df_espresso_initial)
     return df_espresso_initial
 
 

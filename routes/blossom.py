@@ -7,9 +7,7 @@ from datetime import date, timedelta
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
 import crowd
-# The CROWD_MAX_* names are re-exported for tests/test_blossom.py.
-from crowd import (CROWD_ADD_VOTES, CROWD_MAX_INVALID_PER_DAY, CROWD_MAX_VOTES_PER_DAY,  # noqa: F401
-                   CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
+from crowd import (CROWD_ADD_VOTES, CROWD_REMOVE_VOTES_BY_POP, CROWD_REMOVE_VOTES_RARE,
                    CROWD_WINDOW_DAYS)
 from data import word_pop, words_blossom
 from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
@@ -688,11 +686,6 @@ def _fetch(sql, params):
     with db_cursor() as (conn, cursor):
         cursor.execute(sql, params)
         return cursor.fetchall()
-
-
-def rows_with_letters(letters):
-    """Every row for one puzzle, any date."""
-    return _fetch(f"SELECT {_COLUMNS} FROM blossom_boards WHERE letters = %s", (letters,))
 
 
 def rows_logged_between(first, last):

@@ -6,7 +6,6 @@ import matplotlib.ticker as ticker
 from adjustText import adjust_text
 import matplotlib
 matplotlib.use('Agg') # allows Matplotlib to render plots directly to image files without requiring a GUI
-import os
 import io
 import base64
 

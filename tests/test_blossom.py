@@ -590,7 +590,7 @@ def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache
 
 
 def test_votes_past_the_daily_cap_are_ignored(client, crowd_db, fresh_word_cache):
-    from routes.blossom import CROWD_MAX_VOTES_PER_DAY
+    from crowd import CROWD_MAX_VOTES_PER_DAY
     db = crowd_db(_votes(players=99, today=CROWD_MAX_VOTES_PER_DAY))
     resp = _flag(client, "nastier")
     # The player's own row still strikes out; the vote just isn't counted.
@@ -621,7 +621,7 @@ def test_a_player_crossing_words_off_does_not_count(client, crowd_db, fresh_word
     # More than CROWD_MAX_INVALID_PER_DAY ticks in a day reads as using
     # Invalid like Used. The vote is still recorded, for calibrating the limit
     # later, but changes nothing however many other players agree.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(_votes(players=99, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1))
     assert _flag(client, "nastier").status_code == 200
     assert db.statements("INSERT INTO blossom_word_votes")
@@ -634,7 +634,7 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     # passed the limit. Once they do, any of those words left without enough
     # counting players goes back on the list.
     from crowd import remove_votes_needed
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(
         _votes(players=remove_votes_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
         rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
@@ -650,7 +650,7 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
 def test_only_invalid_counts_apply_the_daily_limit(client, crowd_db, fresh_word_cache):
     # The fake can't run SQL, so pin the shape: Invalid counts skip any vote
     # whose player went over the limit that day; missing-word counts don't.
-    from routes.blossom import CROWD_MAX_INVALID_PER_DAY
+    from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(_votes(players=1))
     _flag(client, "nastier")
     _suggest(client, NOT_LISTED)

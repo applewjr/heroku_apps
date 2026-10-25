@@ -2,8 +2,6 @@ import mysql.connector
 import os
 import smtplib
 from email.mime.text import MIMEText
-import mysql.connector
-import time
 import sys
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

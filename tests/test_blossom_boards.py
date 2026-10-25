@@ -64,9 +64,6 @@ class MemoryBoards:
             del self.rows[key]
         return len(gone)
 
-    def with_letters(self, letters):
-        return [row for row in self.rows.values() if row[0] == letters]
-
     def logged_between(self, first, last):
         self.reads += 1
         seen = {row[0] for row in self.rows.values() if first <= row[5] <= last}
@@ -88,7 +85,6 @@ def boards(monkeypatch):
     monkeypatch.setattr(blossom, "store_approval", memory.approve)
     monkeypatch.setattr(blossom, "remove_approval", memory.unapprove)
     monkeypatch.setattr(blossom, "remove_state", memory.remove_state)
-    monkeypatch.setattr(blossom, "rows_with_letters", memory.with_letters)
     monkeypatch.setattr(blossom, "rows_logged_between", memory.logged_between)
     monkeypatch.setattr(blossom, "get_filtered_blossom_words", lambda: set(WORDS))
     monkeypatch.setattr(blossom, "_pacific_today", lambda: DAY)

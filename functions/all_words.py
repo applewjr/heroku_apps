@@ -1,16 +1,11 @@
 import random
 import pandas as pd
-from datetime import date
 import math
 import time
 
 # common denominator
 def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_char: str, value_split_char: str, user_match_entry: str, user_nope_match_entry: str):
 
-    text_ymd = str(date.today().year) + '-' + str(date.today().month).zfill(2) + '-' + str(date.today().day).zfill(2)
-    today = pd.to_datetime(date.today())
-
-    # user_match_entry_preserve = user_match_entry.copy()
     min_match_len = int(min_match_len)
     min_match_rate = float(min_match_rate)
 
@@ -21,7 +16,6 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
     for ind, val in enumerate(var_list):
         var_list[ind] = beg_end_str_char + var_list[ind] + beg_end_str_char
     var_list = list(map(lambda x: x.lower().strip(), var_list))
-    # var_list
 
     # process user_no_match_entry
     var_nope_list = user_nope_match_entry.split(value_split_char)
@@ -29,7 +23,6 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
     for ind, val in enumerate(var_nope_list):
         var_nope_list[ind] = beg_end_str_char + var_nope_list[ind] + beg_end_str_char
     var_nope_list = list(map(lambda x: x.lower().strip(), var_nope_list))
-    # var_nope_list
 
     # create the dict of all word segments
     # and a master list of all segments from all words
@@ -40,15 +33,10 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
         test_set = set()
         for start in range(len(word)):
             for end in range(1, len(word)+1):
-                if start > end:
-                    pass
-                if len(word[start:end]) < min_match_len:
-                    pass
-                else:
+                if len(word[start:end]) >= min_match_len:
                     test_set.add((word[start:end].strip()))
                     master_ref_list.add((word[start:end].strip()))
         var_dict[word] = test_set
-    # master_ref_list
 
     # create the dict of all word segments - for nope list
     # and a master list of all segments from all words - for nope list
@@ -59,29 +47,20 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
         test_set = set()
         for start in range(len(word)):
             for end in range(1, len(word)+1):
-                if start > end:
-                    pass
-                if len(word[start:end]) < min_match_len:
-                    pass
-                else:
+                if len(word[start:end]) >= min_match_len:
                     test_set.add((word[start:end].strip()))
                     master_nope_ref_list.add((word[start:end].strip()))
         var_nope_dict[word] = test_set
-    # master_nope_ref_list
 
     triangle_dict = {}
     for ind, val in enumerate(var_list):
         triangle_dict[ind+1] = (ind)*(ind+1)//2
-    # triangle_dict
 
     triangle_dict_reverse = {}
     for ind, val in enumerate(var_list):
         triangle_dict_reverse[(ind)*(ind+1)//2] = ind+1
-    # triangle_dict_reverse
 
     min_match_number = triangle_dict[math.ceil(len(var_list)*min_match_rate)]
-    # min_match_number
-
 
     # # pass 3: everything compared against the previous
     # # this should make the final full dict ranking better
@@ -108,11 +87,8 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
 
     final_match_list = []
     for key, value in final_match_dict.items():
-        # if value == (len(var_list)-1)*len((var_list))//2:
         if value >= min_match_number:
             final_match_list.append(key)
-
-    # print(x)
 
     final_match_list = sorted(final_match_list, key=len, reverse=True)
 
@@ -135,20 +111,15 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
                 except:
                     pass
 
-    # final_match_list
-
     # cut out the smaller findings when there is a bigger chunk of text found
     final_match_list_temp = final_match_list.copy()
-    x = 0
     for pri in final_match_list_temp:
         for sec in final_match_list_temp:
             if pri.find(sec) > -1 and pri != sec:
                 try:
                     final_match_list.remove(sec)
                 except:
-                    x += 1
-
-    # final_match_list
+                    pass
 
     # first main return
     # list of string parts that
@@ -162,78 +133,12 @@ def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_ch
         if value >= min_match_number:
             final_out[key] = round(triangle_dict_reverse[value]/len(var_list),4)
 
-    final_out # maybe this one will be better to return in app?
-
-    # final_out = pd.DataFrame.from_dict(final_out, orient='index')
-    # final_out = final_out.rename(columns={0:'Match Rate'})
-    # final_out = final_out.sort_values(by=['Match Rate'], ascending=False)
-    # final_out = final_out.to_html
-
-    # final_out
-
     # second main return
     # dictionary/df with all valid string parts and how often they match
 
     num_words_entered = int(len(var_list))
 
     return final_match_list, final_out, num_words_entered, comparisons
-    # return final_match_list, final_out, num_words_entered, user_match_entry
-
-def unused_letters(must_have, may_have):
-    """
-    Returns a list of letters that were not called out.
-    
-    Args:
-    called_out (list): A list of letters that were called out.
-    
-    Returns:
-    unused (list): A list of letters that were not called out.
-    """
-    called_out = must_have + may_have
-    called_out = [char.lower() for char in called_out]
-
-    # letters = list('abcdefghijklmnopqrstuvwxyz')
-    letters = 'abcdefghijklmnopqrstuvwxyz'
-    unused = []
-    for letter in letters:
-        if letter not in called_out:
-            unused.append(letter)
-
-    return [''.join(unused)]
-
-def filter_words_blossom(required_letters, forbidden_letters, list_len, words):
-    """
-    Filter a list of words by required and forbidden letters, and an optional first letter.
-
-    Args:
-        words (list): A list of words to filter.
-        required_letters (list): A list of letters that must be present in the words.
-        forbidden_letters (list): A list of letters that must not be present in the words.
-        first_letter (str): An optional letter that must be the first letter of the words.
-        sort_order (str): The sorting order of the output. Possible values are 'a-z', 'z-a', 'min-max', and 'max-min'.
-
-    Returns:
-        list: A list of valid words that contain all the required letters, none of the forbidden letters, and have the optional first letter (if specified), sorted according to the specified sorting order.
-    """
-    # words = get_english_words_set(['web2'], lower=True)
-
-    required_letters = [char.lower() for char in required_letters]
-    forbidden_letters = [char.lower() for char in forbidden_letters]
-    # required_letters = list(required_letters[0])
-    # forbidden_letters = list(forbidden_letters[0])
-    list_len = int(list_len)
-
-    valid_words = []
-    for word in words:
-        word = str(word)
-        # word = word.lower()
-        if all(letter in word for letter in required_letters[0]) and all(letter not in word for letter in forbidden_letters[0]):
-            # if first_letter is None or word.startswith(first_letter):
-            valid_words.append(word)
-
-    valid_words.sort(key=len, reverse=True)
-
-    return valid_words[:list_len]
 
 def normalize_wildcard(pattern):
     """Normalize a user wildcard pattern to the tokens ``wildcard_match`` uses.
@@ -495,21 +400,18 @@ def filter_words_for_blossom(words):
     Removes words that are impossible in any blossom puzzle
     """
     filtered_words = []
-    removed_count = 0
-    
+
     for word in words:
         word_str = str(word).lower()
         word_len = len(word_str)
         unique_letters = len(set(word_str))
-        
+
         # Keep words that could be valid in ANY blossom puzzle
         if (word_len >= 4 and                    # Minimum length
             word_str.isalpha() and               # Only letters
             unique_letters <= 7):                # Max 7 unique letters (bulletproof filter)
             filtered_words.append(word_str)
-        else:
-            removed_count += 1
-    
+
     return set(filtered_words)
 
 def wordiply_solver(search_string, words, list_len=15):
