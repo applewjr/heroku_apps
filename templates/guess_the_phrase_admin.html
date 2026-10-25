@@ -3,7 +3,7 @@
 {% block title %}Guess The Phrase Admin - Phrase List{% endblock %}
 
 {% block content %}
-{% from '_crowd_admin.html' import styles, pager, keep_view, flash, search_form with context %}
+{% from '_crowd_admin.html' import styles, pager, keep_view, flash, search_form, reports_head with context %}
 {{ styles() }}
 <style>
 .board-tag {
@@ -25,9 +25,14 @@
     background-color: #f8f9fa;
     border: 1px solid #e9ecef;
     border-radius: 8px;
-    padding: 12px 15px;
-    margin-bottom: 20px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
     line-height: 1.8;
+}
+
+/* A phrase needs more room than a word. */
+.word-bar .phrase-input {
+    max-width: 360px;
 }
 
 .phrase-status .btn {
@@ -38,11 +43,12 @@
 
 
 <div class="admin-container">
-    <h1>Guess The Phrase Admin - Phrase List</h1>
-
-    <div class="top-nav">
-        <a href="/guess_the_phrase" target="_blank" rel="noopener" class="btn btn-primary">Back to Guess The Phrase Solver</a>
-        <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener" class="btn btn-success">Open Bored Panda games</a>
+    <div class="admin-top">
+        <h1>Guess The Phrase Admin - Phrase List</h1>
+        <nav class="top-nav">
+            <a href="/guess_the_phrase" target="_blank" rel="noopener" class="btn btn-primary">Back to Guess The Phrase Solver</a>
+            <a href="https://www.boredpanda.com/daily-trivia/" target="_blank" rel="noopener" class="btn btn-success">Open Bored Panda games</a>
+        </nav>
     </div>
 
     {{ flash() }}
@@ -59,29 +65,24 @@
         <strong>Added phrases:</strong> {{ added_total }}
     </div>
 
-    <div class="admin-section">
-        <h2>Add/Remove Phrases</h2>
-        <p class="crowd-note">Your entries are final: players can never reverse them, and the phrase's votes start over. Remove takes a phrase out of the solver's answers, whether it came from the shipped list or from players. Punctuation is ignored: DON'T and DONT are the same phrase.</p>
-        <form method="POST" action="/guess_the_phrase_admin/add_word" id="word-form">
-            <div class="form-group">
-                <label for="word">Phrase:</label>
-                <input type="text" id="word" name="word" required
-                       placeholder="Enter phrase"
-                       style="text-transform: uppercase;">
-            </div>
-            <div class="word-choice">
-                <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove phrase</button>
-                <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add phrase</button>
-            </div>
+    <div class="admin-tools">
+        <form method="POST" action="/guess_the_phrase_admin/add_word" class="word-bar" id="word-form">
+            <input type="text" id="word" name="word" class="word-input phrase-input" required
+                   placeholder="Phrase to remove or add" aria-label="Phrase to remove or add"
+                   style="text-transform: uppercase;">
+            <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove phrase</button>
+            <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add phrase</button>
             <input type="hidden" name="word_type" id="word-type" value="">
             {{ keep_view() }}
             <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
-            <p class="crowd-note" id="word-hint">Type a phrase, then choose a list.</p>
+            <span class="crowd-note word-hint" id="word-hint">Type a phrase, then choose a list.</span>
         </form>
+        {{ search_form('Search phrases or boards') }}
+        <details class="admin-help"><summary>About these lists</summary>
+            <p class="crowd-note">Your entries are final: players can never reverse them, and the phrase's votes start over. Remove takes a phrase out of the solver's answers, whether it came from the shipped list or from players. Punctuation is ignored: DON'T and DONT are the same phrase.</p>
+            <p class="crowd-note">Searching a whole phrase also says whether the solver lists it: a shipped phrase shows its tags and popularity, and an added one scores 40 in every category. Include the colon to search the Board column, e.g. song: for every song board. A search stays through Keep out, Add and Undo until you press Clear search.</p>
+        </details>
     </div>
-
-    {{ search_form('Search phrases or boards') }}
-    <p class="crowd-note">Searching a whole phrase also says whether the solver lists it: a shipped phrase shows its tags and popularity, and an added one scores 40 in every category. Include the colon to search the Board column, e.g. song: for every song board. A search stays through Keep out, Add and Undo until you press Clear search.</p>
 
     {% if phrase %}
     <div class="phrase-status">
@@ -112,17 +113,11 @@
 
     <!-- Player Reports Tab -->
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
-        <h2>Player Reports, last {{ crowd_window_days }} days</h2>
+        {% call reports_head() %}
         <p class="crowd-note">"missing" (green) is the "answer wasn't listed?" box: a player typed an answer that fit their board. A phrase is added once {{ crowd_add_votes }} different players type it within {{ crowd_window_days }} days. Players can't remove phrases; only you can.
             Board is the category the player chose and the board's word lengths, so reports on the same puzzle line up even weeks apart.
             Either button clears that phrase's votes.</p>
-        <p class="crowd-note">
-            {% if show_settled %}
-                Showing settled reports too. <a href="{{ settled_url }}">Hide them</a>
-            {% else %}
-                {{ settled_count }} settled report{{ '' if settled_count == 1 else 's' }} hidden. <a href="{{ settled_url }}">Show them</a>
-            {% endif %}
-        </p>
+        {% endcall %}
         {% if reports %}
         <div class="table-wrap">
         <table class="words-table">

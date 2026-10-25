@@ -257,11 +257,11 @@ def consensus(rows):
     Returns a dict: players (finished boards, one per network), half_drawn,
     agreed / tied (links more than half / exactly half of them drew), links
     (the canonical links to serve, or None), why (None when served, else what
-    it's waiting for), orientation (the view most of its players entered it
-    in), first_seen and last_update; approved / approved_at (an APPROVAL
-    row: its links are served, whatever the players drew) and latest_at /
-    latest_finished (the most recent player board, the one an approval
-    copies).
+    it's waiting for), orientation (the approval's own view, else the one
+    most of its players entered it in), first_seen and last_update; approved
+    / approved_at (an APPROVAL row: its links are served, whatever the
+    players drew) and latest_at / latest_finished (the most recent player
+    board, the one an approval copies).
     """
     approvals = [row for row in rows if row[SOURCE] == APPROVAL]
     player_rows = [row for row in rows if row[SOURCE] != APPROVAL]
@@ -293,11 +293,13 @@ def consensus(rows):
     else:
         why = 'no finished board yet'
 
-    views = Counter(row[ORIENTATION] for row, _links in (finished or boards))
-    if views:
-        orientation = min(views, key=lambda t: (-views[t], t))
+    if approval is not None:
+        # Served exactly as James entered it, however the players had it
+        # turned (James asked, 2026-10-25).
+        orientation = approval[ORIENTATION]
     else:
-        orientation = approval[ORIENTATION] if approval is not None else 0
+        views = Counter(row[ORIENTATION] for row, _links in (finished or boards))
+        orientation = min(views, key=lambda t: (-views[t], t)) if views else 0
     newest = max(player_rows, key=lambda row: row[UPDATED]) if player_rows else None
     return {
         'players': players,
@@ -328,9 +330,9 @@ def todays_boards(rows, day):
     (James can play both Puzzmo's and Yahoo's), then the players' boards,
     most players first, at most TODAYS_BOARDS_MAX. Never letters first logged on an earlier day - that
     is an older puzzle, so an archive game. Returns (boards, groups): boards
-    is a list of {'letters', 'edges'}, each in the view most of its players
-    used; groups is every set of letters with its consensus and 'served',
-    most players first, for the admin page.
+    is a list of {'letters', 'edges'}, each in its approval's view or else
+    the one most of its players used; groups is every set of letters with
+    its consensus and 'served', most players first, for the admin page.
     """
     by_letters = {}
     for row in rows:
@@ -671,7 +673,7 @@ def _back(**message):
 
 def _admin_days():
     """(days, error): each recent day's boards for the Shared boards tab,
-    each with its consensus and a 4x4 grid in the view most players used."""
+    each with its consensus and a 4x4 grid in the view it's served in."""
     today = _pacific_today()
     first, last = today - timedelta(days=ADMIN_DAYS_BACK), today + timedelta(days=1)
     try:
@@ -691,6 +693,35 @@ def _admin_days():
             days.append({'day': day, 'groups': groups})
         day -= timedelta(days=1)
     return days, None
+
+
+def editor_board(letters):
+    """The board /ribbit_admin/board opens with when James clicks one on the
+    Shared boards tab, to check against his game, fix and approve (James
+    asked, 2026-10-25): (board, note), or None if nothing has these
+    canonical letters. board is {'letters', 'edges'} in the view the tab
+    shows it in; note says where its links came from.
+
+    The links served for these letters if there are any (his approval, or
+    what the players settled), else the most recent player's board, the one
+    Add would copy, finished or not."""
+    rows = rows_with_letters(letters)
+    if not rows:
+        return None
+    result = consensus(rows)
+    if result['approved']:
+        links, note = result['links'], f"your approval from {result['approved_at']:%m-%d %H:%M}"
+    elif result['links'] is not None:
+        links, note = result['links'], f"the links {result['players']} players agreed on"
+    else:
+        newest = max((row for row in rows if row[SOURCE] != APPROVAL), key=lambda row: row[UPDATED])
+        links = _parse_links(newest[LINKS])
+        note = f"the latest player's board, from {newest[UPDATED]:%m-%d %H:%M}"
+        if not _every_tile_linked(links):
+            note += ', half-drawn'
+        if result['players'] >= 2:
+            note += "; the players' links differ"
+    return in_view(letters, links, result['orientation']), note
 
 
 @bp.route(ADMIN)
@@ -723,15 +754,35 @@ def ribbit_admin_board():
     approve_typed_board. Its JSON posts are only the editor's own: today's
     boards to load, and the links players drew for the letters typed. It
     never solves, logs a board or votes, so nothing here counts as a
-    player."""
+    player.
+
+    Opened from a board on the Shared boards tab, ?letters= (its canonical
+    letters) starts it with that board (see editor_board), and ?day= (the
+    tab's day) is the Approve date."""
     if request.method == 'POST':
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or data.get('action') not in ('shared_board', 'board_links'):
             raise ValidationError('only shared_board and board_links here')
         return handle_action(data, serve_dark=True)
+    preload, load_error = None, None
+    letters = request.args.get('letters', '')
+    if letters and not _is_letters(letters):
+        load_error = 'Not a board: open one from the Shared boards tab'
+    elif letters:
+        try:
+            found = editor_board(letters)
+        except Exception as e:
+            print(f"Error loading a ribbit board for the editor: {e}")
+            found, load_error = None, "Couldn't read the boards"
+        if found is not None:
+            board, note = found
+            preload = dict(board, note=note)
+        elif load_error is None:
+            load_error = 'No board has those letters'
+    day = parse_iso_day(request.args.get('day', '')) or _pacific_today()
     return render_template('ribbit.html', schema_data=None, shared_boards=True,
-                           post_url=ADMIN + '/board', approve=True,
-                           pacific_today=_pacific_today())
+                           post_url=ADMIN + '/board', approve=True, approve_day=day,
+                           preload=preload, load_error=load_error)
 
 
 def _is_letters(value):

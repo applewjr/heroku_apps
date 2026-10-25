@@ -1,6 +1,7 @@
--- Chainle crowd word corrections: the ✗ on a revealed suggestion ("the game
--- refused this word") and /chainle_admin's Remove and Allow (routes/chainle.py,
--- "crowd corrections"; mechanics in crowd.py). Chainle's own tables: no other
+-- Chainle crowd word corrections: the "Chainle refused a word?" box under the
+-- answers (a player says the game refused a suggestion) and /chainle_admin's
+-- Remove and Allow (routes/chainle.py, "word corrections"; mechanics in
+-- crowd.py). Chainle's own tables: no other
 -- game's corrections reach Chainle, and these reach no other game. Same
 -- four-table shape as ribbit_crowd.sql.
 --

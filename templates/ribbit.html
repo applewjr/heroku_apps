@@ -263,6 +263,8 @@
     background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed;
 }
 .rb-approve-status { flex: 0 0 100%; margin: 0; font-size: 13px; color: #6b7280; }
+/* A board asked for from the Shared boards tab that couldn't be opened. */
+.rb-load-error { color: #a55; background-color: #fbf0f0; border: 1px solid #ecd3d3; }
 {% endif %}
 
 /* ---------- board (fixed 4x4 grid) ---------- */
@@ -346,7 +348,6 @@
 .rb-node.empty input { color: #02484d !important; -webkit-text-fill-color: #02484d !important; caret-color: #02484d; }
 
 .rb-node.hl { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.5), 0 2px 4px rgba(0,0,0,0.2); }
-.rb-node.bottleneck { border-color: #e0a800; box-shadow: 0 0 0 3px rgba(224, 168, 0, 0.35); }
 .rb-node.unreachable { opacity: 0.7; border-color: #d08a8a; border-style: dashed; }
 
 /* Solve phase makes the tile itself the focusable control, so it needs a ring
@@ -403,7 +404,6 @@
     box-sizing: border-box;
 }
 .rb-count.zero { background-color: #c0392b; }
-.rb-count.one { background-color: #e0a800; color: #02484d; }
 
 .rb-board-controls {
     display: flex;
@@ -476,7 +476,6 @@
 }
 .word-result:hover { background-color: #e9ecef; }
 .word-result.active { background-color: #fefdf5; border-color: #f0ebb8; border-left: 4px solid #e8d44d; }
-.word-result.key { border-left: 4px solid #e0a800; }
 
 /* The whole row stays clickable for pointer users, but the word itself is a
    real button so lighting up a path is reachable by keyboard too. */
@@ -509,7 +508,6 @@
     font-size: 12px;
     font-weight: 700;
 }
-.key-flag { color: #b7791f; font-size: 14px; cursor: help; }
 .rare-flag {
     background: none;
     border: none;
@@ -691,7 +689,8 @@
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">{% if approve %}Approve your game's board{% else %}Ribbit Solver &amp; Answers{% endif %}</h1>
 {% if approve %}
-<p class="rb-dev-note">Enter your game's board: type it, drag the links, rotate it to match. Then press Approve under the board: it's served to every player whose date you pick, first of the day's boards. Nothing here solves or counts as a player. <a href="/ribbit_admin?tab=boards">Back to Ribbit admin</a></p>
+<p class="rb-dev-note">Enter your game's board: type it, drag the links, rotate it to match. Then press Approve under the board: it's served exactly as you see it to every player whose date you pick, first of the day's boards. Nothing here solves or counts as a player. <a href="/ribbit_admin?tab=boards">Back to Ribbit admin</a></p>
+{% if load_error %}<p class="rb-dev-note rb-load-error" role="alert">{{ load_error }}.</p>{% endif %}
 {% endif %}
 
 {# Hidden, not left out, on the approve page: the script below wires it. #}
@@ -726,8 +725,7 @@
         If Ribbit accepts a word we don't list, type it into the box under the results. When the game
         clears a tile into a frog,
         <strong>tap that tile</strong> to clear it here too - words that could only run through it drop
-        out. The small number on each tile is how many suggested words can still reach it; a gold
-        <strong>1</strong> means only one word can clear that tile, so play it before it gets stranded.
+        out. The small number on each tile is how many suggested words still use it.
     </div>
 </div>
 
@@ -767,7 +765,7 @@
 {# The board as it stands goes in cells and links when Approve is pressed
    (see renderApprove in the script); routes/ribbit.py checks it again. #}
 <form method="POST" action="/ribbit_admin/approve_typed_board" class="rb-approve" id="rb-approve">
-    <label>Date <input type="date" name="played_on" id="rb-approve-date" value="{{ pacific_today.strftime('%Y-%m-%d') }}" required></label>
+    <label>Date <input type="date" name="played_on" id="rb-approve-date" value="{{ approve_day.strftime('%Y-%m-%d') }}" required></label>
     <input type="hidden" name="cells" id="rb-approve-cells">
     <input type="hidden" name="links" id="rb-approve-links">
     <input type="hidden" name="tab" value="boards">
@@ -903,7 +901,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibleCount = WORDS_STEP;
     let activeWord = null;        // word whose path is lit on the board
     let cover = {};               // cell index -> how many suggested words reach it
-    let keyWords = new Set();     // words that are the only reach to some tile
 
     let gesture = null;           // {mode:'link'|'erase', path, added, pt, trail} - see pointerdown
     let rotating = false;         // true during the rotate spin (blocks board input)
@@ -1074,7 +1071,6 @@ document.addEventListener('DOMContentLoaded', () => {
             el.classList.toggle('empty', !ch);
             el.classList.toggle('frog', isFrog);
             el.classList.toggle('hl', highlight.nodeSet.has(i));
-            el.classList.toggle('bottleneck', phase === 'solve' && !isFrog && !!ch && cover[i] === 1);
             el.classList.toggle('unreachable', phase === 'solve' && !isFrog && !!ch && cover[i] === 0);
             if (document.activeElement !== input) input.value = (ch || '').toUpperCase();
             el.querySelector('.rb-frog').hidden = !isFrog;
@@ -1105,7 +1101,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 badge.textContent = c;
                 badge.hidden = false;
                 badge.classList.toggle('zero', c === 0);
-                badge.classList.toggle('one', c === 1);
             } else {
                 badge.hidden = true;
             }
@@ -1276,7 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editing) {
             setTool(tool);
             resultsContainer.innerHTML = '';
-            cover = {}; keyWords = new Set();
+            cover = {};
         } else {
             ['mode-type', 'mode-link', 'mode-erase'].forEach(c => wrap.classList.remove(c));
             hint.textContent = HINTS.solve;
@@ -1354,7 +1349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         edges = []; disabled = new Set();
         played = []; rejected = [];
         lastResults = []; totalPlayable = 0; activeWord = null;
-        cover = {}; keyWords = new Set();
+        cover = {};
         boardSource = 'typed'; loggedSig = ''; offerClear = false;
         suggestInput.value = ''; suggestStatus.textContent = '';
         tool = 'type';
@@ -1418,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastResults = data.results || [];
             totalPlayable = data.total_playable || 0;
             visibleCount = WORDS_STEP;
-            computeStrategy();
+            computeCover();
             renderStatus();
             renderCells();
             renderResults();
@@ -1430,17 +1425,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Per-tile coverage: how many suggested words can still route through each
-    // tile. A tile only one word can reach is a bottleneck - that word is "key",
-    // so play it before the tile gets stranded.
-    function computeStrategy() {
-        cover = {}; keyWords = new Set();
+    // tile, the count on it. Nothing more: Ribbit takes every word it knows,
+    // in any order, so no word has to be played first to save a tile (James,
+    // 2026-10-25).
+    function computeCover() {
+        cover = {};
         lastResults.forEach(r => {
             new Set(r.nodes || []).forEach(i => { cover[i] = (cover[i] || 0) + 1; });
-        });
-        const bottleneck = new Set();
-        Object.keys(cover).forEach(i => { if (cover[i] === 1) bottleneck.add(+i); });
-        lastResults.forEach(r => {
-            if ((r.nodes || []).some(i => bottleneck.has(i))) keyWords.add(r.word);
         });
     }
 
@@ -1470,18 +1461,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function wordRowHtml(r) {
-        const key = keyWords.has(r.word)
-            ? '<span class="key-flag" title="Key word: the only suggestion that can reach one of its tiles - play it before that tile gets stranded">★</span>' : '';
         const rare = isRare(r)
             ? '<button type="button" class="rare-flag" data-rare="' + r.word +
               '" title="Rare word - Ribbit may not accept it" aria-label="' + r.word.toUpperCase() +
               ' is rare, tap for details">⚠</button>' : '';
         return '<div class="word-result' + (activeWord === r.word ? ' active' : '') +
-               (keyWords.has(r.word) ? ' key' : '') + '" data-word="' + r.word + '">' +
+               '" data-word="' + r.word + '">' +
                '<button type="button" class="word-text" data-word="' + r.word +
                '" aria-pressed="' + (activeWord === r.word) + '" aria-label="' +
                r.word.toUpperCase() + ', light up its path">' + r.word.toUpperCase() + '</button>' +
-               '<span class="word-meta"><span class="len-badge">' + r.len + '</span>' + key + rare + '</span>' +
+               '<span class="word-meta"><span class="len-badge">' + r.len + '</span>' + rare + '</span>' +
                '<button type="button" class="played-btn" data-play="' + r.word + '" aria-label="Mark ' + r.word.toUpperCase() + ' as found">✓ Found</button>' +
                '<button type="button" class="reject-btn" data-reject="' + r.word + '" title="Ribbit didn\'t accept this - hide it and let us know" aria-label="Hide ' + r.word.toUpperCase() + ', not accepted by Ribbit">✗</button>' +
                '<a class="define-link" href="https://en.wiktionary.org/wiki/' + r.word + '" target="_blank" rel="noopener noreferrer" title="View definition" onclick="event.stopPropagation()">↗</a>' +
@@ -1841,8 +1830,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Approved, so the next board starts empty (the Yahoo one, say).
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     });
+
+    // A board clicked on the Shared boards tab (routes/ribbit.py
+    // editor_board), in the view the tab shows it: it replaces the draft,
+    // to check against the game, fix and approve.
+    const PRELOAD = {{ preload | tojson }};
+    function preloaded() {
+        if (!PRELOAD) return false;
+        cells = PRELOAD.letters.map(ch => ch.toLowerCase());
+        edges = toEdges(PRELOAD.edges);
+        disabled = new Set(); activeWord = null;
+        boardSource = 'shared'; loggedSig = boardSig(); offerClear = true;
+        setPhase('edit');   // renders and saves it as the draft
+        hint.textContent = 'Loaded from Shared boards: ' + PRELOAD.note +
+            '. Check it against your game, fix any link, then approve it.';
+        // Without ?letters= a reload brings back the draft, edits and all,
+        // not this board again; ?day= stays for the Approve date.
+        try {
+            const url = new URL(location.href);
+            url.searchParams.delete('letters');
+            history.replaceState(null, '', url.pathname + url.search);
+        } catch (_) {}
+        return true;
+    }
     {% else %}
     function renderApprove() {}
+    function preloaded() { return false; }
     {% endif %}
 
     /* ---------- persistence ---------- */
@@ -1932,7 +1945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* ---------- boot ---------- */
-    if (!restore()) {
+    if (!preloaded() && !restore()) {
         setPhase('edit');
         focusCell(0);
     }

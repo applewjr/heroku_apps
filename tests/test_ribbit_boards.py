@@ -883,12 +883,123 @@ def test_board_entry_never_logs_solves_or_votes(client, boards, monkeypatch, bod
 
 def test_ribbit_has_no_approve_bar(client):
     # The public page keeps its own saved game, its Solve, and no trace of
-    # the board entry beyond a hook that does nothing.
+    # the board entry beyond hooks that do nothing.
     html = client.get("/ribbit").get_data(as_text=True)
     assert "const STORAGE_KEY = 'ribbitSolverState_v2';" in html
     assert "function renderApprove() {}" in html
+    assert "function preloaded() { return false; }" in html
     assert 'id="rb-approve"' not in html and "/ribbit_admin" not in html
+    assert "PRELOAD" not in html
     assert 'id="phase-solve">▶ Solve</button>' in html
+
+
+# ---------------------------------------------------------------------------
+# Served as approved, and a board from the admin tab opened in the editor
+# (James asked, 2026-10-25)
+# ---------------------------------------------------------------------------
+
+def test_an_approval_is_served_the_way_it_was_entered(client, boards, monkeypatch):
+    # Three players settle the board one way round; James approves it
+    # turned. Players get it, and the admin tab shows it, as he entered it.
+    for p in (1, 2, 3):
+        _log(client, p)
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
+    letters, links = _turned(LETTERS, LINKS)
+    _typed(client, monkeypatch, cells=letters, links=links)
+    assert _todays(client) == [_as_board(letters, links)]
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "".join(letters[r * 4:r * 4 + 4].upper() + "<br>" for r in range(4)) in html
+    # Without the approval the players' way round is back.
+    import routes.ribbit as ribbit
+    boards.unapprove(ribbit.canonical(LETTERS)[0])
+    assert _todays(client) == [_as_board(LETTERS, LINKS)]
+
+
+def test_each_board_on_the_admin_tab_opens_in_the_editor(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _log(client, 1)
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    canon = ribbit.canonical(LETTERS)[0]
+    assert f'href="/ribbit_admin/board?letters={canon}&amp;day=2026-10-17"' in html
+    assert "Open in editor" in html
+
+
+def _entry_with(client, monkeypatch, **args):
+    return client.get("/ribbit_admin/board", query_string=args,
+                      headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+
+
+def _preload(html):
+    """The board the board entry opens with (its PRELOAD constant), or None."""
+    return json.loads(re.search(r"const PRELOAD = (.*);\r?$", html, re.M).group(1))
+
+
+def _shown(board):
+    return {"letters": board["letters"], "edges": board["edges"]}
+
+
+def test_the_editor_opens_the_latest_board_while_nothing_is_settled(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    letters, links = _turned(LETTERS, LINKS)
+    _log(client, 1, letters, links)
+    tomorrow = (DAY + timedelta(days=1)).isoformat()
+    html = _entry_with(client, monkeypatch, letters=ribbit.canonical(LETTERS)[0], day=tomorrow)
+    board = _preload(html)
+    # In the view the tab shows it, and the tab's day is the Approve date.
+    assert _shown(board) == _as_board(letters, links)
+    assert board["note"] == "the latest player's board, from 10-17 06:01"
+    assert f'id="rb-approve-date" value="{tomorrow}"' in html
+    assert "function preloaded() {" in html
+
+
+def test_the_editor_says_when_the_latest_board_is_half_drawn_or_disputed(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _log(client, 1)
+    _log(client, 2, links=[p for p in LINKS if p != (0, 5)])
+    _log(client, 3, links=[p for p in LINKS if 12 not in p])         # the latest
+    board = _preload(_entry_with(client, monkeypatch, letters=ribbit.canonical(LETTERS)[0]))
+    assert _shown(board) == _as_board(LETTERS, [p for p in LINKS if 12 not in p])
+    assert board["note"] == ("the latest player's board, from 10-17 06:03, half-drawn; "
+                             "the players' links differ")
+
+
+def test_the_editor_opens_the_settled_links_then_your_approval(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    canon = ribbit.canonical(LETTERS)[0]
+    for p in (1, 2, 3):
+        _log(client, p)
+    _log(client, 4, links=LINKS + [(5, 10)])        # the latest, with a slip
+    html = _entry_with(client, monkeypatch, letters=canon)
+    board = _preload(html)
+    assert _shown(board) == _as_board(LETTERS, LINKS)
+    assert board["note"] == "the links 4 players agreed on"
+    assert 'id="rb-approve-date" value="2026-10-17"' in html          # Pacific today
+    letters, links = _turned(LETTERS, LINKS)
+    _typed(client, monkeypatch, cells=letters, links=links)
+    board = _preload(_entry_with(client, monkeypatch, letters=canon))
+    assert _shown(board) == _as_board(letters, links)
+    assert board["note"].startswith("your approval from 10-17 ")
+
+
+@pytest.mark.parametrize("letters, message", [
+    ("RIBBITFROGSLILYP", "Not a board"),
+    ("short", "Not a board"),
+    ("abcdefghijklmnop", "No board has those letters"),
+], ids=["uppercase", "short", "unknown"])
+def test_the_editor_opens_empty_for_anything_else(client, boards, monkeypatch, letters, message):
+    html = _entry_with(client, monkeypatch, letters=letters, day="yesterday")
+    assert _preload(html) is None and message in html
+    assert 'id="rb-approve-date" value="2026-10-17"' in html
+
+
+def test_the_editor_says_when_it_cant_read_the_boards(client, board_db, monkeypatch):
+    import routes.ribbit as ribbit
+    board_db(fail="ribbit_boards")
+    resp = client.get("/ribbit_admin/board", query_string={"letters": ribbit.canonical(LETTERS)[0]},
+                      headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert _preload(html) is None and "t read the boards" in html
 
 
 def test_the_typed_approval_sql(client, board_db, monkeypatch):

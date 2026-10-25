@@ -466,6 +466,9 @@ def run_chainle():
 
     if request.method == "POST":
         data = json_object()
+        # A player's report of a word the game refused, not a round to solve.
+        if 'action' in data:
+            return chainle.handle_vote(data)
         return chainle.solve_request(data)
     else:
         log_page_visit('chainle.html')

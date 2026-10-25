@@ -4,14 +4,81 @@
    {% from '_crowd_admin.html' import styles, pager with context %}
    word_form, removed_tab, added_tab and word_form_script are Blossom's,
    Smush's and Ribbit's only: Chainle and Guess The Phrase label theirs
-   differently. #}
+   differently.
+
+   The top of each page is kept short (James asked, 2026-10-25): the first
+   Player Reports row shows without scrolling, on a laptop and a phone. So
+   the explanations sit in closed <details class="admin-help">, and the word
+   form is one row. #}
 
 {% macro styles() %}
 <style>
 .admin-container {
     max-width: 1000px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 12px 16px;
+}
+
+.admin-container h2 {
+    font-size: 18px;
+    margin: 10px 0 6px;
+}
+
+/* The page's name and its links, on one line when they fit. */
+.admin-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-bottom: 8px;
+}
+
+.admin-top h1 {
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 0;
+}
+
+/* The word form and the search, under the stats. */
+.admin-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-bottom: 6px;
+}
+
+/* An explanation, closed until asked for. */
+.admin-help {
+    font-size: 13px;
+    color: #555;
+}
+
+.admin-help summary {
+    cursor: pointer;
+    color: #02484d;
+}
+
+.admin-help .crowd-note {
+    margin: 6px 0;
+}
+
+.admin-help[open] {
+    flex-basis: 100%;
+}
+
+/* A tab's heading, with its status and its explanation on the same line. */
+.tab-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+    margin: 8px 0 2px;
+}
+
+.tab-head h2 {
+    font-size: 16px;
+    margin: 0;
 }
 
 .admin-section {
@@ -102,12 +169,12 @@
 .words-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
+    margin-top: 6px;
 }
 
 .words-table th,
 .words-table td {
-    padding: 12px;
+    padding: 6px 8px;
     text-align: left;
     border-bottom: 1px solid #ddd;
     vertical-align: top;
@@ -123,9 +190,10 @@
 }
 
 .alert {
-    padding: 12px 20px;
-    margin-bottom: 20px;
+    padding: 6px 12px;
+    margin-bottom: 8px;
     border-radius: 4px;
+    font-size: 14px;
     font-weight: bold;
 }
 
@@ -143,17 +211,22 @@
 
 .stats {
     background-color: #e9ecef;
-    padding: 15px;
+    padding: 6px 12px;
     border-radius: 4px;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+    font-size: 13px;
 }
 
 .top-nav {
-    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .top-nav .btn {
-    margin-bottom: 8px;
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
 }
 
 .remove-form {
@@ -176,15 +249,43 @@
     margin: 0 6px 0 0;
 }
 
-.word-choice {
+/* The word form, in one row that wraps on a phone: the word, the two lists
+   to choose from, Submit, and what Submit will do. */
+.word-bar {
     display: flex;
-    gap: 12px;
-    margin-bottom: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+    margin: 0;
+}
+
+/* Two classes, to beat base.html's input[type=text] padding. */
+.word-bar .word-input {
+    flex: 1 1 160px;
+    min-width: 0;
+    max-width: 260px;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.word-bar .btn {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.word-bar .word-hint {
+    flex: 1 1 180px;
+    font-size: 12px;
+    text-align: left;
 }
 
 /* Two outlined boxes until one is chosen; the chosen one fills in. */
 .choice-btn {
-    flex: 1;
     margin: 0;
     font-weight: bold;
     background-color: #fff;
@@ -221,16 +322,17 @@
 }
 
 .tab-container {
-    margin-bottom: 20px;
+    margin: 6px 0 4px;
 }
 
 .tab-button {
     background-color: #e9ecef;
     border: 1px solid #ddd;
-    padding: 10px 20px;
+    padding: 6px 14px;
+    font-size: 14px;
     cursor: pointer;
     display: inline-block;
-    margin-right: 5px;
+    margin: 0 4px 4px 0;
     border-radius: 4px 4px 0 0;
 }
 
@@ -256,14 +358,16 @@
 .search-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
-    margin-bottom: 10px;
+    flex: 1 1 300px;
+    margin: 0;
 }
 
 .search-form input {
     flex: 1 1 180px;
-    padding: 8px 10px;
+    max-width: 320px;
+    padding: 6px 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
@@ -271,6 +375,8 @@
 
 .search-form .btn {
     margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
 }
 
 .pager {
@@ -370,27 +476,35 @@
     </form>
 {% endmacro %}
 
-{# Add/Remove Words, posting to `action`. #}
+{# Add/Remove Words, posting to `action`: one row. Its note (your entries are
+   final) is in each page's About these lists. #}
 {% macro word_form(action) %}
-    <div class="admin-section">
-        <h2>Add/Remove Words</h2>
-        <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over. Type the word, choose a list, then press Submit.</p>
-        <form method="POST" action="{{ action }}" id="word-form">
-            <div class="form-group">
-                <label for="word">Word:</label>
-                <input type="text" id="word" name="word" required
-                       placeholder="Enter word"
-                       style="text-transform: lowercase;">
-            </div>
-            <div class="word-choice">
-                <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove invalid word</button>
-                <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add missing word</button>
-            </div>
-            <input type="hidden" name="word_type" id="word-type" value="">
-            {{ keep_view() }}
-            <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
-            <p class="crowd-note" id="word-hint">Type a word, then choose a list.</p>
-        </form>
+    <form method="POST" action="{{ action }}" class="word-bar" id="word-form">
+        <input type="text" id="word" name="word" class="word-input" required
+               placeholder="Word to remove or add" aria-label="Word to remove or add"
+               style="text-transform: lowercase;">
+        <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove invalid word</button>
+        <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add missing word</button>
+        <input type="hidden" name="word_type" id="word-type" value="">
+        {{ keep_view() }}
+        <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
+        <span class="crowd-note word-hint" id="word-hint">Type a word, then choose a list.</span>
+    </form>
+{% endmacro %}
+
+{# The Player Reports tab's heading: the settled reports toggle beside it,
+   and the page's own explanation (the call's body) closed beside that. #}
+{% macro reports_head() %}
+    <div class="tab-head">
+        <h2>Player Reports, last {{ crowd_window_days }} days</h2>
+        <span class="crowd-note">
+            {% if show_settled %}
+                Showing settled reports too. <a href="{{ settled_url }}">Hide them</a>
+            {% else %}
+                {{ settled_count }} settled report{{ '' if settled_count == 1 else 's' }} hidden. <a href="{{ settled_url }}">Show them</a>
+            {% endif %}
+        </span>
+        <details class="admin-help"><summary>How reports count</summary>{{ caller() }}</details>
     </div>
 {% endmacro %}
 

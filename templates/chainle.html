@@ -55,6 +55,14 @@
     },
     {
       "@type": "Question",
+      "name": "What if Chainle refuses a word?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Chainle only takes dictionary words: it turns down plurals, names and filler words, and words too close to a clue. The solver leaves those out, but if the game still refuses one of its suggestions, tell us in the box under the answers. The last word you copied is already in it, or type the word yourself. We take every report into account when updating the list."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Does it work for older puzzles?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -265,6 +273,36 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 }
 .chn-row-btn:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
 
+/* ---------- "Chainle refused a word?" ---------- */
+/* Under the answers whenever they show, so it never appears under a tap and
+   never pushes the ad below it down. /ribbit's suggest box, as one of this
+   page's cards. */
+.chn-report-label { display: block; font-size: 15px; font-weight: 700; color: #02484d; margin-bottom: 8px; }
+.chn-report-row { display: flex; gap: 8px; }
+/* Two classes, to beat base.html's input[type=text] padding. */
+.chn-report .chn-report-input {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    font-size: 16px;   /* 16px+ keeps iOS from zooming on focus */
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.chn-report .chn-report-input::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; }
+.chn-report .chn-btn { flex-shrink: 0; }
+.chn-report .chn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Room for two lines, so the card doesn't jump as the message changes. */
+.chn-report-status { min-height: 39px; }
+
 .chn-new-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -365,7 +403,8 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
         to see them all.
         <br><br>
         <strong>4. Copy it into the game.</strong> Tap a revealed word to copy it, then paste it
-        into Chainle.
+        into Chainle. If the game refuses it, tell us in the box under the answers, then try the
+        next word.
     </div>
 </div>
 
@@ -394,6 +433,16 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
             <button type="button" class="chn-btn" id="chn-more" hidden>Show more</button>
             <button type="button" class="chn-btn" id="chn-reveal-all" hidden>Show all answers</button>
         </div>
+    </div>
+    <div class="chn-card chn-report" id="chn-report">
+        <label class="chn-report-label" for="chn-report-input">Chainle refused a word?</label>
+        <div class="chn-report-row">
+            <input type="text" id="chn-report-input" class="chn-report-input" maxlength="40" autocomplete="off"
+                   autocapitalize="characters" autocorrect="off" spellcheck="false"
+                   placeholder="type the word" aria-describedby="chn-report-status">
+            <button type="button" class="chn-btn primary" id="chn-report-btn">Report</button>
+        </div>
+        <p class="chn-note chn-report-status" id="chn-report-status" aria-live="polite">The last word you copied fills in here. Only for words the game wouldn't take, not a low score.</p>
     </div>
 </div>
 
@@ -426,6 +475,10 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How accurate is it?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What if Chainle refuses a word?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Chainle only takes dictionary words: it turns down plurals, names and filler words, and words too close to a clue. The solver leaves those out, but if the game still refuses one of its suggestions, tell us in the box under the answers. The last word you copied is already in it, or type the word yourself. We take every report into account when updating the list.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
@@ -466,8 +519,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---------- state ---------- */
     // reveals: letters shown per word. The hint's word is the list's first,
-    // so the hint and that row share a count.
-    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP});
+    // so the hint and that row share a count. report: the word in the
+    // "Chainle refused a word?" box, the last one copied unless the player
+    // typed another.
+    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP, report: ''});
     let rounds = DEFAULT_TYPES.map(fresh);
     let current = 0;
     let last = null;               // the solver's reply for the current round
@@ -483,6 +538,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const revealAll = document.getElementById('chn-reveal-all');
     const answerActions = document.getElementById('chn-answer-actions');
     const listEl = document.getElementById('chn-answer-list');
+    const reportBox = document.getElementById('chn-report');
+    const reportInput = document.getElementById('chn-report-input');
+    const reportBtn = document.getElementById('chn-report-btn');
+    const reportStatus = document.getElementById('chn-report-status');
+    const REPORT_NOTE = reportStatus.textContent;
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const round = () => rounds[current];
@@ -619,11 +679,20 @@ document.addEventListener('DOMContentLoaded', () => {
             hintBody.innerHTML = '<p class="chn-note">We don\'t know ' + last.unknown.map(esc).join(' or ') +
                 '. Check the spelling against the game.</p>';
             document.getElementById('chn-answers').hidden = true;
+            reportBox.hidden = true;
             return;
         }
         document.getElementById('chn-answers').hidden = !last.suggestions.length;
         hintBody.innerHTML = hintHtml();
         renderAnswers();
+        renderReport();
+    }
+
+    // The box holds the round's word, but never changes under the player's
+    // typing.
+    function renderReport() {
+        reportBox.hidden = !last.suggestions.length;
+        if (document.activeElement !== reportInput) reportInput.value = round().report;
     }
 
     function render() {
@@ -636,6 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectRound(i) {
         current = i;
         last = null;
+        reportStatus.textContent = REPORT_NOTE;
         render();
         save();
         schedule(0);
@@ -648,7 +718,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         if (r.type === type) return;
         r.type = type;
-        r.reveals = {}; r.shown = ROWS_STEP;
+        r.reveals = {}; r.shown = ROWS_STEP; r.report = '';
+        reportStatus.textContent = REPORT_NOTE;
         last = null;
         render();
         save();
@@ -659,6 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rounds = DEFAULT_TYPES.map(fresh);
         current = 0;
         last = null;
+        reportStatus.textContent = REPORT_NOTE;
         render();
         save();
         roundsEl.scrollIntoView({block: 'start', behavior: 'smooth'});
@@ -673,7 +745,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = round();
             if (r.clues[n] === clean) return;
             r.clues[n] = clean;
-            r.reveals = {}; r.shown = ROWS_STEP;
+            r.reveals = {}; r.shown = ROWS_STEP; r.report = '';
+            reportStatus.textContent = REPORT_NOTE;
             renderRounds();
             renderClues();
             save();
@@ -730,6 +803,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function copyAnswer(text) {
+        // Into the box too: if the game refuses the word, reporting it is
+        // one tap.
+        round().report = text;
+        reportInput.value = text;
+        reportStatus.textContent = REPORT_NOTE;
+        save();
         let ok = false;
         try {
             await navigator.clipboard.writeText(text);
@@ -748,6 +827,57 @@ document.addEventListener('DOMContentLoaded', () => {
             box.remove();
         }
         toast(ok ? 'Copied ' + text + ' - paste it into the game' : "Couldn't copy here - type " + text + ' into the game', !ok);
+    }
+
+    /* ---------- "Chainle refused a word?" ---------- */
+    // A report of a word the game turned down: routes/chainle.py counts it
+    // only for a word this round lists. The replies never say more than
+    // thanks (see crowd.py).
+    reportInput.addEventListener('input', () => {
+        const clean = reportInput.value.replace(/[^A-Za-z]/g, '').slice(0, 40);
+        if (clean !== reportInput.value) reportInput.value = clean;
+        round().report = clean;
+        save();
+    });
+    reportInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submitReport(); }
+    });
+    reportBtn.addEventListener('click', submitReport);
+
+    async function submitReport() {
+        const r = round();
+        const word = reportInput.value.trim().toUpperCase();
+        if (!word) { reportStatus.textContent = 'Type the word Chainle refused.'; return; }
+        if (!/^[A-Z]+$/.test(word)) { reportStatus.textContent = 'Letters only, please.'; return; }
+        if (!last || reportBtn.disabled) return;
+        const body = {action: 'refuse', word, clues: last.clues, kind: last.kind};
+        // Still this round's box when the reply comes?
+        const here = () => round() === r;
+        reportBtn.disabled = true;
+        reportStatus.textContent = 'Sending...';
+        try {
+            const resp = await fetch('/chainle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'report failed');
+            if (data.result === 'not_suggested') {
+                if (here()) reportStatus.textContent = word + " isn't one of our suggestions for these clues.";
+            } else {
+                r.report = '';
+                save();
+                if (here()) {
+                    reportInput.value = '';
+                    reportStatus.textContent = "Thanks! We'll take your report into account.";
+                }
+            }
+        } catch (_) {
+            if (here()) reportStatus.textContent = 'Could not send that. Please try again.';
+        } finally {
+            reportBtn.disabled = false;
+        }
     }
 
     // Same as /smush's Reset Board: asks first only when there's something to lose.
@@ -814,6 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             out.reveals = (r && r.reveals && typeof r.reveals === 'object') ? r.reveals : {};
             out.shown = r && Number.isInteger(r.shown) && r.shown > 0 && r.shown <= 10 ? r.shown : ROWS_STEP;
+            out.report = r && typeof r.report === 'string' ? r.report.replace(/[^A-Za-z]/g, '').slice(0, 40) : '';
             return out;
         });
         current = Number.isInteger(s.current) && s.current >= 0 && s.current < rounds.length ? s.current : 0;
