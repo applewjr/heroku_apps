@@ -271,7 +271,7 @@ def test_the_same_visitor_is_one_player_across_ribbits_tables(flask_app):
 
 
 # ---------------------------------------------------------------------------
-# Vote log: the sort chip, and /ribbit_dev's votes tagged dev
+# Vote log: the sort chip
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("sent, logged", [
@@ -287,23 +287,13 @@ def test_the_sort_chip_a_vote_came_from_is_logged_never_refused(client, ribbit_d
     assert (row["event"], row["vote"], row["mode"], row["puzzle"]) == ("vote", "missing", logged, _tag())
 
 
-def test_ribbit_dev_votes_are_real_votes_tagged_dev(client, ribbit_db, monkeypatch):
-    db = ribbit_db(_votes(players=1))
-    resp = _vote(client, "reject", LISTED, mode="pop", path="/ribbit_dev",
-                 headers=_admin_headers(monkeypatch))
-    assert resp.get_json() == {"status": "success"}
-    assert db.statements("INSERT INTO ribbit_word_votes")
-    [row] = db.log_rows("ribbit")
-    assert row["mode"] == "dev_pop"
-
-
 def test_the_logged_modes_are_the_pages_sort_chips():
     from routes.ribbit import RIBBIT_SORT_MODES
     source = (TEMPLATES / "ribbit.html").read_text(encoding="utf-8")
     chips = re.search(r"const chips = \[(.*?)\];", source).group(1)
     assert re.findall(r"\['(\w+)',", chips) == list(RIBBIT_SORT_MODES)
     # The longest mode still fits the log's VARCHAR(16).
-    assert max(len(f"dev_{chip}") for chip in RIBBIT_SORT_MODES) <= 16
+    assert max(len(chip) for chip in RIBBIT_SORT_MODES) <= 16
 
 
 # ---------------------------------------------------------------------------

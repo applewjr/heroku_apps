@@ -1,8 +1,7 @@
 """Smush word list, crowd word corrections, today's board, and /smush_admin.
 
-The solver routes themselves are run_smush and run_smush_dev2 in
-routes/wordgames.py; they hand any JSON body carrying an `action` to
-handle_board_action or handle_vote here.
+The solver route itself is run_smush in routes/wordgames.py; it hands any
+JSON body carrying an `action` to handle_board_action or handle_vote here.
 """
 
 import time
@@ -317,9 +316,9 @@ def smush_remove_word():
 #
 # Live on /smush since 2026-10-24 (James's call), after a dark launch from
 # 2026-10-23 in which /smush only logged boards and /smush_dev2, his
-# password-only copy of the public page, served them. (/smush_dev, with ICE
-# COLD, isn't for release.) Players are never told how a board is chosen
-# (see crowd.py on why).
+# password-only copy of the public page (removed 2026-10-25), served them.
+# (/smush_dev, with ICE COLD, isn't for release.) Players are never told how
+# a board is chosen (see crowd.py on why).
 
 # Players on one board that serve it, when nothing is approved (James,
 # 2026-10-23).
@@ -338,8 +337,7 @@ BOARD_SOURCES = ('typed', 'edited')
 # player.
 APPROVAL = 'admin'
 # Live on /smush (James's call, 2026-10-24). False goes back to the dark
-# launch: /smush logs boards but serves none, even to a direct call, and only
-# /smush_dev2 shows them.
+# launch: /smush logs boards but serves none, even to a direct call.
 SMUSH_BOARD_LIVE = True
 # A date counts toward a puzzle's first_seen only once this many networks
 # logged it then, so one device with a wrong clock can't make today's puzzle
@@ -355,7 +353,7 @@ BOARD_RETRY_SECONDS = 300
 ADMIN_DAYS_BACK = 2
 # Each outer letter's uses when a game starts; the center is free.
 START_USES = 5
-# What a JSON body to /smush (or /smush_dev2) asks for here, not a vote.
+# What a JSON body to /smush asks for here, not a vote.
 BOARD_ACTIONS = ('log_board', 'todays_board')
 
 # The columns every read of smush_boards returns, in this order. spicy is
@@ -667,14 +665,13 @@ def _log_board(data):
     return jsonify(status='success')
 
 
-def handle_board_action(data, dev=False):
-    """A board-logging or today's-board JSON body posted to /smush, or to
-    /smush_dev2 with `dev`. Today's board is null on a page where it is still
-    dark, even to a direct call."""
+def handle_board_action(data):
+    """A board-logging or today's-board JSON body posted to /smush. Today's
+    board is null while it is dark, even to a direct call."""
     if data.get('action') == 'log_board':
         return _log_board(data)
     day = _played_on(data)
-    if not (dev or SMUSH_BOARD_LIVE) or day is None:
+    if not SMUSH_BOARD_LIVE or day is None:
         return jsonify(board=None)
     return jsonify(board=_board_for(day))
 

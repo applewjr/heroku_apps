@@ -19,8 +19,7 @@ import pytest
 
 import routes.blossom as blossom
 from test_ad_slots import LIVE, slots  # noqa: F401
-from test_blossom import (CENTER, PETALS, _admin_headers, _ScriptedDB, _votes,  # noqa: F401
-                          crowd_db, fresh_word_cache)
+from test_blossom import _admin_headers, _ScriptedDB
 
 # The real reader: conftest.py stands in an empty table for every test.
 REAL_ROWS_LOGGED_BETWEEN = blossom.rows_logged_between
@@ -439,7 +438,7 @@ def test_a_failed_read_costs_the_board_never_the_page(client, boards, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# Live on /blossom, the dark launch the flag goes back to, and /blossom_dev
+# Live on /blossom, and the dark launch the flag goes back to
 # ---------------------------------------------------------------------------
 
 def test_todays_board_is_live_on_blossom(client):
@@ -461,64 +460,25 @@ def test_while_dark_blossom_logs_boards_and_serves_none(client, boards, monkeypa
     assert _todays(client) is None             # not even to a direct call
 
 
-def test_blossom_dev_shows_the_board_and_hints_while_dark(client, boards, monkeypatch):
-    monkeypatch.setattr(blossom, "TODAYS_BOARD_LIVE", False)
-    for n in range(1, 6):
-        _log(client, n)
-    headers = _admin_headers(monkeypatch)
-    html = client.get("/blossom_dev", headers=headers).get_data(as_text=True)
-    assert '<div class="bl-today" id="bl-today">' in html and "E · L C T I O N" in html
-    assert "Today&#39;s Blossom hints - Friday, October 23" in html
-    assert ">Do I have to type today's letters?<" in html
-    assert "/blossom_dev - only you can see this copy" in html
-    assert 'action="/blossom_dev"' in html
-    assert 'const POST_URL = "/blossom_dev";' in html
-    assert 'const RESET_URL = "/blossom/reset?to=dev";' in html
-    assert _served(client, path="/blossom_dev", headers=headers) == BOARD
-    # Its own boards count like any player's.
-    _log(client, 6, OTHER, path="/blossom_dev", headers=headers)
-    assert (LETTERS, OTHER) in {(row[0], row[1]) for row in boards.rows.values()}
-
-
-def test_with_the_switch_on_blossom_matches_blossom_dev(client, boards):
+def test_with_the_switch_on_blossom_shows_the_board(client, boards):
     for n in range(1, 6):
         _log(client, n)
     html = client.get("/blossom").get_data(as_text=True)
     assert '<div class="bl-today" id="bl-today">' in html
     assert ">Do I have to type today's letters?<" in html
-    assert "only you can see this copy" not in html
     assert 'const POST_URL = "/blossom";' in html
 
 
-def test_blossom_dev_results_stay_on_dev_with_no_ad_and_no_logging(client, boards, slots,
-                                                                   monkeypatch):
+def test_blossom_logs_solver_clicks_and_visits_and_shows_the_ad(client, boards, slots):
     import extensions
-    headers = _admin_headers(monkeypatch)
     form = {"must_have": "e", "may_have": "lction", "petal_letter": "l"}
-    html = client.post("/blossom_dev", base_url=LIVE, headers=headers,
-                       data=form).get_data(as_text=True)
-    assert 'action="/blossom_dev"' in html
-    assert 'id="jj-ad"' not in html
-    client.get("/blossom_dev", headers=headers)
-    assert extensions._log_queue.qsize() == 0  # no solver click, no page visit
-    # The public page still logs both.
     assert 'id="jj-ad"' in client.post("/blossom", base_url=LIVE, data=form).get_data(as_text=True)
     client.get("/blossom")
-    assert extensions._log_queue.qsize() == 2
+    assert extensions._log_queue.qsize() == 2  # a solver click and a page visit
 
 
-def test_dev_votes_are_tagged_dev_in_the_vote_log(client, crowd_db, fresh_word_cache, monkeypatch):
-    db = crowd_db(_votes(players=1))
-    resp = client.post("/blossom_dev", headers=_admin_headers(monkeypatch), json={
-        "action": "toggle_invalid", "word": "nastier", "center": CENTER, "petals": PETALS,
-        "mode": "helper"})
-    assert resp.status_code == 200
-    [row] = db.log_rows("blossom")
-    assert row["mode"] == "dev_helper"
-
-
-def test_reset_goes_back_to_the_page_it_came_from(client):
-    assert client.get("/blossom/reset?to=dev").headers["Location"].endswith("/blossom_dev")
+def test_reset_goes_back_to_blossom(client):
+    assert client.get("/blossom/reset?to=dev").headers["Location"].endswith("/blossom")
     assert client.get("/blossom/reset").headers["Location"].endswith("/blossom")
     assert client.get("/blossom/reset?to=//evil.example").headers["Location"].endswith("/blossom")
 
@@ -543,7 +503,7 @@ def test_admin_opens_on_the_board_tab_and_shows_each_board(client, boards, monke
     assert "E · L C T I O N" in html and "E · L T C I O N" in html   # its two boards
     assert "needs 1 more player on one board" in html
     assert f"once {blossom.SERVE_CROWD} players enter it exactly" in html
-    assert "logging only; served on /blossom_dev" not in html     # live in this fixture
+    assert "logging only" not in html     # live in this fixture
 
 
 def test_an_approval_from_the_admin_tab_serves_at_once_and_undoes(client, boards, monkeypatch):
@@ -707,7 +667,6 @@ def test_players_are_never_told_how_a_board_is_chosen(client, boards, monkeypatc
         _log(client, n)
     texts = [
         client.get("/blossom").get_data(as_text=True),
-        client.get("/blossom_dev", headers=_admin_headers(monkeypatch)).get_data(as_text=True),
         client.post("/blossom", data={"must_have": "e", "may_have": "lction",
                                       "petal_letter": "l"}).get_data(as_text=True),
         json.dumps(_todays(client)),

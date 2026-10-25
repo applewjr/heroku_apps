@@ -459,7 +459,6 @@
 
     <div class="top-nav">
         <a href="/blossom" target="_blank" rel="noopener" class="btn btn-primary">Back to Blossom Solver</a>
-        <a href="/blossom_dev" target="_blank" rel="noopener" class="btn btn-secondary">Blossom Dev</a>
         <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" rel="noopener" class="btn btn-success">Open Blossom Game</a>
     </div>
 
@@ -492,7 +491,7 @@
         <strong>Recent feedback:</strong> {{ recent_feedback|length }} |
         <strong>Removed words:</strong> {{ invalid_total }} |
         <strong>Added words:</strong> {{ added_total }} |
-        <strong>Today's board:</strong> {{ 'live on /blossom' if board_live else 'logging only; served on /blossom_dev' }}
+        <strong>Today's board:</strong> {{ 'live on /blossom' if board_live else 'logging only' }}
     </div>
 
     <div class="admin-section">
@@ -542,7 +541,7 @@
             Couldn't read the boards ({{ load_error }}). Has mysql_tables/blossom_boards.sql been run?
         </div>
         {% endif %}
-        <p class="crowd-note">The boards players typed into the solver, logged on their first petal tap, on their own date (Blossom rolls over at each player's midnight). A board is the center plus the letter in each petal spot, in the solver's order: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right. Served is the board players whose date that is are offered{% if not board_live %} (on /blossom_dev only, until it goes live){% endif %}, with its hints.</p>
+        <p class="crowd-note">The boards players typed into the solver, logged on their first petal tap, on their own date (Blossom rolls over at each player's midnight). A board is the center plus the letter in each petal spot, in the solver's order: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right. Served is the board players whose date that is are offered{% if not board_live %} (once it goes live){% endif %}, with its hints.</p>
         <p class="crowd-note">Your approval is served straight away, whatever the players typed, and the latest one for a day wins. Without one, a board is served once {{ serve_crowd }} players enter it exactly, every petal in the same spot; then whichever board has the most players, a tie going to the first to reach {{ serve_crowd }}. Players count once per network (an IPv6 /48, or one IPv4 address), and a player's later board of the same puzzle that day replaces their earlier one. Only the puzzle most players entered that day can be served, never one first seen on an earlier day (an archive game), unless you approve it. Remove deletes the players' entries of that board on that day; Undo takes back an approval and leaves the players' boards alone.</p>
 
         <form method="POST" action="/blossom_admin/approve_board" class="admin-section" id="approve-form">

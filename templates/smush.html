@@ -875,28 +875,12 @@
 }
 .sm-hint > p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: #374151; overflow-wrap: anywhere; }
 .sm-hints-every { display: block; margin: 4px auto 14px; }
-
-/* The admin's own copy of the page says which copy it is. */
-.sm-dev-note {
-    max-width: 460px;
-    margin: 8px auto 0;
-    padding: 8px 12px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #02484d;
-    background-color: #eef4f4;
-    border: 1px dashed #4f9a97;
-    border-radius: 8px;
-}
 </style>
 {% endblock %}
 
 {% block content %}
 
 <center>
-{% if dev %}
-<p class="sm-dev-note">/smush_dev2 - only you can see this copy. Today's board and hints are on here; your votes and boards count like any player's.</p>
-{% endif %}
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Smush Solver & Word Finder</h1>
 
@@ -1152,8 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // under its own key and survives board resets and the daily wipe.
     const SORT_KEY = 'smushSortMode_v1';
     const SORT_MODES = ['pts', 'eff', 'all8', 'pan'];
-    // This copy's own address: /smush, or James's /smush_dev2.
-    const POST_URL = {{ (post_url or '/smush') | tojson }};
+    const POST_URL = "/smush";
 
     /* ---------- state ---------- */
     let letters = Array(9).fill('');         // board letters, index 4 = center

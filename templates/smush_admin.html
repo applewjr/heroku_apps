@@ -412,7 +412,6 @@
 
     <div class="top-nav">
         <a href="/smush" target="_blank" rel="noopener" class="btn btn-primary">Back to Smush Solver</a>
-        <a href="/smush_dev2" target="_blank" rel="noopener" class="btn btn-secondary">Smush Dev 2</a>
         <a href="https://hankgreen.com/smush" target="_blank" rel="noopener" class="btn btn-success">Open Smush Game</a>
     </div>
 
@@ -444,7 +443,7 @@
         <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
         <strong>Removed words:</strong> {{ invalid_total }} |
         <strong>Added words:</strong> {{ added_total }} |
-        <strong>Today's board:</strong> {{ 'live on /smush' if board_live else 'logging only; served on /smush_dev2' }}
+        <strong>Today's board:</strong> {{ 'live on /smush' if board_live else 'logging only' }}
     </div>
 
     <div class="admin-section">
@@ -493,7 +492,7 @@
             Couldn't read the boards ({{ load_error }}). Has mysql_tables/smush_boards.sql been run?
         </div>
         {% endif %}
-        <p class="crowd-note">The boards players typed into the solver, logged once all nine letters are in, on their own date (Smush rolls over at each player's midnight). A board is just its letters: the game shuffles the eight outer tiles for every player. Served is the board players whose date that is are offered{% if not board_live %} (on /smush_dev2 only, until it goes live){% endif %}, with its hints.</p>
+        <p class="crowd-note">The boards players typed into the solver, logged once all nine letters are in, on their own date (Smush rolls over at each player's midnight). A board is just its letters: the game shuffles the eight outer tiles for every player. Served is the board players whose date that is are offered{% if not board_live %} (once it goes live){% endif %}, with its hints.</p>
         <p class="crowd-note">Your approval is served straight away, whatever the players typed, and the latest one for a day wins. Without one, the puzzle most players entered that day is served once {{ serve_crowd }} of them have, counting one player per network (an IPv6 /48, or one IPv4 address). Never a puzzle first seen on an earlier day (an older board), unless you approve it. The starting spicy letter comes from your approval, or from players who set it before playing a word: the letter most of them chose, none on a tie. Remove deletes the players' entries of that puzzle on that day; Undo takes back an approval and leaves the players' boards alone.</p>
 
         <form method="POST" action="/smush_admin/approve_board" class="admin-section" id="approve-form">

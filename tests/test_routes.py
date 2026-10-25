@@ -152,32 +152,13 @@ def test_jj_admin_links_every_password_page(client, flask_app, monkeypatch):
         else:
             assert not rule.arguments, f"no way to link {rule.rule}"
             pages.add(aliases.get(rule.rule, rule.rule))
-    # The walk itself must keep finding them: every admin page, the dev
-    # pages, each ETL round and the espresso pages.
-    assert {"/smush_admin", "/ribbit_admin", "/ribbit_dev", "/smush_dev", "/blossom_dev", "/smush_dev2",
+    # The walk itself must keep finding them: every admin page, /smush_dev,
+    # each ETL round and the espresso pages.
+    assert {"/smush_admin", "/ribbit_admin", "/smush_dev",
             "/blossom_admin", "/chainle_admin", "/guess_the_phrase_admin",
             "/etl_dash/1", "/espresso/home/"} <= pages
     for path in sorted(pages):
         assert f'href="{path}"' in html, f"/jj_admin doesn't link {path}"
-
-
-def test_ribbit_dev_is_password_only(client):
-    assert client.get("/ribbit_dev").status_code == 401
-    assert client.post("/ribbit_dev", json={"action": "shared_board"}).status_code == 401
-
-
-def test_smush_dev2_is_password_only(client):
-    assert client.get("/smush_dev2").status_code == 401
-    assert client.post("/smush_dev2", json={"action": "todays_board",
-                                            "played_on": "2026-10-23"}).status_code == 401
-
-
-def test_blossom_dev_is_password_only(client):
-    assert client.get("/blossom_dev").status_code == 401
-    assert client.post("/blossom_dev", json={"action": "todays_board",
-                                             "played_on": "2026-10-23"}).status_code == 401
-    assert client.post("/blossom_dev", data={"must_have": "t", "may_have": "raines",
-                                             "petal_letter": "s"}).status_code == 401
 
 
 def test_ribbit_clear_board_sits_right_of_give_feedback(client):

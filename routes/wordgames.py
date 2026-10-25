@@ -5,7 +5,7 @@ import re
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, make_schema_data, parse_float, parse_int
 from routes import chainle
@@ -297,28 +297,10 @@ def parse_smush_word_list(data, key):
 @bp.route("/smush", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_smush():
-    return _smush_page(dev=False)
-
-
-@bp.route("/smush_dev2", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def run_smush_dev2():
-    """James's copy of the public /smush, with today's board and hints on
-    even while SMUSH_BOARD_LIVE is off: how he watched them against his own
-    game before players saw them (2026-10-23 to 10-24). /smush_dev, with ICE
-    COLD, is another page and stays unreleased. It posts to itself, so its
-    votes are tagged dev in the vote log; its boards and votes count like
-    any player's. Not a page visit."""
-    return _smush_page(dev=True)
-
-
-def _smush_page(dev):
-    """/smush, or /smush_dev2 with `dev`: the page, a solve, or a JSON
-    action. Today's board (routes/smush.py) shows wherever show_board is on:
-    always on /smush_dev2, and on /smush while SMUSH_BOARD_LIVE."""
-    show_board = dev or smush_crowd.SMUSH_BOARD_LIVE
-    schema_data = None if dev else make_schema_data(
+    """The page, a solve, or a JSON action. Today's board (routes/smush.py)
+    shows while SMUSH_BOARD_LIVE."""
+    show_board = smush_crowd.SMUSH_BOARD_LIVE
+    schema_data = make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",
         "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
         "https://www.jamesapplewhite.com/smush"
@@ -334,8 +316,8 @@ def _smush_page(dev):
         # that isn't listed?" box. Not a solve.
         if 'action' in data:
             if data.get('action') in smush_crowd.BOARD_ACTIONS:
-                return smush_crowd.handle_board_action(data, dev=dev)
-            return smush_crowd.handle_vote(data, dev=dev)
+                return smush_crowd.handle_board_action(data)
+            return smush_crowd.handle_vote(data)
 
         center = data.get('center', '')
         if not (isinstance(center, str) and len(center) == 1 and 'a' <= center.lower() <= 'z'):
@@ -393,53 +375,48 @@ def _smush_page(dev):
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
     else:
-        if not dev:
-            log_page_visit('smush.html')
+        log_page_visit('smush.html')
         # The Pacific date's board, for search engines and the first paint;
         # the page asks again for the player's own date if theirs differs.
         todays_board, board_date = smush_crowd.page_board(show_board)
         return render_template("smush.html", schema_data=schema_data,
-                               post_url='/smush_dev2' if dev else '/smush', dev=dev,
                                show_board=show_board, todays_board=todays_board,
                                board_date=board_date)
-
-
-def _ribbit_post(dev=False):
-    """A POST to /ribbit, or /ribbit_dev with `dev`: a solve, or an `action`
-    (shared boards and crowd votes, in routes/ribbit.py)."""
-    data = request.get_json()
-    if not isinstance(data, dict):
-        raise ValidationError('expected a JSON object')
-
-    if 'action' in data:
-        return ribbit.handle_action(data, dev=dev)
-
-    nodes, edges, disabled = parse_ribbit_board(data)
-
-    # rejected: words Ribbit refused; played: words already found. Both are
-    # simply dropped from suggestions - Ribbit has no per-letter budget, so
-    # a found word costs nothing beyond not being suggested again.
-    rejected = parse_smush_word_list(data, 'rejected')
-    played = parse_smush_word_list(data, 'played')
-
-    min_len = parse_int(data.get('min_len'), 'min_len',
-                        default=4, min_value=3, max_value=15)
-
-    # Ribbit's own list: the dictionary with Ribbit's crowd corrections,
-    # never Smush's or Blossom's - those are about their games' lists.
-    results, total_playable = all_words.ribbit_solver(
-        nodes, edges, ribbit.get_ribbit_words(), min_len=min_len,
-        exclude=set(rejected) | set(played), disabled=disabled,
-        popularity=word_pop, list_len=500)
-
-    return jsonify(results=results, total_playable=total_playable)
 
 
 @bp.route("/ribbit", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_ribbit():
+    """The page, a solve, or an `action` (shared boards and crowd votes, in
+    routes/ribbit.py)."""
     if request.method == "POST":
-        return _ribbit_post()
+        data = request.get_json()
+        if not isinstance(data, dict):
+            raise ValidationError('expected a JSON object')
+
+        if 'action' in data:
+            return ribbit.handle_action(data)
+
+        nodes, edges, disabled = parse_ribbit_board(data)
+
+        # rejected: words Ribbit refused; played: words already found. Both
+        # are simply dropped from suggestions - Ribbit has no per-letter
+        # budget, so a found word costs nothing beyond not being suggested
+        # again.
+        rejected = parse_smush_word_list(data, 'rejected')
+        played = parse_smush_word_list(data, 'played')
+
+        min_len = parse_int(data.get('min_len'), 'min_len',
+                            default=4, min_value=3, max_value=15)
+
+        # Ribbit's own list: the dictionary with Ribbit's crowd corrections,
+        # never Smush's or Blossom's - those are about their games' lists.
+        results, total_playable = all_words.ribbit_solver(
+            nodes, edges, ribbit.get_ribbit_words(), min_len=min_len,
+            exclude=set(rejected) | set(played), disabled=disabled,
+            popularity=word_pop, list_len=500)
+
+        return jsonify(results=results, total_playable=total_playable)
 
     schema_data = make_schema_data(
         "Ribbit Solver - Today's Answers for Puzzmo & Yahoo Ribbit",
@@ -448,21 +425,7 @@ def run_ribbit():
     )
     log_page_visit('ribbit.html')
     return render_template("ribbit.html", schema_data=schema_data,
-                           shared_boards=ribbit.SHARED_BOARDS_LIVE, post_url='/ribbit', dev=False)
-
-
-@bp.route("/ribbit_dev", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def run_ribbit_dev():
-    """James's copy of /ribbit with the shared board on, to check a few days
-    of served boards against his own game before players see them (James's
-    call, 2026-10-17). It posts to itself, so its votes are tagged dev in the
-    vote log; its boards and votes count like any player's. Not a page visit."""
-    if request.method == "POST":
-        return _ribbit_post(dev=True)
-    return render_template("ribbit.html", schema_data=None,
-                           shared_boards=True, post_url='/ribbit_dev', dev=True)
+                           shared_boards=ribbit.SHARED_BOARDS_LIVE, post_url='/ribbit')
 
 
 @bp.route("/guess_the_phrase", methods=["POST", "GET"])

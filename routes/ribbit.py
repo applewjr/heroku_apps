@@ -1,9 +1,8 @@
 """Ribbit's word list, crowd word corrections, shared boards, and
 /ribbit_admin.
 
-The solver routes themselves are run_ribbit and run_ribbit_dev in
-routes/wordgames.py; they hand any JSON body carrying an `action` to
-handle_action here.
+The solver route itself is run_ribbit in routes/wordgames.py; it hands any
+JSON body carrying an `action` to handle_action here.
 
 Shared boards: entering a Ribbit board means typing 16 letters and drawing
 every link, and the links can't be worked out from the letters (tried
@@ -178,8 +177,9 @@ BOARDS_PER_PLAYER_PER_DAY = 10
 # _links_to_log).
 BOARD_SOURCES = ('typed', 'edited')
 # Live on /ribbit (James's call, 2026-10-18) after a dark launch from
-# 2026-10-17, when /ribbit only logged boards and /ribbit_dev alone offered
-# them back. False goes back to that: boards still logged, none offered.
+# 2026-10-17, when /ribbit only logged boards and /ribbit_dev (removed
+# 2026-10-25) alone offered them back. False goes back to that: boards still
+# logged, none offered (except on /ribbit_admin/board).
 SHARED_BOARDS_LIVE = True
 # An approval from /ribbit_admin (the Shared Boards tab's Add) is a row of
 # its own in ribbit_boards, with this as its source and in place of a player
@@ -620,14 +620,12 @@ def _parse_word(value):
     return word
 
 
-def _vote_mode(data, dev):
-    """The sort chip the player voted from, for the vote log only:
-    'dev_<chip>' from /ribbit_dev. None when the page didn't say or said
-    something else - never a reason to refuse the vote."""
+def _vote_mode(data):
+    """The sort chip the player voted from, for the vote log only. None when
+    the page didn't say or said something else - never a reason to refuse
+    the vote."""
     chip = data.get('mode')
-    if chip not in RIBBIT_SORT_MODES:
-        return None
-    return ('dev_' if dev else '') + chip
+    return chip if chip in RIBBIT_SORT_MODES else None
 
 
 def puzzle_tag(letters):
@@ -646,13 +644,13 @@ def _traceable(word, letters, links):
     return bool(found)
 
 
-def handle_vote(data, dev=False):
-    """A crowd vote posted to /ribbit, or /ribbit_dev with `dev`. Every reply
-    is the same whether or not the vote changed the list (see crowd.py)."""
+def handle_vote(data):
+    """A crowd vote posted to /ribbit. Every reply is the same whether or not
+    the vote changed the list (see crowd.py)."""
     action = data.get('action')
     word = _parse_word(data.get('word'))
     letters, links = _grid_board(data, whole=False)
-    tag, mode = puzzle_tag(letters), _vote_mode(data, dev)
+    tag, mode = puzzle_tag(letters), _vote_mode(data)
 
     if action == 'reject':
         # Only a word actually on offer, on a board it can be traced on:
@@ -676,20 +674,21 @@ def handle_vote(data, dev=False):
     return jsonify(status='success', result='recorded')
 
 
-def handle_action(data, dev=False):
-    """A JSON body posted to /ribbit, or /ribbit_dev with `dev`, carrying an
-    `action`: a shared board or a crowd vote, not a solve."""
+def handle_action(data, serve_dark=False):
+    """A JSON body posted to /ribbit carrying an `action`: a shared board or
+    a crowd vote, not a solve. `serve_dark` (only /ribbit_admin/board) serves
+    boards even while SHARED_BOARDS_LIVE is off."""
     action = data.get('action')
     if action == 'log_board':
         return log_board(data)
     if action in ('shared_board', 'board_links'):
-        if not (dev or SHARED_BOARDS_LIVE):
+        if not (serve_dark or SHARED_BOARDS_LIVE):
             # The dark launch: /ribbit logs boards but serves none yet, even
             # to someone calling it directly.
             return jsonify(boards=[]) if action == 'shared_board' else jsonify(edges=None)
         return shared_board(data) if action == 'shared_board' else board_links(data)
     if action in VOTE_ACTIONS:
-        return handle_vote(data, dev)
+        return handle_vote(data)
     raise ValidationError('unknown action')
 
 
@@ -786,9 +785,9 @@ def ribbit_admin_board():
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or data.get('action') not in ('shared_board', 'board_links'):
             raise ValidationError('only shared_board and board_links here')
-        return handle_action(data, dev=True)
+        return handle_action(data, serve_dark=True)
     return render_template('ribbit.html', schema_data=None, shared_boards=True,
-                           post_url=ADMIN + '/board', dev=False, approve=True,
+                           post_url=ADMIN + '/board', approve=True,
                            pacific_today=_pacific_today())
 
 

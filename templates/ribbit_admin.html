@@ -373,7 +373,6 @@
 
     <div class="top-nav">
         <a href="/ribbit" target="_blank" rel="noopener" class="btn btn-primary">Back to Ribbit Solver</a>
-        <a href="/ribbit_dev" target="_blank" rel="noopener" class="btn btn-secondary">Ribbit dev page</a>
         <a href="https://www.puzzmo.com/puzzle/ribbit" target="_blank" rel="noopener" class="btn btn-success puzzmo-ribbit-link">Puzzmo Ribbit</a>
         <a href="https://www.yahoo.com/games/play/ribbit/" target="_blank" rel="noopener" class="btn btn-success">Yahoo Ribbit</a>
     </div>
@@ -406,7 +405,7 @@
         <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
         <strong>Removed words:</strong> {{ invalid_total }} |
         <strong>Added words:</strong> {{ added_total }} |
-        <strong>Shared boards:</strong> {{ 'live on /ribbit' if shared_live else 'logging only; served on /ribbit_dev' }}
+        <strong>Shared boards:</strong> {{ 'live on /ribbit' if shared_live else 'logging only; served on /ribbit_admin/board' }}
     </div>
 
     <div class="admin-section">
@@ -457,7 +456,7 @@
         </div>
         {% endif %}
         <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. A player's board only ever gains links: links they erase later (keeping up with their game) are kept, and a loaded board that only lost links isn't logged. Players on one network (an IPv6 /48, or one IPv4 address) count as one. Turned or mirrored entries are the same board, shown here the way most of its players entered it.</p>
-        <p class="crowd-note">Each day lists the boards logged on players' own dates; Served are the boards offered to players on that date{% if not shared_live %} (on /ribbit_dev only, until it goes live){% endif %}, for each to pick the one that matches their game, since more than one can be real on a day: your approval first, then any board the players settled on their own, most players first, at most {{ todays_boards_max }}. Players counts each player once, across every day the board was entered. Remove deletes that day's entries of the board.</p>
+        <p class="crowd-note">Each day lists the boards logged on players' own dates; Served are the boards offered to players on that date{% if not shared_live %} (on /ribbit_admin/board only, until it goes live){% endif %}, for each to pick the one that matches their game, since more than one can be real on a day: your approval first, then any board the players settled on their own, most players first, at most {{ todays_boards_max }}. Players counts each player once, across every day the board was entered. Remove deletes that day's entries of the board.</p>
         <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add on a board you entered yourself on /ribbit (Add serves the most recently updated board for those letters, its time under the button, and approves nothing if a newer board came in before you pressed it). Either way the board is served to every player straight away, first of the day's boards, whatever players drew for those letters. Boards the players settled on their own are still offered next to it. Every board you approve for a day is served, in the order you approved them, so you can approve both Puzzmo's and Yahoo's. Undo takes the approval back and leaves the players' boards alone. Approving an older puzzle fills in its links for anyone who types it, but never makes it a day's board.</p>
 
         <div class="admin-section" id="approve-entry">
