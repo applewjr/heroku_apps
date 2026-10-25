@@ -1,0 +1,427 @@
+{# Wordle's and Antiwordle's board script. The page includes it inside
+   {% with %}, setting:
+     solver_path   where the board posts: '/wordle'
+     storage_key   the localStorage prefix for saved settings: 'wordle' (Antiwordle's
+                   is 'antiworlde', kept as it is so players keep their settings)
+     carry_states  the colors Smart Assign carries down: '3' (greens), or '3 2'
+                   (reds and yellows) #}
+<script>
+
+// Store initial data
+window.initialRecommendations = {
+    final_out1: "{{ initial_out1|default('') }}",
+    final_out2: "{{ initial_out2|default('') }}",
+    final_out3: "{{ initial_out3|default('') }}",
+    final_out4: "{{ initial_out4|default('') }}",
+    final_out5: "{{ initial_out5|default('') }}",
+    final_out_end: "{{ initial_out_end|default('') }}",
+    show_alt_picks: "{{ initial_show_alt_picks|default('') }}" === "True",
+    alt_out1: "{{ initial_alt_out1|default('') }}",
+    alt_out2: "{{ initial_alt_out2|default('') }}",
+    alt_out3: "{{ initial_alt_out3|default('') }}",
+    alt_out4: "{{ initial_alt_out4|default('') }}",
+    alt_out5: "{{ initial_alt_out5|default('') }}"
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const boxes = Array.from(document.querySelectorAll('#wordle-grid .wordle-box'));
+    const rows = Array.from(document.querySelectorAll('#wordle-grid .wordle-row'));
+    // Instructions collapse
+    const instructionsPanel = document.getElementById('instructions-panel');
+    const instructionsToggle = document.getElementById('instructions-toggle');
+    if (localStorage.getItem('{{ storage_key }}InstructionsCollapsed') === 'true') {
+        instructionsPanel.classList.add('collapsed');
+    }
+    instructionsToggle.addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        localStorage.setItem('{{ storage_key }}InstructionsCollapsed', instructionsPanel.classList.contains('collapsed'));
+    });
+
+    let smartAssign = localStorage.getItem('{{ storage_key }}SmartAssign') !== 'false';
+
+    const smartAssignBtn = document.getElementById('smart-assign-toggle');
+
+    function applySmartAssignState() {
+        smartAssignBtn.childNodes[0].textContent = `Smart Assign: ${smartAssign ? 'On' : 'Off'}`;
+        smartAssignBtn.classList.toggle('active', smartAssign);
+    }
+
+    applySmartAssignState();
+
+    smartAssignBtn.addEventListener('click', () => {
+        smartAssign = !smartAssign;
+        localStorage.setItem('{{ storage_key }}SmartAssign', smartAssign);
+        applySmartAssignState();
+    });
+
+    function rowBoxes(row) {
+        return Array.from(row.querySelectorAll('.wordle-box'));
+    }
+
+    function isVisible(row) {
+        return row.style.display !== 'none';
+    }
+
+    function boxLetter(box) {
+        return box.textContent.trim();
+    }
+
+    function setState(box, state) {
+        box.dataset.state = state;
+        box.className = `wordle-box color-${state}`;
+    }
+
+    function clearBox(box) {
+        box.textContent = '';
+        setState(box, 0);
+    }
+
+    // Smart Assign carries these colors down from the same box one row up.
+    const CARRY_STATES = '{{ carry_states }}'.split(' ');
+
+    function setLetter(box, letter) {
+        box.textContent = letter;
+        if (smartAssign && box.dataset.state === '0') {
+            const thisRow = parseInt(box.dataset.row);
+            const prevRowBox = document.querySelector(
+                `#wordle-grid .wordle-box[data-row="${thisRow - 1}"][data-position="${box.dataset.position}"]`
+            );
+            if (prevRowBox && boxLetter(prevRowBox) === letter && CARRY_STATES.includes(prevRowBox.dataset.state)) {
+                setState(box, prevRowBox.dataset.state);
+            } else {
+                setState(box, 1);
+            }
+        }
+    }
+
+    function showNextRowIfNeeded() {
+        const visibleRows = rows.filter(isVisible);
+        const lastVisible = visibleRows[visibleRows.length - 1];
+        if (!lastVisible) return;
+
+        const allFilled = rowBoxes(lastVisible).every(box => boxLetter(box) !== '');
+        const lastIndex = rows.indexOf(lastVisible);
+        if (allFilled && lastIndex + 1 < rows.length) {
+            rows[lastIndex + 1].style.display = 'flex';
+        }
+    }
+
+    function hideEmptyRowsFromEnd() {
+        // Hide trailing empty rows, keeping one empty entry row and at least the first 2 rows
+        for (let i = rows.length - 1; i >= 2; i--) {
+            if (!isVisible(rows[i])) continue;
+            if (rowBoxes(rows[i]).some(box => boxLetter(box) !== '')) break;
+            const prevEmpty = rowBoxes(rows[i - 1]).every(box => boxLetter(box) === '');
+            if (!prevEmpty) break;
+            rows[i].style.display = 'none';
+        }
+    }
+
+    function updateRowUI() {
+        let activeFound = false;
+        rows.forEach(row => {
+            const hasContent = rowBoxes(row).some(box => boxLetter(box) !== '');
+            row.classList.toggle('has-content', hasContent);
+
+            const isFull = rowBoxes(row).every(box => boxLetter(box) !== '');
+            const isActive = isVisible(row) && !isFull && !activeFound;
+            if (isActive) activeFound = true;
+            row.classList.toggle('active-row', isActive);
+        });
+        updateKeyboardColors();
+    }
+
+    function placeLetter(letter) {
+        for (const box of boxes) {
+            if (!isVisible(box.closest('.wordle-row'))) continue;
+            if (boxLetter(box) === '') {
+                setLetter(box, letter);
+                showNextRowIfNeeded();
+                updateRowUI();
+                triggerUpdate();
+                return;
+            }
+        }
+    }
+
+    function deleteLetter() {
+        for (let i = boxes.length - 1; i >= 0; i--) {
+            if (!isVisible(boxes[i].closest('.wordle-row'))) continue;
+            if (boxLetter(boxes[i]) !== '') {
+                clearBox(boxes[i]);
+                hideEmptyRowsFromEnd();
+                updateRowUI();
+                triggerUpdate();
+                return;
+            }
+        }
+    }
+
+    function clearRowAndCompact(rowEl) {
+        // Collect the remaining words (letters + colors), then re-stack them from the top
+        const words = [];
+        rows.forEach(row => {
+            if (row === rowEl) return;
+            const cells = rowBoxes(row).map(box => ({ letter: boxLetter(box), state: box.dataset.state }));
+            if (cells.some(cell => cell.letter !== '')) words.push(cells);
+        });
+
+        boxes.forEach(clearBox);
+        words.forEach((cells, i) => {
+            rowBoxes(rows[i]).forEach((box, j) => {
+                if (cells[j].letter !== '') {
+                    box.textContent = cells[j].letter;
+                    setState(box, cells[j].state);
+                }
+            });
+        });
+
+        rows.forEach((row, i) => {
+            row.style.display = i < Math.max(2, words.length + 1) ? 'flex' : 'none';
+        });
+
+        updateRowUI();
+        triggerUpdate();
+    }
+
+    function fillNextRow(word) {
+        const targetRow = rows.filter(isVisible).find(row => rowBoxes(row).every(box => boxLetter(box) === ''));
+        if (!targetRow) return;
+
+        const targets = rowBoxes(targetRow);
+        for (let i = 0; i < word.length && i < targets.length; i++) {
+            setLetter(targets[i], word[i]);
+        }
+        showNextRowIfNeeded();
+        updateRowUI();
+        triggerUpdate();
+    }
+    window.fillNextRow = fillNextRow;
+
+    // Tap a filled box to cycle its color
+    boxes.forEach(box => {
+        box.addEventListener('click', () => {
+            if (boxLetter(box) === '') return;
+            let newState = (parseInt(box.dataset.state) + 1) % 4;
+            // Skip state 0 (white) when cycling through colors for filled boxes
+            if (newState === 0) {
+                newState = 1;
+            }
+            setState(box, newState);
+            updateRowUI();
+            triggerUpdate();
+        });
+    });
+
+    // Confirm popover so a stray tap can't wipe a word
+    let confirmEl = null;
+    function closeConfirm() {
+        if (confirmEl) {
+            confirmEl.remove();
+            confirmEl = null;
+        }
+    }
+    function openConfirm(row, onConfirm) {
+        closeConfirm();
+        confirmEl = document.createElement('div');
+        confirmEl.className = 'confirm-clear';
+        const label = document.createElement('span');
+        label.textContent = 'Delete word?';
+        const yes = document.createElement('button');
+        yes.type = 'button';
+        yes.className = 'confirm-yes';
+        yes.textContent = 'Delete';
+        yes.addEventListener('click', () => {
+            closeConfirm();
+            onConfirm();
+        });
+        const no = document.createElement('button');
+        no.type = 'button';
+        no.className = 'confirm-no';
+        no.textContent = 'Cancel';
+        no.addEventListener('click', closeConfirm);
+        confirmEl.append(label, yes, no);
+        row.appendChild(confirmEl);
+    }
+    document.addEventListener('click', (event) => {
+        if (confirmEl && !confirmEl.contains(event.target) && !event.target.closest('.row-clear')) {
+            closeConfirm();
+        }
+    });
+
+    rows.forEach(row => {
+        row.querySelector('.row-clear').addEventListener('click', (event) => {
+            event.currentTarget.blur();
+            openConfirm(row, () => clearRowAndCompact(row));
+        });
+    });
+
+    // Build the on-screen keyboard
+    const keyboard = document.getElementById('solver-keyboard');
+    ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].forEach((line, lineIndex, layout) => {
+        const kbRow = document.createElement('div');
+        kbRow.className = 'kb-row';
+        line.split('').forEach(letter => {
+            const key = document.createElement('button');
+            key.type = 'button';
+            key.className = 'kb-key';
+            key.dataset.key = letter;
+            key.textContent = letter;
+            key.addEventListener('click', () => {
+                key.blur();
+                placeLetter(letter);
+            });
+            kbRow.appendChild(key);
+        });
+        if (lineIndex === layout.length - 1) {
+            const backKey = document.createElement('button');
+            backKey.type = 'button';
+            backKey.className = 'kb-key kb-wide';
+            backKey.setAttribute('aria-label', 'Delete letter');
+            backKey.innerHTML = '&#9003;';
+            backKey.addEventListener('click', () => {
+                backKey.blur();
+                deleteLetter();
+            });
+            kbRow.appendChild(backKey);
+        }
+        keyboard.appendChild(kbRow);
+    });
+
+    function updateKeyboardColors() {
+        const best = {};
+        boxes.forEach(box => {
+            const letter = boxLetter(box);
+            const state = parseInt(box.dataset.state);
+            if (letter && state > 0) best[letter] = Math.max(best[letter] || 0, state);
+        });
+        keyboard.querySelectorAll('.kb-key[data-key]').forEach(key => {
+            key.classList.remove('key-color-1', 'key-color-2', 'key-color-3');
+            if (best[key.dataset.key]) key.classList.add(`key-color-${best[key.dataset.key]}`);
+        });
+    }
+
+    // Physical keyboard support
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+
+        if (/^[a-zA-Z]$/.test(event.key)) {
+            event.preventDefault();
+            placeLetter(event.key.toUpperCase());
+        } else if (event.key === 'Backspace') {
+            event.preventDefault();
+            deleteLetter();
+        }
+    });
+
+    updateRowUI();
+
+    // Show initial recommendations if they exist
+    if (window.initialRecommendations && window.initialRecommendations.final_out1) {
+        updateUI(window.initialRecommendations);
+    }
+});
+
+let updateTimeout;
+
+function setRecommendationsLoading(isLoading) {
+    const container = document.getElementById('recommendations');
+    const status = document.getElementById('recommendations-status');
+    if (container) container.classList.toggle('loading', isLoading);
+    if (status) status.classList.toggle('visible', isLoading);
+}
+
+function triggerUpdate() {
+    clearTimeout(updateTimeout);
+    setRecommendationsLoading(true);
+    updateTimeout = setTimeout(() => {
+        const data = collectData();
+
+        fetch('{{ solver_path }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({wordle_data: data}),
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateUI(data);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        })
+        .finally(() => {
+            setRecommendationsLoading(false);
+        });
+    }, 300); // 300ms delay
+}
+  
+  function collectData() {
+      const data = [];
+      document.querySelectorAll('#wordle-grid .wordle-box').forEach((box) => {
+          const row = box.getAttribute('data-row');
+          const position = box.getAttribute('data-position');
+          const letter = box.textContent.trim().toUpperCase();
+          const color = box.dataset.state;
+
+          data.push({ letter, position, color, row });
+      });
+      return data;
+  }
+
+function updateUI(data) {
+    console.log("Updating UI with data:", data);
+
+    const recommendationsContainer = document.getElementById('recommendations');
+    recommendationsContainer.innerHTML = '';
+
+    ['final_out1', 'final_out2', 'final_out3', 'final_out4', 'final_out5'].forEach(key => {
+        if (data[key]) {
+            const match = data[key].match(/^Pick (\d+): ([A-Za-z]+)$/);
+            if (match) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'suggestion-btn';
+                btn.innerHTML = `<span class="suggestion-label">Pick ${match[1]}</span>${match[2].toUpperCase()}`;
+                btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                recommendationsContainer.appendChild(btn);
+            }
+        }
+    });
+
+    if (data['show_alt_picks']) {
+        const divider = document.createElement('div');
+        divider.style.cssText = 'margin: 12px 0 4px; font-size: 12px; color: #888; letter-spacing: 0.3px;';
+        divider.textContent = 'Alt Picks - Test the uncertain letters in one guess:';
+        recommendationsContainer.appendChild(divider);
+
+        const altRow = document.createElement('div');
+        ['alt_out1', 'alt_out2', 'alt_out3', 'alt_out4', 'alt_out5'].forEach(key => {
+            if (data[key]) {
+                const match = data[key].match(/^Alt Pick (\d+): ([A-Za-z]+)(?: \((\d+) match\))?$/);
+                if (match) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'suggestion-btn alt-pick';
+                    const matchLabel = match[3] ? ` · ${match[3]} match` : '';
+                    btn.innerHTML = `<span class="suggestion-label">Alt Pick ${match[1]}${matchLabel}</span>${match[2].toUpperCase()}`;
+                    btn.addEventListener('click', () => fillNextRow(match[2].toUpperCase()));
+                    altRow.appendChild(btn);
+                }
+            }
+        });
+        recommendationsContainer.appendChild(altRow);
+    }
+
+    if (data['final_out_end']) {
+        const chip = document.createElement('div');
+        chip.className = 'options-remaining';
+        chip.textContent = data['final_out_end'];
+        recommendationsContainer.appendChild(chip);
+    }
+}
+
+</script>

@@ -1286,42 +1286,9 @@ table.blossom-results td.show-letter-cell { width: 80px; }
   <br>
 
   <div style="margin: 20px 0; text-align: center;">
-    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🌸 Play Blossom</a>
-    <a href="/blossom_feedback" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">🚫 Report Invalid/Missing Word</a>
-    <a href="/feedback" style="
-        background-color: #f8f9fa;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        padding: 12px 20px;
-        border-radius: 8px;
-        text-decoration: none;
-        display: inline-block;
-        margin: 4px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-    " onmouseover="this.style.backgroundColor='#e9ecef'" onmouseout="this.style.backgroundColor='#f8f9fa'">💬 Feedback</a>
+    <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" class="action-btn">🌸 Play Blossom</a>
+    <a href="/blossom_feedback" class="action-btn">🚫 Report Invalid/Missing Word</a>
+    <a href="/feedback" class="action-btn">💬 Feedback</a>
     </div>    
     {% with current='/blossom' %}{% include '_related_solvers.html' %}{% endwith %}
   </div>
