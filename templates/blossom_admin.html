@@ -3,295 +3,10 @@
 {% block title %}Blossom Admin - Word Management{% endblock %}
 
 {% block content %}
+{% from '_crowd_admin.html' import styles, pager, pop_cell, keep_view, flash, search_form,
+   word_form, removed_tab, added_tab, word_form_script with context %}
+{{ styles() }}
 <style>
-.admin-container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.admin-section {
-    background-color: #f8f9fa;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 30px;
-    border: 1px solid #e9ecef;
-}
-
-.form-group {
-    margin-bottom: 15px;
-}
-
-.form-group label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #333;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-.btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    text-decoration: none;
-    display: inline-block;
-    margin-right: 10px;
-}
-
-.btn-primary {
-    background-color: #007bff;
-    color: white;
-}
-
-.btn-primary:hover {
-    background-color: #0056b3;
-}
-
-.btn-secondary {
-    background-color: #6c757d;
-    color: white;
-}
-
-.btn-secondary:hover {
-    background-color: #5a6268;
-}
-
-.btn-success {
-    background-color: #28a745;
-    color: white;
-}
-
-.btn-success:hover {
-    background-color: #218838;
-}
-
-.btn-danger {
-    background-color: #dc3545;
-    color: white;
-}
-
-.btn-danger:hover {
-    background-color: #c82333;
-}
-
-.btn-disabled {
-    background-color: #e9ecef;
-    color: #999;
-}
-
-/* Wide tables scroll inside their own box on a phone, not the whole page. */
-.table-wrap {
-    overflow-x: auto;
-}
-
-.words-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-}
-
-.words-table th,
-.words-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-    vertical-align: top;
-}
-
-.words-table th {
-    background-color: #f8f9fa;
-    font-weight: bold;
-}
-
-.words-table tr:hover {
-    background-color: #f5f5f5;
-}
-
-.alert {
-    padding: 12px 20px;
-    margin-bottom: 20px;
-    border-radius: 4px;
-    font-weight: bold;
-}
-
-.alert-success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.alert-error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
-.stats {
-    background-color: #e9ecef;
-    padding: 15px;
-    border-radius: 4px;
-    margin-bottom: 20px;
-}
-
-.top-nav {
-    margin-bottom: 20px;
-}
-
-.top-nav .btn {
-    margin-bottom: 8px;
-}
-
-.remove-form {
-    display: inline;
-}
-
-/* First and last report: one short line each, never wrapped. */
-.report-dates {
-    white-space: nowrap;
-    font-size: 12px;
-}
-
-/* The two row buttons sit side by side, never wrapped onto two lines. */
-.row-actions {
-    white-space: nowrap;
-}
-
-.row-actions .btn {
-    padding: 6px 10px;
-    margin: 0 6px 0 0;
-}
-
-.word-choice {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 15px;
-}
-
-/* Two outlined boxes until one is chosen; the chosen one fills in. */
-.choice-btn {
-    flex: 1;
-    margin: 0;
-    font-weight: bold;
-    background-color: #fff;
-    border: 2px solid;
-}
-
-.choice-remove {
-    color: #dc3545;
-    border-color: #dc3545;
-}
-
-.choice-add {
-    color: #28a745;
-    border-color: #28a745;
-}
-
-.choice-remove[aria-pressed="true"] {
-    background-color: #dc3545;
-    color: #fff;
-}
-
-.choice-add[aria-pressed="true"] {
-    background-color: #28a745;
-    color: #fff;
-}
-
-.word-submit {
-    margin: 0;
-}
-
-.word-submit:disabled {
-    background-color: #adb5bd;
-    cursor: not-allowed;
-}
-
-.tab-container {
-    margin-bottom: 20px;
-}
-
-.tab-button {
-    background-color: #e9ecef;
-    border: 1px solid #ddd;
-    padding: 10px 20px;
-    cursor: pointer;
-    display: inline-block;
-    margin-right: 5px;
-    border-radius: 4px 4px 0 0;
-}
-
-.tab-button.active {
-    background-color: #007bff;
-    color: white;
-    border-bottom: 1px solid #007bff;
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-.crowd-note {
-    color: #666;
-    font-size: 13px;
-}
-
-.search-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.search-form input {
-    flex: 1 1 180px;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.search-form .btn {
-    margin: 0;
-}
-
-.pager {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    margin-top: 12px;
-    font-size: 14px;
-}
-
-.pager .btn {
-    margin: 0;
-    padding: 6px 12px;
-}
-
-.pager a {
-    padding: 4px 8px;
-}
-
-.pager-now {
-    padding: 4px 8px;
-    font-weight: bold;
-}
-
 .board-tag {
     font-family: monospace;
     font-size: 13px;
@@ -312,24 +27,6 @@
 
 .feedback-type-missing {
     border-left: 4px solid #28a745;
-}
-
-.result-waiting {
-    color: #666;
-}
-
-.by-crowd {
-    color: #02484d;
-    font-weight: bold;
-}
-
-.pop-rare {
-    color: #b00020;
-    font-weight: bold;
-}
-
-.pop-none {
-    color: #999;
 }
 
 .report-missing {
@@ -425,34 +122,6 @@
 }
 </style>
 
-{% macro pager(p) %}
-{% if p.pages > 1 %}
-<nav class="pager">
-    {% if p.prev %}<a class="btn btn-secondary" href="{{ p.prev }}">Prev</a>{% else %}<span class="btn btn-disabled">Prev</span>{% endif %}
-    {% for n, url in p.numbers %}
-        {% if n == p.page %}<span class="pager-now">{{ n }}</span>{% else %}<a href="{{ url }}">{{ n }}</a>{% endif %}
-    {% endfor %}
-    {% if p.next %}<a class="btn btn-secondary" href="{{ p.next }}">Next</a>{% else %}<span class="btn btn-disabled">Next</span>{% endif %}
-    <span class="crowd-note">Page {{ p.page }} of {{ p.pages }}</span>
-</nav>
-{% endif %}
-{% endmacro %}
-
-{# How common the word is: the Zipf score the Smush solver ranks by (see
-   data.word_pop). Below 2 is what the solver tags rare; a word missing from
-   the frequency list counts as 0 there. #}
-{% macro pop_cell(word) %}
-{% set pop = word_pop.get(word) %}
-{% if pop is none %}<td class="pop-none">none</td>
-{% else %}<td class="{{ 'pop-rare' if pop < 2 else '' }}">{{ '%.1f' % pop }}</td>{% endif %}
-{% endmacro %}
-
-{# The page's search, tab and pages, copied into every form that changes a
-   list so the page the action returns to looks the same (see
-   crowd.admin_return_url). showTab() keeps the tab field on the tab in view. #}
-{% macro keep_view() %}
-{% for k, v in keep.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}"{% if k == 'tab' %} class="keep-tab"{% endif %}>{% endfor %}
-{% endmacro %}
 
 <div class="admin-container">
     <h1>Blossom Admin - Word Management</h1>
@@ -462,17 +131,7 @@
         <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" rel="noopener" class="btn btn-success">Open Blossom Game</a>
     </div>
 
-    {% if request.args.get('success') %}
-    <div class="alert alert-success">
-        {{ request.args.get('success') }}
-    </div>
-    {% endif %}
-
-    {% if request.args.get('error') %}
-    <div class="alert alert-error">
-        {{ request.args.get('error') }}
-    </div>
-    {% endif %}
+    {{ flash() }}
 
     {% if in_both %}
     <div class="alert alert-error">
@@ -494,34 +153,9 @@
         <strong>Today's board:</strong> {{ 'live on /blossom' if board_live else 'logging only' }}
     </div>
 
-    <div class="admin-section">
-        <h2>Add/Remove Words</h2>
-        <p class="crowd-note">Your entries are final: players can never reverse them, and the word's votes start over. Type the word, choose a list, then press Submit.</p>
-        <form method="POST" action="/add_word" id="word-form">
-            <div class="form-group">
-                <label for="word">Word:</label>
-                <input type="text" id="word" name="word" required
-                       placeholder="Enter word"
-                       style="text-transform: lowercase;">
-            </div>
-            <div class="word-choice">
-                <button type="button" class="btn choice-btn choice-remove" data-choice="invalid" aria-pressed="false">Remove invalid word</button>
-                <button type="button" class="btn choice-btn choice-add" data-choice="missing" aria-pressed="false">Add missing word</button>
-            </div>
-            <input type="hidden" name="word_type" id="word-type" value="">
-            {{ keep_view() }}
-            <button type="submit" class="btn btn-primary word-submit" id="word-submit" disabled>Submit</button>
-            <p class="crowd-note" id="word-hint">Type a word, then choose a list.</p>
-        </form>
-    </div>
+    {{ word_form('/add_word') }}
 
-    <form method="GET" class="search-form" id="search-form">
-        <input type="hidden" name="tab" id="tab-input" value="{{ active_tab }}">
-        {% if show_settled %}<input type="hidden" name="settled" value="1">{% endif %}
-        <input type="text" name="q" value="{{ query }}" placeholder="Search words or boards">
-        <button type="submit" class="btn btn-primary">Search</button>
-        {% if query %}<a href="{{ clear_url }}">Clear search</a>{% endif %}
-    </form>
+    {{ search_form('Search words or boards') }}
     <p class="crowd-note">Include the colon to search the Board column: a whole board, or t: for every board with center T. A search stays through Remove, Add and Undo until you press Clear search.</p>
     <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Smush solver tags rare; "none" means it isn't in the frequency list at all.</p>
 
@@ -733,136 +367,13 @@
         {% endif %}
     </div>
 
-    <!-- Removed Words Tab -->
-    <div id="invalid-tab" class="tab-content{% if active_tab == 'invalid' %} active{% endif %}">
-        <h2>Removed Words (Hidden from Results)</h2>
-        <p class="crowd-note">"Crowd" rows were applied automatically once enough different players flagged the word ({{ crowd_remove_rare }} to {{ crowd_remove_bands[0][1] }}, depending on its popularity). Undo puts the word back and resets its votes.</p>
-        {% if invalid_words %}
-        <div class="table-wrap">
-        <table class="words-table">
-            <thead>
-                <tr>
-                    <th>Word</th>
-                    <th>Popularity</th>
-                    <th>Added Date</th>
-                    <th>By</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for word_data in invalid_words %}
-                <tr>
-                    <td><strong>{{ word_data[0] }}</strong></td>
-                    {{ pop_cell(word_data[0]) }}
-                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
-                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
-                    <td>
-                        <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Put {{ word_data[0] }} back in the Blossom word list?')">
-                            <input type="hidden" name="word" value="{{ word_data[0] }}">
-                            <input type="hidden" name="word_type" value="invalid">
-                            {{ keep_view() }}
-                            <button type="submit" class="btn btn-danger">Undo</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {{ pager(invalid_pager) }}
-        {% else %}
-        <p>{% if query %}No removed words match "{{ query }}".{% else %}No words removed.{% endif %}</p>
-        {% endif %}
-    </div>
+    {{ removed_tab('/remove_word', 'Blossom') }}
 
-    <!-- Added Words Tab -->
-    <div id="added-tab" class="tab-content{% if active_tab == 'added' %} active{% endif %}">
-        <h2>Added Words (Included in Results)</h2>
-        <p class="crowd-note">"Crowd" rows were added automatically after {{ crowd_add_votes }} different players suggested the word. Undo takes the word back out and resets its votes.</p>
-        {% if added_words %}
-        <div class="table-wrap">
-        <table class="words-table">
-            <thead>
-                <tr>
-                    <th>Word</th>
-                    <th>Popularity</th>
-                    <th>Added Date</th>
-                    <th>By</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for word_data in added_words %}
-                <tr>
-                    <td><strong>{{ word_data[0] }}</strong></td>
-                    {{ pop_cell(word_data[0]) }}
-                    <td>{{ word_data[1].strftime('%Y-%m-%d %H:%M') if word_data[1] else 'N/A' }}</td>
-                    <td class="by-{{ word_data[2] }}">{{ 'crowd' if word_data[2] == 'crowd' else 'you' }}</td>
-                    <td>
-                        <form method="POST" action="/remove_word" class="remove-form"
-                              onsubmit="return confirm('Take {{ word_data[0] }} out of the Blossom word list?')">
-                            <input type="hidden" name="word" value="{{ word_data[0] }}">
-                            <input type="hidden" name="word_type" value="missing">
-                            {{ keep_view() }}
-                            <button type="submit" class="btn btn-danger">Undo</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {{ pager(added_pager) }}
-        {% else %}
-        <p>{% if query %}No added words match "{{ query }}".{% else %}No words added.{% endif %}</p>
-        {% endif %}
-    </div>
+    {{ added_tab('/remove_word', 'Blossom') }}
 </div>
 
 <script>
-var wordInput = document.getElementById('word');
-var wordType = document.getElementById('word-type');
-var wordSubmit = document.getElementById('word-submit');
-var wordHint = document.getElementById('word-hint');
-
-wordInput.addEventListener('input', function() {
-    this.value = this.value.toLowerCase();
-    refreshWordForm();
-});
-
-// Enter does nothing here: the word is submitted only by the Submit button,
-// after a list is chosen.
-wordInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') e.preventDefault();
-});
-
-document.querySelectorAll('.choice-btn').forEach(function(button) {
-    button.addEventListener('click', function() {
-        wordType.value = this.getAttribute('data-choice');
-        document.querySelectorAll('.choice-btn').forEach(function(other) {
-            other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
-        });
-        refreshWordForm();
-    });
-});
-
-function refreshWordForm() {
-    var word = wordInput.value.trim();
-    var choice = wordType.value;
-    wordSubmit.disabled = !(word && choice);
-    if (!word) {
-        wordHint.textContent = choice ? 'Type the word.' : 'Type a word, then choose a list.';
-    } else if (!choice) {
-        wordHint.textContent = 'Now choose a list.';
-    } else if (choice === 'invalid') {
-        wordHint.textContent = 'Submit will remove "' + word + '" from the Blossom word list.';
-    } else {
-        wordHint.textContent = 'Submit will add "' + word + '" to the Blossom word list.';
-    }
-}
-
-refreshWordForm();
+{{ word_form_script('Blossom') }}
 
 // The Approve form's letters: one per box, then on to the next box in
 // typing order (the center, then the petals in the solver's order).
@@ -873,22 +384,6 @@ flowerInputs.forEach(function(input, i) {
         if (this.value && flowerInputs[i + 1]) flowerInputs[i + 1].focus();
     });
 });
-
-function showTab(event, tabName) {
-    document.querySelectorAll('.tab-content').forEach(function(content) {
-        content.classList.remove('active');
-    });
-    document.querySelectorAll('.tab-button').forEach(function(button) {
-        button.classList.remove('active');
-    });
-    document.getElementById(tabName + '-tab').classList.add('active');
-    event.target.classList.add('active');
-    document.getElementById('tab-input').value = tabName;
-    // So Remove/Add/Undo come back to the tab they were pressed on.
-    document.querySelectorAll('.keep-tab').forEach(function(input) {
-        input.value = tabName;
-    });
-}
 </script>
 
 {% endblock %}
