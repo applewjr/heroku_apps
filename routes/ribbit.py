@@ -265,18 +265,7 @@ def consensus(rows):
     """
     approvals = [row for row in rows if row[SOURCE] == APPROVAL]
     player_rows = [row for row in rows if row[SOURCE] != APPROVAL]
-    latest = {}
-    for row in player_rows:
-        mine = latest.get(row[VOTER])
-        if mine is None or row[UPDATED] > mine[UPDATED]:
-            latest[row[VOTER]] = row
-    # Then one per network. A second step, so a player with a board from
-    # before prefix_hash and one since still counts once.
-    networks = {}
-    for row in latest.values():
-        network = row[PREFIX] or row[VOTER]
-        if network not in networks or row[UPDATED] > networks[network][UPDATED]:
-            networks[network] = row
+    networks = crowd.one_per_network(player_rows, VOTER, PREFIX, UPDATED)
     boards = [(row, _parse_links(row[LINKS])) for row in networks.values()]
     finished = [(row, links) for row, links in boards if _every_tile_linked(links)]
     players = len(finished)

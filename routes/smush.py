@@ -432,20 +432,8 @@ def consensus(rows, day):
     busy_days = [d for d, nets in networks_by_day.items() if len(nets) >= ARCHIVE_MIN_NETWORKS]
     first_seen = min(busy_days) if busy_days else min(row[PLAYED_ON] for row in rows)
 
-    latest = {}
-    for row in player_rows:
-        if row[PLAYED_ON] != day:
-            continue
-        mine = latest.get(row[VOTER])
-        if mine is None or row[UPDATED] > mine[UPDATED]:
-            latest[row[VOTER]] = row
-    # Then one per network. A second step, so a player who moved between
-    # networks still counts once.
-    networks = {}
-    for row in latest.values():
-        network = row[PREFIX] or row[VOTER]
-        if network not in networks or row[UPDATED] > networks[network][UPDATED]:
-            networks[network] = row
+    networks = crowd.one_per_network([row for row in player_rows if row[PLAYED_ON] == day],
+                                     VOTER, PREFIX, UPDATED)
 
     times = sorted(row[UPDATED] for row in networks.values())
     spicy_counts = Counter(row[SPICY] for row in networks.values() if row[SPICY]).most_common()

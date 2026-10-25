@@ -135,6 +135,25 @@ def prefix_hash(game):
     return _visitor_hmac(game, 'prefix', 48)
 
 
+def one_per_network(rows, voter, prefix, updated):
+    """The board rows that count, keyed by network: each player's latest row,
+    then the latest of those on each network (prefix_hash; a row without
+    one is a network of its own). Two steps, so a player who moved between
+    networks, or logged before prefix_hash existed and since, still counts
+    once. voter, prefix and updated are the rows' column positions."""
+    latest = {}
+    for row in rows:
+        mine = latest.get(row[voter])
+        if mine is None or row[updated] > mine[updated]:
+            latest[row[voter]] = row
+    networks = {}
+    for row in latest.values():
+        network = row[prefix] or row[voter]
+        if network not in networks or row[updated] > networks[network][updated]:
+            networks[network] = row
+    return networks
+
+
 def remove_votes_needed(word):
     """Players needed to take `word` out of a game's list: fewer the rarer it is."""
     pop = word_pop.get(word)
