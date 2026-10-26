@@ -20,6 +20,7 @@ CENTER, OUTER = "l", "mguoaecf"
 PUZZLE_TAG = "l:acefgmou"
 LISTED = "flagellum"            # on that board, and in the word list
 NOT_LISTED = "glumac"           # fits that board, but is not a word
+PANGRAM = "camouflage"          # all nine of that board's letters
 
 
 def _votes(players, today=0, invalid_today=1):
@@ -56,6 +57,7 @@ def _vote(client, action, word, center=CENTER, outer=OUTER):
 def test_the_board_fixtures_are_what_they_claim():
     assert LISTED in words
     assert NOT_LISTED not in words
+    assert PANGRAM in words and set(PANGRAM) == set(CENTER + OUTER)
 
 
 def test_reject_records_a_vote_for_this_board(client, smush_db):
@@ -94,11 +96,12 @@ def test_the_deciding_player_removes_the_word(client, smush_db):
 ])
 def test_rarer_words_need_fewer_players_to_remove(monkeypatch, pop, needed):
     import crowd
+    from routes.smush import SMUSH_CROWD
     monkeypatch.setattr(crowd, "word_pop", {} if pop is None else {"zarf": pop})
     assert crowd.remove_votes_needed("zarf") == needed
-    assert crowd.CrowdList.threshold("zarf", "invalid") == needed
+    assert SMUSH_CROWD.threshold("zarf", "invalid") == needed
     # Adding a word doesn't depend on how common it is.
-    assert crowd.CrowdList.threshold("zarf", "missing") == crowd.CROWD_ADD_VOTES
+    assert SMUSH_CROWD.threshold("zarf", "missing") == crowd.CROWD_ADD_VOTES
 
 
 def test_the_scale_never_goes_below_three_or_above_five():
@@ -120,6 +123,41 @@ def test_a_rare_word_goes_at_three_players_a_common_one_does_not(client, smush_d
     db = smush_db(_votes(players=4))
     _vote(client, "reject", LISTED)
     assert not db.statements("INSERT INTO smush_invalid_words")
+
+
+def test_a_pangram_needs_five_players_however_rare(client, smush_db, monkeypatch):
+    # James's call, 2026-10-26: pangrams top every tab and drew the most
+    # stray ✗s (real ones went at 3), so the rare-word discount skips them.
+    import crowd
+    from routes.smush import SMUSH_CROWD
+    monkeypatch.setattr(crowd, "word_pop", {PANGRAM: 1.2})
+    assert crowd.remove_votes_needed(PANGRAM) == 3
+    assert SMUSH_CROWD.threshold(PANGRAM, "invalid") == crowd.CROWD_REMOVE_VOTES == 5
+    db = smush_db(_votes(players=4))
+    _vote(client, "reject", PANGRAM)
+    assert not db.statements("INSERT INTO smush_invalid_words")
+
+    db = smush_db(_votes(players=5))
+    _vote(client, "reject", PANGRAM)
+    assert db.statements("INSERT INTO smush_invalid_words")
+    vote, applied = db.log_rows("smush")
+    assert vote["needed"] == applied["needed"] == 5
+
+    # Taking a ✗ back counts the same way: 4 left puts it back.
+    db = smush_db(_votes(players=4))
+    _vote(client, "restore", PANGRAM)
+    assert db.statements("DELETE FROM smush_invalid_words WHERE word = %s AND source = 'crowd'")
+
+
+def test_crossing_off_puts_a_pangram_back_below_five(client, smush_db, monkeypatch):
+    import crowd
+    monkeypatch.setattr(crowd, "word_pop", {PANGRAM: 1.2})
+    db = smush_db(
+        _votes(players=4, invalid_today=crowd.CROWD_MAX_INVALID_PER_DAY + 1),
+        rows={"SELECT word FROM smush_word_votes WHERE voter_hash": [(PANGRAM,)]},
+    )
+    _vote(client, "reject", PANGRAM)
+    assert db.statements("DELETE FROM smush_invalid_words WHERE word = %s AND source = 'crowd'")
 
 
 def test_taking_back_a_vote_uses_the_same_scale(client, smush_db, monkeypatch):
@@ -330,20 +368,23 @@ def test_admin_needed_column_shows_what_each_word_needs(client, smush_db, monkey
     from datetime import datetime
     import crowd
     when = datetime(2026, 10, 4, 8, 0)
-    monkeypatch.setattr(crowd, "word_pop", {"flagellum": 2.22, "leaf": 4.35})
+    monkeypatch.setattr(crowd, "word_pop", {"flagellum": 2.22, "leaf": 4.35, PANGRAM: 1.2})
     smush_db(rows={
         "FROM smush_word_votes v": [("flagellum", "invalid", 2, when, "waiting", when, None),
                                     ("leaf", "invalid", 1, when, "waiting", when, None),
                                     ("glop", "invalid", 1, when, "waiting", when, None),
-                                    ("glumac", "missing", 1, when, "waiting", when, None)],
+                                    ("glumac", "missing", 1, when, "waiting", when, None),
+                                    (PANGRAM, "invalid", 3, when, "waiting", when, None)],
     })
     html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
     assert re.search(r"<td>2</td>\s*<td>4</td>", html)     # flagellum
     assert re.search(r"<td>1</td>\s*<td>5</td>", html)     # leaf
     assert re.search(r"<td>1</td>\s*<td>3</td>", html)     # glop, not in the frequency list
     assert re.search(r"<td>1</td>\s*<td>2</td>", html)     # glumac, a suggestion
+    assert re.search(r"<td>3</td>\s*<td>5</td>", html)     # camouflage, a rare pangram
     assert "<th>Players</th>" in html and "<th>Needed</th>" in html
     assert "5 at popularity 3.3 or above, 4 at popularity 2.0 or above, 3 below that or none" in html
+    assert "A pangram (all nine letters) takes 5, however rare." in html
 
 
 def test_a_late_vote_on_your_own_change_counts_as_settled(client, smush_db, monkeypatch):
@@ -732,6 +773,20 @@ def test_smush_page_ships_the_crowd_hooks(client):
                  "action: 'reject'", "action: 'restore'", "action: 'suggest_missing'",
                  "{mode: sortMode}"):
         assert hook in html, f"smush.html lost {hook}"
+
+
+def test_the_x_asks_before_it_reports(client):
+    # James, 2026-10-26: ✓ Played and ✗ both make a word go away, so players
+    # ✗'d words they had played. A ✗ reports only once the player says Smush
+    # refused it; taking one back from the hidden list stays one tap.
+    html = client.get("/smush").get_data(as_text=True)
+    handler = re.search(r"querySelectorAll\('\.reject-btn'\)\.forEach\(btn =>\s*"
+                        r"btn\.addEventListener\('click', \(?e\)? => \{(.*?)\}\)\);", html, re.S)
+    assert "askRejected(btn)" in handler.group(1) and "markRejected" not in handler.group(1)
+    for answer in ("Did Smush refuse", "✗ Smush refused it", "✓ I played it", "Cancel"):
+        assert answer in html
+    assert re.search(r"\.rejected-chip'\)\.forEach\(\w+ =>\s*"
+                     r"\w+\.addEventListener\('click', \(\) => restoreRejected\(", html)
 
 
 def test_players_are_never_told_the_vote_counts(client):

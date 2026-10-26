@@ -563,7 +563,8 @@ def board_links(data):
 #
 # ✗ sits next to ✓ Found and both hide the word, so some players will ✗
 # words they found. crowd.py's per-player daily limit catches the heavy
-# cases; the first ✗ in a browser also asks players to keep it for refusals.
+# cases. Since 2026-10-26 every ✗ first asks "Did Ribbit refuse it?", with
+# ✓ I found it beside the answer.
 
 RIBBIT_CROWD = crowd.CrowdList('ribbit', on_change=_forget_ribbit_words)
 

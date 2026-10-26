@@ -306,13 +306,17 @@ class CrowdList:
     window_days -- how long a vote keeps counting. Guess The Phrase uses
                  30, not 7: its players work through old puzzles, so two
                  who solve the same one can be weeks apart.
+    remove_votes -- players needed to remove a word (remove_votes_needed
+                 unless a game asks for more on some words: Smush pangrams)
     """
 
-    def __init__(self, game, on_change, window_days=CROWD_WINDOW_DAYS):
+    def __init__(self, game, on_change, window_days=CROWD_WINDOW_DAYS,
+                 remove_votes=remove_votes_needed):
         if game not in CROWD_GAMES:
             raise ValueError(f'not a crowd game: {game!r}')
         self.game = game
         self.window_days = window_days
+        self.remove_votes = remove_votes
         self.votes_table = f'{game}_word_votes'
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
@@ -324,10 +328,9 @@ class CrowdList:
             'missing': (self.added_table, self.invalid_table),
         }
 
-    @staticmethod
-    def threshold(word, kind):
+    def threshold(self, word, kind):
         """Players needed before the crowd's `kind` of change to `word` applies."""
-        return remove_votes_needed(word) if kind == 'invalid' else CROWD_ADD_VOTES
+        return self.remove_votes(word) if kind == 'invalid' else CROWD_ADD_VOTES
 
     def voter_hash(self):
         """Who is voting (see player_hash)."""
@@ -410,7 +413,7 @@ class CrowdList:
         """
         put_back = False
         for word in set(words):
-            players, needed = self._count_players(cursor, word, 'invalid'), remove_votes_needed(word)
+            players, needed = self._count_players(cursor, word, 'invalid'), self.threshold(word, 'invalid')
             if players < needed:
                 cursor.execute(
                     f"DELETE FROM {self.invalid_table} WHERE word = %s AND source = 'crowd'", (word,))

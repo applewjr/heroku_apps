@@ -538,6 +538,40 @@
 .define-link { border: 1px solid #cdd8d7; color: #02484d; text-decoration: none; }
 .define-link:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
 
+/* The question a ✗ asks before it reports (askRejected), tucked under its row.
+   Both answers get the same weight as the row's own ✗ and ✓ Found. */
+.reject-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: -4px 0 8px;
+    padding: 8px 10px;
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 8px;
+    text-align: left;
+}
+.reject-confirm-q { flex: 0 0 100%; font-size: 13px; font-weight: 600; color: #a55; }
+.confirm-refused, .confirm-found, .confirm-cancel {
+    background-color: #fff;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.confirm-refused { border: 1px solid #e0d5d5; color: #a55; }
+.confirm-refused:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.confirm-found { border: 1px solid #cdd8d7; color: #02484d; }
+.confirm-found:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.confirm-cancel { background: none; border: none; color: #6b7280; text-decoration: underline; text-decoration-style: dotted; }
+.confirm-cancel:hover { color: #02484d; }
+
 .show-more-btn {
     display: block;
     margin: 16px auto 4px;
@@ -677,6 +711,8 @@
     .word-result { padding: 6px 10px; margin: 5px 0; min-height: 0; gap: 3px 7px; flex-wrap: wrap; }
     .word-text { font-size: 15px; letter-spacing: 0.5px; }
     .word-meta { order: 1; flex: 0 0 100%; }
+    .reject-confirm { margin: -2px 0 5px; padding: 6px 8px; gap: 6px; }
+    .confirm-refused, .confirm-found, .confirm-cancel { font-size: 11px; padding: 7px 8px; }
     .results-container { padding: 10px 8px 20px; }
     .rb-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
 }
@@ -721,7 +757,7 @@
         on the board.
         <br><br>
         <strong>4. Play along.</strong> Hit <strong>✓ Found</strong> on a word you've played, or
-        <strong>✗</strong> on one Ribbit refused: it's hidden, and your ✗ helps us fix the word list.
+        <strong>✗</strong> and confirm on one Ribbit refused: it's hidden, and your report helps us fix the word list.
         If Ribbit accepts a word we don't list, type it into the box under the results. When the game
         clears a tile into a frog,
         <strong>tap that tile</strong> to clear it here too - words that could only run through it drop
@@ -1515,7 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
             btn.addEventListener('click', e => { e.stopPropagation(); markFound(btn.dataset.play); }));
         resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
-            btn.addEventListener('click', e => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+            btn.addEventListener('click', e => { e.stopPropagation(); askRejected(btn); }));
         resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
             btn.addEventListener('click', e => {
                 e.stopPropagation();
@@ -1551,18 +1587,44 @@ document.addEventListener('DOMContentLoaded', () => {
         afterChange();
     }
 
+    /* ✗ asks before it reports. ✓ Found and ✗ both make a word go away, so
+       some players ✗ words they found. The question opens under the row,
+       where a second tap on ✗ can't answer it (it closes it), and offers
+       ✓ Found as well. Taking a ✗ back, from the hidden list, stays one
+       tap. Any re-render drops it. */
+    function askRejected(btn) {
+        const word = btn.dataset.reject;
+        const open = resultsContainer.querySelector('.reject-confirm');
+        if (open) {
+            open.remove();
+            if (open.dataset.word === word) return;
+        }
+        const row = btn.closest('.word-result');
+        const upper = word.toUpperCase();
+        row.insertAdjacentHTML('afterend',
+            '<div class="reject-confirm" data-word="' + word + '" role="group" aria-label="Did Ribbit refuse ' + upper + '?">' +
+            '<span class="reject-confirm-q">Did Ribbit refuse ' + upper + '?</span>' +
+            '<button type="button" class="confirm-refused">✗ Ribbit refused it</button>' +
+            '<button type="button" class="confirm-found">✓ I found it</button>' +
+            '<button type="button" class="confirm-cancel">Cancel</button>' +
+            '</div>');
+        const strip = row.nextElementSibling;
+        strip.addEventListener('click', e => {
+            const answer = e.target.closest('button');
+            if (!answer) return;
+            strip.remove();
+            if (answer.classList.contains('confirm-refused')) markRejected(word);
+            else if (answer.classList.contains('confirm-found')) markFound(word);
+        });
+    }
+
     /* The game refused this word: hide it, and tell the server, which fixes
        the word list once enough players agree. */
     function markRejected(word) {
         if (rejected.includes(word)) return;
         rejected.push(word);
         if (activeWord === word) activeWord = null;
-        if (isFirstReject()) {
-            toast(word.toUpperCase() + " hidden. Thanks, we'll take your report into account. " +
-                  'Use ✗ only when Ribbit refuses a word.', false, 6000);
-        } else {
-            toast(word.toUpperCase() + ' hidden - Ribbit didn\'t accept it.');
-        }
+        toast(word.toUpperCase() + ' hidden. Thanks for the report. Tap it below to restore.');
         postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
         renderPiles();
         afterChange();
@@ -1598,16 +1660,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!r.ok) throw new Error('vote failed: ' + r.status);
             return r.json();
         });
-    }
-
-    // True only the first time this browser hides a word. Storage can throw
-    // when a browser blocks site data; the explainer then just shows again.
-    function isFirstReject() {
-        try {
-            if (localStorage.getItem('ribbitRejectExplained')) return false;
-            localStorage.setItem('ribbitRejectExplained', '1');
-        } catch (_) {}
-        return true;
     }
 
     const suggestBox = document.getElementById('suggest-box');

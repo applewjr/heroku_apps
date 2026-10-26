@@ -227,8 +227,8 @@
         and hit <strong>✓&nbsp;Played</strong> on a word to auto-spend its letters. The spicy letter moves
         after every play, so tap the new spicy tile after each word. To fix a tile's remaining uses
         or change a letter, tap <strong>✏️ Fix a tile</strong> first. If Smush refuses a word, hit
-        <strong>✗</strong> to hide it - rejected words don't spend any letters, and your ✗ helps us fix
-        the word list. If Smush accepts a word we don't list, type it into the box under the results. Words marked
+        <strong>✗</strong> and confirm to hide it - rejected words don't spend any letters, and your report
+        helps us fix the word list. If Smush accepts a word we don't list, type it into the box under the results. Words marked
         <strong>⚠</strong> are rare - the ones Smush is most likely to refuse. Tap the ⚠ for details.
         <br><br>
         <strong>Joining a game already in progress?</strong> Tap <strong>➕&nbsp;Add played word</strong>
@@ -886,7 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.querySelectorAll('.played-btn').forEach(btn =>
             btn.addEventListener('click', (e) => { e.stopPropagation(); markPlayed(btn.dataset.play); }));
         resultsContainer.querySelectorAll('.reject-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => { e.stopPropagation(); markRejected(btn.dataset.reject); }));
+            btn.addEventListener('click', (e) => { e.stopPropagation(); askRejected(btn); }));
         // The rare tag must explain itself on tap: mobile players have no
         // hover, and letting the tap fall through would copy the word.
         resultsContainer.querySelectorAll('.rare-flag').forEach(btn =>
@@ -1039,18 +1039,44 @@ document.addEventListener('DOMContentLoaded', () => {
         recordPlay(r);
     }
 
+    /* ✗ asks before it reports. ✓ Played and ✗ both make a word go away, so
+       players were ✗ing words they had played, real pangrams most of all.
+       The question opens under the row, where a second tap on ✗ can't
+       answer it (it closes it), and offers ✓ Played as well. Taking a ✗
+       back, from the hidden list, stays one tap. Any re-render drops it. */
+    function askRejected(btn) {
+        const word = btn.dataset.reject;
+        const open = resultsContainer.querySelector('.reject-confirm');
+        if (open) {
+            open.remove();
+            if (open.dataset.word === word) return;
+        }
+        const row = btn.closest('.word-result');
+        const upper = word.toUpperCase();
+        row.insertAdjacentHTML('afterend', `
+            <div class="reject-confirm" data-word="${word}" role="group" aria-label="Did Smush refuse ${upper}?">
+                <span class="reject-confirm-q">Did Smush refuse ${upper}?</span>
+                <button type="button" class="confirm-refused">✗ Smush refused it</button>
+                <button type="button" class="confirm-played">✓ I played it</button>
+                <button type="button" class="confirm-cancel">Cancel</button>
+            </div>`);
+        const strip = row.nextElementSibling;
+        strip.addEventListener('click', (e) => {
+            const answer = e.target.closest('button');
+            if (!answer) return;
+            strip.remove();
+            if (answer.classList.contains('confirm-refused')) markRejected(word);
+            else if (answer.classList.contains('confirm-played')) markPlayed(word);
+        });
+    }
+
     /* The game refused this word: hide it from results without spending
        letters, scoring, or moving the spicy letter - and tell the server,
        which fixes the word list once enough players agree. */
     function markRejected(word) {
         if (rejected.includes(word)) return;
         rejected.push(word);
-        if (isFirstReject()) {
-            toast(`${word.toUpperCase()} hidden - no letters spent. Thanks, we'll take your report ` +
-                  `into account. Use ✗ only when Smush refuses a word.`, false, 6000);
-        } else {
-            toast(`${word.toUpperCase()} hidden - no letters spent. Tap it below to restore.`);
-        }
+        toast(`${word.toUpperCase()} hidden - no letters spent. Thanks for the report. Tap it below to restore.`);
         postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
         afterStateChange();
     }
@@ -1081,16 +1107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!r.ok) throw new Error('vote failed: ' + r.status);
             return r.json();
         });
-    }
-
-    // True only the first time this browser hides a word. Storage can throw
-    // when a browser blocks site data; the explainer then just shows again.
-    function isFirstReject() {
-        try {
-            if (localStorage.getItem('smushRejectExplained')) return false;
-            localStorage.setItem('smushRejectExplained', '1');
-        } catch (_) {}
-        return true;
     }
 
     const SUGGEST_MESSAGES = {

@@ -220,7 +220,7 @@
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         {% call reports_head() %}
         <p class="crowd-note">"invalid" is a ✗ on a result (Smush refused it). "missing" (green) is the suggest box (Smush accepted a word we don't list).
-            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
+            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A pangram (all nine letters) takes {{ pangram_remove_votes }}, however rare. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
         {% endcall %}

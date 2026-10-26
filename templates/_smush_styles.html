@@ -406,6 +406,43 @@
 
 .reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
 
+/* The question a ✗ asks before it reports (askRejected), tucked under its row.
+   Both answers get the same weight as the row's own ✗ and ✓ Played. */
+.reject-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: -4px 0 8px;
+    padding: 8px 10px;
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 8px;
+    text-align: left;
+}
+
+.reject-confirm-q { flex: 0 0 100%; font-size: 13px; font-weight: 600; color: #a55; }
+
+.confirm-refused, .confirm-played, .confirm-cancel {
+    background-color: #fff;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.confirm-refused { border: 1px solid #e0d5d5; color: #a55; }
+.confirm-refused:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.confirm-played { border: 1px solid #cdd8d7; color: #02484d; }
+.confirm-played:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.confirm-cancel { background: none; border: none; color: #6b7280; text-decoration: underline; text-decoration-style: dotted; }
+.confirm-cancel:hover { color: #02484d; }
+
 .define-link {
     flex-shrink: 0;
     font-size: 12px;
@@ -670,6 +707,8 @@
     .rare-flag { font-size: 12px; padding: 0 2px; }
     .word-pts { font-size: 12px; padding: 4px 7px; min-width: 36px; }
     .played-btn, .define-link { font-size: 11px; padding: 7px 7px; }
+    .reject-confirm { margin: -2px 0 5px; padding: 6px 8px; gap: 6px; }
+    .confirm-refused, .confirm-played, .confirm-cancel { font-size: 11px; padding: 7px 8px; }
     .results-container { padding: 10px 8px 20px; }
     .smush-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
 }
