@@ -186,6 +186,17 @@ COMMON_DENOM_FORM = {
 }
 
 
+def test_antiwordle_post_returns_picks(client):
+    # the page posts every box; one played row, all gray
+    boxes = [{"letter": letter, "position": str(pos), "color": "1", "row": "1"}
+             for pos, letter in enumerate("IMMIX", 1)]
+    resp = client.post("/antiwordle", json={"wordle_data": boxes})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert re.fullmatch(r"Pick 1: [a-z]{5}", body["final_out1"])
+    assert body["final_out_end"].startswith("Options remaining: ")
+
+
 def test_any_word_post_valid_returns_json(client):
     resp = client.post("/any_word", json=ANY_WORD_JSON)
     assert resp.status_code == 200
