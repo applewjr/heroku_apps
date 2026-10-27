@@ -51,7 +51,7 @@
       "name": "Does this work for Sequence mode?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time rather than all at once. This solver works for both Quordle and Sequence: enter what you know and follow the suggestions."
+        "text": "Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time, with 10 guesses: the next puzzle opens once the current one is solved, showing all your earlier guesses. Switch Mode to Sequence and the suggestions focus on the open puzzle while setting up the ones still closed. When a puzzle opens, set the colors of its earlier rows."
       }
     },
     {
@@ -59,7 +59,7 @@
       "name": "What does \"Best Words for All Puzzles\" mean?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "These are guesses chosen to gather the most information across all four unsolved puzzles at once. Use them early on, then switch to the per-puzzle suggestions once you have a strong lead on an individual puzzle."
+        "text": "These are the best next guesses for the whole game, not just one puzzle. Pick 1 is the word whose colors will tell you the most about every unsolved puzzle; it plays a puzzle's answer as soon as only one word is left, and in the last guesses it only suggests words that can still be an answer. You can simply tap Pick 1 every turn. The per-puzzle suggestions are each puzzle's possible answers."
       }
     },
     {
@@ -449,7 +449,7 @@
     box-sizing: border-box;
 }
 
-#smart-assign-toggle {
+#smart-assign-toggle, #mode-toggle {
     background-color: #f8f9fa;
     color: #495057;
     border: 1px solid #ccc;
@@ -461,12 +461,12 @@
     user-select: none;
     position: relative;
 }
-#smart-assign-toggle.active {
+#smart-assign-toggle.active, #mode-toggle.active {
     background-color: #6aaa64;
     color: white;
     border-color: #6aaa64;
 }
-#smart-assign-toggle .tooltip {
+#smart-assign-toggle .tooltip, #mode-toggle .tooltip {
     visibility: hidden;
     opacity: 0;
     background-color: #333;
@@ -485,9 +485,19 @@
     transition: opacity 0.15s ease;
     pointer-events: none;
 }
-#smart-assign-toggle:hover .tooltip {
+#smart-assign-toggle:hover .tooltip, #mode-toggle:hover .tooltip {
     visibility: visible;
     opacity: 1;
+}
+/* the toggles sit side by side: each tooltip opens toward the middle */
+#smart-assign-toggle .tooltip {
+    left: 0;
+    transform: none;
+}
+#mode-toggle .tooltip {
+    left: auto;
+    right: 0;
+    transform: none;
 }
 
 /* Mobile-specific styles */
@@ -588,13 +598,16 @@
                     <span>Green: Correct position</span>
                 </div>
             </div>
-            <small><em>💡 Strategy: Use "Best Words for All Puzzles" suggestions until you have solid leads on individual puzzles.</em></small>
+            <small><em>💡 Strategy: tap Pick 1 under "Best Words for All Puzzles" every turn. Playing Sequence? Switch Mode to Sequence first.</em></small>
         </div>
     </div>
 
     <div style="margin-bottom: 10px;">
         <button id="smart-assign-toggle" type="button">Smart Assign: Off
             <span class="tooltip">When on: typed letters auto-assume gray. Green letters carried to the same position in the next row (tracked per puzzle).</span>
+        </button>
+        <button id="mode-toggle" type="button">Mode: Quordle
+            <span class="tooltip">Quordle: every guess shows on all four puzzles. Sequence: one puzzle at a time, and the next one opens when it is solved.</span>
         </button>
     </div>
 
@@ -712,11 +725,11 @@
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does this work for Sequence mode?</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time rather than all at once. This solver works for both Quordle and Sequence: enter what you know and follow the suggestions.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. Sequence is a Quordle variant where you solve the four puzzles one at a time, with 10 guesses: the next puzzle opens once the current one is solved, showing all your earlier guesses. Switch Mode to Sequence and the suggestions focus on the open puzzle while setting up the ones still closed. When a puzzle opens, set the colors of its earlier rows.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What does "Best Words for All Puzzles" mean?</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">These are guesses chosen to gather the most information across all four unsolved puzzles at once. Use them early on, then switch to the per-puzzle suggestions once you have a strong lead on an individual puzzle.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">These are the best next guesses for the whole game, not just one puzzle. Pick 1 is the word whose colors will tell you the most about every unsolved puzzle; it plays a puzzle's answer as soon as only one word is left, and in the last guesses it only suggests words that can still be an answer. You can simply tap Pick 1 every turn. The per-puzzle suggestions are each puzzle's possible answers.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
@@ -765,6 +778,8 @@ window.initialRecommendations = {
 };
 
 let updateTimeout;
+// 'quordle' or 'sequence', remembered per browser
+let quordleMode = localStorage.getItem('quordleMode') === 'sequence' ? 'sequence' : 'quordle';
 
 function setRecommendationsLoading(isLoading) {
     const form = document.getElementById('quordle-form');
@@ -781,7 +796,7 @@ function triggerUpdate() {
         fetch('/quordle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({quordle_data: data}),
+            body: JSON.stringify({quordle_data: data, mode: quordleMode}),
         })
         .then(response => response.json())
         .then(data => { updateUI(data); })
@@ -886,6 +901,21 @@ document.addEventListener('DOMContentLoaded', () => {
         applySmartAssignState();
     });
 
+    // Mode: Quordle or Sequence
+    const modeBtn = document.getElementById('mode-toggle');
+
+    function applyModeState() {
+        modeBtn.childNodes[0].textContent = `Mode: ${quordleMode === 'sequence' ? 'Sequence' : 'Quordle'}`;
+        modeBtn.classList.toggle('active', quordleMode === 'sequence');
+    }
+    applyModeState();
+    modeBtn.addEventListener('click', () => {
+        quordleMode = quordleMode === 'sequence' ? 'quordle' : 'sequence';
+        localStorage.setItem('quordleMode', quordleMode);
+        applyModeState();
+        triggerUpdate();
+    });
+
     const MAX_ROWS = 10;
 
     function boxLetter(box) {
@@ -974,13 +1004,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Write a letter into the same cell of every unsolved puzzle
     function writeLetter(rowNum, pos, letter) {
+        const openPuzzle = getTrackingPuzzle();
         for (let p = 1; p <= 4; p++) {
             if (isPuzzleSolved(p)) continue;
             const box = puzzleBox(p, rowNum, pos);
             if (!box) continue;
             box.textContent = letter;
-            if (smartAssign && box.dataset.state === '0') {
+            // In Sequence a closed puzzle's colors are unknown until it opens
+            if (smartAssign && box.dataset.state === '0' && (quordleMode !== 'sequence' || p === openPuzzle)) {
                 applySmartAssignToBox(box);
+            }
+        }
+    }
+
+    // In Sequence the next puzzle opens once the open one is solved: its
+    // uncolored letters get the Smart Assign colors, row by row
+    function colorOpenedPuzzle() {
+        if (!smartAssign || quordleMode !== 'sequence') return;
+        const p = getTrackingPuzzle();
+        if (isPuzzleSolved(p)) return;
+        for (let r = 1; r <= MAX_ROWS; r++) {
+            for (let pos = 1; pos <= 5; pos++) {
+                const box = puzzleBox(p, r, pos);
+                if (box && boxLetter(box) !== '' && box.dataset.state === '0') applySmartAssignToBox(box);
             }
         }
     }
@@ -1120,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newState = 1;
             }
             setState(box, newState);
+            colorOpenedPuzzle();
             updateRowUI();
             triggerUpdate();
         });
@@ -1222,6 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show initial recommendations if they exist
     if (window.initialRecommendations && window.initialRecommendations.final_out_all_1) {
         updateUI(window.initialRecommendations);
+        if (quordleMode === 'sequence') triggerUpdate();  // the page loads with Quordle's picks
     } else {
         const globalContainer = document.getElementById('global-recommendations');
         if (globalContainer) {

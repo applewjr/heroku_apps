@@ -62,10 +62,30 @@ def get_smush_words():
 # ✗ was already there before it voted: it hides a word from this player's
 # results at no cost, and the All 8 plan re-plans around it. So some players
 # will use it to steer the plan rather than to report a refusal. The
-# per-player daily limit in crowd.py catches the heavy cases; the first ✗ in a
-# browser also asks players to keep it for refusals.
+# per-player daily limit in crowd.py catches the heavy cases. Since
+# 2026-10-26 every ✗ first asks "Did Smush refuse it?", with ✓ I played it
+# beside the answer, because both buttons make a word go away and players
+# were using ✗ for words they had played.
 
-SMUSH_CROWD = crowd.CrowdList('smush', on_change=_forget_smush_words)
+
+def _remove_votes_needed(word):
+    """Players needed to vote a word out of Smush's list. A pangram needs
+    the common-word count however rare it is (James's call, 2026-10-26).
+
+    Pangrams sit at the top of every tab, so they draw the most stray ✗s:
+    8 of the 9 ✗'d pangrams James had ruled on were real words (committable,
+    a pangram missing from word_pop, went twice in one day at 3 players),
+    and 19% of pangram ✗s were taken back against 5% for other words. A
+    board is always nine distinct letters (_parse_board), so a word with
+    nine distinct letters is the pangram of every board it fits.
+    """
+    if len(set(word)) == 9:
+        return crowd.CROWD_REMOVE_VOTES
+    return crowd.remove_votes_needed(word)
+
+
+SMUSH_CROWD = crowd.CrowdList('smush', on_change=_forget_smush_words,
+                              remove_votes=_remove_votes_needed)
 
 # Smush's own word lengths, same as the played-word box on the page.
 SMUSH_MIN_LEN, SMUSH_MAX_LEN = 3, 15
@@ -187,6 +207,7 @@ def smush_admin():
                                days=days, load_error=load_error,
                                board_live=SMUSH_BOARD_LIVE,
                                serve_crowd=SERVE_CROWD,
+                               pangram_remove_votes=crowd.CROWD_REMOVE_VOTES,
                                pacific_today=_pacific_today())
     except Exception as e:
         print(f"Error loading smush admin: {e}")

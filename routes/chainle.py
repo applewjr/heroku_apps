@@ -1,15 +1,17 @@
-"""Chainle solver data, the solve request, and /chainle_admin.
+"""Chainle solver data, the solve request, players' reports of refused words,
+and /chainle_admin.
 
 The solver route itself is run_chainle in routes/wordgames.py; it hands a
-round to solve_request here.
+round to solve_request here, and a report (a JSON body with an `action`) to
+handle_vote.
 
 Self-contained: the word data ships in datasets/ (see datasets/CHAINLE_DATA.md)
 and nothing is fetched at runtime. The solver never contacts any Chainle site.
 
-/chainle_admin has the words taken off or kept on the solver's list, and a
-log of rounds the admin plays, to tune the ranking in functions/chainle.py
-against. Logged rounds stay in the database: the solver never shows them and
-never uses them as answers.
+/chainle_admin has the players' reports, the words taken off or kept on the
+solver's list, and a log of rounds the admin plays, to tune the ranking in
+functions/chainle.py against. Logged rounds stay in the database: the solver
+never shows them and never uses them as answers.
 """
 
 import hashlib
@@ -134,13 +136,19 @@ def solve_request(data):
 
 ##### word corrections #####
 
+# Players report a suggestion the game refused with the box under the
+# answers, which votes it off the list (James asked, 2026-10-25). The box
+# starts with the last word they copied, and they can type another. The
+# mechanics, the thresholds (fewer players for a rarer word) and the rule
+# that players are never told the counts live in crowd.py, shared with the
+# other word games; only Chainle's own tables are touched here.
+#
 # /chainle_admin's Remove takes a word off the solver's suggestions, and its
 # Allow ('missing' in crowd.py) keeps one on that the -s filter would drop
-# (PHYSICS). One list for every Chainle site. Players have no way to report
-# words (James's call, 2026-10-22): the -s form and spelling filters cover
-# every refusal the round log has seen. The lists use crowd.py's tables like
-# the other word games', so the admin page works the same way; with no
-# player votes, its Player Reports tab stays empty.
+# (PHYSICS), and players can't vote it off. One list for every Chainle site
+# (James's call, 2026-10-22): the copies of the game share its dictionary.
+# There is no box for missing words: the solver ranks every word it knows,
+# so none can be missing.
 
 # (removed, kept) word sets, memoized in the module like routes/smush.py's
 # word list. The memo of how the solver rates logged rounds is dropped with
@@ -155,17 +163,61 @@ def _forget_corrections():
 
 
 def get_corrections():
-    """(removed, kept): the words /chainle_admin took off the list, and the
-    words it keeps on it, lower case. Refreshed every 12 hours, or straight
-    away after a change; none while the DB has never been reachable (see
-    crowd.CrowdList.corrected)."""
+    """(removed, kept): the words players or /chainle_admin took off the
+    list, and the words the admin keeps on it, lower case. Refreshed every
+    12 hours, or straight away after a change; none while the DB has never
+    been reachable (see crowd.CrowdList.corrected)."""
     return CHAINLE_CROWD.corrected(
         _corrections, lambda removed, kept: (frozenset(removed), frozenset(kept)))
 
 
 CHAINLE_CROWD = crowd.CrowdList('chainle', on_change=_forget_corrections)
 
+CHAINLE_VOTE_ACTIONS = ('refuse',)
 MAX_WORD_LEN = 40
+_WORD = re.compile(r'[A-Za-z]{1,%d}' % MAX_WORD_LEN)
+
+
+def _puzzle_tag(clues):
+    """The round a report came from: its clues in alphabetical order, joined
+    by ':', so the admin's colon search finds it."""
+    return ':'.join(sorted(clues))
+
+
+def _offered(clues, kind):
+    """The words the page lists for this round, lower case."""
+    solver = get_data()
+    if solver is None:
+        return set()
+    removed, kept = get_corrections()
+    rows = ch.solve(solver, clues, kind, removed=removed, kept=kept)['suggestions']
+    return {r['word'].lower() for r in rows}
+
+
+def handle_vote(data):
+    """A report from the box on /chainle: the game refused this word.
+
+    It only counts for a word this round lists, the top 10 for its clues:
+    anything else is no suggestion of ours, and counting it would let anyone
+    vote words off the list. The reply never says whether the report changed
+    the list (see crowd.py): 'recorded' either way, or 'not_suggested' for a
+    word the round doesn't list. A word already taken off is 'recorded' too,
+    for a player whose list was loaded before it went.
+    """
+    if data.get('action') not in CHAINLE_VOTE_ACTIONS:
+        raise ValidationError('unknown action')
+    clues, kind = parse_request(data)
+    word = data.get('word')
+    if not isinstance(word, str) or not _WORD.fullmatch(word.strip()):
+        raise ValidationError('word must be one word, letters only')
+    word = word.strip().lower()
+    removed, _kept = get_corrections()
+    if word in removed:
+        return jsonify(status='success', result='recorded')
+    if word not in _offered(clues, kind):
+        return jsonify(status='success', result='not_suggested')
+    CHAINLE_CROWD.record_vote(word, 'invalid', _puzzle_tag(clues), kind)
+    return jsonify(status='success', result='recorded')
 
 
 ##### admin: the round log #####
@@ -436,9 +488,10 @@ def _round_log():
 def chainle_admin():
     """What players reported, the removed and allowed words, and the round
     log. Each half still shows if the other's tables can't be read."""
+    # With no tab asked for, it opens on Player Reports, admin_view's default
+    # (James asked, 2026-10-25). Logging a round still comes back to the
+    # Round Log (_back_to_log).
     args = request.args.to_dict()
-    # Players can't report words, so the round log is what's worth opening on.
-    args.setdefault('tab', 'log')
     try:
         view, crowd_error = CHAINLE_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:

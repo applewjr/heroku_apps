@@ -485,18 +485,89 @@ def test_the_solver_works_without_the_corrections(client, tiny):
     assert resp.get_json()['suggestions'][0]['word'] == 'MAN'
 
 
-def test_players_have_no_way_to_report_words(client, tiny):
-    # James's call, 2026-10-22: no ✗ per word and no box. The -s form and
-    # spelling filters cover the refusals seen so far, and /chainle_admin's
-    # Remove and Allow handle the rest.
-    db = tiny()
+# --- players' reports: the "Chainle refused a word?" box ---------------------------
+# James asked, 2026-10-25: a box under the answers, starting with the last
+# word the player copied, voting the word off as Smush's ✗ does.
+
+def _report(client, word, clues=('SNOW', 'FOOT'), kind='bridge', action='refuse'):
+    return client.post('/chainle', json={'action': action, 'word': word, 'clues': list(clues), 'kind': kind})
+
+
+def _voting_db(tiny):
+    """A database that takes a vote: this player's votes today, their
+    refusals today, and the word's players."""
+    return tiny(answers={'WHERE voter_hash = %s AND created_at': (0,),
+                         "WHERE voter_hash = %s AND vote = 'invalid'": (1,),
+                         'FROM chainle_word_votes v WHERE v.word': (1,)})
+
+
+def test_the_page_has_the_refused_word_box(client, tiny):
     html = client.get('/chainle').get_data(as_text=True)
-    for gone in ('data-refuse', 'refuses a word', 'take every report into account', "action: '"):
-        assert gone not in html, gone
-    # A body that looks like a report is just a round to solve.
-    resp = client.post('/chainle', json={'action': 'refuse', 'word': 'ball', 'clues': ['snow', 'foot']})
-    assert resp.status_code == 200 and resp.get_json()['suggestions']
+    for hook in ('id="chn-report"', 'id="chn-report-input"', 'id="chn-report-btn"',
+                 'Chainle refused a word?', "action: 'refuse'", 'What if Chainle refuses a word?',
+                 'The last word you copied fills in here'):
+        assert hook in html, f'chainle.html lost {hook}'
+    # Under the answers, inside the results, so it only shows with them.
+    results = html.split('id="chn-results"')[1].split('_ad_slot')[0]
+    assert results.index('id="chn-answers"') < results.index('id="chn-report"')
+
+
+def test_a_report_counts_for_a_word_the_round_offers(client, tiny):
+    import crowd
+    db = _voting_db(tiny)
+    assert 'BALL' in _offered_words(client, ['snow', 'foot'])
+    resp = _report(client, 'BALL')
+    assert resp.status_code == 200 and resp.get_json() == {'status': 'success', 'result': 'recorded'}
+    [(_sql, params)] = db.statements('INSERT INTO chainle_word_votes')
+    assert params[:2] == ('ball', 'invalid')
+    assert params[3] == 'foot:snow'                  # the clues, sorted
+    [log] = db.log_rows('chainle')
+    assert (log['event'], log['mode']) == ('vote', 'bridge')
+    # Fewer players for a rarer word, as on /smush.
+    assert log['needed'] == crowd.remove_votes_needed('ball')
+
+
+def test_a_word_the_round_does_not_offer_is_not_counted(client, tiny):
+    db = _voting_db(tiny)
+    assert 'FOOTBALL' not in _offered_words(client, ['snow', 'foot'])
+    resp = _report(client, 'football')
+    assert resp.status_code == 200
+    assert resp.get_json() == {'status': 'success', 'result': 'not_suggested'}
+    assert not db.statements('INSERT INTO chainle_word_votes')
+
+
+def test_a_word_already_taken_off_gets_the_usual_reply(client, tiny):
+    # A player whose list was loaded before the word went: thanks, no vote.
+    db = tiny(rows={'SELECT word FROM chainle_invalid_words': [('ball',)]})
+    resp = _report(client, 'BALL')
+    assert resp.get_json() == {'status': 'success', 'result': 'recorded'}
+    assert not db.statements('INSERT INTO chainle_word_votes')
+
+
+@pytest.mark.parametrize('payload', [
+    {'action': 'unrefuse', 'word': 'ball', 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 'two words', 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 7, 'clues': ['snow', 'foot']},
+    {'action': 'refuse', 'word': 'ball', 'clues': ['snow']},
+], ids=['unknown-action', 'two-words', 'not-text', 'bad-clues'])
+def test_a_junk_report_is_a_400(client, tiny, payload):
+    db = tiny()
+    assert client.post('/chainle', json=payload).status_code == 400
     assert not db.statements('chainle_word_votes')
+
+
+def test_players_are_never_told_the_vote_counts(client, tiny):
+    # As on /smush and /blossom: the page never says how many reports a
+    # change takes, not in the FAQ, the box's messages or a JS constant.
+    html = client.get('/chainle').get_data(as_text=True)
+    lowered = html.lower()
+    for hint in ('crowd_remove_votes', 'different players', 'another player', 'players flag',
+                 'players agreed', 'for everyone', '5 players', 'five players', 'three players'):
+        assert hint not in lowered, f'page hints at the threshold: {hint!r}'
+    assert 'take every report into account' in html
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    faq = next(d for d in map(json.loads, blocks) if d.get('@type') == 'FAQPage')
+    assert 'take every report into account' in json.dumps(faq)
 
 
 REPORT = ('ball', 'invalid', 4, datetime(2026, 10, 21, 9, 30), 'waiting',
@@ -510,10 +581,11 @@ def test_admin_page_has_the_word_tabs_and_the_round_log(client, tiny, monkeypatc
     html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
     for tab in ('Player Reports', 'Removed Words', 'Allowed Words', 'Round Log'):
         assert tab in html
-    # Players can't report words, so the page opens on the round log.
-    assert 'id="log-tab" class="tab-content active"' in html
+    # It opens on the players' reports (James asked, 2026-10-25).
+    assert 'id="reports-tab" class="tab-content active"' in html
+    assert 'id="log-tab" class="tab-content"' in html
     reports = html.split('id="reports-tab"')[1].split('id="invalid-tab"')[0]
-    assert 'Players have no way to report words on /chainle' in reports
+    assert 'with the box under the answers on /chainle' in reports
     assert '<strong>ball</strong>' in reports and 'FOOT<br>SNOW<br>' in reports
     assert 'value="invalid" class="btn btn-danger">Remove now' in reports
     assert 'value="missing" class="btn btn-success">Allow now' in reports

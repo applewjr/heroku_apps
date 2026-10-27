@@ -169,8 +169,9 @@ def run_quordle_revamp():
 
     if request.method == "POST":
         try:
-            quordle_data_dict = request.get_json().get('quordle_data')
-            results = wordle.quordle_solver_split_revamp(df, quordle_data_dict)
+            body = request.get_json()
+            mode = 'sequence' if body.get('mode') == 'sequence' else 'quordle'
+            results = wordle.quordle_solver_split_revamp(df, body.get('quordle_data'), mode=mode)
             return jsonify(**dict(zip(QUORDLE_RESULT_KEYS, results)))
         except Exception:
             return jsonify(**quordle_no_words_payload())
@@ -466,6 +467,9 @@ def run_chainle():
 
     if request.method == "POST":
         data = json_object()
+        # A player's report of a word the game refused, not a round to solve.
+        if 'action' in data:
+            return chainle.handle_vote(data)
         return chainle.solve_request(data)
     else:
         log_page_visit('chainle.html')

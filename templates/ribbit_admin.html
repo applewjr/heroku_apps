@@ -4,7 +4,7 @@
 
 {% block content %}
 {% from '_crowd_admin.html' import styles, pager, pop_cell, keep_view, flash, search_form,
-   word_form, removed_tab, added_tab, word_form_script with context %}
+   word_form, reports_head, removed_tab, added_tab, word_form_script with context %}
 {{ styles() }}
 <style>
 /* A Ribbit board: four rows of four letters. */
@@ -34,16 +34,59 @@
     white-space: nowrap;
     font-size: 12px;
 }
+
+/* Approve your game's board: one line above the days. */
+.approve-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin: 6px 0 4px;
+}
+
+.approve-entry .btn {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+/* A board on the Shared Boards tab: a link that opens it in the board
+   editor, /ribbit_admin/board. */
+.board-open {
+    display: inline-block;
+    padding: 4px 6px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    color: #02484d;
+    text-decoration: none;
+}
+
+.board-open:hover {
+    border-color: #02484d;
+    background-color: #eef4f4;
+}
+
+.board-open .mini-grid {
+    display: block;
+}
+
+.board-open-label {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    text-decoration: underline;
+}
 </style>
 
 
 <div class="admin-container">
-    <h1>Ribbit Admin - Words and Boards</h1>
-
-    <div class="top-nav">
-        <a href="/ribbit" target="_blank" rel="noopener" class="btn btn-primary">Back to Ribbit Solver</a>
-        <a href="https://www.puzzmo.com/puzzle/ribbit" target="_blank" rel="noopener" class="btn btn-success puzzmo-ribbit-link">Puzzmo Ribbit</a>
-        <a href="https://www.yahoo.com/games/play/ribbit/" target="_blank" rel="noopener" class="btn btn-success">Yahoo Ribbit</a>
+    <div class="admin-top">
+        <h1>Ribbit Admin - Words and Boards</h1>
+        <nav class="top-nav">
+            <a href="/ribbit" target="_blank" rel="noopener" class="btn btn-primary">Back to Ribbit Solver</a>
+            <a href="https://www.puzzmo.com/puzzle/ribbit" target="_blank" rel="noopener" class="btn btn-success puzzmo-ribbit-link">Puzzmo Ribbit</a>
+            <a href="https://www.yahoo.com/games/play/ribbit/" target="_blank" rel="noopener" class="btn btn-success">Yahoo Ribbit</a>
+        </nav>
     </div>
 
     {{ flash() }}
@@ -67,11 +110,15 @@
         <strong>Shared boards:</strong> {{ 'live on /ribbit' if shared_live else 'logging only; served on /ribbit_admin/board' }}
     </div>
 
-    {{ word_form('/ribbit_admin/add_word') }}
-
-    {{ search_form('Search words or boards') }}
-    <p class="crowd-note">Searches the word lists. Include a colon to search the reports' Board column: a board's letters run row by row with a colon between rows (ribb:itfr:...), in one fixed orientation, so a turned or mirrored entry is the same board. A search stays through Remove, Add and Undo until you press Clear search.</p>
-    <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Ribbit solver tags rare; "none" means it isn't in the frequency list at all.</p>
+    <div class="admin-tools">
+        {{ word_form('/ribbit_admin/add_word') }}
+        {{ search_form('Search words or boards') }}
+        <details class="admin-help"><summary>About these lists</summary>
+            <p class="crowd-note">The word form's entries are final: players can never reverse them, and the word's votes start over. Type the word, choose a list, then press Submit.</p>
+            <p class="crowd-note">Searches the word lists. Include a colon to search the reports' Board column: a board's letters run row by row with a colon between rows (ribb:itfr:...), in one fixed orientation, so a turned or mirrored entry is the same board. A search stays through Remove, Add and Undo until you press Clear search.</p>
+            <p class="crowd-note">Popularity is how common the word is in real-world English: log10 uses per billion words, about 1 (very rare) to 7.6 ("the"). Below 2 (red) is what the Ribbit solver tags rare; "none" means it isn't in the frequency list at all.</p>
+        </details>
+    </div>
 
     <div class="tab-container">
         <div class="tab-button{% if active_tab == 'boards' %} active{% endif %}" onclick="showTab(event, 'boards')">Shared Boards</div>
@@ -82,21 +129,26 @@
 
     <!-- Shared Boards Tab -->
     <div id="boards-tab" class="tab-content{% if active_tab == 'boards' %} active{% endif %}">
-        <h2>Shared Boards</h2>
-        <p class="crowd-note">Puzzmo and Yahoo Games (powered by Puzzmo) each have their own daily board - both are linked at the top. Players use both, and fan clones too, so a day can have more than one real board.</p>
+        <div class="tab-head">
+            <h2>Shared Boards</h2>
+            <details class="admin-help"><summary>How boards are served</summary>
+                <p class="crowd-note">Puzzmo and Yahoo Games (powered by Puzzmo) each have their own daily board - both are linked at the top. Players use both, and fan clones too, so a day can have more than one real board.</p>
+                <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. A player's board only ever gains links: links they erase later (keeping up with their game) are kept, and a loaded board that only lost links isn't logged. Players on one network (an IPv6 /48, or one IPv4 address) count as one. Turned or mirrored entries are the same board, shown here and served the way you approved it, or else the way most of its players entered it. Click a board to open it in the board editor, where you can check it, fix any link and approve it.</p>
+                <p class="crowd-note">Each day lists the boards logged on players' own dates; Served are the boards offered to players on that date{% if not shared_live %} (on /ribbit_admin/board only, until it goes live){% endif %}, for each to pick the one that matches their game, since more than one can be real on a day: your approval first, then any board the players settled on their own, most players first, at most {{ todays_boards_max }}. Players counts each player once, across every day the board was entered. Remove deletes that day's entries of the board.</p>
+                <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add on a board you entered yourself on /ribbit (Add serves the most recently updated board for those letters, its time under the button, and approves nothing if a newer board came in before you pressed it). Either way the board is served to every player straight away, first of the day's boards, whatever players drew for those letters. Boards the players settled on their own are still offered next to it. Every board you approve for a day is served, in the order you approved them, so you can approve both Puzzmo's and Yahoo's. Undo takes the approval back and leaves the players' boards alone. Approving an older puzzle fills in its links for anyone who types it, but never makes it a day's board.</p>
+                <p class="crowd-note">Enter your board opens Ribbit's own board, the solver's editor: type the letters, drag the links across a row or one tile at a time, rotate it to match. Approve is under the board, and it comes back here when it's done.</p>
+            </details>
+        </div>
         {% if load_error %}
         <div class="alert alert-error">
             Couldn't read the boards ({{ load_error }}). Have mysql_tables/ribbit_boards.sql and ribbit_boards_prefix.sql been run?
         </div>
         {% endif %}
-        <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. A player's board only ever gains links: links they erase later (keeping up with their game) are kept, and a loaded board that only lost links isn't logged. Players on one network (an IPv6 /48, or one IPv4 address) count as one. Turned or mirrored entries are the same board, shown here the way most of its players entered it.</p>
-        <p class="crowd-note">Each day lists the boards logged on players' own dates; Served are the boards offered to players on that date{% if not shared_live %} (on /ribbit_admin/board only, until it goes live){% endif %}, for each to pick the one that matches their game, since more than one can be real on a day: your approval first, then any board the players settled on their own, most players first, at most {{ todays_boards_max }}. Players counts each player once, across every day the board was entered. Remove deletes that day's entries of the board.</p>
-        <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add on a board you entered yourself on /ribbit (Add serves the most recently updated board for those letters, its time under the button, and approves nothing if a newer board came in before you pressed it). Either way the board is served to every player straight away, first of the day's boards, whatever players drew for those letters. Boards the players settled on their own are still offered next to it. Every board you approve for a day is served, in the order you approved them, so you can approve both Puzzmo's and Yahoo's. Undo takes the approval back and leaves the players' boards alone. Approving an older puzzle fills in its links for anyone who types it, but never makes it a day's board.</p>
 
-        <div class="admin-section" id="approve-entry">
-            <strong>Approve your game's board</strong>
-            <p class="crowd-note">Enter it on Ribbit's own board, the solver's editor: type the letters, drag the links across a row or one tile at a time, rotate it to match. Approve is under the board, and it comes back here when it's done.</p>
+        <div class="approve-entry" id="approve-entry">
+            <strong>Approve your game's board:</strong>
             <a href="/ribbit_admin/board" class="btn btn-success">Enter your board</a>
+            <span class="crowd-note">or click a board below to start from it.</span>
         </div>
 
         {% for d in days %}
@@ -118,7 +170,8 @@
             <tbody>
                 {% for g in d.groups %}
                 <tr>
-                    <td class="mini-grid">{% for row in g.grid %}{{ row }}<br>{% endfor %}</td>
+                    <td><a class="board-open" href="/ribbit_admin/board?letters={{ g.letters }}&amp;day={{ d.day.strftime('%Y-%m-%d') }}"
+                           title="Open this board in the board editor to check, fix and approve it"><span class="mini-grid">{% for row in g.grid %}{{ row }}<br>{% endfor %}</span><span class="board-open-label">Open in editor</span></a></td>
                     <td>{{ g.players }}</td>
                     <td>{{ g.half_drawn }}</td>
                     <td>{{ g.agreed }} / {{ g.tied }}</td>
@@ -171,18 +224,12 @@
 
     <!-- Player Reports Tab -->
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
-        <h2>Player Reports, last {{ crowd_window_days }} days</h2>
+        {% call reports_head() %}
         <p class="crowd-note">"invalid" is a ✗ on a result (Ribbit refused it). "missing" (green) is the suggest box (Ribbit accepted a word we don't list).
             A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
-        <p class="crowd-note">
-            {% if show_settled %}
-                Showing settled reports too. <a href="{{ settled_url }}">Hide them</a>
-            {% else %}
-                {{ settled_count }} settled report{{ '' if settled_count == 1 else 's' }} hidden. <a href="{{ settled_url }}">Show them</a>
-            {% endif %}
-        </p>
+        {% endcall %}
         {% if reports %}
         <div class="table-wrap">
         <table class="words-table">

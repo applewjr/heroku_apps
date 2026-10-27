@@ -5,6 +5,8 @@ the answers your users see. These import ``functions`` / ``data`` directly and
 touch no external services.
 """
 
+import numpy as np
+
 import helpers
 from data import df, words
 from functions import all_words, wordle
@@ -383,6 +385,151 @@ def test_find_word_with_letters_crane():
     out = wordle.find_word_with_letters(df, "crane")
     assert len(out) == 5
     assert out[0] == "Pick 1: caner (5 match)"
+
+
+# --- antiwordle --------------------------------------------------------------
+
+def _board(*rows):
+    """The boxes the page posts for (word, colors) rows: '1' gray,
+    '2' yellow, '3' green for each letter."""
+    return [{"letter": letter, "position": str(pos), "color": color, "row": str(r)}
+            for r, (word, colors) in enumerate(rows, 1)
+            for pos, (letter, color) in enumerate(zip(word, colors), 1)]
+
+
+def test_antiwordle_opener_is_stable():
+    result = wordle.antiwordle_solver_split_revamp(df, [])
+    assert result[0] == "Pick 1: immix"
+    assert result[5].startswith("Options remaining: 5710/5710")
+
+
+def test_antiwordle_picks_obey_the_board():
+    # r yellow, e green, c a n gray: r and e must be played, c a n never
+    result = wordle.antiwordle_solver_split_revamp(df, _board(("crane", "12113")))
+    picks = [wordle._pick_word(p) for p in result[:5]]
+    assert all(picks)
+    for word in picks:
+        assert word != "crane"
+        assert word[4] == "e" and "r" in word
+        assert not set(word) & set("can")
+
+
+def test_antiwordle_no_words_found():
+    # two different greens in the first box: nothing can be played
+    result = wordle.antiwordle_solver_split_revamp(df, _board(("fuzzy", "33333"), ("jazzy", "33333")))
+    assert result[0] == "No words found"
+    assert result[5].startswith("Options remaining: 0/")
+
+
+def test_antiwordle_patterns_handle_doubled_letters():
+    def colors(guess, target):
+        codes = [[ord(c) - 97 for c in w] for w in (guess, target)]
+        code = wordle._patterns(np.array(codes[:1]), np.array(codes[1:]))[0, 0]
+        return "".join(".?#"[code // 3 ** k % 3] for k in range(5))
+    assert colors("eerie", "there") == "?.?.#"
+    assert colors("geese", "eerie") == ".#?.#"
+    assert colors("llama", "label") == "#??.."
+    assert colors("added", "dread") == "??.?#"
+
+
+# --- quordle ---------------------------------------------------------------
+
+QUORDLE_TARGETS = ("pinky", "mound", "shelf", "gravy")  # made up, not a real puzzle
+
+
+def _colors(guess, target):
+    """The colors guess gets against target as the page posts them:
+    '1' gray, '2' yellow, '3' green."""
+    codes = np.array([[ord(c) - 97 for c in w] for w in (guess, target)])
+    code = wordle._patterns(codes[:1], codes[1:])[0, 0]
+    return "".join(str(code // 3 ** k % 3 + 1) for k in range(5))
+
+
+def _quordle_board(targets, guesses, closed=()):
+    """The boxes the page posts after these guesses: a solved puzzle gets
+    no more letters, and a closed one (Sequence) holds letters with no
+    colors."""
+    boxes = []
+    for p, target in enumerate(targets, 1):
+        for r, guess in enumerate(guesses, 1):
+            colors = "00000" if p in closed else _colors(guess, target)
+            boxes += [{"letter": letter.upper(), "position": str(pos), "color": color,
+                       "row": str(r), "puzzle": str(p)}
+                      for pos, (letter, color) in enumerate(zip(guess, colors), 1)]
+            if guess == target and p not in closed:
+                break
+    return boxes
+
+
+def _fits(word, guesses, target):
+    """word could be target's answer: every guess colors them the same."""
+    return all(_colors(g, word) == _colors(g, target) for g in guesses)
+
+
+def test_quordle_opener_is_stable():
+    result = wordle.quordle_solver_split_revamp(df, [])
+    assert len(result) == 30
+    assert result[0] == "Pick 1: tares"
+    assert all(result[6 * k + 11].startswith("Options remaining: 5710/5710") for k in range(4))
+    result = wordle.quordle_solver_split_revamp(df, [], mode="sequence")
+    assert result[0] == "Pick 1: tares"
+    assert result[11].startswith("Options remaining: 5710/5710")
+    assert [result[6 * k + 11] for k in (1, 2, 3)] == ["Not open yet"] * 3
+
+
+def test_quordle_picks_obey_each_board():
+    guesses = ("crane", "doubt")
+    result = wordle.quordle_solver_split_revamp(df, _quordle_board(QUORDLE_TARGETS, guesses))
+    combined = [wordle._pick_word(p) for p in result[:5]]
+    assert all(combined) and not set(combined) & set(guesses)
+    for k, target in enumerate(QUORDLE_TARGETS):
+        picks = [wordle._pick_word(p) for p in result[6 * k + 6:6 * k + 11]]
+        assert all(picks)
+        for word in picks:
+            assert word not in guesses
+            assert _fits(word, guesses, target)
+
+
+def test_quordle_solved_board():
+    # shelf solves puzzle 3 on row 3, and the page stops writing into it
+    result = wordle.quordle_solver_split_revamp(df, _quordle_board(QUORDLE_TARGETS, ("crane", "doubt", "shelf")))
+    assert result[18:24] == ("", "", "", "", "", "Solved")
+    for k in (0, 1, 3):
+        assert wordle._pick_word(result[6 * k + 6])
+    assert "shelf" not in [wordle._pick_word(p) for p in result if p.startswith("Pick")]
+
+
+def test_quordle_plays_a_sure_answer():
+    # puzzles 1, 2 and 4 are down to one word each: those come first
+    result = wordle.quordle_solver_split_revamp(df, _quordle_board(QUORDLE_TARGETS, ("tares", "colin", "dumpy")))
+    assert {wordle._pick_word(p) for p in result[:3]} == {"pinky", "mound", "gravy"}
+
+
+def test_quordle_last_guesses_are_answers():
+    # 5 of 9 guesses gone and 4 puzzles left: every pick has to be able to solve one
+    guesses = ("fuzzy", "jazzy", "mummy", "bobby", "cocci")
+    result = wordle.quordle_solver_split_revamp(df, _quordle_board(QUORDLE_TARGETS, guesses))
+    for pick in result[:5]:
+        word = wordle._pick_word(pick)
+        assert any(_fits(word, guesses, t) for t in QUORDLE_TARGETS)
+
+
+def test_quordle_sequence_hides_unopened_boards():
+    guesses = ("crane", "doubt")
+    result = wordle.quordle_solver_split_revamp(
+        df, _quordle_board(QUORDLE_TARGETS, guesses, closed=(2, 3, 4)), mode="sequence")
+    assert [result[6 * k + 11] for k in (1, 2, 3)] == ["Not open yet"] * 3
+    assert all(_fits(wordle._pick_word(p), guesses, "pinky") for p in result[6:11])
+    # colors tapped on a closed puzzle don't count
+    tapped = wordle.quordle_solver_split_revamp(df, _quordle_board(QUORDLE_TARGETS, guesses), mode="sequence")
+    assert tapped == result
+    # once puzzle 1 is solved, puzzle 2 opens with every guess so far
+    guesses = ("crane", "pinky")
+    result = wordle.quordle_solver_split_revamp(
+        df, _quordle_board(QUORDLE_TARGETS, guesses, closed=(3, 4)), mode="sequence")
+    assert result[11] == "Solved"
+    assert all(_fits(wordle._pick_word(p), guesses, "mound") for p in result[12:17])
+    assert result[23] == "Not open yet" and result[29] == "Not open yet"
 
 
 # --- helpers ---------------------------------------------------------------

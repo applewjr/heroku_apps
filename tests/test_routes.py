@@ -186,6 +186,32 @@ COMMON_DENOM_FORM = {
 }
 
 
+def test_antiwordle_post_returns_picks(client):
+    # the page posts every box; one played row, all gray
+    boxes = [{"letter": letter, "position": str(pos), "color": "1", "row": "1"}
+             for pos, letter in enumerate("IMMIX", 1)]
+    resp = client.post("/antiwordle", json={"wordle_data": boxes})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert re.fullmatch(r"Pick 1: [a-z]{5}", body["final_out1"])
+    assert body["final_out_end"].startswith("Options remaining: ")
+
+
+def test_quordle_post_returns_picks(client):
+    # the page posts every box; one played row, all gray on every puzzle
+    boxes = [{"letter": letter, "position": str(pos), "color": "1", "row": "1", "puzzle": str(p)}
+             for p in range(1, 5) for pos, letter in enumerate("TARES", 1)]
+    for mode, puzzle2 in (("quordle", "Options remaining: "), ("sequence", "Not open yet"),
+                          ("bogus", "Options remaining: ")):
+        resp = client.post("/quordle", json={"quordle_data": boxes, "mode": mode})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert len(body) == 30
+        assert re.fullmatch(r"Pick 1: [a-z]{5}", body["final_out_all_1"])
+        assert re.fullmatch(r"Pick 1: [a-z]{5}", body["final_out1_1"])
+        assert body["final_out_end2"].startswith(puzzle2)
+
+
 def test_any_word_post_valid_returns_json(client):
     resp = client.post("/any_word", json=ANY_WORD_JSON)
     assert resp.status_code == 200

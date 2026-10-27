@@ -396,6 +396,29 @@ def test_ribbit_page_ships_the_crowd_hooks(client):
         assert hook in html, f"ribbit.html lost {hook}"
 
 
+def test_the_x_asks_before_it_reports(client):
+    # James, 2026-10-26, as on /smush: a ✗ reports only once the player says
+    # Ribbit refused it; taking one back from the hidden list stays one tap.
+    html = client.get("/ribbit").get_data(as_text=True)
+    handler = re.search(r"querySelectorAll\('\.reject-btn'\)\.forEach\(btn =>\s*"
+                        r"btn\.addEventListener\('click', \(?e\)? => \{(.*?)\}\)\);", html, re.S)
+    assert "askRejected(btn)" in handler.group(1) and "markRejected" not in handler.group(1)
+    for answer in ("Did Ribbit refuse", "✗ Ribbit refused it", "✓ I found it", "Cancel"):
+        assert answer in html
+    assert re.search(r"\.rejected-chip'\)\.forEach\(\w+ =>\s*"
+                     r"\w+\.addEventListener\('click', \(\) => restoreRejected\(", html)
+
+
+def test_no_tile_is_flagged_to_play_first(client):
+    # James, 2026-10-25: Ribbit takes every word it knows, in any order, so
+    # no tile can be missed. No gold bottleneck tiles or badges, and no ★ key
+    # words; each tile still shows how many suggested words use it.
+    html = client.get("/ribbit").get_data(as_text=True)
+    for gone in ("bottleneck", "key-flag", "keyWords", "stranded", "★", ".rb-count.one"):
+        assert gone not in html, f"ribbit.html still has {gone!r}"
+    assert 'class="rb-count"' in html and "computeCover()" in html
+
+
 def test_players_are_never_told_the_vote_counts(client):
     # James's rule for every crowd game: knowing how many votes a change
     # takes is the first thing anyone gaming it would want.
