@@ -4,7 +4,8 @@ CREATE OR REPLACE VIEW vw_prod_traffic_today AS
 -- usually has by this time of day (the average of the last 7 days up to the
 -- same clock time), the difference in percent, its usual full day, and
 -- minutes since its latest landing. A page with no landing in the last 7
--- days drops out.
+-- days drops out. An "all games" row at the bottom sums every page (its
+-- min_since_last is the latest landing on any page).
 --
 -- Human landings only, as in vw_prod_word_solver_page_visits: not the hourly
 -- health probe, not a local or staging run, and not a bot user agent.
@@ -30,6 +31,13 @@ WITH visits AS (
     FROM visits
     GROUP BY page_name
     )
+,with_total AS (
+    SELECT 0 AS is_total, page_name, today, usual_by_now, per_day_7d, last_visit
+    FROM counts
+    UNION ALL
+    SELECT 1, 'all games', SUM(today), SUM(usual_by_now), SUM(per_day_7d), MAX(last_visit)
+    FROM counts
+    )
 SELECT
  REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') AS page
 ,today
@@ -37,6 +45,6 @@ SELECT
 ,ROUND(100 * (today / NULLIF(usual_by_now, 0) - 1)) AS vs_usual_pct
 ,ROUND(per_day_7d) AS per_day_7d
 ,TIMESTAMPDIFF(MINUTE, last_visit, pst_now()) AS min_since_last
-FROM counts
-ORDER BY per_day_7d DESC
+FROM with_total
+ORDER BY is_total, per_day_7d DESC
 ;

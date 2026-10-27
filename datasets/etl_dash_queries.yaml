@@ -97,6 +97,12 @@ Youtube Trending Grouped:
     query: SELECT * FROM vw_prod_youtube_trending_grouped;
 
 
+Dynamic View 1:
+    round: 5
+    label: 'Dynamic View 1'
+    description: ""
+    query: SELECT * FROM vw_prod_dynamic_1;
+
 Dynamic View 2:
     round: 5
     label: 'Dynamic View 2'
