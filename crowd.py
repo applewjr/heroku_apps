@@ -306,17 +306,26 @@ class CrowdList:
     window_days -- how long a vote keeps counting. Guess The Phrase uses
                  30, not 7: its players work through old puzzles, so two
                  who solve the same one can be weeks apart.
-    remove_votes -- players needed to remove a word (remove_votes_needed
-                 unless a game asks for more on some words: Smush pangrams)
+    pangram_letters -- how many distinct letters a board of this game has,
+                 for a game with pangrams (Smush 9, Blossom 7). A word with
+                 that many distinct letters is the pangram of every board
+                 it fits, and needs CROWD_REMOVE_VOTES to remove however
+                 rare it is (James's call: Smush 2026-10-26, Blossom
+                 2026-10-28). Pangrams sit at the top of the results, so
+                 they draw the most stray flags: 8 of the 9 ✗'d Smush
+                 pangrams James had ruled on were real words (committable,
+                 a pangram missing from word_pop, went twice in one day at
+                 3 players), and 19% of pangram ✗s were taken back against
+                 5% for other words.
     """
 
     def __init__(self, game, on_change, window_days=CROWD_WINDOW_DAYS,
-                 remove_votes=remove_votes_needed):
+                 pangram_letters=None):
         if game not in CROWD_GAMES:
             raise ValueError(f'not a crowd game: {game!r}')
         self.game = game
         self.window_days = window_days
-        self.remove_votes = remove_votes
+        self.pangram_letters = pangram_letters
         self.votes_table = f'{game}_word_votes'
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
@@ -330,7 +339,11 @@ class CrowdList:
 
     def threshold(self, word, kind):
         """Players needed before the crowd's `kind` of change to `word` applies."""
-        return self.remove_votes(word) if kind == 'invalid' else CROWD_ADD_VOTES
+        if kind != 'invalid':
+            return CROWD_ADD_VOTES
+        if len(set(word)) == self.pangram_letters:
+            return CROWD_REMOVE_VOTES
+        return remove_votes_needed(word)
 
     def voter_hash(self):
         """Who is voting (see player_hash)."""

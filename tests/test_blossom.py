@@ -446,6 +446,14 @@ def _votes(players, today=0, invalid_today=1):
     }
 
 
+def _needed(word):
+    """Players Blossom needs to remove `word`. Not crowd.remove_votes_needed:
+    nastier uses all seven of the test board's letters, and a pangram takes
+    more."""
+    from routes.blossom import BLOSSOM_CROWD
+    return BLOSSOM_CROWD.threshold(word, "invalid")
+
+
 @pytest.fixture
 def crowd_db(monkeypatch):
     import crowd
@@ -525,15 +533,13 @@ def test_toggle_invalid_round_trips_in_session(client, crowd_db, fresh_word_cach
 
 
 def test_one_player_short_changes_nothing(client, crowd_db, fresh_word_cache):
-    from crowd import remove_votes_needed
-    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))
+    db = crowd_db(_votes(players=_needed("nastier") - 1))
     assert _flag(client, "nastier").status_code == 200
     assert not db.statements("INSERT INTO blossom_invalid_words")
 
 
 def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fresh_word_cache):
-    from crowd import remove_votes_needed
-    db = crowd_db(_votes(players=remove_votes_needed("nastier")))
+    db = crowd_db(_votes(players=_needed("nastier")))
     resp = _flag(client, "nastier")
     # The deciding vote gets exactly the reply any other vote gets: players
     # are never told the threshold, or that theirs was the one that tipped it.
@@ -546,6 +552,44 @@ def test_the_deciding_player_removes_the_word_for_everyone(client, crowd_db, fre
             ("nastier", "missing")) in db.executed
     # The next solve rebuilds the list rather than serving the cached one.
     assert fresh_word_cache._blossom_words["expires"] == 0.0
+
+
+def test_a_pangram_needs_five_players_however_rare(client, crowd_db, fresh_word_cache, monkeypatch):
+    # James's call, 2026-10-28, as on Smush: pangrams top the results and
+    # draw the most stray ticks, so the rare-word discount skips them.
+    import crowd
+    from routes.blossom import BLOSSOM_CROWD
+    assert set("nastier") == set(CENTER + PETALS)
+    monkeypatch.setattr(crowd, "word_pop", {"nastier": 1.2})
+    assert crowd.remove_votes_needed("nastier") == 3
+    assert BLOSSOM_CROWD.threshold("nastier", "invalid") == crowd.CROWD_REMOVE_VOTES == 5
+    db = crowd_db(_votes(players=4))
+    _flag(client, "nastier")
+    assert not db.statements("INSERT INTO blossom_invalid_words")
+
+    with client.session_transaction() as sess:
+        sess["invalid_words"] = []
+    db = crowd_db(_votes(players=5))
+    _flag(client, "nastier")
+    assert db.statements("INSERT INTO blossom_invalid_words")
+    vote, applied = db.log_rows("blossom")
+    assert vote["needed"] == applied["needed"] == 5
+
+    # Unticking counts the same way: 4 left puts it back.
+    db = crowd_db(_votes(players=4))
+    _flag(client, "nastier")
+    assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
+
+
+def test_only_a_pangram_skips_the_rare_word_discount(monkeypatch):
+    import crowd
+    from routes.blossom import BLOSSOM_CROWD
+    monkeypatch.setattr(crowd, "word_pop", {"nastier": 1.2, "tisane": 1.2})
+    # tisane fits the same board but leaves out its R.
+    assert BLOSSOM_CROWD.threshold("tisane", "invalid") == 3
+    assert BLOSSOM_CROWD.threshold("nastier", "invalid") == 5
+    # Adding a word doesn't depend on either.
+    assert BLOSSOM_CROWD.threshold("nastier", "missing") == crowd.CROWD_ADD_VOTES
 
 
 def test_solves_share_one_word_list(fresh_word_cache, monkeypatch):
@@ -584,8 +628,7 @@ def test_the_crowd_never_reverses_your_own_entry(client, crowd_db, fresh_word_ca
 
 
 def test_the_crowd_can_reverse_its_own_change(client, crowd_db, fresh_word_cache):
-    from crowd import remove_votes_needed
-    answers = _votes(players=remove_votes_needed("nastier"))
+    answers = _votes(players=_needed("nastier"))
     answers["SELECT source FROM blossom_added_words"] = ("crowd",)
     db = crowd_db(answers)
     _flag(client, "nastier")
@@ -614,8 +657,7 @@ def test_unticking_the_deciding_vote_puts_the_word_back(client, crowd_db, fresh_
     with client.session_transaction() as sess:
         sess["invalid_words"] = ["nastier"]
     fresh_word_cache._blossom_words.update(value={"stale"}, expires=time.time() + 3600)
-    from crowd import remove_votes_needed
-    db = crowd_db(_votes(players=remove_votes_needed("nastier") - 1))     # what's left once this vote is gone
+    db = crowd_db(_votes(players=_needed("nastier") - 1))     # what's left once this vote is gone
     _flag(client, "nastier")
     assert db.statements("DELETE FROM blossom_invalid_words WHERE word = %s AND source = 'crowd'")
     assert fresh_word_cache._blossom_words["expires"] == 0.0
@@ -637,10 +679,9 @@ def test_passing_the_limit_puts_back_what_their_earlier_ticks_removed(
     # Their earlier ticks today may have helped remove words before they
     # passed the limit. Once they do, any of those words left without enough
     # counting players goes back on the list.
-    from crowd import remove_votes_needed
     from crowd import CROWD_MAX_INVALID_PER_DAY
     db = crowd_db(
-        _votes(players=remove_votes_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
+        _votes(players=_needed("nastier") - 1, invalid_today=CROWD_MAX_INVALID_PER_DAY + 1),
         rows={"SELECT word FROM blossom_word_votes WHERE voter_hash": [("retains",), ("nastier",)]},
     )
     _flag(client, "nastier")
@@ -781,6 +822,20 @@ def test_admin_page_shows_word_popularity(client, crowd_db, monkeypatch):
     assert '<td class="">3.4</td>' in html
     assert '<td class="pop-rare">0.8</td>' in html
     assert '<td class="pop-none">none</td>' in html
+
+
+def test_admin_needed_column_counts_a_pangram_at_five(client, crowd_db, monkeypatch):
+    from datetime import datetime
+    when = datetime(2026, 10, 28, 8, 0)
+    monkeypatch.setattr("crowd.word_pop", {"nastier": 1.2, "tisane": 1.2})
+    crowd_db(rows={
+        "FROM blossom_word_votes v": [("nastier", "invalid", 3, when, "waiting", when, PUZZLE_TAG),
+                                      ("tisane", "invalid", 2, when, "waiting", when, PUZZLE_TAG)],
+    })
+    html = client.get("/blossom_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert re.search(r"<td>3</td>\s*<td>5</td>", html)     # nastier, a rare pangram
+    assert re.search(r"<td>2</td>\s*<td>3</td>", html)     # tisane, just rare
+    assert "A pangram (all seven letters) takes 5, however rare." in html
 
 
 def test_admin_needs_the_password(client, crowd_db):
@@ -938,6 +993,24 @@ def test_votes_say_which_mode_they_came_from(blossom_template):
     # Helper Mode masks the words but keeps the Invalid box.
     assert blossom_template.count("mode: voteMode() })") == 2
     assert "return isHelperMode ? 'helper' : 'normal';" in blossom_template
+
+
+def test_an_invalid_tick_asks_before_it_reports(blossom_template):
+    # James, 2026-10-28, as on Smush: Used and Invalid both strike a row, so
+    # players ticked Invalid on words they had played. A tick reports only
+    # once the player says Blossom rejected the word; unticking stays one tap.
+    wiring = re.search(r"querySelectorAll\('\.invalid-checkbox'\)\.forEach\(checkbox => \{(.*?)\n  \}\);",
+                       blossom_template, re.S).group(1)
+    assert re.search(r"addEventListener\('click', function\(e\) \{\s*if \(this\.checked\) \{\s*"
+                     r"e\.preventDefault\(\);\s*askInvalid\(this\);", wiring)
+    assert re.search(r"addEventListener\('change', function\(\) \{\s*handleInvalidChange\(this\);", wiring)
+    for answer in ("Did Blossom reject ' + named + '?",
+                   '<button type="button" class="confirm-refused">✗ Blossom rejected it</button>',
+                   '<button type="button" class="confirm-played">✓ I played it</button>',
+                   '<button type="button" class="confirm-cancel">Cancel</button>'):
+        assert answer in blossom_template
+    # Helper Mode masks the words, so the question can't spell one out.
+    assert "const named = isHelperMode ? 'this word' : word.toUpperCase();" in blossom_template
 
 
 def test_players_are_never_told_the_vote_counts(client, blossom_client):

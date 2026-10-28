@@ -259,6 +259,7 @@ def blossom_admin():
                              days=days, load_error=load_error,
                              board_live=TODAYS_BOARD_LIVE,
                              serve_crowd=SERVE_CROWD,
+                             pangram_remove_votes=crowd.CROWD_REMOVE_VOTES,
                              pacific_today=_pacific_today())
 
     except Exception as e:
@@ -383,8 +384,15 @@ def get_filtered_blossom_words():
 # Invalid strikes the row just like Used, so some players will use it to
 # cross off words they played. With ~150 players a day on one puzzle, 5 to
 # remove holds until about 3% of them do it.
+#
+# Since 2026-10-28, as on Smush (James's call): a tick asks "Did Blossom
+# reject it?" first, with ✓ I played it beside the answer, and a pangram
+# needs the common-word count to remove however rare it is (see
+# crowd.CrowdList). The word list holds no word with more than seven
+# distinct letters (all_words.filter_words_for_blossom), so seven is every
+# letter of a board.
 
-BLOSSOM_CROWD = crowd.CrowdList('blossom', on_change=_forget_blossom_words)
+BLOSSOM_CROWD = crowd.CrowdList('blossom', on_change=_forget_blossom_words, pangram_letters=7)
 voter_hash = BLOSSOM_CROWD.voter_hash
 
 
