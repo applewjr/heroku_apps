@@ -96,7 +96,7 @@ def test_numbers_align_right_and_changes_carry_their_sign(client, monkeypatch, d
 def test_long_text_wraps_and_empty_panels_say_so(client, monkeypatch, dash_db):
     body = 'a long feedback message that would stretch the table far past the screen'
     dash_db({
-        'vw_prod_dynamic_1': (['id', 'feedback_body'], [(7, body)]),
+        'vw_prod_recent_feedback': (['id', 'feedback_body'], [(7, body)]),
         'vw_prod_errors': (['submit_time', 'page_name', 'referrer'], []),
     })
     _, html = _get(client, monkeypatch, '/etl_dash/1')
