@@ -329,7 +329,16 @@ def check_web(results, probes):
             url = base + spec['path']
 
             try:
-                response, ms = _fetch(url)
+                try:
+                    response, ms = _fetch(url)
+                except requests.RequestException:
+                    # One retry before alerting. The router logs show the
+                    # dyno answering these in a few ms while the response
+                    # never makes it back through Cloudflare to the probe, so
+                    # a single lost response is the edge, not the site. A
+                    # real outage fails both tries.
+                    time.sleep(2)
+                    response, ms = _fetch(url)
             except Exception as e:
                 results.fail(check, sev=sev, url=url, exc=type(e).__name__, msg=e)
                 continue
