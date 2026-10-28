@@ -103,6 +103,68 @@
 @media (max-width: 480px) {
     #log-tab .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- the Today's Rounds tab ---------- */
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.when { white-space: nowrap; font-size: 12px; }
+/* The approve card: a row per round with one box per clue word, the round
+   shape every site has (pairs, then a triple, then one word). */
+#rounds-tab .approve-card { text-align: left; max-width: 760px; }
+#rounds-tab .approve-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-bottom: 8px; }
+#rounds-tab .approve-head label { font-size: 13px; font-weight: bold; color: #333; }
+#rounds-tab .approve-round { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); align-items: center; gap: 10px; margin: 6px 0; }
+#rounds-tab .approve-round > span { font-size: 13px; font-weight: bold; color: #02484d; }
+/* Wide enough for a long clue (CONSUMPTION) without scrolling. */
+#rounds-tab .approve-round .clue-row input { flex: 0 1 13em; }
+/* An id selector, to beat base.html's input[type=text] padding. */
+#rounds-tab .approve-card input {
+    box-sizing: border-box;
+    min-height: 46px;
+    padding: 8px 12px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 16px;
+    background-color: #fff;
+}
+#rounds-tab .approve-card input[type=text] { letter-spacing: 1px; font-weight: 600; }
+#rounds-tab .site-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+#rounds-tab .site-buttons .btn { margin: 0; }
+#rounds-tab h3 { text-align: left; font-size: 16px; margin: 20px 0 8px; }
+
+/* A day's sets, one card each: its five rounds, then Undo or Approve. */
+#rounds-tab .set-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 10px; text-align: left; }
+#rounds-tab .set-card { background-color: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px 12px; }
+#rounds-tab .set-card.approved { border-color: #9fd3ad; }
+#rounds-tab .set-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+#rounds-tab .set-card-head b { color: #02484d; font-size: 14px; }
+#rounds-tab .set-round { display: grid; grid-template-columns: 1.4em minmax(0, 1fr); gap: 6px; padding: 4px 0; border-top: 1px solid #f1f3f5; font-size: 14px; }
+#rounds-tab .set-round > b { color: #6b7280; font-weight: 600; }
+#rounds-tab .clues { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; letter-spacing: 1px; color: #1f2937; overflow-wrap: anywhere; }
+#rounds-tab .from { font-size: 11px; color: #6b7280; }
+#rounds-tab .set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+#rounds-tab .set-actions form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
+#rounds-tab .set-actions .btn { margin: 0; padding: 4px 10px; font-size: 12px; }
+#rounds-tab .set-actions .set-remove { margin-left: auto; }
+/* A set players typed, below the sets on offer. */
+#rounds-tab .set-card.typed { background-color: #fcfcfd; }
+
+/* What players typed that day, closed unless it's today. */
+#rounds-tab details.typed-list { margin: 12px 0 4px; text-align: left; }
+#rounds-tab details.typed-list summary { cursor: pointer; font-size: 13px; color: #02484d; margin-bottom: 8px; }
+/* Every round players typed: one read-only line each. */
+#rounds-tab .typed-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 0; border-top: 1px solid #e9ecef; font-size: 13px; color: #374151; }
+#rounds-tab .typed-row .clues { min-width: 11em; }
+@media (min-width: 700px) {
+    /* Columns that line up, for scanning. */
+    #rounds-tab .typed-row { display: grid; grid-template-columns: 15em 5em 11em minmax(0, 1fr) 5.5em; }
+}
+@media (max-width: 480px) {
+    /* "Approve for" on a line of its own, so the three sites share the next. */
+    #rounds-tab .site-buttons .crowd-note { flex-basis: 100%; }
+    #rounds-tab .site-buttons .btn { padding: 8px 10px; }
+}
 </style>
 
 
@@ -112,7 +174,8 @@
         <nav class="top-nav">
             <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
             <a href="/chainle" target="_blank" rel="noopener" class="btn btn-primary">Back to Chainle Solver</a>
-            <a href="https://chainle.io/" target="_blank" rel="noopener" class="btn btn-success">Chainle</a>
+            {% for s in board_sites %}<a href="https://{{ s }}/" target="_blank" rel="noopener" class="btn btn-success">{{ s }}</a>
+            {% endfor %}
         </nav>
     </div>
 
@@ -134,7 +197,8 @@
         <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
         <strong>Removed words:</strong> {{ invalid_total }} |
         <strong>Allowed words:</strong> {{ added_total }} |
-        <strong>Rounds logged:</strong> {{ total }}
+        <strong>Rounds logged:</strong> {{ total }} |
+        <strong>Today's rounds:</strong> {{ 'live on /chainle' if rounds_live else 'dark; shown on /chainle_dev' }}
     </div>
 
     <div class="admin-tools">
@@ -159,6 +223,7 @@
 
     <div class="tab-container">
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
+        <div class="tab-button{% if active_tab == 'rounds' %} active{% endif %}" onclick="showTab(event, 'rounds')">Today's Rounds</div>
         <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
         <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Allowed Words</div>
         <div class="tab-button{% if active_tab == 'log' %} active{% endif %}" onclick="showTab(event, 'log')">Round Log</div>
@@ -221,6 +286,146 @@
         {% else %}
         <p>{% if query %}No reports match "{{ query }}".{% else %}No open reports in the last {{ crowd_window_days }} days.{% endif %}</p>
         {% endif %}
+    </div>
+
+    <!-- Today's Rounds Tab -->
+    <div id="rounds-tab" class="tab-content{% if active_tab == 'rounds' %} active{% endif %}">
+        <div class="tab-head">
+            <h2>Today's Rounds</h2>
+            <span class="crowd-note">{% if rounds_live %}Live on /chainle.{% else %}Dark: /chainle logs rounds and offers none.{% endif %}
+                <a href="/chainle_dev" target="_blank" rel="noopener">/chainle_dev</a> shows the page as players will see it.</span>
+            <details class="admin-help"><summary>How rounds are offered</summary>
+                <p class="crowd-note">A player's round is logged on their own date when they use it (a hint, a reveal, a copy, a report) or leave it solved. A round they loaded and left as it is never is, and nothing you do on /chainle_dev is. Players never say which site they play on: under an empty round they see the clues each of the day's sets has for it, tap the one in their game, and every empty round of that set fills in.</p>
+                <p class="crowd-note">A round counts once {{ serve_crowd }} players have typed the same clue words, one per network (an IPv6 /48, or one IPv4 address). Two rounds belong to one day's set once {{ link_min }} players typed both. Within a set, a round needs more than half of that round's players; a tie leaves it blank. Which round it is: three words make round 4 and one word round 5; a two-word round goes in the latest of tabs 1-3 that at least two of its players used (players who come in mid-game type a later round into tab 1).</p>
+                <p class="crowd-note">Your approvals come first, with their site's name on the button, and the players' set that shares a round with one fills its blank rounds. At most {{ todays_sets_max }} sets a day: your approvals, then the players' sets, most players first.</p>
+                <p class="crowd-note">An approval is a whole set: approving a site's set replaces whatever you approved for it that day, and a round you leave blank is just not in it. You can approve your own typing, a set the players settled, or a set players typed, even one player. Undo takes the site's set back. Remove on a set the players settled deletes every player entry of its rounds that day; on a set players typed, only those players' entries. Use it for junk, or staging tests (staging writes the prod table).</p>
+            </details>
+        </div>
+        {% if rounds_error %}
+        <div class="alert alert-error">
+            Couldn't read the rounds ({{ rounds_error }}). Has mysql_tables/chainle_boards.sql been run?
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/chainle_admin/approve_rounds" class="admin-section approve-card" id="approve-rounds-form">
+            <div class="approve-head">
+                <strong>Approve your game's rounds</strong>
+                <label>Date <input type="date" name="played_on" value="{{ pacific_today.strftime('%Y-%m-%d') }}" required></label>
+            </div>
+            {% for n, count in round_clues.items() %}
+            <div class="approve-round">
+                <span>Round {{ n }}</span>
+                <div class="clue-row">
+                    {% for m in range(1, count + 1) %}
+                    <input type="text" name="round{{ n }}_{{ m }}" maxlength="20" autocomplete="off" autocapitalize="characters"
+                           spellcheck="false" aria-label="Round {{ n }}, clue {{ m }}">
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {{ keep_view() }}
+            <div class="site-buttons"><span class="crowd-note">Approve for</span>
+                {% for s in board_sites %}<button type="submit" name="site" value="{{ s }}" class="btn btn-success">{{ s }}</button>
+                {% endfor %}</div>
+        </form>
+
+        {% for d in rounds_days %}
+        {% set day_iso = d.day.strftime('%Y-%m-%d') %}
+        {% set day_text = d.day.strftime('%m-%d') %}
+        <h3>{{ day_iso }}{% if d.day == pacific_today %} (today, Pacific){% endif %}</h3>
+        {% if d.sets %}
+        <div class="set-cards">
+            {% for s in d.sets %}
+            <div class="set-card{% if s.site %} approved{% endif %}">
+                <div class="set-card-head">
+                    <span><b>Set {{ loop.index }}</b> &middot; {% if s.site %}your {{ s.site }}{% else %}{{ s.players }} players{% endif %}</span>
+                    <span class="{{ 'status-served' if rounds_live else 'status-waiting' }}">{{ 'Offered' if rounds_live else 'Would be offered' }}</span>
+                </div>
+                {% for n in range(1, 6) %}
+                <div class="set-round"><b>{{ n }}</b>
+                    <span>{% if s.rounds[n] %}<span class="clues">{{ s.rounds[n].replace(' ', ' + ') }}</span>{% if s.site and s['from'][n] == 'players' %} <span class="from">from players</span>{% endif %}{% else %}<span class="from">-</span>{% endif %}</span>
+                </div>
+                {% endfor %}
+                <div class="set-actions">
+                    {% if s.site %}
+                    <form method="POST" action="/chainle_admin/unapprove_rounds"
+                          onsubmit="return confirm('Take back your {{ s.site }} set for {{ day_text }}?')">
+                        <input type="hidden" name="played_on" value="{{ day_iso }}">
+                        <input type="hidden" name="site" value="{{ s.site }}">
+                        {{ keep_view() }}
+                        <button type="submit" class="btn btn-secondary">Undo</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="/chainle_admin/approve_rounds" class="set-approve">
+                        <input type="hidden" name="played_on" value="{{ day_iso }}">
+                        {% for n in range(1, 6) %}{% for w in (s.rounds[n] or '').split() %}<input type="hidden" name="round{{ n }}_{{ loop.index }}" value="{{ w }}">{% endfor %}{% endfor %}
+                        {{ keep_view() }}
+                        <span class="crowd-note">Approve for</span>
+                        {% for site in board_sites %}<button type="submit" name="site" value="{{ site }}" class="btn btn-success">{{ site }}</button>
+                        {% endfor %}
+                        <button type="submit" formaction="/chainle_admin/remove_set" class="btn btn-danger set-remove"
+                                onclick="return confirm('Delete every player entry of this set on {{ day_text }}?')">Remove</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="crowd-note" style="text-align: left;">Nothing to offer yet.</p>
+        {% endif %}
+
+        {% if d.typed %}
+        <details class="typed-list"{% if d.day == pacific_today %} open{% endif %}>
+            <summary>Sets players typed: {{ d.typed | length }}</summary>
+            <div class="set-cards">
+                {% for t in d.typed %}
+                <div class="set-card typed">
+                    <div class="set-card-head">
+                        <span>Typed by <b>{{ t.players }} player{{ '' if t.players == 1 else 's' }}</b> &middot; last {{ t.last_at.strftime('%H:%M') }}</span>
+                        {% if t.set_no %}<span class="status-served">in set {{ t.set_no }}</span>{% endif %}
+                    </div>
+                    {% for n in range(1, 6) %}
+                    <div class="set-round"><b>{{ n }}</b>
+                        <span>{% if t.rounds[n] %}<span class="clues">{{ t.rounds[n].replace(' ', ' + ') }}</span>{% else %}<span class="from">-</span>{% endif %}</span>
+                    </div>
+                    {% endfor %}
+                    <div class="set-actions">
+                        <form method="POST" action="/chainle_admin/approve_rounds" class="set-approve">
+                            <input type="hidden" name="played_on" value="{{ day_iso }}">
+                            {% for n in range(1, 6) %}{% for w in (t.rounds[n] or '').split() %}<input type="hidden" name="round{{ n }}_{{ loop.index }}" value="{{ w }}">{% endfor %}{% endfor %}
+                            {{ keep_view() }}
+                            <span class="crowd-note">Approve for</span>
+                            {% for site in board_sites %}<button type="submit" name="site" value="{{ site }}" class="btn btn-success">{{ site }}</button>
+                            {% endfor %}
+                            <button type="submit" formaction="/chainle_admin/remove_typed_set" class="btn btn-danger set-remove"
+                                    onclick="return confirm('Delete what these players typed on {{ day_text }}?')">Remove</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+
+        {% if d.groups %}
+        {% set in_sets = d.groups | selectattr('set_no') | list | length %}
+        <details class="typed-list">
+            <summary>Every round players typed: {{ d.groups | length }} ({{ in_sets }} in a set)</summary>
+            {% for g in d.groups %}
+            <div class="typed-row">
+                <span class="clues">{{ g.label }}</span>
+                <span>round {{ g.round }}</span>
+                <span>{{ g.players }} player{{ '' if g.players == 1 else 's' }} ({% for tab, n in g.tabs %}tab {{ tab }}: {{ n }}{% if not loop.last %}, {% endif %}{% endfor %})</span>
+                {% if g.set_no %}<span class="status-served">set {{ g.set_no }}</span>{% else %}<span class="status-waiting">{{ g.why }}</span>{% endif %}
+                <span class="when">last {{ g.last_at.strftime('%H:%M') }}</span>
+            </div>
+            {% endfor %}
+        </details>
+        {% endif %}
+        {% else %}
+        {% if not rounds_error %}<p>No rounds logged in the last few days.</p>{% endif %}
+        {% endfor %}
     </div>
 
     <!-- Removed Words Tab -->

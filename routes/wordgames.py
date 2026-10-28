@@ -5,7 +5,7 @@ import re
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit
 from functions import all_words, wordle
 from helpers import ValidationError, json_object, make_schema_data, parse_float, parse_int
 from routes import chainle
@@ -458,8 +458,26 @@ def run_guess_the_phrase():
 @bp.route("/chainle", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_chainle():
+    return _chainle_page(dev=False)
 
-    schema_data = make_schema_data(
+
+@bp.route("/chainle_dev", methods=["POST", "GET"])
+@limiter.limit(INTERACTIVE_LIMITS)
+@auth.login_required
+def run_chainle_dev():
+    """James's copy of /chainle, with today's rounds on even while
+    CHAINLE_ROUNDS_LIVE is off: the page as it will look once they go live
+    (James asked, 2026-10-28). It posts to itself and logs none of his
+    rounds, so his own play stays out of the players' counts; his reports
+    count like any player's, tagged dev in the vote log. Not a page visit."""
+    return _chainle_page(dev=True)
+
+
+def _chainle_page(dev):
+    """/chainle, or /chainle_dev with `dev`: the page, a solve, or a JSON
+    action. Today's rounds (routes/chainle.py) show wherever rounds_on is:
+    always on /chainle_dev, and on /chainle once CHAINLE_ROUNDS_LIVE."""
+    schema_data = None if dev else make_schema_data(
         "Chainle Answers & Hints - Solver for Today's Rounds",
         "Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.",
         "https://www.jamesapplewhite.com/chainle"
@@ -467,13 +485,19 @@ def run_chainle():
 
     if request.method == "POST":
         data = json_object()
-        # A player's report of a word the game refused, not a round to solve.
+        # A round to log or today's rounds to fetch, or a player's report of
+        # a word the game refused: not a round to solve.
         if 'action' in data:
-            return chainle.handle_vote(data)
+            if data.get('action') in chainle.ROUND_ACTIONS:
+                return chainle.handle_rounds_action(data, dev=dev)
+            return chainle.handle_vote(data, dev=dev)
         return chainle.solve_request(data)
     else:
-        log_page_visit('chainle.html')
-        return render_template("chainle.html", schema_data=schema_data, **chainle.page_context())
+        if not dev:
+            log_page_visit('chainle.html')
+        return render_template("chainle.html", schema_data=schema_data, dev=dev,
+                               post_url='/chainle_dev' if dev else '/chainle',
+                               rounds_on=dev or chainle.CHAINLE_ROUNDS_LIVE, **chainle.page_context())
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])

@@ -3,6 +3,7 @@
 {% block title %}Chainle Answers & Hints - Solver for Today's Rounds{% endblock %}
 
 {% block meta %}
+{% if dev %}<meta name="robots" content="noindex, nofollow">{% endif %}
 <meta name="description" content="Chainle answers and hints for today's rounds: type the clue words to see the best linking words, or take a spoiler-free hint first.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/chainle">
 <meta name="keywords" content="chainle solver, chainle hint, chainle answer, chainle help, daily word chain, word bridge puzzle">
@@ -36,7 +37,15 @@
         "@type": "Answer",
         "text": "Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint, then Show next letter for each letter after that. Below the hint, the best words are listed with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once. Tap a revealed word to copy it, then paste it into the game."
       }
-    },
+    },{% if rounds_on %}
+    {
+      "@type": "Question",
+      "name": "Can it fill in today's rounds?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often, yes. Players enter each day's clues into this solver as they play, so once other players have entered today's rounds, they show under an empty round: tap the clues that match your game, and that day's rounds fill in for you - they did the work. Chainle runs on more than one site, each with its own rounds, so some days players enter more than one set; tap the one that matches your game, and check each round matches. Playing an older puzzle? Type its clues as usual."
+      }
+    },{% endif %}
     {
       "@type": "Question",
       "name": "How does it find the linking word?",
@@ -303,6 +312,54 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 /* Room for two lines, so the card doesn't jump as the message changes. */
 .chn-report-status { min-height: 39px; }
 
+/* ---------- today's rounds ---------- */
+/* Under the clue boxes while the round is empty: the clues each of today's
+   sets has for it, one button each (routes/chainle.py). */
+.chn-offer {
+    box-sizing: border-box;
+    width: calc(100% - 24px);
+    max-width: 480px;
+    margin: 10px auto 0;
+    padding: 10px 12px;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    background-color: #eef4f4;
+    text-align: left;
+}
+.chn-offer[hidden], .chn-offer-note[hidden] { display: none; }
+.chn-offer-text { font-size: 14px; font-weight: 600; color: #02484d; margin: 0 0 8px; line-height: 1.4; }
+.chn-offer-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.chn-offer-pick {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    max-width: 100%;
+    text-align: left;
+}
+.chn-offer-clues {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    overflow-wrap: anywhere;
+}
+.chn-offer-site { font-size: 11px; font-weight: 600; color: #6b7280; }
+.chn-offer-note { font-size: 13px; color: #02484d; margin: 8px auto 0; max-width: 480px; padding: 0 12px; line-height: 1.5; }
+
+/* /chainle_dev says which copy it is. */
+.chn-dev-note {
+    max-width: 460px;
+    margin: 8px auto 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #02484d;
+    background-color: #eef4f4;
+    border: 1px dashed #4f9a97;
+    border-radius: 8px;
+}
+
 .chn-new-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -375,6 +432,9 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 {% block content %}
 
 <center>
+{% if dev %}
+<p class="chn-dev-note">/chainle_dev - only you can see this copy. Today's rounds show here even while /chainle keeps them dark, and none of your rounds here are logged.</p>
+{% endif %}
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Answers &amp; Hints</h1>
 {% if vocab_size %}
@@ -393,7 +453,9 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
         <strong>1. Pick the round.</strong> Rounds 1 to 3 are two-word bridges, round 4 has three
         clues, and round 5 asks for the closest meaning. If a round looks different, switch its type.
         <br><br>
-        <strong>2. Type the clue words.</strong> The hint appears as soon as every clue is in.
+        <strong>2. Type the clue words.</strong> The hint appears as soon as every clue is in.{% if rounds_on %}
+        Once other players have entered today's rounds, they show under an empty round: tap the
+        clues that match your game, and that day's rounds fill in.{% endif %}
         <br><br>
         <strong>3. Take a hint.</strong> First you see the phrases the best word makes with each
         clue, with the word hidden, and its length. <strong>Show first letter</strong>, then
@@ -420,6 +482,14 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
     <input type="text" class="chn-clue" data-n="2" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" aria-label="Clue 3" placeholder="Clue 3">
 </div>
 <p class="chn-hint-line" id="chn-hint-line"></p>
+{% if rounds_on %}
+<div class="chn-offer" id="chn-offer" hidden>
+    <p class="chn-offer-text" id="chn-offer-one">Other players already entered today's round <span class="chn-offer-n">1</span> for you. Tap it if it matches your game:</p>
+    <p class="chn-offer-text" id="chn-offer-many" hidden>Players entered more than one round <span class="chn-offer-n">1</span> today. Tap the one that matches your game:</p>
+    <div class="chn-offer-picks" id="chn-offer-picks"></div>
+</div>
+<p class="chn-offer-note" id="chn-offer-note" hidden>Filled in from the rounds other players entered. Check each one matches your game.</p>
+{% endif %}
 
 <div id="chn-results" aria-live="polite" hidden>
     <div class="chn-card" id="chn-hint-card">
@@ -468,6 +538,12 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the answer?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the clue words for a round. The solver gives a hint first: the phrases the best word makes with each clue, with the word hidden, such as SNOW____ and FOOT____, and how many letters it has. Tap Show first letter for a bigger hint, then Show next letter for each letter after that. Below the hint, the best words are listed with every letter hidden. Tap Show letter to uncover one letter at a time, Reveal to see the whole word, or Show all answers to see every word at once. Tap a revealed word to copy it, then paste it into the game.</p>
     </div>
+    {% if rounds_on %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Can it fill in today's rounds?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often, yes. Players enter each day's clues into this solver as they play, so once other players have entered today's rounds, they show under an empty round: tap the clues that match your game, and that day's rounds fill in for you - they did the work. Chainle runs on more than one site, each with its own rounds, so some days players enter more than one set; tap the one that matches your game, and check each round matches. Playing an older puzzle? Type its clues as usual.</p>
+    </div>
+    {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does it find the linking word?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It measures meaning: word vectors, learned from how words are used across billions of words of text and from a network of what words mean, put related words close together, and the solver looks for the word closest to every clue at once, like HOSPITAL for DOCTOR and NURSE. A word close to one clue but far from another ranks low, because the weakest clue counts most. For the closest-meaning round it ranks the words nearest in meaning and leaves out opposites.</p>
@@ -508,7 +584,15 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    const STORAGE_KEY = 'chainleSolverState_v1';
+    // /chainle_dev (James's copy) keeps its own state, so his /chainle game
+    // is left alone.
+    const STORAGE_KEY = {{ ('chainleDevState_v1' if dev else 'chainleSolverState_v1') | tojson }};
+    // This copy's own address: /chainle, or /chainle_dev.
+    const POST_URL = {{ (post_url or '/chainle') | tojson }};
+    // Today's rounds are offered where they're on (always on /chainle_dev),
+    // and a round the player uses is logged everywhere but /chainle_dev.
+    const ROUNDS_ON = {{ 'true' if rounds_on else 'false' }};
+    const LOG_ROUNDS = {{ 'false' if dev else 'true' }};
     // The daily game's rounds: three two-word bridges, a three-word one, then
     // the closest meaning. Each round's type can be switched.
     const DEFAULT_TYPES = ['pair', 'pair', 'pair', 'triple', 'meaning'];
@@ -521,8 +605,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // reveals: letters shown per word. The hint's word is the list's first,
     // so the hint and that row share a count. report: the word in the
     // "Chainle refused a word?" box, the last one copied unless the player
-    // typed another.
-    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP, report: ''});
+    // typed another. from: how the clues came, 'typed', 'loaded' (from
+    // today's rounds) or 'edited' (loaded, then changed). logged: the clues
+    // as last sent to the round log.
+    const fresh = type => ({type, clues: ['', '', ''], reveals: {}, shown: ROWS_STEP, report: '',
+                            from: 'typed', logged: ''});
     let rounds = DEFAULT_TYPES.map(fresh);
     let current = 0;
     let last = null;               // the solver's reply for the current round
@@ -699,10 +786,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRounds();
         renderClues();
         renderResults();
+        renderOffer();
     }
 
     /* ---------- actions ---------- */
     function selectRound(i) {
+        noteUse();    // the round being left, if it solved
         current = i;
         last = null;
         reportStatus.textContent = REPORT_NOTE;
@@ -718,6 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         if (r.type === type) return;
         r.type = type;
+        if (r.from === 'loaded') r.from = 'edited';
         r.reveals = {}; r.shown = ROWS_STEP; r.report = '';
         reportStatus.textContent = REPORT_NOTE;
         last = null;
@@ -731,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         current = 0;
         last = null;
         reportStatus.textContent = REPORT_NOTE;
+        if (offerNote) offerNote.hidden = true;
         render();
         save();
         roundsEl.scrollIntoView({block: 'start', behavior: 'smooth'});
@@ -745,10 +836,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = round();
             if (r.clues[n] === clean) return;
             r.clues[n] = clean;
+            if (r.from === 'loaded') r.from = 'edited';
             r.reveals = {}; r.shown = ROWS_STEP; r.report = '';
             reportStatus.textContent = REPORT_NOTE;
+            if (offerNote) offerNote.hidden = true;
             renderRounds();
             renderClues();
+            renderOffer();
             save();
             schedule(350);
         });
@@ -766,12 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = round();
         const word = last.suggestions[0].word;
         r.reveals[word] = Math.min((r.reveals[word] || 0) + 1, word.length);
+        noteUse();
         renderResults();
         save();
     });
 
     moreBtn.addEventListener('click', () => {
         round().shown += ROWS_STEP;
+        noteUse();
         renderAnswers();
         save();
     });
@@ -781,6 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!last) return;
         last.suggestions.forEach(w => { r.reveals[w.word] = w.word.length; });
         r.shown = last.suggestions.length;
+        noteUse();
         renderResults();
         save();
     });
@@ -792,6 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const s = last.suggestions[+btn.dataset.idx];
         if (!s) return;
         r.reveals[s.word] = btn.dataset.act === 'all' ? s.word.length : (r.reveals[s.word] || 0) + 1;
+        noteUse();
         renderResults();
         save();
     });
@@ -808,6 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
         round().report = text;
         reportInput.value = text;
         reportStatus.textContent = REPORT_NOTE;
+        noteUse();
         save();
         let ok = false;
         try {
@@ -853,10 +952,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = {action: 'refuse', word, clues: last.clues, kind: last.kind};
         // Still this round's box when the reply comes?
         const here = () => round() === r;
+        noteUse();
         reportBtn.disabled = true;
         reportStatus.textContent = 'Sending...';
         try {
-            const resp = await fetch('/chainle', {
+            const resp = await fetch(POST_URL, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(body)
@@ -896,7 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const seq = ++fetchSeq;
         const r = round();
         try {
-            const resp = await fetch('/chainle', {
+            const resp = await fetch(POST_URL, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({clues: cluesOf(r), kind: TYPE_KIND[r.type]})
@@ -910,6 +1010,150 @@ document.addEventListener('DOMContentLoaded', () => {
             if (seq === fetchSeq) toast('Could not reach the solver - check your connection', true);
         }
     }
+
+    /* ---------- today's rounds ---------- */
+    // routes/chainle.py: the rounds other players typed today, grouped into
+    // each site's day by which rounds they typed together, and James's
+    // approvals. Under an empty round the page lists the clues each set has
+    // for it; the player taps the one in their game, and every empty round of
+    // that set fills in. A round the player uses is logged, but never one
+    // loaded and left as it is, so an offer can't vote for itself. Players
+    // are never told how rounds are chosen.
+    const offerEl = document.getElementById('chn-offer');
+    const offerPicks = document.getElementById('chn-offer-picks');
+    const offerNote = document.getElementById('chn-offer-note');
+    let sets = [];           // today's sets: [{site, rounds: {'1': [clue words]}}]
+    let setsAt = 0;          // when they were last asked for
+
+    // The player's own date: the day their rounds count for.
+    function localISO() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
+    }
+
+    const isWords = v => Array.isArray(v) && v.length >= 1 && v.length <= 3 &&
+        v.every(w => typeof w === 'string' && /^[A-Za-z]{1,20}$/.test(w));
+    const isSet = s => !!s && typeof s === 'object' && !!s.rounds && typeof s.rounds === 'object' &&
+        Object.keys(s.rounds).length > 0 &&
+        Object.entries(s.rounds).every(([k, v]) => /^[1-5]$/.test(k) && isWords(v));
+    const isEmpty = r => cluesOf(r).every(c => !c);
+
+    function fetchSets() {
+        if (!ROUNDS_ON) return;
+        setsAt = Date.now();
+        fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'todays_rounds', played_on: localISO()})
+        })
+            .then(r => { if (!r.ok) throw new Error('rounds failed: ' + r.status); return r.json(); })
+            .then(data => {
+                sets = (data && Array.isArray(data.sets) ? data.sets : []).filter(isSet);
+                renderOffer();
+            })
+            .catch(() => {});
+    }
+
+    // The sets that have this round, while the player hasn't typed it. Text
+    // only, never markup from the reply.
+    function renderOffer() {
+        if (!offerEl) return;
+        const n = String(current + 1);
+        const here = isEmpty(round()) ? sets.filter(s => s.rounds[n]) : [];
+        offerEl.hidden = !here.length;
+        if (!here.length) return;
+        // Like /ribbit: one set is "already entered for you", several are
+        // "more than one", and the player picks theirs.
+        document.getElementById('chn-offer-one').hidden = here.length > 1;
+        document.getElementById('chn-offer-many').hidden = here.length === 1;
+        offerEl.querySelectorAll('.chn-offer-n').forEach(el => { el.textContent = n; });
+        offerPicks.replaceChildren(...here.map(s => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'chn-btn chn-offer-pick';
+            pick.dataset.set = String(sets.indexOf(s));
+            const words = document.createElement('span');
+            words.className = 'chn-offer-clues';
+            words.textContent = s.rounds[n].map(w => w.toUpperCase()).join(' + ');
+            pick.appendChild(words);
+            if (typeof s.site === 'string' && s.site) {
+                const site = document.createElement('span');
+                site.className = 'chn-offer-site';
+                site.textContent = s.site;
+                pick.appendChild(site);
+            }
+            return pick;
+        }));
+    }
+
+    // Every empty round the set has, filled from it. Never a round the
+    // player typed, so it needs no asking.
+    function loadSet(s) {
+        if (!isSet(s)) return;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        let filled = 0;
+        rounds.forEach((r, k) => {
+            const words = s.rounds[String(k + 1)];
+            if (!words || !isEmpty(r)) return;
+            const next = fresh(words.length === 1 ? 'meaning' : words.length === 3 ? 'triple' : 'pair');
+            next.clues = [0, 1, 2].map(m => (words[m] || '').toUpperCase());
+            next.from = 'loaded';
+            rounds[k] = next;
+            filled++;
+        });
+        if (!filled) return;
+        last = null;
+        reportStatus.textContent = REPORT_NOTE;
+        if (offerNote) offerNote.hidden = false;
+        render();
+        save();
+        schedule(0);
+    }
+
+    if (offerPicks) offerPicks.addEventListener('click', e => {
+        const pick = e.target.closest('[data-set]');
+        if (pick) loadSet(sets[Number(pick.dataset.set)]);
+    });
+
+    // The current round's clues solved, every word known: a round the player
+    // really has in front of them.
+    function solvedClean() {
+        const r = round();
+        return !!last && ready(r) && Array.isArray(last.clues) && !(last.unknown && last.unknown.length) &&
+            last.clues.join(' ').toUpperCase() === cluesOf(r).join(' ');
+    }
+
+    // Logs the current round, once per set of clues, when the player uses it
+    // (a hint, a reveal, a copy, a report) or leaves it solved. Nothing in
+    // here may stop the page working.
+    function noteUse() {
+        try {
+            const r = round();
+            if (!LOG_ROUNDS || r.from === 'loaded' || !solvedClean()) return;
+            const clues = cluesOf(r);
+            const sig = localISO() + '|' + clues.slice().sort().join(' ');
+            if (r.logged === sig) return;
+            r.logged = sig;
+            save();
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_round', round_no: current + 1, clues,
+                                      played_on: localISO(), utc_offset: -new Date().getTimezoneOffset(),
+                                      source: r.from === 'edited' ? 'edited' : 'typed'})
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // Players switch to the game between rounds: log the round they leave,
+    // and ask for today's rounds again when they come back (at most once a
+    // minute), since more may be in by then.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') noteUse();
+        else if (Date.now() - setsAt > 60000) fetchSets();
+    });
 
     /* ---------- saving ---------- */
     function save() {
@@ -945,6 +1189,8 @@ document.addEventListener('DOMContentLoaded', () => {
             out.reveals = (r && r.reveals && typeof r.reveals === 'object') ? r.reveals : {};
             out.shown = r && Number.isInteger(r.shown) && r.shown > 0 && r.shown <= 10 ? r.shown : ROWS_STEP;
             out.report = r && typeof r.report === 'string' ? r.report.replace(/[^A-Za-z]/g, '').slice(0, 40) : '';
+            out.from = r && ['typed', 'loaded', 'edited'].includes(r.from) ? r.from : 'typed';
+            out.logged = r && typeof r.logged === 'string' ? r.logged.slice(0, 80) : '';
             return out;
         });
         current = Number.isInteger(s.current) && s.current >= 0 && s.current < rounds.length ? s.current : 0;
@@ -982,6 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     restore();
     render();
     schedule(0);
+    fetchSets();
 });
 </script>
 
