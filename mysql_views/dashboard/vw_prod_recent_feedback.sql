@@ -1,0 +1,7 @@
+CREATE OR REPLACE VIEW vw_prod_recent_feedback AS
+
+SELECT * FROM feedback
+WHERE submit_time >= CURRENT_DATE - INTERVAL 30 DAY
+ORDER BY id DESC
+LIMIT 20
+;

@@ -30,8 +30,8 @@ Server Errors (Last 7 Days):
 Recent Feedback:
     round: 1
     label: "Recent Feedback"
-    description: "Feedback form posts from the last 30 days, newest first (vw_prod_dynamic_1)"
-    query: SELECT * FROM vw_prod_dynamic_1;
+    description: "Feedback form posts from the last 30 days, newest first"
+    query: SELECT * FROM vw_prod_recent_feedback;
 
 
 Weekly Landings:
