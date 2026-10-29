@@ -1038,6 +1038,23 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(s.rounds).length > 0 &&
         Object.entries(s.rounds).every(([k, v]) => /^[1-5]$/.test(k) && isWords(v));
     const isEmpty = r => cluesOf(r).every(c => !c);
+    // A round's words in any order, as the server matches them.
+    const wordsKey = words => words.map(w => w.toUpperCase()).sort().join(' ');
+    // Whether the player could be entering this set. Until they type a clue
+    // of their own (in a round of theirs, or a loaded one they changed), any
+    // set could be theirs; after that, only one that has one of their rounds
+    // word for word (James, 2026-10-29). Their other rounds don't count
+    // against it: a typo, or a round left from another game, mustn't hide it.
+    function fitsTyped(s) {
+        let own = false;
+        for (let k = 0; k < rounds.length; k++) {
+            const r = rounds[k], words = s.rounds[String(k + 1)];
+            if (r.from === 'loaded' || isEmpty(r)) continue;
+            if (words && wordsKey(cluesOf(r)) === wordsKey(words)) return true;
+            own = true;
+        }
+        return !own;
+    }
 
     function fetchSets() {
         if (!ROUNDS_ON) return;
@@ -1055,12 +1072,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => {});
     }
 
-    // The sets that have this round, while the player hasn't typed it. Text
-    // only, never markup from the reply.
+    // The sets that have this round, while it's empty, and that the player
+    // could be entering. Text only, never markup from the reply.
     function renderOffer() {
         if (!offerEl) return;
         const n = String(current + 1);
-        const here = isEmpty(round()) ? sets.filter(s => s.rounds[n]) : [];
+        const here = isEmpty(round()) ? sets.filter(s => s.rounds[n] && fitsTyped(s)) : [];
         offerEl.hidden = !here.length;
         if (!here.length) return;
         // Like /ribbit: one set is "already entered for you", several are
