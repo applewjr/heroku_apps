@@ -227,70 +227,11 @@
     </div>
 
     <div class="tab-container">
-        <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
         <div class="tab-button{% if active_tab == 'rounds' %} active{% endif %}" onclick="showTab(event, 'rounds')">Today's Rounds</div>
+        <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
         <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
         <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Allowed Words</div>
         <div class="tab-button{% if active_tab == 'log' %} active{% endif %}" onclick="showTab(event, 'log')">Round Log</div>
-    </div>
-
-    <!-- Player Reports Tab -->
-    <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
-        {% call reports_head() %}
-        <p class="crowd-note">Players report a word the game refused with the box under the answers on /chainle. It starts with the last word they copied, and they can type another. A report only counts for a word in that round's top 10 suggestions.</p>
-        <p class="crowd-note">A word comes off once enough different players report it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. Needed is that number for each word.
-            Players counts every report in the window, including ones from a player over the daily limit, which don't count toward a removal.
-            Either button clears that word's votes.</p>
-        {% endcall %}
-        {% if reports %}
-        <div class="table-wrap">
-        <table class="words-table">
-            <thead>
-                <tr>
-                    <th>Word</th>
-                    <th>Popularity</th>
-                    <th>Players</th>
-                    <th>Needed</th>
-                    <th>First / last report</th>
-                    <th>Round</th>
-                    <th>Round date</th>
-                    <th>Result</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for r in reports %}
-                <tr>
-                    <td><strong>{{ r[0] }}</strong></td>
-                    {{ pop_cell(r[0]) }}
-                    <td>{{ r[2] }}</td>
-                    <td>{{ votes_needed(r[0], r[1]) }}</td>
-                    <td class="report-dates">
-                        {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
-                        {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
-                    </td>
-                    <td class="round-words">{% if r[6] %}{% for clue in r[6].split(':') %}{{ clue|upper }}<br>{% endfor %}{% else %}<span class="crowd-note">not recorded</span>{% endif %}</td>
-                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
-                    <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
-                    <td>
-                        {% if r[4] == 'waiting' %}
-                        <form method="POST" action="/chainle_admin/add_word" class="remove-form row-actions">
-                            <input type="hidden" name="word" value="{{ r[0] }}">
-                            {{ keep_view() }}
-                            <button type="submit" name="word_type" value="invalid" class="btn btn-danger">Remove now</button>
-                            <button type="submit" name="word_type" value="missing" class="btn btn-success">Allow now</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {{ pager(reports_pager) }}
-        {% else %}
-        <p>{% if query %}No reports match "{{ query }}".{% else %}No open reports in the last {{ crowd_window_days }} days.{% endif %}</p>
-        {% endif %}
     </div>
 
     <!-- Today's Rounds Tab -->
@@ -433,6 +374,65 @@
         {% else %}
         {% if not rounds_error %}<p>No rounds logged in the last few days.</p>{% endif %}
         {% endfor %}
+    </div>
+
+    <!-- Player Reports Tab -->
+    <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
+        {% call reports_head() %}
+        <p class="crowd-note">Players report a word the game refused with the box under the answers on /chainle. It starts with the last word they copied, and they can type another. A report only counts for a word in that round's top 10 suggestions.</p>
+        <p class="crowd-note">A word comes off once enough different players report it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. Needed is that number for each word.
+            Players counts every report in the window, including ones from a player over the daily limit, which don't count toward a removal.
+            Either button clears that word's votes.</p>
+        {% endcall %}
+        {% if reports %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Popularity</th>
+                    <th>Players</th>
+                    <th>Needed</th>
+                    <th>First / last report</th>
+                    <th>Round</th>
+                    <th>Round date</th>
+                    <th>Result</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reports %}
+                <tr>
+                    <td><strong>{{ r[0] }}</strong></td>
+                    {{ pop_cell(r[0]) }}
+                    <td>{{ r[2] }}</td>
+                    <td>{{ votes_needed(r[0], r[1]) }}</td>
+                    <td class="report-dates">
+                        {{ r[5].strftime('%m-%d %H:%M') if r[5] else 'N/A' }}<br>
+                        {{ r[3].strftime('%m-%d %H:%M') if r[3] else 'N/A' }}
+                    </td>
+                    <td class="round-words">{% if r[6] %}{% for clue in r[6].split(':') %}{{ clue|upper }}<br>{% endfor %}{% else %}<span class="crowd-note">not recorded</span>{% endif %}</td>
+                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
+                    <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
+                    <td>
+                        {% if r[4] == 'waiting' %}
+                        <form method="POST" action="/chainle_admin/add_word" class="remove-form row-actions">
+                            <input type="hidden" name="word" value="{{ r[0] }}">
+                            {{ keep_view() }}
+                            <button type="submit" name="word_type" value="invalid" class="btn btn-danger">Remove now</button>
+                            <button type="submit" name="word_type" value="missing" class="btn btn-success">Allow now</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {{ pager(reports_pager) }}
+        {% else %}
+        <p>{% if query %}No reports match "{{ query }}".{% else %}No open reports in the last {{ crowd_window_days }} days.{% endif %}</p>
+        {% endif %}
     </div>
 
     <!-- Removed Words Tab -->

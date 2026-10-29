@@ -211,7 +211,7 @@ def blossom_reset():
 
 ADMIN = '/blossom_admin'
 # Today's Board first: approving the day's board is the daily visit.
-ADMIN_TABS = ('board', 'reports', 'feedback', 'invalid', 'added')
+ADMIN_TABS = ('board', 'reports', 'invalid', 'added', 'feedback')
 
 
 def _back(**message):

@@ -928,7 +928,7 @@ def assess_rounds(data, rows):
     }
 
 
-ADMIN_TABS = ('reports', 'rounds', 'invalid', 'added', 'log')
+ADMIN_TABS = ('rounds', 'reports', 'invalid', 'added', 'log')
 
 
 def _round_log():
@@ -961,18 +961,19 @@ def _round_log():
 @bp.route(ADMIN)
 @auth.login_required
 def chainle_admin():
-    """What players reported, today's rounds, the removed and allowed words,
+    """Today's rounds, what players reported, the removed and allowed words,
     and the round log. Each part still shows if another's tables can't be
     read."""
-    # With no tab asked for, it opens on Player Reports, admin_view's default
-    # (James asked, 2026-10-25). Logging a round still comes back to the
+    # With no tab asked for, it opens on Today's Rounds, the first tab
+    # (James asked, 2026-10-29). Logging a round still comes back to the
     # Round Log (_back_to_log).
     args = request.args.to_dict()
+    args.setdefault('tab', 'rounds')
     try:
         view, crowd_error = CHAINLE_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
     except Exception as e:
         print(f"Error loading chainle admin word lists: {e}")
-        view = CHAINLE_CROWD.empty_view(ADMIN, args['tab'] if args.get('tab') in ADMIN_TABS else 'reports')
+        view = CHAINLE_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'rounds')
         crowd_error = f'{type(e).__name__}: {e}'
     log, log_error = _round_log()
     rounds_days, rounds_error = _admin_rounds()

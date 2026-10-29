@@ -514,11 +514,13 @@ def test_the_tab_lists_only_players_who_typed_all_five_rounds(client, rounds, ti
     assert 'CAT + PHONE' in html
 
 
-def test_the_admin_page_still_opens_on_player_reports(client, rounds, tiny, monkeypatch):
+def test_the_admin_page_opens_on_todays_rounds(client, rounds, tiny, monkeypatch):
+    # The first tab (James asked, 2026-10-29).
     tiny()
     html = client.get('/chainle_admin', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
-    assert 'id="reports-tab" class="tab-content active"' in html
-    assert "Today's Rounds" in html and 'dark; shown on /chainle_dev' not in html
+    assert 'id="rounds-tab" class="tab-content active"' in html
+    assert 'id="reports-tab" class="tab-content"' in html
+    assert 'dark; shown on /chainle_dev' not in html
 
 
 def test_the_tab_works_when_the_word_lists_fail(client, rounds, monkeypatch):
