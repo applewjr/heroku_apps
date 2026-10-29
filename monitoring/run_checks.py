@@ -94,6 +94,15 @@ class Results:
         self.passed = 0
         self.failed = 0
         self.skipped = 0
+        # Web probe attempts thrown away and tried again, and the time they
+        # cost. main() leaves that time out of the run budget.
+        self.retries = 0
+        self.retry_ms = 0
+
+    def retried(self, ms):
+        """Record a thrown-away probe attempt that cost `ms`."""
+        self.retries += 1
+        self.retry_ms += ms
 
     def ok(self, name, **fields):
         """Record a pass, carrying what was actually measured.
@@ -327,17 +336,23 @@ def check_web(results, probes):
         try:
             sev = spec.get('sev', 'warn')
             url = base + spec['path']
+            # Why each thrown-away attempt was retried, for the ok line, so a
+            # search for `retried=` shows which probes needed a second go.
+            why = []
 
             try:
+                attempt = time.monotonic()
                 try:
                     response, ms = _fetch(url)
-                except requests.RequestException:
+                except requests.RequestException as e:
                     # One retry before alerting. The router logs show the
                     # dyno answering these in a few ms while the response
                     # never makes it back through Cloudflare to the probe, so
                     # a single lost response is the edge, not the site. A
                     # real outage fails both tries.
                     time.sleep(2)
+                    results.retried(int((time.monotonic() - attempt) * 1000))
+                    why.append(type(e).__name__)
                     response, ms = _fetch(url)
             except Exception as e:
                 results.fail(check, sev=sev, url=url, exc=type(e).__name__, msg=e)
@@ -359,6 +374,8 @@ def check_web(results, probes):
                 # dyno at least daily (and on every deploy), and the first
                 # request after a boot pays for data.py loading its CSVs, so
                 # a single slow sample is a cold start rather than evidence.
+                results.retried(ms)
+                why.append('slow')
                 try:
                     response, ms = _fetch(url)
                 except Exception as e:
@@ -371,7 +388,10 @@ def check_web(results, probes):
                                  note='page is slow')
                     continue
 
-            results.ok(check, actual=ms, compare='<=', threshold=spec['max_ms'])
+            fields = {'actual': ms, 'compare': '<=', 'threshold': spec['max_ms']}
+            if why:
+                fields['retried'] = '+'.join(why)
+            results.ok(check, **fields)
         except Exception as e:
             results.fail(check, sev='crit', exc=type(e).__name__, msg=e,
                          note='probe failed')
@@ -414,16 +434,24 @@ def main():
     # When checks did fail, their own alerts already account for the time - a
     # probe timing out costs 15 seconds by itself - so this stays quiet rather
     # than piling a second alert on top of an explanation you already have.
+    #
+    # Probe attempts that were thrown away and tried again are left out too.
+    # A response lost at Cloudflare costs the 15s timeout plus a 2s pause
+    # before the retry recovers it, so a few of those pushed passing runs past
+    # the budget (2026-10-29) while the site served normally. The pulse still
+    # carries the count and the time, so they stay searchable.
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    if results.failed == 0 and elapsed_ms > RUN_BUDGET_MS:
-        results.fail('checks_slow', actual=elapsed_ms, compare='<=',
-                     threshold=RUN_BUDGET_MS,
+    work_ms = elapsed_ms - results.retry_ms
+    if results.failed == 0 and work_ms > RUN_BUDGET_MS:
+        results.fail('checks_slow', actual=work_ms, compare='<=',
+                     threshold=RUN_BUDGET_MS, retry_ms=results.retry_ms,
                      note='every check passed but the run itself is slow')
 
     alerts.pulse(
         'checks',
         ok=results.passed, alert=results.failed, skip=results.skipped,
         hour_pst=hour_pst, ms=elapsed_ms,
+        retries=results.retries, retry_ms=results.retry_ms,
     )
     return 0
 
