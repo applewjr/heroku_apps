@@ -157,8 +157,13 @@
 #rounds-tab .typed-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 0; border-top: 1px solid #e9ecef; font-size: 13px; color: #374151; }
 #rounds-tab .typed-row .clues { min-width: 11em; }
 @media (min-width: 700px) {
-    /* Columns that line up, for scanning. */
-    #rounds-tab .typed-row { display: grid; grid-template-columns: 15em 5em 11em minmax(0, 1fr) 5.5em; }
+    /* Columns that line up, for scanning: one grid for the day, each column
+       as wide as its widest line so nothing wraps, the reason column taking
+       what's left. Where that doesn't fit, the list scrolls sideways. */
+    #rounds-tab .round-grid { display: grid; grid-template-columns: repeat(3, max-content) minmax(max-content, 1fr) max-content; overflow-x: auto; }
+    #rounds-tab .round-grid .typed-row { display: contents; }
+    #rounds-tab .round-grid .typed-row > span { display: flex; align-items: center; padding: 6px 16px 6px 0; border-top: 1px solid #e9ecef; white-space: nowrap; }
+    #rounds-tab .round-grid .typed-row > span:last-child { padding-right: 0; }
 }
 @media (max-width: 480px) {
     /* "Approve for" on a line of its own, so the three sites share the next. */
@@ -296,9 +301,9 @@
                 <a href="/chainle_dev" target="_blank" rel="noopener">/chainle_dev</a> shows the page as players will see it.</span>
             <details class="admin-help"><summary>How rounds are offered</summary>
                 <p class="crowd-note">A player's round is logged on their own date when they use it (a hint, a reveal, a copy, a report) or leave it solved. A round they loaded and left as it is never is, and nothing you do on /chainle_dev is. Players never say which site they play on: under an empty round they see the clues each of the day's sets has for it, tap the one in their game, and every empty round of that set fills in.</p>
-                <p class="crowd-note">A round counts once {{ serve_crowd }} players have typed the same clue words, one per network (an IPv6 /48, or one IPv4 address). Two rounds belong to one day's set once {{ link_min }} players typed both. Within a set, a round needs more than half of that round's players; a tie leaves it blank. Which round it is: three words make round 4 and one word round 5; a two-word round goes in the latest of tabs 1-3 that at least two of its players used (players who come in mid-game type a later round into tab 1).</p>
+                <p class="crowd-note">A round counts once {{ serve_crowd }} players have typed the same clue words, one per network (an IPv6 /48, or one IPv4 address). Two rounds belong to one day's set once {{ link_min }} players typed both. Within a set, a round needs more than half of that round's players; a tie leaves it blank. A players' set is offered only once all five of its rounds are settled; one with fewer isn't shown here. Which round it is: three words make round 4 and one word round 5; a two-word round goes in the latest of tabs 1-3 that at least two of its players used (players who come in mid-game type a later round into tab 1).</p>
                 <p class="crowd-note">Your approvals come first, with their site's name on the button, and the players' set that shares a round with one fills its blank rounds. At most {{ todays_sets_max }} sets a day: your approvals, then the players' sets, most players first.</p>
-                <p class="crowd-note">An approval is a whole set: approving a site's set replaces whatever you approved for it that day, and a round you leave blank is just not in it. You can approve your own typing, a set the players settled, or a set players typed, even one player. Undo takes the site's set back. Remove on a set the players settled deletes every player entry of its rounds that day; on a set players typed, only those players' entries. Use it for junk, or staging tests (staging writes the prod table).</p>
+                <p class="crowd-note">An approval is a whole set: approving a site's set replaces whatever you approved for it that day, and a round you leave blank is just not in it. You can approve your own typing, a set the players settled, or a set players typed, even one player. Sets players typed lists only players who typed all five rounds. Undo takes the site's set back. Remove on a set the players settled deletes every player entry of its rounds that day; on a set players typed, only those players' entries. Use it for junk, or staging tests (staging writes the prod table).</p>
             </details>
         </div>
         {% if rounds_error %}
@@ -377,7 +382,7 @@
 
         {% if d.typed %}
         <details class="typed-list"{% if d.day == pacific_today %} open{% endif %}>
-            <summary>Sets players typed: {{ d.typed | length }}</summary>
+            <summary>Sets players typed (all 5 rounds): {{ d.typed | length }}</summary>
             <div class="set-cards">
                 {% for t in d.typed %}
                 <div class="set-card typed">
@@ -412,6 +417,7 @@
         {% set in_sets = d.groups | selectattr('set_no') | list | length %}
         <details class="typed-list">
             <summary>Every round players typed: {{ d.groups | length }} ({{ in_sets }} in a set)</summary>
+            <div class="round-grid">
             {% for g in d.groups %}
             <div class="typed-row">
                 <span class="clues">{{ g.label }}</span>
@@ -421,6 +427,7 @@
                 <span class="when">last {{ g.last_at.strftime('%H:%M') }}</span>
             </div>
             {% endfor %}
+            </div>
         </details>
         {% endif %}
         {% else %}

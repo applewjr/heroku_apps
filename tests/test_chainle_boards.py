@@ -27,10 +27,14 @@ from test_blossom import _admin_headers, _ScriptedDB
 from test_chainle import tiny  # noqa: F401
 
 DAY = date(2026, 10, 28)
-# One made-up day on one site, and the first rounds of another's.
+# One made-up day on one site, another site's, and two more for the limit on
+# sets. A players' set is offered only with all five rounds.
 R1, R2, R3, R4, R5 = ['snow', 'foot'], ['doctor', 'nurse'], ['fire', 'police'], ['basket', 'room', 'game'], ['big']
 DAY_ROUNDS = (R1, R2, R3, R4, R5)
 OTHER1, OTHER2 = ['cat', 'phone'], ['station', 'board']
+OTHER_DAY = (OTHER1, OTHER2, ['man', 'thing'], ['large', 'huge', 'tiny'], ['small'])
+THIRD_DAY = (['hospital', 'ball'], ['little', 'room'], ['game', 'nurse'], ['snow', 'cat', 'fire'], ['huge'])
+FOURTH_DAY = (['handset', 'doctor'], ['football', 'big'], ['snowball', 'police'], ['feet', 'station', 'phone'], ['tiny'])
 IPS = [f'203.0.113.{n}' for n in range(1, 60)]
 # Three /64s of one /48: three players on one network.
 ONE_NETWORK = ['2001:db8:1:1::1', '2001:db8:1:2::1', '2001:db8:1:3::1']
@@ -147,48 +151,69 @@ def _crowd(*by_round):
     return {'site': '', 'rounds': {str(n): _words(c) for n, c in by_round}}
 
 
+def _day(by_tab=DAY_ROUNDS):
+    """A players' whole set as the page gets it."""
+    return _crowd(*enumerate(by_tab, 1))
+
+
 # --- the players' rounds ------------------------------------------------------
 
 def test_three_players_make_a_round_count_and_two_wait(client, rounds):
-    _play(client, IPS[:2], R1)
+    _play(client, IPS[:2], *DAY_ROUNDS)
     assert _sets(client) == []
-    _play(client, IPS[2:3], R1)
-    assert _sets(client) == [_crowd((1, R1))]
+    _play(client, IPS[2:3], *DAY_ROUNDS)
+    assert _sets(client) == [_day()]
 
 
 def test_players_on_one_network_count_once(client, rounds):
-    _play(client, ONE_NETWORK, R1)
+    _play(client, ONE_NETWORK, *DAY_ROUNDS)
     assert _sets(client) == []
-    _play(client, IPS[:2], R1)
-    assert _sets(client) == [_crowd((1, R1))]
+    _play(client, IPS[:2], *DAY_ROUNDS)
+    assert _sets(client) == [_day()]
 
 
 def test_a_later_entry_in_a_tab_replaces_the_first(client, rounds):
-    _play(client, IPS[:3], R1)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     _log(client, IPS[0], 1, OTHER1)
     assert _sets(client) == []
-    assert len(rounds.players()) == 3
+    assert len(rounds.players()) == 15
 
 
 def test_rounds_players_typed_together_make_one_set(client, rounds):
     _play(client, IPS[:3], *DAY_ROUNDS)
-    assert _sets(client) == [_crowd(*enumerate(DAY_ROUNDS, 1))]
+    assert _sets(client) == [_day()]
+
+
+def test_a_set_with_fewer_than_five_rounds_is_never_offered(client, rounds, tiny, monkeypatch):
+    # James, 2026-10-29: a set of one round was offered beside a whole one.
+    tiny()
+    _play(client, IPS[:3], *DAY_ROUNDS[:4])
+    assert _sets(client) == []
+    assert _sets(client, path='/chainle_dev', headers=_admin_headers(monkeypatch)) == []
+    html = _tab(client, monkeypatch)
+    assert '<b>Set 1</b>' not in html and 'Nothing to offer yet.' in html
+    assert 'formaction="/chainle_admin/remove_set"' not in html
+    assert 'Typed by <b>' not in html
+    assert 'its set has only 4 of 5 rounds' in html
+    _play(client, IPS[:3], None, None, None, None, R5)
+    assert _sets(client) == [_day()]
 
 
 def test_one_shared_player_keeps_two_rounds_apart(client, rounds):
-    _play(client, IPS[:3], R1)
-    _play(client, IPS[2:5], None, R2)
-    assert _sets(client) == [_crowd((1, R1)), _crowd((2, R2))]
-    _play(client, IPS[3:4], R1)
-    assert _sets(client) == [_crowd((1, R1), (2, R2))]
+    _play(client, IPS[:3], R1, R2)
+    _play(client, IPS[2:5], None, None, R3, R4, R5)
+    assert _sets(client) == []
+    _play(client, IPS[3:4], R1, R2)
+    assert _sets(client) == [_day()]
 
 
 def test_more_than_half_wins_a_round_and_a_tie_leaves_it_blank(client, rounds):
-    _play(client, IPS[:3], R1, R2)
-    _play(client, IPS[3:6], R1, R3)
-    assert _sets(client) == [_crowd((1, R1))]
+    _play(client, IPS[:3], *DAY_ROUNDS)
+    _play(client, IPS[3:6], R1, OTHER2)
+    # Round 2 is tied, so the set has four rounds.
+    assert _sets(client) == []
     _play(client, IPS[6:7], R1, R2)
-    assert _sets(client) == [_crowd((1, R1), (2, R2))]
+    assert _sets(client) == [_day()]
 
 
 def test_a_round_keeps_the_order_it_was_typed_in(client, rounds, tiny, monkeypatch):
@@ -201,22 +226,22 @@ def test_a_round_keeps_the_order_it_was_typed_in(client, rounds, tiny, monkeypat
 
 
 def test_players_who_typed_a_round_the_other_way_round_still_agree(client, rounds):
-    _play(client, IPS[:2], ['snow', 'foot'])
-    _play(client, IPS[2:3], ['foot', 'snow'])
+    _play(client, IPS[:2], ['snow', 'foot'], *DAY_ROUNDS[1:])
+    _play(client, IPS[2:3], ['foot', 'snow'], *DAY_ROUNDS[1:])
     # Three players count, shown in the order most of them typed.
-    assert _sets(client) == [{'site': '', 'rounds': {'1': ['SNOW', 'FOOT']}}]
+    assert _sets(client)[0]['rounds']['1'] == ['SNOW', 'FOOT']
 
 
 def test_a_round_goes_in_the_latest_tab_two_of_its_players_used(client, rounds):
-    _play(client, IPS[:4], R3)
-    _play(client, IPS[4:6], None, None, R3)
-    assert _sets(client) == [_crowd((3, R3))]
+    _play(client, IPS[:3], *DAY_ROUNDS)
+    # Four more came in at round 3 and typed it into tab 1.
+    _play(client, IPS[3:7], R3, R4, R5)
+    assert _sets(client) == [_day()]
 
 
 def test_a_triple_is_round_4_and_one_word_is_round_5(client, rounds):
-    _play(client, IPS[:3], R4)
-    _play(client, IPS[3:6], R5)
-    assert sorted(_sets(client), key=lambda s: list(s['rounds'])) == [_crowd((4, R4)), _crowd((5, R5))]
+    _play(client, IPS[:3], R1, R2, R3, R5, R4)
+    assert _sets(client) == [_day()]
 
 
 def test_round_placement():
@@ -229,17 +254,18 @@ def test_round_placement():
 
 
 def test_at_most_three_sets_most_players_first(client, rounds):
-    _play(client, IPS[0:6], R1)
-    _play(client, IPS[6:11], OTHER1)
-    _play(client, IPS[11:15], R2)
-    _play(client, IPS[15:18], OTHER2)
-    assert [s['rounds']['1'] for s in _sets(client)] == [_words(R1), _words(OTHER1), _words(R2)]
+    _play(client, IPS[0:6], *DAY_ROUNDS)
+    _play(client, IPS[6:11], *OTHER_DAY)
+    _play(client, IPS[11:15], *THIRD_DAY)
+    _play(client, IPS[15:18], *FOURTH_DAY)
+    assert _sets(client) == [_day(), _day(OTHER_DAY), _day(THIRD_DAY)]
 
 
 def test_an_edited_round_counts(client, rounds):
-    _play(client, IPS[:2], R1)
+    _play(client, IPS[:2], *DAY_ROUNDS)
+    _play(client, IPS[2:3], None, *DAY_ROUNDS[1:])
     _log(client, IPS[2], 1, R1, source='edited')
-    assert _sets(client) == [_crowd((1, R1))]
+    assert _sets(client) == [_day()]
 
 
 def test_unknown_words_and_wrong_clocks_store_nothing(client, rounds):
@@ -273,7 +299,7 @@ def test_a_bad_date_asking_for_the_rounds_is_a_400(client, rounds):
 
 
 def test_a_wrong_clock_gets_no_rounds(client, rounds):
-    _play(client, IPS[:3], R1)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     assert _sets(client, day=DAY - timedelta(days=3)) == []
 
 
@@ -292,16 +318,23 @@ def _approve(client, monkeypatch, site, day=DAY, **boxes):
 def test_an_approval_comes_first_and_the_players_fill_its_blank_rounds(client, rounds, tiny, monkeypatch):
     tiny()
     _play(client, IPS[:3], *DAY_ROUNDS)
-    _play(client, IPS[3:6], OTHER1, OTHER2)
+    _play(client, IPS[3:6], *OTHER_DAY)
     resp = _approve(client, monkeypatch, 'chainle.io', round1_1='snow', round1_2='foot',
                     round2_1='doctor', round2_2='nurse')
     assert resp.status_code == 302
     assert 'Approved 2 rounds of chainle.io for 10-28' in unquote_plus(resp.location)
     assert 'tab=rounds' in resp.location
-    assert _sets(client) == [
-        {'site': 'chainle.io', 'rounds': {str(n): _words(c) for n, c in enumerate(DAY_ROUNDS, 1)}},
-        _crowd((1, OTHER1), (2, OTHER2)),
-    ]
+    assert _sets(client) == [{**_day(), 'site': 'chainle.io'}, _day(OTHER_DAY)]
+
+
+def test_a_players_set_short_of_rounds_still_fills_an_approval(client, rounds, tiny, monkeypatch):
+    # Never offered on its own, but its rounds fill the approval's blanks.
+    tiny()
+    _play(client, IPS[:3], R1, R2, R3)
+    _approve(client, monkeypatch, 'chainle.io', round1_1='snow', round1_2='foot',
+             round4_1='basket', round4_2='room', round4_3='game')
+    assert _sets(client) == [{'site': 'chainle.io', 'rounds': {str(n): _words(c) for n, c in
+                                                               enumerate(DAY_ROUNDS[:4], 1)}}]
 
 
 def test_an_approval_needs_no_players(client, rounds, tiny, monkeypatch):
@@ -345,16 +378,14 @@ def test_the_approve_form_refuses_anything_but_rounds(client, rounds, tiny, monk
 
 def test_approving_a_players_set_copies_its_rounds(client, rounds, tiny, monkeypatch):
     tiny()
-    _play(client, IPS[:3], R1, R2, None, R4)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     html = _tab(client, monkeypatch)
     assert all(f'name="site" value="{site}"' in html for site in rc.BOARD_SITES)
     fields = _set_form(html, 'players')
     resp = _form(client, monkeypatch, '/chainle_admin/approve_rounds', site='chaindle.org', **fields)
     assert resp.status_code == 302
-    assert rounds.approvals() == {('chaindle.org', 1): _text(R1), ('chaindle.org', 2): _text(R2),
-                                  ('chaindle.org', 4): _text(R4)}
-    assert _sets(client) == [{'site': 'chaindle.org',
-                              'rounds': {'1': _words(R1), '2': _words(R2), '4': _words(R4)}}]
+    assert rounds.approvals() == {('chaindle.org', n): _text(c) for n, c in enumerate(DAY_ROUNDS, 1)}
+    assert _sets(client) == [{**_day(), 'site': 'chaindle.org'}]
 
 
 def test_undo_takes_back_one_sites_day(client, rounds, tiny, monkeypatch):
@@ -418,15 +449,15 @@ def test_remove_on_a_typed_set_deletes_only_those_players_day(client, rounds, ti
 
 def test_remove_on_a_players_set_deletes_every_entry_of_its_rounds(client, rounds, tiny, monkeypatch):
     tiny()
-    _play(client, IPS[:3], R1, R2)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     _play(client, IPS[3:4], R1)
     _play(client, IPS[4:5], OTHER1)
-    rounds.approve(DAY, 'chaindle.org', {5: _text(R5)})
+    rounds.approve(DAY, 'chaindle.org', {5: 'SMALL'})
     fields = _set_form(_tab(client, monkeypatch), 'players')
     resp = _form(client, monkeypatch, '/chainle_admin/remove_set', **fields)
-    assert 'Removed 7 entries on 10-28' in unquote_plus(resp.location)
+    assert 'Removed 16 entries on 10-28' in unquote_plus(resp.location)
     assert [r[5] for r in rounds.players()] == [_text(OTHER1)]
-    assert rounds.approvals() == {('chaindle.org', 5): _text(R5)}
+    assert rounds.approvals() == {('chaindle.org', 5): 'SMALL'}
 
 
 def test_remove_refuses_anything_but_a_set(client, rounds, tiny, monkeypatch):
@@ -447,16 +478,17 @@ def test_admin_round_actions_need_the_password(client):
 
 def test_the_tab_shows_the_sets_and_every_round_typed(client, rounds, tiny, monkeypatch):
     tiny()
-    _play(client, IPS[:3], R1, R2)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     _log(client, IPS[9], 1, OTHER1)
-    rounds.approve(DAY, 'chainle.org', {5: 'BIG'})
+    rounds.approve(DAY, 'chainle.org', {5: 'SMALL'})
     html = client.get('/chainle_admin?tab=rounds', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
     assert 'id="rounds-tab" class="tab-content active"' in html
-    assert 'your chainle.org' in html and '3 players' in html
+    assert 'your chainle.org' in html and '<b>Set 2</b> &middot; 3 players' in html
     assert 'SNOW + FOOT' in html and 'DOCTOR + NURSE' in html
     assert 'CAT + PHONE' in html and 'needs 2 more players' in html
-    assert 'Every round players typed: 3 (2 in a set)' in html
-    assert 'Sets players typed: 2' in html and 'Typed by <b>3 players</b>' in html
+    assert 'Every round players typed: 6 (5 in a set)' in html
+    # Only players who typed all five rounds: the player of one round isn't a set.
+    assert 'Sets players typed (all 5 rounds): 1' in html and 'Typed by <b>3 players</b>' in html
     # Approve and Remove work on whole sets; a round on its own has neither.
     assert 'remove_round_group' not in html
     # Live in this fixture; dark, it says what would be.
@@ -470,6 +502,18 @@ def test_the_tab_shows_the_sets_and_every_round_typed(client, rounds, tiny, monk
         assert f'name="round{n}_{count}"' in html and f'name="round{n}_{count + 1}"' not in html
 
 
+def test_the_tab_lists_only_players_who_typed_all_five_rounds(client, rounds, tiny, monkeypatch):
+    # James, 2026-10-29: he doesn't want to see the others.
+    tiny()
+    _play(client, IPS[:1], *DAY_ROUNDS)
+    _play(client, IPS[1:2], OTHER1, OTHER2)
+    html = _tab(client, monkeypatch)
+    assert 'Sets players typed (all 5 rounds): 1' in html and html.count('Typed by <b>') == 1
+    assert _set_form(html, 'typed')['round5_1'] == 'BIG'
+    # Their rounds are still in the list of every round.
+    assert 'CAT + PHONE' in html
+
+
 def test_the_admin_page_still_opens_on_player_reports(client, rounds, tiny, monkeypatch):
     tiny()
     html = client.get('/chainle_admin', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
@@ -479,7 +523,7 @@ def test_the_admin_page_still_opens_on_player_reports(client, rounds, tiny, monk
 
 def test_the_tab_works_when_the_word_lists_fail(client, rounds, monkeypatch):
     # tiny's own database fails every statement, so the word lists can't load.
-    _play(client, IPS[:3], R1)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     html = client.get('/chainle_admin?tab=rounds', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
     assert "Couldn't read the word lists" in html and 'SNOW + FOOT' in html
 
@@ -500,8 +544,8 @@ def test_rounds_ship_dark():
 
 def test_while_dark_rounds_are_logged_and_none_offered(client, rounds, monkeypatch):
     monkeypatch.setattr(rc, 'CHAINLE_ROUNDS_LIVE', False)
-    _play(client, IPS[:3], R1)
-    assert len(rounds.players()) == 3
+    _play(client, IPS[:3], *DAY_ROUNDS)
+    assert len(rounds.players()) == 15
     assert _sets(client) == []
     html = client.get('/chainle').get_data(as_text=True)
     assert 'id="chn-offer"' not in html and FAQ_Q not in html
@@ -520,8 +564,8 @@ def test_the_page_carries_the_offer_once_live(client, rounds):
 
 def test_the_rounds_are_read_at_most_once_a_minute(client, rounds, monkeypatch):
     monkeypatch.setattr(rc, 'ROUNDS_CACHE_SECONDS', 60)
-    _play(client, IPS[:3], R1)
-    assert _sets(client) == _sets(client) == [_crowd((1, R1))]
+    _play(client, IPS[:3], *DAY_ROUNDS)
+    assert _sets(client) == _sets(client) == [_day()]
     assert rounds.reads == 1
 
 
@@ -603,11 +647,11 @@ def test_chainle_dev_shows_the_offer_while_dark_and_logs_none_of_your_rounds(cli
     assert '"/chainle_dev"' in html and 'chainleDevState_v1' in html and FAQ_Q in html
     assert 'WebApplication' not in html
     assert visits == []
-    _play(client, IPS[:3], R1)
+    _play(client, IPS[:3], *DAY_ROUNDS)
     assert _sets(client) == []
-    assert _sets(client, path='/chainle_dev', headers=headers) == [_crowd((1, R1))]
+    assert _sets(client, path='/chainle_dev', headers=headers) == [_day()]
     _log(client, IPS[5], 2, R2, path='/chainle_dev', headers=headers)
-    assert len(rounds.players()) == 3
+    assert len(rounds.players()) == 15
 
 
 def test_chainle_dev_loads_no_ads(client, rounds, slots, monkeypatch):

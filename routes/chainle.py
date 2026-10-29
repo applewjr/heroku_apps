@@ -240,9 +240,11 @@ def handle_vote(data, dev=False):
 # typed the same words, the round counts; two rounds belong to one day's set
 # once LINK_MIN players typed both, since a player's rounds come from one
 # game. Each set keeps a round only where one set of clues has more than half
-# of its players. James's approvals in /chainle_admin come first, labelled
-# with their site, and the players' set that shares a round with one fills
-# its blank rounds.
+# of its players, and a players' set is offered only once all five of its
+# rounds are settled (James, 2026-10-29: a set of one round was a few players
+# still on the day before's puzzle). James's approvals in /chainle_admin come
+# first, labelled with their site, and the players' set that shares a round
+# with one fills its blank rounds, complete or not.
 #
 # Everything keys on the player's own date, as on /smush. A site that rolls
 # over at a fixed time (chainle.io at midnight Eastern, per third-party
@@ -540,7 +542,8 @@ def todays_sets(rows, day):
     James's approvals come first, one set per site, in the order he first
     approved them; a players' set that shares a round with an approval fills
     that approval's blank rounds and isn't offered on its own. Then the
-    players' sets, most players first, at most TODAYS_SETS_MAX in all.
+    players' sets with all five rounds, most players first, at most
+    TODAYS_SETS_MAX in all.
     Returns (sets, groups): sets is a list of {'site' ('' unless approved),
     'rounds' ({round: clue text}), 'from' ({round: 'approval' or
     'players'}), 'players' (None on an approval)}; groups is every players'
@@ -571,7 +574,7 @@ def todays_sets(rows, day):
                     a['rounds'][slot] = g['clues']
                     a['from'][slot] = 'players'
     for s in players_sets:
-        if id(s) not in covered:
+        if id(s) not in covered and len(s['rounds']) == len(ROUND_SLOTS):
             offered.append({'site': '', 'players': s['players'],
                             'rounds': {slot: g['clues'] for slot, g in s['rounds'].items()},
                             'from': {slot: 'players' for slot in s['rounds']}})
@@ -591,6 +594,8 @@ def todays_sets(rows, day):
             g['why'] = f"tied with, or behind, another round {g['round']}"
         elif id(s) in covered:
             g['why'] = f"your {covered[id(s)]} approval has its own round {g['round']}"
+        elif len(s['rounds']) < len(ROUND_SLOTS):
+            g['why'] = f"its set has only {len(s['rounds'])} of {len(ROUND_SLOTS)} rounds"
         else:
             g['why'] = 'past the limit of sets a day'
     for s in sets:
@@ -1083,8 +1088,9 @@ def chainle_remove_word():
 def _admin_rounds():
     """(days, error) for the Today's Rounds tab: each recent day, newest
     first, with the sets offered (or that would be, while dark), the sets
-    players typed (typed_sets, each with 'set_no': the offered set holding
-    all its rounds, or None) and every round players typed."""
+    players typed with all five rounds (typed_sets, each with 'set_no': the
+    offered set holding all its rounds, or None; James doesn't want the
+    rest, 2026-10-29) and every round players typed."""
     today = _today()
     first, last = today - timedelta(days=ADMIN_DAYS_BACK), today + timedelta(days=1)
     try:
@@ -1098,7 +1104,7 @@ def _admin_rounds():
         sets, groups = todays_sets(rows, day)
         if sets or groups:
             where = set_numbers(sets)
-            typed = typed_sets(rows, day)
+            typed = [t for t in typed_sets(rows, day) if len(t['rounds']) == len(ROUND_SLOTS)]
             for t in typed:
                 found = {where.get(key) for key in t['keys'].values()}
                 t['set_no'] = found.pop() if len(found) == 1 else None
