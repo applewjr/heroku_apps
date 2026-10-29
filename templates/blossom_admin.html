@@ -127,6 +127,7 @@
     <div class="admin-top">
         <h1>Blossom Admin - Word Management</h1>
         <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
             <a href="/blossom" target="_blank" rel="noopener" class="btn btn-primary">Back to Blossom Solver</a>
             <a href="https://www.merriam-webster.com/games/blossom-word-game" target="_blank" rel="noopener" class="btn btn-success">Open Blossom Game</a>
         </nav>
@@ -167,9 +168,9 @@
     <div class="tab-container">
         <div class="tab-button{% if active_tab == 'board' %} active{% endif %}" onclick="showTab(event, 'board')">Today's Board</div>
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
-        <div class="tab-button{% if active_tab == 'feedback' %} active{% endif %}" onclick="showTab(event, 'feedback')">Recent Feedback</div>
         <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Words</div>
         <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Added Words</div>
+        <div class="tab-button{% if active_tab == 'feedback' %} active{% endif %}" onclick="showTab(event, 'feedback')">Recent Feedback</div>
     </div>
 
     <!-- Today's Board Tab -->
@@ -284,7 +285,7 @@
     <div id="reports-tab" class="tab-content{% if active_tab == 'reports' %} active{% endif %}">
         {% call reports_head() %}
         <p class="crowd-note">"invalid" is an Invalid tick on a result (Blossom rejected it). "missing" (green) is the box under the results (Blossom accepted a word we don't list).
-            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
+            A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A pangram (all seven letters) takes {{ pangram_remove_votes }}, however rare. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily Invalid limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
         {% endcall %}
@@ -347,6 +348,10 @@
         {% endif %}
     </div>
 
+    {{ removed_tab('/remove_word', 'Blossom') }}
+
+    {{ added_tab('/remove_word', 'Blossom') }}
+
     <!-- Recent Feedback Tab -->
     <div id="feedback-tab" class="tab-content{% if active_tab == 'feedback' %} active{% endif %}">
         <h2>Recent Feedback Reports</h2>
@@ -369,10 +374,6 @@
         <p>No recent feedback.</p>
         {% endif %}
     </div>
-
-    {{ removed_tab('/remove_word', 'Blossom') }}
-
-    {{ added_tab('/remove_word', 'Blossom') }}
 </div>
 
 <script>

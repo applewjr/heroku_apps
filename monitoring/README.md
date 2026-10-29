@@ -11,7 +11,7 @@ failure mode of its own.
 
 ```
 JJ_ALERT check=youtube_trending_today sev=crit actual=0 compare=">=" threshold=45 note="Daily youtube_trending load, scheduler 12am PST"
-JJ_PULSE source=checks ok=11 alert=0 skip=0 hour_pst=14 ms=940
+JJ_PULSE source=checks ok=11 alert=0 skip=0 hour_pst=14 ms=940 retries=0 retry_ms=0
 ```
 
 `JJ_PULSE` feeds Papertrail's *inactivity* alert, which fires when logs
@@ -458,6 +458,12 @@ latency trend. These lines carry no `JJ_` token on purpose - they are state,
 not alerts, and must not match the search that sends email. `alerts.scrub()`
 guarantees it: a measured value containing `JJ_` is rewritten before printing.
 
+A web probe that needed a second try says why at the end of its `ok` line:
+`retried=ReadTimeout` for a response that never came back (one retry after a
+2s pause), `retried=slow` for a slow sample that a second measurement
+overruled. The pulse carries the run's totals as `retries=` and `retry_ms=`.
+Search `retried=` for which probes, `retries=` for how often.
+
 A green run still does not prove `blossom_errors_today` works - it passes
 trivially until error rows accumulate.
 
@@ -490,7 +496,7 @@ easy to miss when reading the YAML:
 |---|---|
 | `redis_up` | Redis answers `ping()`. Wordle and antiwordle logging goes through it, so silence there is silent data loss. |
 | `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` stopped reconciling and is no longer draining. |
-| `checks_slow` | The whole run exceeded `RUN_BUDGET_MS` (30s) **while every other check passed**. Silent when anything else failed, since a probe timing out costs 15 seconds on its own and already explains the time. |
+| `checks_slow` | The whole run exceeded `RUN_BUDGET_MS` (30s) **while every other check passed**. Silent when anything else failed, since a probe timing out costs 15 seconds on its own and already explains the time. Probe attempts that were thrown away and tried again are left out of the budget: on 2026-10-29 a few responses lost at Cloudflare (15s timeout + 2s pause each, all recovered) pushed passing runs to ~70s and emailed twice while the site served normally. |
 
 The SELECT-only guard on YAML checks is a literal prefix test, not a parser: a
 check written to start with a comment or a `WITH` CTE would be rejected as

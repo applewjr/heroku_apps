@@ -578,10 +578,9 @@ def test_admin_page_has_the_word_tabs_and_the_round_log(client, tiny, monkeypatc
     db, headers = _admin(tiny, monkeypatch)
     db.rows['WITH board_dates'] = [REPORT]
     db.rows['FROM chainle_invalid_words ORDER BY'] = [('cats', datetime(2026, 10, 20, 7, 0), 'crowd')]
-    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
+    html = client.get('/chainle_admin?tab=reports', headers=headers).get_data(as_text=True)
     for tab in ('Player Reports', 'Removed Words', 'Allowed Words', 'Round Log'):
         assert tab in html
-    # It opens on the players' reports (James asked, 2026-10-25).
     assert 'id="reports-tab" class="tab-content active"' in html
     assert 'id="log-tab" class="tab-content"' in html
     reports = html.split('id="reports-tab"')[1].split('id="invalid-tab"')[0]

@@ -9,6 +9,7 @@ import datetime
 from contextlib import contextmanager
 
 import pytest
+import requests
 
 import extensions
 from monitoring import alerts, daily_digest, run_checks, run_job
@@ -719,17 +720,42 @@ class _Resp:
         self.text = text
 
 
-def _run_probe(monkeypatch, spec, fetches):
-    """Run one probe against a scripted sequence of (response, ms) results."""
+class _Clock:
+    """Stands in for run_checks.time, so a test sets how long things take and
+    nothing really sleeps."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def _script_fetches(monkeypatch, fetches):
+    """Make _fetch return a scripted sequence of (response, ms) results. Each
+    one takes its ms on the fake clock; an exception takes the full timeout."""
     seq = list(fetches)
+    clock = _Clock()
 
     def fake_fetch(url):
         item = seq.pop(0)
         if isinstance(item, Exception):
+            clock.now += run_checks.WEB_TIMEOUT_SECONDS
             raise item
+        clock.now += item[1] / 1000
         return item
 
+    monkeypatch.setattr(run_checks, 'time', clock)
     monkeypatch.setattr(run_checks, '_fetch', fake_fetch)
+    return seq
+
+
+def _run_probe(monkeypatch, spec, fetches):
+    """Run one probe against a scripted sequence of (response, ms) results."""
+    seq = _script_fetches(monkeypatch, fetches)
     results = run_checks.Results()
     run_checks.check_web(results, {'p': spec})
     return results, seq
@@ -774,6 +800,66 @@ def test_web_probe_retries_before_calling_a_page_slow(capsys, monkeypatch):
     assert (results.passed, results.failed) == (1, 0)
     assert left == []                      # it really did measure a second time
     assert "actual=150" in capsys.readouterr().out
+
+
+def test_web_probe_retries_a_lost_response(capsys, monkeypatch):
+    # A response lost on the way back through Cloudflare is the edge, not the
+    # site. The retry recovers it, and the ok line says it needed one.
+    results, left = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
+        [requests.ReadTimeout("read timed out"), (_Resp(), 120)])
+    assert (results.passed, results.failed) == (1, 0)
+    assert left == []
+    assert (results.retries, results.retry_ms) == (1, 17000)    # timeout + pause
+    assert "actual=120 compare=<= threshold=1000 retried=ReadTimeout" in capsys.readouterr().out
+
+
+def test_web_probe_counts_a_slow_sample_as_a_retry(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000, 'expect': 'JJ Apps'},
+        [(_Resp(), 4000), (_Resp(), 150)])
+    assert (results.retries, results.retry_ms) == (1, 4000)
+    assert "retried=slow" in capsys.readouterr().out
+
+
+def test_web_probe_ok_line_has_no_retried_field_on_first_try(capsys, monkeypatch):
+    results, _ = _run_probe(
+        monkeypatch, {'path': '/', 'max_ms': 1000}, [(_Resp(), 120)])
+    assert (results.retries, results.retry_ms) == (0, 0)
+    assert "retried" not in capsys.readouterr().out
+
+
+def _run_main_with_probes(monkeypatch, probes, fetches):
+    """run_checks.main() with only the web probes, on the fake clock."""
+    monkeypatch.setattr(run_checks, 'load_checks', lambda: {})
+    monkeypatch.setattr(run_checks, 'check_redis', lambda results: None)
+    monkeypatch.setattr(run_checks, 'load_web_checks', lambda: probes)
+    _script_fetches(monkeypatch, fetches)
+    run_checks.main()
+
+
+def test_checks_slow_leaves_out_retried_attempts(capsys, monkeypatch):
+    # Regression, 2026-10-29: two responses lost at Cloudflare cost 34s of
+    # timeouts and pauses, the retries recovered both, and checks_slow still
+    # emailed about a run that only did a few hundred ms of real work.
+    probes = {'a': {'path': '/a', 'max_ms': 1000}, 'b': {'path': '/b', 'max_ms': 1000}}
+    _run_main_with_probes(monkeypatch, probes, [
+        requests.ReadTimeout("lost"), (_Resp(), 125),    # 125 ms is exact in binary,
+        requests.ReadTimeout("lost"), (_Resp(), 125),    # so int() cannot round it down
+    ])
+    out = capsys.readouterr().out
+    assert alerts.ALERT_TOKEN not in out
+    assert "ms=34250 retries=2 retry_ms=34000" in out
+
+
+def test_checks_slow_still_fires_when_the_work_itself_is_slow(capsys, monkeypatch):
+    # Nothing retried, so nothing to leave out: a run that slowly drifted past
+    # the budget while every check passed still says so.
+    _run_main_with_probes(monkeypatch, {'a': {'path': '/a', 'max_ms': 40000}},
+                          [(_Resp(), 31000)])
+    out = capsys.readouterr().out
+    assert "check=checks_slow" in out
+    assert "actual=31000" in out
 
 
 def test_web_probe_alerts_when_slow_twice(capsys, monkeypatch):

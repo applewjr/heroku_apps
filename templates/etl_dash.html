@@ -16,6 +16,22 @@
         color: #02484d;
         margin: 0 0 0.9rem;
     }
+    .jj-admin-link {
+        display: inline-block;
+        margin: 0 0 0.9rem;
+        padding: 7px 15px;
+        border-radius: 999px;
+        background: #02484d;
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .jj-admin-link:hover {
+        background: #01363a;
+        color: white;
+        text-decoration: none;
+    }
     .round-pills {
         display: flex;
         flex-wrap: wrap;
@@ -167,6 +183,7 @@
 
 {% block content %}
 <div class="etl-dash">
+    <a href="/jj_admin" class="jj-admin-link">Back to JJ Admin</a>
     <h1>ETL Dashboard</h1>
     <nav class="round-pills" aria-label="Dashboard pages">
         {% for r, name in rounds %}

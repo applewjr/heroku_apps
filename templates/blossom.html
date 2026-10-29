@@ -923,6 +923,58 @@ table.blossom-results td.show-letter-cell { width: 80px; }
     color: #555;
 }
 
+/* The question an Invalid tick asks before it reports (askInvalid), in a row
+   of its own under the word: Smush's ✗ question (_smush_styles.html). The
+   cell is the row's first, so it must undo the Used column's width. */
+table.blossom-results tr.reject-confirm-row td {
+    width: auto;
+    padding: 2px 8px 10px;
+    text-align: left;
+}
+
+table.blossom-results tr.reject-confirm-row,
+table.blossom-results tr.reject-confirm-row:hover {
+    background-color: transparent;
+}
+
+.reject-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 8px;
+}
+
+.reject-confirm-q { flex: 0 0 100%; font-size: 13px; font-weight: 600; color: #a55; }
+
+.confirm-refused, .confirm-played, .confirm-cancel {
+    background-color: #fff;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.confirm-refused { border: 1px solid #e0d5d5; color: #a55; }
+.confirm-refused:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.confirm-played { border: 1px solid #cdd8d7; color: #02484d; }
+.confirm-played:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.confirm-cancel { background: none; border: none; color: #6b7280; text-decoration: underline; text-decoration-style: dotted; }
+.confirm-cancel:hover { color: #02484d; }
+
+@media (max-width: 480px) {
+    .reject-confirm { padding: 6px 8px; gap: 6px; }
+    .confirm-refused, .confirm-played, .confirm-cancel { font-size: 11px; padding: 7px 8px; }
+}
+
 /* "Blossom accepted a word that isn't listed?" box */
 .missing-word-row {
     max-width: 420px;
@@ -1813,6 +1865,49 @@ function initializeBlossomApp() {
       });
   }
 
+  // A tick asks before it reports, as Smush's ✗ does: Used and Invalid both
+  // strike a row, so players were ticking Invalid on words they had played.
+  // The question opens in a row under the word, where a second tap on the box
+  // can't answer it (it closes it), and offers ✓ I played it (the Used box)
+  // as well. Unticking stays one tap. Helper Mode masks the words, so there
+  // the question doesn't spell this one out.
+  function askInvalid(checkbox) {
+    const word = checkbox.getAttribute('data-word');
+    const open = document.querySelector('.reject-confirm-row');
+    if (open) {
+      open.remove();
+      if (open.dataset.word === word) return;
+    }
+    const row = checkbox.closest('tr');
+    const named = isHelperMode ? 'this word' : word.toUpperCase();
+    row.insertAdjacentHTML('afterend',
+      '<tr class="reject-confirm-row" data-word="' + word + '"><td colspan="' + row.cells.length + '">' +
+      '<div class="reject-confirm" role="group" aria-label="Did Blossom reject ' + named + '?">' +
+      '<span class="reject-confirm-q">Did Blossom reject ' + named + '?</span>' +
+      '<button type="button" class="confirm-refused">✗ Blossom rejected it</button>' +
+      '<button type="button" class="confirm-played">✓ I played it</button>' +
+      '<button type="button" class="confirm-cancel">Cancel</button>' +
+      '</div></td></tr>');
+    const strip = row.nextElementSibling;
+    strip.addEventListener('click', e => {
+      const answer = e.target.closest('button');
+      if (!answer) return;
+      strip.remove();
+      if (answer.classList.contains('confirm-refused')) {
+        checkbox.checked = true;
+        handleInvalidChange(checkbox);
+      } else if (answer.classList.contains('confirm-played')) {
+        // toggle_word flips the server's copy, so never send it for a word
+        // already ticked Used.
+        const used = row.querySelector('.word-checkbox');
+        if (used && !used.checked) {
+          used.checked = true;
+          handleCheckboxChange(used);
+        }
+      }
+    });
+  }
+
   const MISSING_WORD_MESSAGES = {
     recorded: "Thanks! We'll take your suggestion into account.",
     already_listed: 'That word is already in our list, further down. Try showing more words.',
@@ -2093,7 +2188,11 @@ function initializeBlossomApp() {
   function updateTableForHelperMode() {
       const table = document.querySelector('table');
       if (!table) return;
-      
+
+      // An open Invalid question (askInvalid) was sized and worded for the
+      // other mode.
+      document.querySelectorAll('.reject-confirm-row').forEach(strip => strip.remove());
+
       // Handle header row
       const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
       if (headerRow) {
@@ -2318,11 +2417,18 @@ function initializeBlossomApp() {
   });
 
   // Invalid boxes: strike rows this player already flagged, and send changes
-  // to the server.
+  // to the server. A tick asks first (askInvalid): cancelling the click puts
+  // the box back and skips its change event. An untick goes straight through.
   document.querySelectorAll('.invalid-checkbox').forEach(checkbox => {
     if (checkbox.checked) {
       checkbox.closest('tr').classList.add('invalid-word');
     }
+    checkbox.addEventListener('click', function(e) {
+      if (this.checked) {
+        e.preventDefault();
+        askInvalid(this);
+      }
+    });
     checkbox.addEventListener('change', function() {
       handleInvalidChange(this);
     });
