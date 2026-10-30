@@ -537,11 +537,13 @@ def test_the_tab_says_when_the_table_is_missing(client, tiny, monkeypatch):
     assert 'id="reports-tab"' in html
 
 
-# --- dark, the memo, and failures --------------------------------------------
+# --- live, the dark launch it goes back to, the memo, and failures ------------
 
-def test_rounds_ship_dark():
-    # Dark until James decides to go live (2026-10-28).
-    assert rc.CHAINLE_ROUNDS_LIVE is False
+def test_todays_rounds_are_live_on_chainle(client):
+    # James's call, 2026-10-29. The other tests here set the flag; this one
+    # reads it as the code ships, so going dark again is a deliberate change.
+    html = client.get('/chainle').get_data(as_text=True)
+    assert 'id="chn-offer"' in html and FAQ_Q in html
 
 
 def test_while_dark_rounds_are_logged_and_none_offered(client, rounds, monkeypatch):
