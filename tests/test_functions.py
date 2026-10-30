@@ -377,8 +377,20 @@ def test_smush_all_plan_full_board_accounting_is_exact():
 
 def test_wordle_opener_is_stable():
     result = wordle.wordle_solver_split_revamp(df, [])
-    assert result[0] == "Pick 1: arose"
+    assert result[0] == "Pick 1: tares"
     assert result[5].startswith("Options remaining: 5710/5710")
+    assert result[8] is False  # every word can still be the answer: no Alt Picks
+
+
+def test_wordle_picks_fit_the_board_and_alt_picks_do_not():
+    # R and E green, A O S gray: 27 words fit, and a word that can't be the
+    # answer splits them better than any that can, so Alt Picks show
+    result = wordle.wordle_solver_split_revamp(df, _board(("arose", "13113")))
+    assert result[5].startswith("Options remaining: 27/5710")
+    picks = [wordle._pick_word(p) for p in result[:5]]
+    assert all(_colors("arose", word) == "13113" for word in picks)
+    assert result[8] is True
+    assert _colors("arose", result[9].split(": ")[1]) != "13113"
 
 
 def test_find_word_with_letters_crane():
@@ -399,7 +411,7 @@ def _board(*rows):
 
 def test_antiwordle_opener_is_stable():
     result = wordle.antiwordle_solver_split_revamp(df, [])
-    assert result[0] == "Pick 1: immix"
+    assert result[0] == "Pick 1: vexed"
     assert result[5].startswith("Options remaining: 5710/5710")
 
 

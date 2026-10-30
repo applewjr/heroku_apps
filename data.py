@@ -11,7 +11,10 @@ from functions import all_words
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 data_folder = os.path.join(APP_ROOT, 'datasets')
 
-df = pd.read_csv(os.path.join(data_folder, 'word_data_created.csv'))
+# The Wordle / Antiwordle / Quordle words: word, then popularity_score (a wordfreq
+# Zipf value). Everything else the solvers need is worked out from the letters
+# in functions/wordle.py.
+df = pd.read_csv(os.path.join(data_folder, 'wordle_words.csv'))
 
 word_df = pd.read_csv(os.path.join(data_folder, 'all_words_blossom.csv')) # changed to main "word_df" on 8/24/2024
 words = set(word_df['0'].to_list())
