@@ -14,10 +14,15 @@ the average game length and its distribution.
 Full runs, average guesses (all 5710 words / the 2300 most popular):
   old ranking                                   7.80 / 8.00
   most words left playable (2026-10-25)         9.21 / 10.06   longest game 24
-  live: most safe words left (2026-10-30)       9.30 / 10.17   longest game 27
+  live: most safe words left (2026-10-30)       9.55 / 10.27   longest game 27
   live, --no-popularity                         9.54 / 9.55
 A safe word is a playable word the colors prove can't be the answer, so
 playing it can't end the game. The page has 30 rows.
+The popularity curve (midpoint / slope), full runs with the safe-word value:
+  3.2 / 2.5 (the 2026-10-25 curve)  9.30 / 10.17     2.8 / 2.0   9.49 / 10.25
+  3.0 / 2.0                         9.48 / 10.28     2.8 / 2.5   9.47 / 10.26
+  2.8 / 1.5 (live)                  9.55 / 10.27     2.6 / 2.0   9.46 / 10.18
+  2.5 / 1.5                         9.52 / 10.19
 Tried on 600 random targets and dropped: playing the rarest word once 10 or
 25 or fewer are playable (8.38 / 9.31 and 7.87 / 8.78), and an exact search
 of every order once 20 or fewer are playable (+0.04). Against the 2026-10-25
@@ -28,6 +33,16 @@ ranking's 9.345 on those targets:
     sampled): 9.345, no change
   - the safe-word value with 30 guesses scored, as before: 9.312. It needs
     100 (9.470).
+Against the safe-word value's 9.470 there (3.2 / 2.5 curve):
+  - more guesses scored, 200 / 300: 9.210 / 9.400, and a 1200-word shortlist
+    with 200 scored: 9.210. A wider search finds more guesses that score
+    well on the value but play worse.
+  - a two-move lookahead (the top 4 guesses, their likeliest colors): 9.143,
+    and about 8x slower
+  - 2000 sampled answers: +0.03 to +0.07 on full runs (2.5 / 1.5 curve), for
+    15-20% more time
+  - log(answers left) added to the value (x0.25 / x0.5): 9.448 / 9.295; no
+    risk term: 9.322
 """
 
 import sys

@@ -243,8 +243,8 @@ def _pick_word(pick_str):
 
 # Answer odds by word: a logistic curve on popularity_score (a Zipf value), so
 # common words count as likely answers and rare ones as nearly safe.
-ANTI_POP_MID = 3.2
-ANTI_POP_SLOPE = 2.5
+ANTI_POP_MID = 2.8
+ANTI_POP_SLOPE = 1.5
 ANTI_PRERANK = 300  # possible answers the cheap pre-rank uses, evenly spaced
 ANTI_SAMPLE = 1000  # and the ones each of the top guesses is scored against
                     # (backtest: as long games as scoring against all of them)
