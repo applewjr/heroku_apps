@@ -253,6 +253,10 @@ def handle_vote(data, dev=False):
 # by the clues on their screen, so there is no rule about older puzzles. Each round keeps the player's UTC offset, to learn
 # when each site rolls over. Players are never told how a round is chosen
 # (see crowd.py on why).
+#
+# Live on /chainle since 2026-10-29 (James's call), after a dark launch from
+# 2026-10-28 in which /chainle only logged rounds and /chainle_dev, his
+# password-only copy, offered them.
 
 # The sites an approval can be for (James's three, 2026-10-28): one Approve
 # button each on /chainle_admin, which also links each game. The players'
@@ -263,7 +267,13 @@ BOARD_SITES = ('chainle.io', 'chainle.org', 'chaindle.org')
 # strong evidence on its own, but one person on two networks makes 2, and an
 # offer shows players' words to other players. /chainle's traffic is thin
 # (about 126 real views a day, 3-7 an hour), so 5 would rarely settle the
-# smaller sites. To recalibrate from the dark logs before go-live.
+# smaller sites. Replayed on the dark logs on 2026-10-29, the first full
+# day (84 players): at every value from 2 to 5 the players settled one set,
+# the five rounds James approved for chainle.io, and nothing else was ever
+# offered. It was first offered at 00:58 Pacific with 2 or 3, 02:37 with 4
+# and 05:02 with 5, and 56, 51 and 42 of its 69 players came after that. A
+# round of the day before's puzzle, typed by players whose date had rolled
+# over, reached 3 players too; its set never had all five rounds.
 SERVE_CROWD = 3
 # Players who typed both of two rounds, to make them one day's set.
 LINK_MIN = 2
@@ -277,9 +287,10 @@ ROUND_SOURCES = ('typed', 'edited')
 # this as their source and in place of a player hash: a real hash is 32 hex
 # characters, and players can only send ROUND_SOURCES. Never a player.
 APPROVAL = 'admin'
-# Dark until James decides to go live: /chainle logs rounds but offers none,
-# even to a direct call. /chainle_dev, his copy, offers them all the same.
-CHAINLE_ROUNDS_LIVE = False
+# Live on /chainle (James's call, 2026-10-29). False goes back to the dark
+# launch: /chainle logs rounds but offers none, even to a direct call.
+# /chainle_dev offers them either way.
+CHAINLE_ROUNDS_LIVE = True
 # How long a day's sets are reused before they are read again, and how long a
 # failed read waits before the next try (one gunicorn worker, so this
 # module's memo is the only copy).
