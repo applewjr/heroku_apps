@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 import crowd
 from data import words_blossom
 from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
-                        limiter, log_page_visit, pst_now_str)
+                        limiter, log_page_visit, log_solve, pst_now_str)
 from functions import all_words
 from helpers import (ValidationError, bot_reason, client_ip, feedback_flooded, issue_form_token,
                      json_object, log_dropped, make_schema_data, parse_int, parse_iso_day,
@@ -136,6 +136,9 @@ def blossom_solver():
                 petal_letter,
                 min(current_count, total_valid_words),
             ))
+            # A use of the page load the player arrived on: only its GET render
+            # carries first_solve (see the else branch), and this page doesn't.
+            log_solve('blossom.html', request.form)
 
             return render_template("blossom.html",
                                 blossom_table=blossom_table,
@@ -179,13 +182,17 @@ def blossom_solver():
                     alerts.alert_throttled('blossom_board_read_failed',
                                            exc=type(e).__name__, msg=e)
 
+            # first_solve: every solve here is a form post and a new page, so
+            # the flag for the page load's first one (extensions.log_solve) is
+            # a form field that only this render carries.
             return render_template("blossom.html",
                                 used_words=used_words,
                                 current_count=BLOSSOM_LIST_FIRST,
                                 show_load_more=False,
                                 schema_data=schema_data,
                                 show_board=show_board,
-                                todays_board=todays_board, board_date=board_date)
+                                todays_board=todays_board, board_date=board_date,
+                                first_solve=True)
 
     except ValidationError:
         # Bad input, not a bug: let the app-level handler answer 400 so the

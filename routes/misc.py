@@ -17,6 +17,12 @@ bp = Blueprint('misc', __name__)
 
 @bp.route("/", methods=["POST", "GET"])
 def run_index():
+    if request.method == 'GET':
+        # With visitor_hash, the people who landed here, against the solver
+        # visits that name this page as their referrer. No view reads it yet:
+        # the solver views list their own pages, and site_idle leaves it out
+        # (datasets/health_checks.yaml).
+        log_page_visit('index.html')
     return render_template("index.html")
 
 

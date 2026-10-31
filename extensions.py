@@ -24,7 +24,7 @@ from flask_limiter.util import get_remote_address
 from limits import parse_many
 
 import config
-from helpers import PACIFIC, client_ip
+from helpers import PACIFIC, client_ip, visitor_hash
 from monitoring import alerts
 
 ##### cache / rate limiter #####
@@ -306,14 +306,18 @@ _log_queue = queue.Queue(maxsize=_LOG_QUEUE_MAX)
 _drain_thread = None
 _drain_lock = threading.Lock()
 
+# visitor_hash needs mysql_tables/app_visits_visitor_hash.sql first: without
+# the column every app_visits row fails to write (log_drain_failed), though no
+# page notices. Rows from before the column are NULL there.
 APP_VISITS_SQL = """
-INSERT INTO app_visits (submit_time, page_name, referrer, user_agent)
-VALUES (%s, %s, %s, %s);
+INSERT INTO app_visits (submit_time, page_name, referrer, user_agent, visitor_hash)
+VALUES (%s, %s, %s, %s, %s);
 """
 
 
-def pst_now_str():
-    """PST timestamp in the format MySQL DATETIME expects.
+def pst_now_str(now=None):
+    """PST timestamp in the format MySQL DATETIME expects, of `now` (an aware
+    datetime) or of this moment.
 
     Callers stamp rows at enqueue time rather than letting the INSERT use
     CONVERT_TZ(NOW(), ...). If the drain backs up behind a slow database,
@@ -321,7 +325,7 @@ def pst_now_str():
     distorting vw_prod_blossom_hourly_average and potentially masking the very
     outage that caused the backup.
     """
-    return datetime.now(PACIFIC).strftime('%Y-%m-%d %H:%M:%S')
+    return (now or datetime.now(PACIFIC)).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def _drain_batch(batch):
@@ -450,16 +454,49 @@ def log_page_visit(page_name):
     """Record a page view. Best-effort and off the request path.
 
     The request context is read here, on the request thread: the drain thread
-    runs outside the request and has no context to read it from.
+    runs outside the request and has no context to read it from. That goes
+    for visitor_hash too (helpers.visitor_hash), the same-day id that lets the
+    dashboard views count people as well as page loads. The stamp and the
+    hash's day come from one clock reading, so DATE(submit_time) is always
+    the day the hash was salted with.
     """
-    referrer = request.headers.get('Referer', 'No referrer')
-    user_agent = request.user_agent.string if request.user_agent.string else 'No User-Agent'
+    now = datetime.now(PACIFIC)
+    referrer = request.headers.get('Referer')
+    if referrer is None:
+        # Off the live site (a local run, staging) a typed URL has no Referer,
+        # and the views would count it as a real visit. The host instead puts
+        # it under their 127.0.0.1:5000 and apple-apps-staging filters with the
+        # rest of that traffic. Live rows keep 'No referrer'.
+        referrer = 'No referrer' if real_site() else request.host_url
     # Truncate before queueing. Callers now pass formatted exception text, and
     # referrers and user agents are attacker-controlled; an over-long value
     # would be rejected by the column and cost a retry pass in the drain.
+    user_agent = (request.user_agent.string or 'No User-Agent')[:250]
+    try:
+        visitor = visitor_hash(now.date(), user_agent)
+    except Exception as e:
+        # Never at the cost of the row: this runs in app.py's 500 handler too.
+        # The exception's type only, since its message could carry the address.
+        alerts.alert_throttled('visitor_hash_failed', exc=type(e).__name__)
+        visitor = None
     enqueue_write(APP_VISITS_SQL, (
-        pst_now_str(), str(page_name)[:200], referrer[:250], user_agent[:250],
+        pst_now_str(now), str(page_name)[:200], referrer[:250], user_agent, visitor,
     ))
+
+
+def log_solve(page_name, data):
+    """Record that a page load ran its solver: a '<page_name> (solve)' row
+    next to the page's own visit rows, the way 404s are 'error.html (404: ...)'.
+
+    The page's script marks the first solve request of each page load with
+    first_solve: true, so a page that solves on every keystroke still logs
+    once. Blossom, where every solve is a form post and a new page, sends a
+    first_solve=1 field that only its GET render carries. `data` is the JSON
+    body, or Blossom's form. Call this after the solve, so a rejected request
+    never counts.
+    """
+    if isinstance(data, dict) and data.get('first_solve') in (True, '1'):
+        log_page_visit(f'{page_name} (solve)')
 
 ##### redis #####
 

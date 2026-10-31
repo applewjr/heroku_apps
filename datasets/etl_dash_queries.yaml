@@ -6,7 +6,7 @@
 Traffic Today:
     round: 1
     label: "Traffic Today"
-    description: "Human landings today against the usual by this time of day (the last 7 days' average). vs_usual_pct is the difference; min_since_last is minutes since the latest landing"
+    description: "Each solver today: visits (page loads), people (different visitors), uses (page loads that ran the solver), users (people who ran it) and use_rate_pct (users as a share of people). Then visits against the usual by this time of day (the last 7 days' average), vs_usual_pct the difference, and min_since_last the minutes since the latest visit"
     query: SELECT * FROM vw_prod_traffic_today;
 
 Landings (14 Days):
@@ -33,6 +33,12 @@ Recent Feedback:
     description: "Feedback form posts from the last 30 days, newest first"
     query: SELECT * FROM vw_prod_recent_feedback;
 
+
+Use Rate (7 Days):
+    round: 2
+    label: "Use Rate (7 Days)"
+    description: "Each solver's average day over the last 7 complete days: visits, people, uses, users and use_rate_pct, as in Traffic Today, against the 7 days before. days is how many of the 7 have visitor ids from midnight; it climbs to 7 in the first week"
+    query: SELECT * FROM vw_prod_solver_use_7d;
 
 Weekly Landings:
     round: 2

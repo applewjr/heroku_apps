@@ -1192,6 +1192,10 @@ table.blossom-results tr.reject-confirm-row:hover {
        edited (loaded, then changed). The results page gets it back, so a
        loaded board is never logged as the player's own there either. -->
   <input type="hidden" name="board_source" value="{{ board_source or 'typed' }}">
+  {# Marks this page load's first solve, so the server logs one use of it
+     (extensions.log_solve). Only the page you arrive on has it: results
+     pages don't, and the script drops it once the form is sent. #}
+  {% if first_solve %}<input type="hidden" name="first_solve" value="1">{% endif %}
 
   <br>
   <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Blossom Word Finder & Solver</h1>
@@ -1614,6 +1618,10 @@ function initializeBlossomApp() {
       logBoardOnce();
       showLoadingOverlay();
       document.querySelector('form[name="form1"]').submit();
+      // The form went with first_solve; a copy of this page restored by
+      // Back mustn't send it again.
+      const firstSolve = document.querySelector('input[name="first_solve"]');
+      if (firstSolve) firstSolve.remove();
     }
   }
 

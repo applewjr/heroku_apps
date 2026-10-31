@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit, log_solve
 from functions import all_words, wordle
 from helpers import ValidationError, json_object, make_schema_data, parse_float, parse_int
 from routes import chainle
@@ -36,7 +36,8 @@ def run_wordle_revamp():
 
     if request.method == "POST":
         try:
-            wordle_data_dict = request.get_json().get('wordle_data')
+            body = request.get_json()
+            wordle_data_dict = body.get('wordle_data')
             final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows, \
                 show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
             first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
@@ -48,6 +49,7 @@ def run_wordle_revamp():
             except Exception:
                 print('wordle_logging_failed')
 
+            log_solve('wordle_revamp.html', body)
             return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
                 first_incomplete_row=first_incomplete_row, complete_rows=complete_rows, \
                 show_alt_picks=show_alt_picks, alt_out1=alt_out1, alt_out2=alt_out2, alt_out3=alt_out3, alt_out4=alt_out4, alt_out5=alt_out5)
@@ -92,7 +94,8 @@ def run_antiwordle_revamp():
 
     if request.method == "POST":
         try:
-            wordle_data_dict = request.get_json().get('wordle_data')
+            body = request.get_json()
+            wordle_data_dict = body.get('wordle_data')
             final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
             first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
             complete_rows = 'Complete Rows: ' + str(complete_rows)
@@ -103,6 +106,7 @@ def run_antiwordle_revamp():
             except Exception:
                 print('antiwordle_logging_failed')
 
+            log_solve('antiwordle_revamp.html', body)
             return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
                 first_incomplete_row=first_incomplete_row, complete_rows=complete_rows)
         except Exception:
@@ -155,6 +159,7 @@ def run_quordle_revamp():
             body = request.get_json()
             mode = 'sequence' if body.get('mode') == 'sequence' else 'quordle'
             results = wordle.quordle_solver_split_revamp(df, body.get('quordle_data'), mode=mode)
+            log_solve('quordle.html', body)
             return jsonify(**dict(zip(QUORDLE_RESULT_KEYS, results)))
         except Exception:
             return jsonify(**quordle_no_words_payload())
@@ -364,6 +369,8 @@ def run_smush():
             plan = {'complete': not leftover, 'words': plan_words,
                     'leftover': leftover}
 
+        # Here, not in parse_solve: /smush_dev shares that, and logs nothing.
+        log_solve('smush.html', data)
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
     else:
@@ -406,6 +413,7 @@ def run_ribbit():
             exclude=set(rejected) | set(played), disabled=disabled,
             popularity=word_pop, list_len=500)
 
+        log_solve('ribbit.html', data)
         return jsonify(results=results, total_playable=total_playable)
 
     schema_data = make_schema_data(
@@ -432,7 +440,9 @@ def run_guess_the_phrase():
         data = json_object()
         if 'action' in data:
             return gtp.handle_vote(data)
-        return gtp.solve_request(data)
+        response = gtp.solve_request(data)
+        log_solve('guess_the_phrase.html', data)
+        return response
     else:
         log_page_visit('guess_the_phrase.html')
         return render_template("guess_the_phrase.html", schema_data=schema_data, **gtp.page_context())
@@ -474,7 +484,10 @@ def _chainle_page(dev):
             if data.get('action') in chainle.ROUND_ACTIONS:
                 return chainle.handle_rounds_action(data, dev=dev)
             return chainle.handle_vote(data, dev=dev)
-        return chainle.solve_request(data)
+        response = chainle.solve_request(data)
+        if not dev:
+            log_solve('chainle.html', data)
+        return response
     else:
         if not dev:
             log_page_visit('chainle.html')
@@ -504,6 +517,7 @@ def run_wordiply():
 
         results = all_words.wordiply_solver(search_string, words, 90)
 
+        log_solve('wordiply.html', data)
         return jsonify(results=results)
     else:
         log_page_visit('wordiply.html')

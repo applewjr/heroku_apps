@@ -941,6 +941,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let gesture = null;           // {mode:'link'|'erase', path, added, pt, trail} - see pointerdown
     let rotating = false;         // true during the rotate spin (blocks board input)
     let fetchTimer = null, fetchSeq = 0;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
 
     const wrap = document.getElementById('rb-board-wrap');
     const svg = document.getElementById('rb-edges');
@@ -1431,8 +1434,10 @@ document.addEventListener('DOMContentLoaded', () => {
             disabled: [...disabled].filter(i => idset.has(i)),
             played: played.map(p => p.word),
             rejected: rejected,
-            min_len: 4
+            min_len: 4,
+            first_solve: firstSolve
         };
+        firstSolve = false;
         fetch(POST_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

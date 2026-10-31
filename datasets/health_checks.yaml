@@ -168,8 +168,12 @@ site_idle:
     # half again and has never fired on real history.
     #
     # Re-measure before tightening, and re-measure after any change to which
-    # routes call log_page_visit - only the solver pages do today, so this is
-    # "anyone on a solver page", not literally every request.
+    # routes call log_page_visit. It was measured on the solver pages' loads,
+    # so the rows logged since stay out and 180 still means what it was
+    # measured on: the front page's index.html, and each solver's
+    # '<page> (solve)' rows (extensions.log_solve), which follow a page load
+    # and would shorten the gaps. So this is "anyone on a solver page", not
+    # literally every request.
     threshold: 180
     sql: |
         SELECT COALESCE(
@@ -178,6 +182,8 @@ site_idle:
                         FROM app_visits
                        WHERE submit_time >= CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles') - INTERVAL 1 DAY
                          AND user_agent <> 'jj-healthcheck'
+                         AND page_name NOT LIKE '% (solve)'
+                         AND page_name <> 'index.html'
                          AND NOT (LOWER(user_agent) REGEXP 'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider')),
                      CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
                  99999) AS idle_minutes;

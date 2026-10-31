@@ -10,9 +10,11 @@ CREATE OR REPLACE VIEW vw_prod_word_solver_page_visits AS
 -- the revamp, so they would be columns of zeroes. Their historical rows are
 -- still in app_visits.
 --
--- vw_prod_traffic_today, vw_prod_weekly_landings, vw_prod_search_sources and
--- vw_prod_internal_flow use the same page list and the same filters, so their
--- numbers agree.
+-- vw_prod_weekly_landings, vw_prod_search_sources and vw_prod_internal_flow
+-- use the same page list and the same filters, so their numbers agree, as
+-- does vw_prod_traffic_today's visits column. A solver's '<page> (solve)'
+-- rows (extensions.log_solve) are uses, not landings: only
+-- vw_prod_traffic_today and vw_prod_solver_use_7d count them.
 
 SELECT
     DATE(submit_time) AS date,

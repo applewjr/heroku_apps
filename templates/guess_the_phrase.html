@@ -676,6 +676,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let rowsShown = ROWS_STEP;
     let last = null;              // last solver response
     let fetchTimer = null, fetchSeq = 0;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
 
     const boardEl = document.getElementById('gtp-board');
     const emptyEl = document.getElementById('gtp-empty');
@@ -1228,11 +1231,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function solve() {
         const seq = ++fetchSeq;
+        const first = firstSolve;
+        firstSolve = false;
         try {
             const resp = await fetch('/guess_the_phrase', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({board: boardString(), tried: [...misses].join(''), category})
+                body: JSON.stringify({board: boardString(), tried: [...misses].join(''), category,
+                                      first_solve: first})
             });
             const data = await resp.json();
             if (seq !== fetchSeq) return;

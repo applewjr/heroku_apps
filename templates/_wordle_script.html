@@ -325,6 +325,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let updateTimeout;
+// Marks this page load's first solve, so the server logs one use of it
+// however many solves follow (extensions.log_solve).
+let firstSolve = true;
 
 function setRecommendationsLoading(isLoading) {
     const container = document.getElementById('recommendations');
@@ -338,13 +341,15 @@ function triggerUpdate() {
     setRecommendationsLoading(true);
     updateTimeout = setTimeout(() => {
         const data = collectData();
+        const first = firstSolve;
+        firstSolve = false;
 
         fetch('{{ solver_path }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({wordle_data: data}),
+            body: JSON.stringify({wordle_data: data, first_solve: first}),
         })
         .then(response => response.json())
         .then(data => {

@@ -452,6 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibleCount = WORDS_FIRST;
     let fetchTimer = null;
     let fetchSeq = 0;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
     // How the letters got on the board (see "today's board" below): 'typed',
     // 'loaded' (today's board) or 'edited' (loaded, then a letter changed).
     let boardSource = 'typed';
@@ -781,6 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchResults(seq) {
         const outerUses = {};
         letters.forEach((ch, i) => { if (ch && i !== CENTER) outerUses[ch] = uses[ch] ?? MAX_USES; });
+        const first = firstSolve;
+        firstSolve = false;
         fetch(POST_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -791,7 +796,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 first_word: played.length === 0,
                 rejected: rejected,
                 played: played.map(p => p.word),
-                plan: sortMode === 'all8'
+                plan: sortMode === 'all8',
+                first_solve: first
             })
         })
         .then(r => {
