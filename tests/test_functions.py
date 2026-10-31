@@ -410,8 +410,10 @@ def _board(*rows):
 
 
 def test_antiwordle_opener_is_stable():
+    # Pinned (ANTI_OPENER): the ranking's own pick moves with its samples
     result = wordle.antiwordle_solver_split_revamp(df, [])
     assert result[0] == "Pick 1: vexed"
+    assert len({wordle._pick_word(p) for p in result[:5]}) == 5
     assert result[5].startswith(f"Options remaining: {len(df)}/{len(df)}")
 
 
