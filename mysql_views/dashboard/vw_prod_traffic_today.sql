@@ -1,73 +1,77 @@
 CREATE OR REPLACE VIEW vw_prod_traffic_today AS
 
--- Each logged page today against its usual: landings so far, how many it
--- usually has by this time of day (the average of the last 7 days up to the
--- same clock time), the difference in percent, its usual full day, and
--- minutes since its latest landing. A page with no landing in the last 7
--- days drops out. An "all games" row at the bottom sums every page (its
--- min_since_last is the latest landing on any page).
+-- Each solver today: visits (page loads), people (different visitors), uses
+-- (page loads that ran the solver), users (different visitors who ran it) and
+-- use_rate_pct, users as a share of people. Then visits against their usual
+-- by this time of day (the average of the last 7 days up to the same clock
+-- time), the difference in percent, the usual full day, and minutes since the
+-- latest visit. A page with nothing logged in the last 7 days drops out. The
+-- "all games" row at the bottom counts each person once, however many
+-- solvers they used.
 --
--- A landing is one page load, so a refresh or a phone reloading a background
--- tab counts again. The visits columns estimate people instead: a landing
--- starts a new visit only if the same page had no landing from the same user
--- agent in the previous 30 minutes. app_visits stores no visitor id, and
--- people with identical phones share a user agent, so this slightly
--- undercounts. In the "all games" row someone who uses two solvers counts
--- twice.
+-- people and users count visitor_hash, an id that only lasts the day
+-- (helpers.visitor_hash): a refresh, or a phone reloading a background tab,
+-- is the same person. People on one network with identical phones share an
+-- id, and a phone that changes networks mid-visit gets a second one. A use is
+-- a '<page> (solve)' row, logged by the first solve request of a page load
+-- (extensions.log_solve). people counts the ids on both kinds of row, so
+-- someone solving today in a tab opened yesterday is a person as well as a
+-- user, and use_rate_pct can't pass 100. Rows from before the column existed
+-- have no id, so the day it shipped reads low on people.
 --
--- Human landings only, as in vw_prod_word_solver_page_visits: not the hourly
+-- Read use_rate_pct against the page's own week (vw_prod_solver_use_7d), not
+-- against other pages: wordle, antiwordle and quordle show opening picks, and
+-- blossom and smush today's board and its hints, before any solve, so some
+-- visitors get what they came for without one.
+--
+-- Human traffic only, as in vw_prod_word_solver_page_visits: not the hourly
 -- health probe, not a local or staging run, and not a bot user agent.
 
-WITH visits AS (
-    SELECT page_name, user_agent, submit_time
+WITH rows_7d AS (
+    SELECT
+     REPLACE(page_name, ' (solve)', '') AS page_name
+    ,page_name LIKE '% (solve)' AS is_use
+    ,submit_time >= DATE(pst_now()) AS is_today
+    ,visitor_hash
+    ,submit_time
     FROM app_visits
-    -- 30 extra minutes so the first landing in the window can see an earlier one
-    WHERE submit_time >= DATE(pst_now()) - INTERVAL 7 DAY - INTERVAL 30 MINUTE
+    WHERE submit_time >= DATE(pst_now()) - INTERVAL 7 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
-                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html')
+                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
+                          'smush.html (solve)', 'blossom.html (solve)', 'chainle.html (solve)',
+                          'ribbit.html (solve)', 'wordle_revamp.html (solve)', 'guess_the_phrase.html (solve)',
+                          'wordiply.html (solve)', 'antiwordle_revamp.html (solve)', 'quordle.html (solve)')
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
         AND referrer NOT LIKE '%apple-apps-staging%'
         AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
     )
-,flagged AS (
-    SELECT
-     page_name
-    ,submit_time
-    ,COALESCE(submit_time >= LAG(submit_time) OVER (PARTITION BY page_name, user_agent ORDER BY submit_time)
-              + INTERVAL 30 MINUTE, 1) AS new_visit
-    FROM visits
-    )
 ,counts AS (
     SELECT
      page_name
-    ,SUM(submit_time >= DATE(pst_now())) AS today
-    ,SUM(new_visit * (submit_time >= DATE(pst_now()))) AS visits_today
-    ,SUM(submit_time < DATE(pst_now()) AND TIME(submit_time) <= TIME(pst_now())) / 7 AS usual_by_now
-    ,SUM(submit_time < DATE(pst_now())) / 7 AS per_day_7d
-    ,SUM(new_visit * (submit_time < DATE(pst_now()))) / 7 AS visits_per_day_7d
-    ,MAX(submit_time) AS last_visit
-    FROM flagged
-    WHERE submit_time >= DATE(pst_now()) - INTERVAL 7 DAY
-    GROUP BY page_name
-    )
-,with_total AS (
-    SELECT 0 AS is_total, page_name, today, visits_today, usual_by_now, per_day_7d, visits_per_day_7d, last_visit
-    FROM counts
-    UNION ALL
-    SELECT 1, 'all games', SUM(today), SUM(visits_today), SUM(usual_by_now), SUM(per_day_7d),
-           SUM(visits_per_day_7d), MAX(last_visit)
-    FROM counts
+    ,GROUPING(page_name) AS is_total
+    ,SUM(is_today AND NOT is_use) AS visits
+    ,COUNT(DISTINCT CASE WHEN is_today THEN visitor_hash END) AS people
+    ,SUM(is_today AND is_use) AS uses
+    ,COUNT(DISTINCT CASE WHEN is_today AND is_use THEN visitor_hash END) AS users
+    ,SUM(NOT is_today AND NOT is_use AND TIME(submit_time) <= TIME(pst_now())) / 7 AS usual_by_now
+    ,SUM(NOT is_today AND NOT is_use) / 7 AS per_day_7d
+    ,MAX(CASE WHEN NOT is_use THEN submit_time END) AS last_visit
+    FROM rows_7d
+    GROUP BY page_name WITH ROLLUP
     )
 SELECT
- REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') AS page
-,visits_today
-,today
+ CASE WHEN is_total = 1 THEN 'all games'
+      ELSE REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') END AS page
+,people
+,uses
+,users
+,ROUND(100 * users / NULLIF(people, 0)) AS use_rate_pct
+,visits
 ,ROUND(usual_by_now) AS usual_by_now
-,ROUND(100 * (today / NULLIF(usual_by_now, 0) - 1)) AS vs_usual_pct
+,ROUND(100 * (visits / NULLIF(usual_by_now, 0) - 1)) AS vs_usual_pct
 ,ROUND(per_day_7d) AS per_day_7d
-,ROUND(visits_per_day_7d) AS visits_per_day_7d
 ,TIMESTAMPDIFF(MINUTE, last_visit, pst_now()) AS min_since_last
-FROM with_total
+FROM counts
 ORDER BY is_total, per_day_7d DESC
 ;

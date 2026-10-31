@@ -788,15 +788,23 @@ function setRecommendationsLoading(isLoading) {
     if (status) status.classList.toggle('visible', isLoading);
 }
 
-function triggerUpdate() {
+// Marks this page load's first solve, so the server logs one use of it
+// however many solves follow (extensions.log_solve).
+let firstSolve = true;
+
+// countAsUse is false only for the request the page makes by itself on load
+// (Sequence mode's opening picks): that one isn't the player using it.
+function triggerUpdate(countAsUse = true) {
     clearTimeout(updateTimeout);
     setRecommendationsLoading(true);
     updateTimeout = setTimeout(() => {
         const data = collectData();
+        const first = countAsUse && firstSolve;
+        if (first) firstSolve = false;
         fetch('/quordle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({quordle_data: data, mode: quordleMode}),
+            body: JSON.stringify({quordle_data: data, mode: quordleMode, first_solve: first}),
         })
         .then(response => response.json())
         .then(data => { updateUI(data); })
@@ -1269,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show initial recommendations if they exist
     if (window.initialRecommendations && window.initialRecommendations.final_out_all_1) {
         updateUI(window.initialRecommendations);
-        if (quordleMode === 'sequence') triggerUpdate();  // the page loads with Quordle's picks
+        if (quordleMode === 'sequence') triggerUpdate(false);  // the page loads with Quordle's picks
     } else {
         const globalContainer = document.getElementById('global-recommendations');
         if (globalContainer) {

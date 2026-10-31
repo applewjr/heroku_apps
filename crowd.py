@@ -18,7 +18,6 @@ anyone gaming this would want. Admin pages and the daily digest show them.
 
 import hashlib
 import hmac
-import ipaddress
 import time
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
@@ -27,7 +26,7 @@ from flask import current_app, request
 
 from data import word_pop
 from extensions import db_cursor, pst_now_str
-from helpers import PACIFIC, client_ip
+from helpers import PACIFIC, hashable_ip
 from monitoring import alerts
 from monitoring.crowd_report import CROWD_GAMES, report_sql
 
@@ -91,18 +90,10 @@ _ADMIN_CARRIED_ARGS = ('q', 'settled', 'tab', 'rpage', 'ipage', 'apage')
 
 def _visitor_hmac(game, kind, v6_bits):
     """An HMAC of the visitor's IP, never the IP itself: IPv6 cut to its
-    first `v6_bits`, an IPv4-mapped address read as IPv4, IPv4 whole.
-    Salted with the game and `kind`, so keys of different kinds never match."""
-    ip = client_ip()
-    try:
-        parsed = ipaddress.ip_address(ip)
-    except ValueError:
-        parsed = None
-    if parsed is not None and parsed.version == 6:
-        if parsed.ipv4_mapped is not None:
-            ip = str(parsed.ipv4_mapped)
-        else:
-            ip = str(ipaddress.ip_network(f'{parsed}/{v6_bits}', strict=False).network_address)
+    first `v6_bits`, an IPv4-mapped address read as IPv4, IPv4 whole
+    (helpers.hashable_ip). Salted with the game and `kind`, so keys of
+    different kinds never match."""
+    ip = hashable_ip(v6_bits)
     key = str(current_app.secret_key).encode()
     salt = f'{game}-{kind}|'.encode()
     return hmac.new(key, salt + ip.encode(), hashlib.sha256).hexdigest()[:32]

@@ -403,6 +403,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input');
     const resultsContainer = document.getElementById('results-container');
     let searchTimeout;
+    // Marks this page load's first search, so the server logs one use of it
+    // however many follow (extensions.log_solve).
+    let firstSolve = true;
 
     // Instructions collapse
     const instructionsPanel = document.getElementById('instructions-panel');
@@ -436,12 +439,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Debounce the search
         searchTimeout = setTimeout(() => {
+            const first = firstSolve;
+            firstSolve = false;
             fetch('/wordiply', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ search_string: searchString }),
+                body: JSON.stringify({ search_string: searchString, first_solve: first }),
             })
             .then(response => response.json())
             .then(data => {

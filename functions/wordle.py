@@ -250,6 +250,13 @@ ANTI_SAMPLE = 1000  # and the ones each of the top guesses is scored against
                     # (backtest: as long games as scoring against all of them)
 ANTI_SHORTLIST = 600  # playable words the pre-rank looks at: those whose letters reveal least
 ANTI_TOP_K = 100    # guesses scored on safe words kept, after the pre-rank
+# The first guess, pinned. The ranking's own pick on an empty board rests on
+# which answers its evenly spaced samples land on, so one more word in the
+# list can change it, and VEXED is the best it has found. Average game on all
+# words: VEXED 9.55; DOGGO 9.35, its pick once yahoo was added (2026-10-31);
+# GONZO 9.25-9.31 with either sample one bigger or smaller; AJUGA 8.91,
+# scored against every word.
+ANTI_OPENER = 'vexed'
 _HIT = 242          # all green: the guess was the answer
 _POW3 = 3 ** np.arange(5)
 
@@ -446,6 +453,10 @@ def antiwordle_solver_split_revamp(import_df, wordle_data_dict, popularity=True)
     known = {code(letter) for letter in ''.join(greens + yellows)}
     weights = odds if popularity else np.ones(len(df))
     order = _anti_rank(codes, has, weights, playable, possible, known)
+    if empty:
+        # ANTI_OPENER first, the rest in the ranking's order
+        pinned = np.flatnonzero(df['word'].to_numpy() == ANTI_OPENER)
+        order = np.concatenate([pinned, order[~np.isin(order, pinned)]])
     result = (*_picks(df.iloc[order[:5]]), _options_line(int(playable.sum()), len(df)))
     if empty:
         openers[popularity] = result

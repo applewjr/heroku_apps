@@ -301,7 +301,7 @@ def test_timestamp_is_stamped_at_enqueue_not_at_flush(quiet_queue):
     # stamp every queued row with the flush time, distorting the hourly
     # averages the idle checks depend on.
     extensions.enqueue_write(extensions.APP_VISITS_SQL,
-                             (extensions.pst_now_str(), "p", "r", "ua"))
+                             (extensions.pst_now_str(), "p", "r", "ua", "0123456789abcdef"))
     _sql, params = quiet_queue.get_nowait()
     assert "%s" in extensions.APP_VISITS_SQL
     assert "CONVERT_TZ" not in extensions.APP_VISITS_SQL

@@ -258,10 +258,12 @@ def handle_vote(data, dev=False):
 # 2026-10-28 in which /chainle only logged rounds and /chainle_dev, his
 # password-only copy, offered them.
 
-# The sites an approval can be for (James's three, 2026-10-28): one Approve
-# button each on /chainle_admin, which also links each game. The players'
-# sets need none: they offer whatever rounds players type.
-BOARD_SITES = ('chainle.io', 'chainle.org', 'chaindle.org')
+# The sites an approval can be for: one Approve button each on
+# /chainle_admin, which also links each game. James named three on
+# 2026-10-28 and dropped chaindle.org on 2026-10-31: it has no consistent
+# daily game, so a set approved for it wouldn't match other players' games.
+# The players' sets need none: they offer whatever rounds players type.
+BOARD_SITES = ('chainle.io', 'chainle.org')
 # Players (one per network) typing the same clues for a round to count (James
 # asked for a number, 2026-10-28). Two strangers typing the same words is
 # strong evidence on its own, but one person on two networks makes 2, and an

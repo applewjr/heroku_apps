@@ -614,6 +614,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let current = 0;
     let last = null;               // the solver's reply for the current round
     let fetchTimer = null, fetchSeq = 0;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
 
     const roundsEl = document.getElementById('chn-rounds');
     const typesEl = document.getElementById('chn-types');
@@ -995,11 +998,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function solve() {
         const seq = ++fetchSeq;
         const r = round();
+        const first = firstSolve;
+        firstSolve = false;
         try {
             const resp = await fetch(POST_URL, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({clues: cluesOf(r), kind: TYPE_KIND[r.type]})
+                body: JSON.stringify({clues: cluesOf(r), kind: TYPE_KIND[r.type], first_solve: first})
             });
             const data = await resp.json();
             if (seq !== fetchSeq) return;

@@ -378,7 +378,7 @@ def test_smush_all_plan_full_board_accounting_is_exact():
 def test_wordle_opener_is_stable():
     result = wordle.wordle_solver_split_revamp(df, [])
     assert result[0] == "Pick 1: tares"
-    assert result[5].startswith("Options remaining: 5710/5710")
+    assert result[5].startswith(f"Options remaining: {len(df)}/{len(df)}")
     assert result[8] is False  # every word can still be the answer: no Alt Picks
 
 
@@ -386,7 +386,7 @@ def test_wordle_picks_fit_the_board_and_alt_picks_do_not():
     # R and E green, A O S gray: 27 words fit, and a word that can't be the
     # answer splits them better than any that can, so Alt Picks show
     result = wordle.wordle_solver_split_revamp(df, _board(("arose", "13113")))
-    assert result[5].startswith("Options remaining: 27/5710")
+    assert result[5].startswith(f"Options remaining: 27/{len(df)}")
     picks = [wordle._pick_word(p) for p in result[:5]]
     assert all(_colors("arose", word) == "13113" for word in picks)
     assert result[8] is True
@@ -410,9 +410,11 @@ def _board(*rows):
 
 
 def test_antiwordle_opener_is_stable():
+    # Pinned (ANTI_OPENER): the ranking's own pick moves with its samples
     result = wordle.antiwordle_solver_split_revamp(df, [])
     assert result[0] == "Pick 1: vexed"
-    assert result[5].startswith("Options remaining: 5710/5710")
+    assert len({wordle._pick_word(p) for p in result[:5]}) == 5
+    assert result[5].startswith(f"Options remaining: {len(df)}/{len(df)}")
 
 
 def test_antiwordle_picks_obey_the_board():
@@ -482,10 +484,10 @@ def test_quordle_opener_is_stable():
     result = wordle.quordle_solver_split_revamp(df, [])
     assert len(result) == 30
     assert result[0] == "Pick 1: tares"
-    assert all(result[6 * k + 11].startswith("Options remaining: 5710/5710") for k in range(4))
+    assert all(result[6 * k + 11].startswith(f"Options remaining: {len(df)}/{len(df)}") for k in range(4))
     result = wordle.quordle_solver_split_revamp(df, [], mode="sequence")
     assert result[0] == "Pick 1: tares"
-    assert result[11].startswith("Options remaining: 5710/5710")
+    assert result[11].startswith(f"Options remaining: {len(df)}/{len(df)}")
     assert [result[6 * k + 11] for k in (1, 2, 3)] == ["Not open yet"] * 3
 
 

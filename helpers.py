@@ -1,6 +1,8 @@
 """Small shared helpers used across route blueprints."""
 
 import ctypes
+import hashlib
+import hmac
 import ipaddress
 import math
 import re
@@ -429,3 +431,35 @@ def client_ip():
         if visitor is not None:
             return str(visitor)
     return str(hop_ip)
+
+
+def hashable_ip(v6_bits):
+    """client_ip() as the visitor HMACs key on it: an IPv6 address cut to its
+    first `v6_bits`, an IPv4-mapped one read as the IPv4 address, IPv4 whole,
+    and '' if it can't be read. Only ever an HMAC's input: never store or log
+    it."""
+    ip = client_ip()
+    parsed = _parse_ip(ip)
+    if parsed is not None and parsed.version == 6:
+        if parsed.ipv4_mapped is not None:
+            return str(parsed.ipv4_mapped)
+        return str(ipaddress.ip_network(f'{parsed}/{v6_bits}', strict=False).network_address)
+    return ip
+
+
+def visitor_hash(day, user_agent):
+    """Who is visiting on `day` (the Pacific date), for counting people in
+    app_visits: 16 hex characters of an HMAC of the visitor's IP and user
+    agent, keyed on the app secret. Never the IP itself: HMAC rather than a
+    bare hash because the IPv4 space is small enough to brute-force a bare
+    SHA-256 back to the address. IPv6 is cut to its /64, as
+    crowd.player_hash cuts it, since privacy extensions rotate the low 64
+    bits.
+
+    The day is in the salt, so the same visitor gets a new value every day
+    and can't be followed from one day to the next. The salt's shape,
+    'visit-<date>|', keeps these apart from crowd's '<game>-<kind>|' keys.
+    """
+    key = str(current_app.secret_key).encode()
+    message = f'visit-{day.isoformat()}|{hashable_ip(64)}|{user_agent}'
+    return hmac.new(key, message.encode(), hashlib.sha256).hexdigest()[:16]

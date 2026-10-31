@@ -100,7 +100,7 @@ manual dispatch, so it can run the moment prod is verified.
 | `datasets/health_checks.yaml` | The checks themselves. SQL inline rather than in views, so a check deploys atomically with the code and needs no manual DDL step. |
 | `app.py` | The 500 handler calls `log_page_visit` and emits a throttled `http_500` alert. The 404 handler deliberately does not log - see `routes/misc.py`. |
 | `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. Since 2026-10-13 a bot's post is dropped, not stored: it leaves a plain `feedback dropped (<reason>)` log line (`blossom feedback dropped` for /blossom_feedback), and `feedback_flood` / `blossom_feedback_flood` fires if a form reaches its hourly or daily cap (`helpers.FEEDBACK_MAX_PER_*`). |
-| `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. |
+| `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. Since 2026-10-31 each solve branch also calls `log_solve`: see [Visitor ids and uses](#visitor-ids-and-uses-in-app_visits). |
 
 Three alerts come out of the write-behind path itself, none of them in the
 YAML: `log_drain_failed` (a batch could not be written), `log_queue_full`
@@ -971,7 +971,10 @@ so the check is correctly calibrated for what it actually does.
 `app_visits`, with the hourly probe and obvious bots excluded: 27 breaches at
 60 minutes, 3 at 90, and zero at 120 and above. The longest genuine quiet
 stretch in 90 days was 116 minutes against a baseline of ~205 non-bot visits a
-day, so 180 clears the worst real gap by half again.
+day, so 180 clears the worst real gap by half again. The rows logged since
+(2026-10-31: the front page's `index.html`, and each solver's `(solve)` rows,
+which follow a page load and would shorten the gaps) are left out of it by
+name, so that measurement still holds.
 
 **Excluding probe traffic from `site_idle` is load-bearing.** `run_checks`
 fetches five pages every hour as `jj-healthcheck`, and the solver pages call
@@ -1167,6 +1170,53 @@ and was left alone.
 
 ---
 
+## Visitor ids and uses in app_visits
+
+Since 2026-10-31 (`mysql_tables/app_visits_visitor_hash.sql`, then the code)
+`app_visits` carries a visitor id, and each solver logs its uses, so
+`vw_prod_traffic_today` and `vw_prod_solver_use_7d` show visits, people, uses,
+users and a use rate for each solver: many people arriving and few using a
+page can mean a confusing page.
+
+- **`visitor_hash`** (`helpers.visitor_hash`) is 16 hex characters of an HMAC
+  of the visitor's IP (IPv6 cut to its /64) and user agent, keyed on the app
+  secret and salted with the Pacific date. It is never the IP, and it lasts
+  only the day, so people are counted per day and nobody can be followed
+  across days. `log_page_visit` works it out on the request thread (the drain
+  has no request), from the same clock reading as `submit_time`, so every
+  row gets one, error rows included. NULL means the row is older than the
+  column, or the hash failed (`visitor_hash_failed`, which never carries the
+  address).
+- **Uses** are rows named `<page>.html (solve)`, the way 404s are
+  `error.html (404: ...)`. Each solver page's script sends `first_solve: true`
+  with the first solve request of a page load, and `extensions.log_solve`
+  logs one row when it sees it, after the solve. Blossom, where every solve is
+  a form post and a new page, sends a `first_solve=1` field that only its GET
+  render has. Side requests (votes, board logging, today's board) and
+  `/smush_dev`, `/chainle_dev` and `/ribbit_admin/board` never log a use.
+  Quordle's own Sequence-mode request on load doesn't either.
+- **Readers.** The solver views name their pages, and the error views and
+  checks match `error`, so none of them counts a `(solve)` row. `site_idle`
+  has no page filter, so it leaves them out by name, with `index.html` (the
+  front page, logged on GET since the same change).
+- **Test traffic.** Solve requests are same-origin, so they carry the page's
+  own URL as Referer, and the views' `127.0.0.1:5000` and
+  `apple-apps-staging` filters catch local and staging ones. A request with
+  no Referer that isn't for the live site (`extensions.real_site`) stores the
+  host URL in its place, so a typed local or staging URL is caught as well.
+  Run locally at 127.0.0.1:5000, not localhost, which no view filters.
+- **Order.** The ALTER first, as always. Code that writes `visitor_hash` to a
+  table without it loses every `app_visits` row, and any
+  `blossom_solver_clicks` row queued behind one, to `log_drain_failed`,
+  though no page notices. The deployed code keeps working against the
+  altered table, because its INSERT names its columns.
+- **Rollback.** Redeploy the previous code: it writes four columns, so new
+  rows get NULL, and the 7-day view stops counting those days. Put back
+  `vw_prod_traffic_today` from git. The column can stay; the rollback at the
+  end of the ALTER file removes it.
+
+---
+
 ## Future: richer page-visit logging (not implemented)
 
 Parked deliberately - the first deploy already carries enough change. The
@@ -1175,7 +1225,8 @@ research is recorded here so it does not have to be redone.
 ### The three columns to add
 
 `app_visits` is `id, submit_time, page_name, referrer, user_agent`, all three
-strings `varchar(255)`.
+strings `varchar(255)`, and since 2026-10-31 `visitor_hash` (see
+[Visitor ids and uses](#visitor-ids-and-uses-in-app_visits)).
 
 | Column | Type | Why |
 |---|---|---|
@@ -1295,12 +1346,14 @@ derived and therefore touch all four views. Bigger job, deliberately separate.
 - **IP address.** Needs `CF-Connecting-IP`, since `ProxyFix(x_proto=1,
   x_host=1)` has no `x_for` and `request.remote_addr` is the Cloudflare edge.
   PII with retention consequences; `country` gives most of the value at none
-  of the cost.
+  of the cost. (Counting people needed only a same-day HMAC of it, added
+  2026-10-31: see [Visitor ids and uses](#visitor-ids-and-uses-in-app_visits).)
 - **`duration_ms`.** Real value - there is no latency visibility today - but
   uncapturable where `log_page_visit` is called. Needs the `after_request`
   move above.
 - **Session ID.** Would turn page views into sessions, but carries privacy
-  complexity and answers no question currently being asked.
+  complexity and answers no question currently being asked. The same-day
+  `visitor_hash` counts people without one.
 
 ### View updates that would come with it
 
