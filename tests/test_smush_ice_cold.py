@@ -519,6 +519,23 @@ def test_a_build_waits_for_memory_and_starts_once_there_is_room():
     assert len(jobs) == 1 and len(asked) == 2
 
 
+def test_reading_a_board_keeps_its_table_from_going_idle():
+    # Every fresh read of a live day's board prewarms it (routes/smush.py): a
+    # held table counts as used, so today's stays while the site has
+    # visitors - even with no ICE COLD plans for hours - and only a board
+    # nobody reads any more idles out.
+    cache, jobs, clock, _ = _cache(max_tables=2, rebuild_gap=None, idle_seconds=6 * 3600)
+    pool = lambda: ice.Pool([])
+    cache.get("yesterday", None, pool); jobs.pop()()
+    cache.get("today", None, pool); jobs.pop()()
+    clock.now += 5 * 3600
+    assert cache.prewarm("today", None, pool) == "ready"   # a page view read it
+    clock.now += 3600
+    assert cache.release_idle()
+    assert cache.has("today") and not cache.has("yesterday")
+    assert not jobs                                         # nothing rebuilt
+
+
 def test_a_full_cache_makes_room_before_asking_about_memory():
     # Two tables held and memory short: the new board's build waits, but the
     # least recently used table (yesterday's board, by then) goes at once -

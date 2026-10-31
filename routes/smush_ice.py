@@ -65,8 +65,10 @@ ICE_BUILD_MAX_RSS_MB = 360
 ICE_SHED_RSS_MB = 460
 # A build held back for memory asks again this often.
 ICE_BUILD_WAIT_SECONDS = 300
-# Yesterday's board goes this long after its last use, once everyone's
-# midnight has passed.
+# A table goes this long after its last use: a plan from it, or any read
+# of its board (prewarm; every /smush page view reads today's, at most once
+# a minute). So a live board's table stays while the site has visitors, and
+# yesterday's goes once nobody reads it.
 TODAY_IDLE_SECONDS = 6 * 3600
 # Builds a Pacific day: two boards, plus restarts and deploys. Only a loop
 # of failures or evictions could reach it.
@@ -258,8 +260,9 @@ def today_table(tag, center, letters):
 def prewarm(day, board):
     """Start building `board`'s table when `day` is today somewhere, so it's
     ready before anyone opens the tab. routes/smush.py calls this whenever it
-    reads a day's board, and on an approval; a board already held or on its
-    way costs nothing. Never raises."""
+    reads a day's board, and on an approval; a board already on its way
+    costs nothing, and one already held counts as used, which keeps it from
+    idling out while its board is read. Never raises."""
     if not _live() or day not in live_days():
         return
     try:

@@ -873,7 +873,9 @@ class TableCache:
     of them: each built the moment its board is decided (prewarm), never
     rebuilt (`rebuild_gap` None), and dropped when a newer board needs the
     room - before that board's build starts, so a build never runs on top of
-    a full cache - or after a long idle. A board waiting for the build in
+    a full cache - or after a long idle. Every read of a held table's board
+    (prewarm) counts as a use, so only a board nobody reads any more idles
+    out. A board waiting for the build in
     progress, or for memory (`may_start`, asked again every `wait_retry`
     seconds after a no), starts as soon as it can. When memory runs short
     (`must_shed`), the least recently used table goes, one each sweep, so
@@ -958,11 +960,16 @@ class TableCache:
 
     def prewarm(self, key, fingerprint, make_pool):
         """Queue a board's build before anyone asks for it. -> its status
-        ('ready' when it's already held)."""
+        ('ready' when it's already held). A held table counts as used: its
+        board is still being read, so the idle rule leaves it be."""
         with self._lock:
-            if key in self._tables:
+            now = self.clock()
+            held = self._tables.get(key)
+            if held is not None:
+                held[3] = now
+                self._tables.move_to_end(key)
                 return 'ready'
-            return self._ask(key, fingerprint, make_pool, self.clock())[0]
+            return self._ask(key, fingerprint, make_pool, now)[0]
 
     def _ask(self, key, fingerprint, make_pool, now):
         """(status, eta) for a board with no table yet, queueing its build
