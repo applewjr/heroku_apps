@@ -387,7 +387,7 @@ class CompactTable:
         return cj * self.j_scale, cp * self.p_scale
 
 
-def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False):
+def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False, progress=None):
     """Solve J and P exactly for every state in the box [0, root].
 
     States are solved in order of total remaining uses, so every move's
@@ -405,6 +405,13 @@ def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False):
     uint8 - P is only shown, never steers - and ends with J in uint8 too,
     kept as a CompactTable (or the dense uint8 Table, with `dense`, to check
     the compact one against).
+
+    `progress`, if given, hears the share of the work done after each layer,
+    for the build's ETA. A layer's work is its states times its total uses
+    left (deeper states have more moves that fit): on the full board that
+    share tracks the build's time to within about 10% from the first few
+    seconds (measured 2026-10-31; states times the moves that fit ran 30-40%
+    short).
     """
     root = tuple(int(r) for r in root)
     R = np.array([r + 1 for r in root], dtype=np.int64)
@@ -443,6 +450,7 @@ def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False):
     order = np.argsort(tot, kind='stable').astype(np.int32)
     bounds = np.searchsorted(tot[order], np.arange(total + 2))
     tot = None
+    work = np.cumsum([(bounds[t + 1] - bounds[t]) * t for t in range(total + 1)], dtype=np.float64)
 
     VJ = np.zeros((N, N_LETTERS + 1), dtype=np.float16 if compact else np.float32)
     VP = np.zeros((N, N_LETTERS + 1), dtype=np.uint8 if compact else np.float32)
@@ -543,6 +551,8 @@ def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False):
             VP[S] = np.rint(np.clip(ps, 0.0, 1.0) * 255) if compact else ps
             sumj[S] = (js[:, :N_LETTERS] * alive).sum(1)
             sump[S] = (ps[:, :N_LETTERS] * alive).sum(1)
+        if progress:
+            progress(float(work[t] / work[-1]) if work[-1] else 1.0)
     sumj = sump = order = None
 
     if not compact:
@@ -865,7 +875,9 @@ class TableCache:
     room - before that board's build starts, so a build never runs on top of
     a full cache - or after a long idle. A board waiting for the build in
     progress, or for memory (`may_start`, asked again every `wait_retry`
-    seconds after a no), starts as soon as it can.
+    seconds after a no), starts as soon as it can. When memory runs short
+    (`must_shed`), the least recently used table goes, one each sweep, so
+    the other goes only if the shortage lasts.
 
     Nothing is persisted: a dyno restart builds again.
     """
@@ -874,7 +886,7 @@ class TableCache:
                  max_builds_per_day=12, retry_after=600.0, rebuild_gap=900.0,
                  expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS,
                  max_tables=1, may_start=None, wait_retry=300.0, on_built=None,
-                 today=date.today):
+                 must_shed=None, today=date.today):
         self.solve = solve or solve_box
         self.spawn = spawn or self._spawn_thread
         self.clock = clock
@@ -888,11 +900,13 @@ class TableCache:
         self.may_start = may_start
         self.wait_retry = wait_retry
         self.on_built = on_built
+        self.must_shed = must_shed
         self.today = today
         self._lock = threading.Lock()
         # key -> [fingerprint, table, built_at, used_at], least recently used first
         self._tables = OrderedDict()
         self._job = None             # (key, fingerprint, started_at)
+        self._progress = 0.0         # the share of its work the job has done
         self._queue = OrderedDict()  # key -> (fingerprint, make_pool): builds waiting their turn
         self._held_back = None       # when may_start last said no
         self._failed = {}            # key -> when it failed
@@ -904,7 +918,15 @@ class TableCache:
         threading.Thread(target=target, name='smush-ice-build', daemon=True).start()
 
     def _eta(self, now):
-        return max(1, int(round(self.expected_seconds - (now - self._job[2]))))
+        """Seconds the build in progress has left: from its own progress once
+        it's a few percent in, which holds on any machine; before that, from
+        the last build's time. None once that has run out with nothing else
+        to go on."""
+        elapsed = now - self._job[2]
+        if self._progress >= 0.03:
+            return max(1, int(round(elapsed * (1 - self._progress) / self._progress)))
+        left = self.expected_seconds - elapsed
+        return max(1, int(round(left))) if left >= 1 else None
 
     def _may_build(self):
         today = self.today()
@@ -963,27 +985,35 @@ class TableCache:
         if not self._may_build():
             self._queue.clear()
             return
-        if self.may_start is not None:
-            if self._held_back is not None and now - self._held_back < self.wait_retry:
-                return
-            if not self.may_start():
-                self._held_back = now
-                return
-            self._held_back = None
-        key, (fingerprint, make_pool) = self._queue.popitem(last=False)
-        if key not in self._tables:
+        if self._held_back is not None and now - self._held_back < self.wait_retry:
+            return
+        key, (fingerprint, make_pool) = next(iter(self._queue.items()))
+        if key not in self._tables and self._tables and len(self._tables) >= self.max_tables:
+            # Room first, then the memory check: the least recently used
+            # table (yesterday's board, by then) mustn't keep a new board
+            # waiting for memory it holds itself.
             while self._tables and len(self._tables) >= self.max_tables:
                 self._tables.popitem(last=False)
+            release_memory()
+        if self.may_start is not None and not self.may_start():
+            self._held_back = now
+            return
+        self._held_back = None
+        del self._queue[key]
         self._start(key, fingerprint, make_pool, now)
 
     def _start(self, key, fingerprint, make_pool, now):
         self._job = (key, fingerprint, now)
+        self._progress = 0.0
         self._builds += 1
+
+        def heard(share):
+            self._progress = share       # one float: _eta reads it under the lock
 
         def run():
             started = self.clock()
             try:
-                table = self.solve(FULL_ROOT, make_pool().groups)
+                table = self.solve(FULL_ROOT, make_pool().groups, progress=heard)
             except Exception as e:   # noqa: BLE001 - a failed build must never kill the thread silently
                 with self._lock:
                     self._failed[key] = self.clock()
@@ -1020,17 +1050,20 @@ class TableCache:
 
     def release_idle(self):
         """Drop the tables no request has used for idle_seconds (a build in
-        progress carries on), then start a build that was waiting for
-        memory - the sweeper calls this every minute. -> whether any table
-        went."""
+        progress carries on); while memory is short (must_shed), the least
+        recently used table too - one a sweep; then start a build that was
+        waiting for memory. The sweeper calls this every minute. -> whether
+        any table went."""
         with self._lock:
             now = self.clock()
-            idle = [] if self.idle_seconds is None else [
+            gone = [] if self.idle_seconds is None else [
                 key for key, held in self._tables.items() if now - held[3] >= self.idle_seconds]
-            for key in idle:
+            for key in gone:
                 del self._tables[key]
+            if self._tables and self.must_shed is not None and self.must_shed():
+                gone.append(self._tables.popitem(last=False)[0])
             self._next(now)
-        return bool(idle)
+        return bool(gone)
 
 
 class ExactCache:

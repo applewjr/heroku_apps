@@ -98,7 +98,7 @@ def test_both_of_todays_boards_are_planned(client, today):
 def test_a_held_table_keeps_its_board_planned_past_midnight(today, monkeypatch):
     jobs = []
     monkeypatch.setattr(smush_ice, "TODAY_TABLES", smush_ice.today_tables(
-        spawn=jobs.append, solve=lambda root, groups: "a table", may_start=None))
+        spawn=jobs.append, solve=lambda root, groups, progress=None: "a table", may_start=None))
     smush_ice.prewarm(DAY, {"center": "e", "outer": "adilnrst"})
     jobs.pop()()                                   # the build runs (a stand-in table)
     monkeypatch.setattr(smush_ice, "live_days", lambda now=None: {DAY + timedelta(days=2)})

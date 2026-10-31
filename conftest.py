@@ -62,7 +62,8 @@ def no_ice_builds(monkeypatch):
 
     builds = []
     monkeypatch.setattr(smush_ice, "TODAY_TABLES",
-                        smush_ice.today_tables(spawn=builds.append, may_start=None))
+                        smush_ice.today_tables(spawn=builds.append, may_start=None,
+                                               must_shed=None))
     monkeypatch.setattr(smush_ice, "EXACT", ice.ExactCache())
     monkeypatch.setattr(smush_ice, "SWEEPER", ice.IdleSweeper(
         lambda: (smush_ice.TODAY_TABLES, smush_ice.EXACT), start=lambda loop: None))

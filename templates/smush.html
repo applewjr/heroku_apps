@@ -1026,6 +1026,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return played.find(p => p && p.hot) || null;
     }
 
+    // The build's time left (the server follows its progress): "about 40
+    // seconds", "about 2 minutes".
+    function aboutTime(seconds) {
+        const [n, unit] = seconds < 60 ? [seconds, 'second'] : [Math.round(seconds / 60), 'minute'];
+        return `about ${n} ${unit}${n === 1 ? '' : 's'}`;
+    }
+
     function iceHeaderHtml() {
         return `
             <div class="results-header">
@@ -1062,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const enough = played.length >= ICE_MIN_WORDS;
         let html = iceHeaderHtml();
         if (p.status === 'building') {
-            html += `<div class="ice-card">🧊 Getting today's ICE COLD plan ready${p.eta ? ` - about ${p.eta} seconds` : ''}.
+            html += `<div class="ice-card">🧊 Getting today's ICE COLD plan ready${p.eta ? ` - ${aboutTime(p.eta)}` : ''}.
                      It shows up here by itself. Your first words matter most, so wait for it if you can.</div>`;
         } else if (p.status === 'busy') {
             html += `<div class="ice-card">🧊 Working out your next word…</div>`;

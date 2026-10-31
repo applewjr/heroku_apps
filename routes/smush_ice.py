@@ -57,6 +57,12 @@ VOTE_RETRY_SECONDS = 60
 # peak, before any of this.
 ICE_MAX_TABLES = 2
 ICE_BUILD_MAX_RSS_MB = 360
+# Past this, the dyno is close to swapping (512 MB, less the master), so
+# today's tables give way to the rest of the site: the least recently used
+# one each sweep (a minute), the other only if the shortage lasts. A board
+# whose table went waits to be built again until memory is back under
+# ICE_BUILD_MAX_RSS_MB, so a table can't go and come straight back.
+ICE_SHED_RSS_MB = 460
 # A build held back for memory asks again this often.
 ICE_BUILD_WAIT_SECONDS = 300
 # Yesterday's board goes this long after its last use, once everyone's
@@ -172,13 +178,23 @@ def _room_to_build():
     return False
 
 
+def _short_of_memory():
+    """TableCache must_shed: False where RSS can't be read."""
+    rss = rss_mb()
+    if rss is None or rss <= ICE_SHED_RSS_MB:
+        return False
+    print(f"smush_ice: dropping a table for memory (rss {rss:.0f} MB)")
+    return True
+
+
 def today_tables(**overrides):
     """Today's boards' cache, as TODAY_TABLES has it (tests swap in their own,
     with a spawn that never runs)."""
     settings = dict(on_error=alert_build_failed, on_built=log_built, max_tables=ICE_MAX_TABLES,
                     rebuild_gap=None, idle_seconds=TODAY_IDLE_SECONDS,
                     max_builds_per_day=TODAY_BUILDS_PER_DAY, may_start=_room_to_build,
-                    wait_retry=ICE_BUILD_WAIT_SECONDS, today=pacific_today)
+                    must_shed=_short_of_memory, wait_retry=ICE_BUILD_WAIT_SECONDS,
+                    today=pacific_today)
     settings.update(overrides)
     return ice.TableCache(**settings)
 

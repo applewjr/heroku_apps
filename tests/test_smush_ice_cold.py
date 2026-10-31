@@ -344,7 +344,7 @@ def _cache(**kw):
     clock = _Clock()
     built = []
 
-    def fake_solve(root, groups):
+    def fake_solve(root, groups, progress=None):
         built.append(root)
         return "table-%d" % len(built)
 
@@ -378,10 +378,47 @@ def test_newer_evidence_rebuilds_but_not_too_often():
     assert cache.get("k", "f2", pool)[0] == "table-2"
 
 
+def test_the_eta_follows_the_builds_own_progress():
+    # The first full-board build of a process overran its 60 s guess on every
+    # big board, and the page sat on "about 1 seconds" for a minute or more.
+    clock, jobs, seen = _Clock(), [], []
+    pool = lambda: ice.Pool([])
+
+    def solve(root, groups, progress=None):
+        clock.now += 30
+        progress(0.25)                                    # a quarter done in 30 s
+        seen.append(cache.get("k", None, pool)[2])
+        clock.now += 60
+        progress(0.75)
+        seen.append(cache.get("k", None, pool)[2])
+        return "table"
+
+    cache = ice.TableCache(solve=solve, spawn=jobs.append, clock=clock, expected_seconds=60)
+    assert cache.get("k", None, pool)[2] == 60            # nothing to go on yet but the guess
+    jobs.pop()()
+    assert seen == [90, 30]
+
+
+def test_with_no_progress_past_its_guess_the_eta_says_nothing():
+    cache, jobs, clock, _ = _cache(expected_seconds=60)
+    pool = lambda: ice.Pool([])
+    assert cache.get("k", None, pool)[2] == 60
+    clock.now += 61
+    assert cache.get("k", None, pool)[1:] == ("building", None)
+
+
+def test_a_build_reports_its_progress_to_the_end():
+    shares = []
+    rows = [row("aaz", {"a": 1}), row("bbz", {"b": 1}), row("abz", {"a": 1, "b": 1})]
+    groups = ice.make_groups(rows, LETTERS)
+    ice.solve_box(uses(a=3, b=2), groups, progress=shares.append)
+    assert shares == sorted(shares) and shares[-1] == pytest.approx(1.0)
+
+
 def test_a_failed_build_waits_before_retrying():
     errors = []
 
-    def broken(root, groups):
+    def broken(root, groups, progress=None):
         raise MemoryError("no room")
 
     jobs, clock = [], _Clock()
@@ -480,6 +517,40 @@ def test_a_build_waits_for_memory_and_starts_once_there_is_room():
     clock.now += 1
     cache.release_idle()                                  # the sweeper's minute
     assert len(jobs) == 1 and len(asked) == 2
+
+
+def test_a_full_cache_makes_room_before_asking_about_memory():
+    # Two tables held and memory short: the new board's build waits, but the
+    # least recently used table (yesterday's board, by then) goes at once -
+    # it mustn't keep the new board waiting for memory it holds itself.
+    room = [True]
+    cache, jobs, clock, _ = _cache(max_tables=2, may_start=lambda: room[0], wait_retry=300)
+    pool = lambda: ice.Pool([])
+    cache.get("a", None, pool); jobs.pop()()
+    cache.get("b", None, pool); jobs.pop()()
+    room[0] = False
+    assert cache.get("c", None, pool)[1:] == ("building", None)
+    assert not cache.has("a") and cache.has("b") and not jobs
+    room[0] = True
+    clock.now += 300
+    cache.release_idle()
+    assert len(jobs) == 1 and cache.has("b")              # no second table went for it
+
+
+def test_short_of_memory_drops_one_table_a_sweep():
+    short = [True]
+    cache, jobs, clock, _ = _cache(max_tables=2, must_shed=lambda: short[0])
+    pool = lambda: ice.Pool([])
+    cache.get("a", None, pool); jobs.pop()()
+    cache.get("b", None, pool); jobs.pop()()
+    clock.now += 1
+    cache.get("b", None, pool)                            # B is the one in use
+    assert cache.release_idle()
+    assert not cache.has("a") and cache.has("b")          # one a sweep, least recently used first
+    short[0] = False
+    assert not cache.release_idle() and cache.has("b")
+    short[0] = True
+    assert cache.release_idle() and not cache.holding()   # the shortage lasted: the other goes too
 
 
 def test_yesterdays_table_goes_after_a_long_idle():
