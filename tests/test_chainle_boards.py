@@ -347,10 +347,10 @@ def test_an_approval_is_the_sites_whole_set_and_replaces_the_last(client, rounds
     tiny()
     _approve(client, monkeypatch, 'chainle.io', round1_1='Snow', round1_2=' foot ', round5_1='big')
     assert rounds.approvals() == {('chainle.io', 1): 'SNOW FOOT', ('chainle.io', 5): 'BIG'}
-    _approve(client, monkeypatch, 'chaindle.org', round5_1='big')
+    _approve(client, monkeypatch, 'chainle.org', round5_1='big')
     _approve(client, monkeypatch, 'chainle.io', round1_1='cat', round1_2='phone', round2_1='doctor', round2_2='nurse')
     assert rounds.approvals() == {('chainle.io', 1): 'CAT PHONE', ('chainle.io', 2): 'DOCTOR NURSE',
-                                  ('chaindle.org', 5): 'BIG'}
+                                  ('chainle.org', 5): 'BIG'}
 
 
 def test_each_site_has_its_own_approval(client, rounds, tiny, monkeypatch):
@@ -362,6 +362,8 @@ def test_each_site_has_its_own_approval(client, rounds, tiny, monkeypatch):
 
 @pytest.mark.parametrize('site, boxes, error', [
     ('example.com', {'round1_1': 'snow', 'round1_2': 'foot'}, 'Choose a date and a site'),
+    # Not one since 2026-10-31: it has no consistent daily game.
+    ('chaindle.org', {'round1_1': 'snow', 'round1_2': 'foot'}, 'Choose a date and a site'),
     ('chainle.io', {}, "Type at least one round's clue words"),
     ('chainle.io', {'round1_1': 'snow'}, 'Round 1 takes 2 clue words'),
     ('chainle.io', {'round4_1': 'snow', 'round4_2': 'foot'}, 'Round 4 takes 3 clue words'),
@@ -382,20 +384,20 @@ def test_approving_a_players_set_copies_its_rounds(client, rounds, tiny, monkeyp
     html = _tab(client, monkeypatch)
     assert all(f'name="site" value="{site}"' in html for site in rc.BOARD_SITES)
     fields = _set_form(html, 'players')
-    resp = _form(client, monkeypatch, '/chainle_admin/approve_rounds', site='chaindle.org', **fields)
+    resp = _form(client, monkeypatch, '/chainle_admin/approve_rounds', site='chainle.org', **fields)
     assert resp.status_code == 302
-    assert rounds.approvals() == {('chaindle.org', n): _text(c) for n, c in enumerate(DAY_ROUNDS, 1)}
-    assert _sets(client) == [{**_day(), 'site': 'chaindle.org'}]
+    assert rounds.approvals() == {('chainle.org', n): _text(c) for n, c in enumerate(DAY_ROUNDS, 1)}
+    assert _sets(client) == [{**_day(), 'site': 'chainle.org'}]
 
 
 def test_undo_takes_back_one_sites_day(client, rounds, tiny, monkeypatch):
     tiny()
     rounds.approve(DAY, 'chainle.io', {1: _text(R1)})
-    rounds.approve(DAY, 'chaindle.org', {1: _text(OTHER1)})
+    rounds.approve(DAY, 'chainle.org', {1: _text(OTHER1)})
     _play(client, IPS[:3], R1)
     resp = _form(client, monkeypatch, '/chainle_admin/unapprove_rounds', played_on=DAY.isoformat(), site='chainle.io')
     assert 'Approval undone' in unquote_plus(resp.location)
-    assert set(rounds.approvals()) == {('chaindle.org', 1)}
+    assert set(rounds.approvals()) == {('chainle.org', 1)}
     assert len(rounds.players()) == 3
     resp = _form(client, monkeypatch, '/chainle_admin/unapprove_rounds', played_on=DAY.isoformat(), site='chainle.io')
     assert 'Nothing of chainle.io was approved for 10-28' in unquote_plus(resp.location)
@@ -452,12 +454,12 @@ def test_remove_on_a_players_set_deletes_every_entry_of_its_rounds(client, round
     _play(client, IPS[:3], *DAY_ROUNDS)
     _play(client, IPS[3:4], R1)
     _play(client, IPS[4:5], OTHER1)
-    rounds.approve(DAY, 'chaindle.org', {5: 'SMALL'})
+    rounds.approve(DAY, 'chainle.org', {5: 'SMALL'})
     fields = _set_form(_tab(client, monkeypatch), 'players')
     resp = _form(client, monkeypatch, '/chainle_admin/remove_set', **fields)
     assert 'Removed 16 entries on 10-28' in unquote_plus(resp.location)
     assert [r[5] for r in rounds.players()] == [_text(OTHER1)]
-    assert rounds.approvals() == {('chaindle.org', 5): 'SMALL'}
+    assert rounds.approvals() == {('chainle.org', 5): 'SMALL'}
 
 
 def test_remove_refuses_anything_but_a_set(client, rounds, tiny, monkeypatch):

@@ -15,7 +15,7 @@ from routes.smush import get_smush_words
 
 bp = Blueprint('wordgames', __name__)
 
-NO_WORDS_END = 'Options remaining: 0/5710 (0.0%)'
+NO_WORDS_END = f'Options remaining: 0/{len(df)} (0.0%)'
 
 
 def abbreviate_keys(data):
