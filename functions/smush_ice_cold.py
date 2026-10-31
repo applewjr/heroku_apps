@@ -1,4 +1,5 @@
-"""ICE COLD planner for Smush (hankgreen.com/smush), served on /smush_dev.
+"""ICE COLD planner for Smush (hankgreen.com/smush), served on /smush for
+today's boards and on /smush_dev (routes/smush_ice.py).
 
 Smush's secret ICE COLD bonus x5s the whole final score (after Clean Plate's
 +50 and the rest) for a game of at least five words in which no word ever
@@ -59,10 +60,10 @@ would average 218.
 J and P are solved exactly, bottom-up with numpy, over the box of every state
 at or below a root L (mixed-radix indexing, one layer per total remaining
 uses). The full board's box - 1.68M states x 9 spice columns - takes about a
-minute, so /smush_dev builds it once per board in a background thread
-(TableCache); smaller boxes are solved per request from the player's exact
-word pool. Tables nobody has used for IDLE_RELEASE_SECONDS are dropped
-(IdleSweeper), so a finished game gives its memory back.
+minute (38-78 s locally, more on the dyno), so it's built once per board in a
+background thread (TableCache) and kept compact (CompactTable); smaller boxes
+are solved per request from the player's exact word pool. Tables nobody uses
+are dropped (IdleSweeper), so their memory goes back.
 """
 
 import hashlib
@@ -293,8 +294,100 @@ class Table:
     def chance(self, L, s):
         return float(self.P[self.index(L), NULL if s is None else s]) * self.p_scale
 
+    def child_rows(self, child):
+        """(J, P) of the states in `child` (one row of letter counts each), as
+        float32 rows: a column per spicy tile, then the spice-free one."""
+        idx = child @ self.PW
+        return (self.J[idx].astype(np.float32) * self.j_scale,
+                self.P[idx].astype(np.float32) * self.p_scale)
 
-def solve_box(root, groups, compact=None, chunk=1 << 14):
+
+class CompactTable:
+    """A compact Table holding only the entries the planner ever reads, for
+    the full board, which stays in memory all day on /smush.
+
+    A spent tile can't be spicy, so column s is kept only for the states
+    where tile s is alive: it's stored over the box with that letter's axis
+    one shorter (counts 1..root kept as 0..root-1). The spice-free column
+    only means anything with one tile left, so it's kept just for those
+    states, by [tile, uses]. Every other entry of the dense table is zero
+    and never read, so every value, and so every plan, is the dense table's
+    own: the full board takes 22 MB instead of 30 (measured 2026-10-31)."""
+
+    def __init__(self, dense, chunk=1 << 14):
+        self.root, self.R, self.PW = dense.root, dense.R, dense.PW
+        self.j_scale, self.p_scale = dense.j_scale, dense.p_scale
+        n = len(self.root)
+        self.ONE = np.eye(n, dtype=np.int64)
+        self.PWC, self.JC, self.PC = [], [], []
+        for i in range(n):
+            Ri = self.R.copy()
+            Ri[i] -= 1
+            self.PWC.append(_place_values(Ri))
+            self.JC.append(np.zeros(int(np.prod(Ri)), dtype=dense.J.dtype))
+            self.PC.append(np.zeros(int(np.prod(Ri)), dtype=dense.P.dtype))
+        self.JN = np.zeros((n, int(self.R.max())), dtype=dense.J.dtype)
+        self.PN = np.zeros((n, int(self.R.max())), dtype=dense.P.dtype)
+        N = int(np.prod(self.R))
+        for start in range(0, N, chunk):
+            stop = min(N, start + chunk)
+            D = (np.arange(start, stop, dtype=np.int64)[:, None] // self.PW) % self.R
+            J, P = dense.J[start:stop], dense.P[start:stop]
+            for i in range(n):
+                live = D[:, i] > 0
+                at = (D[live] - self.ONE[i]) @ self.PWC[i]
+                self.JC[i][at] = J[live, i]
+                self.PC[i][at] = P[live, i]
+        for i in range(n):
+            for v in range(1, self.root[i] + 1):
+                self.JN[i, v] = dense.J[v * self.PW[i], NULL]
+                self.PN[i, v] = dense.P[v * self.PW[i], NULL]
+
+    @property
+    def nbytes(self):
+        return sum(a.nbytes for a in self.JC + self.PC) + self.JN.nbytes + self.PN.nbytes
+
+    def covers(self, L):
+        return all(0 <= l <= r for l, r in zip(L, self.root))
+
+    def _value(self, cols, null, L, s):
+        L = np.asarray(L, dtype=np.int64)
+        if s is None:
+            alive = np.nonzero(L > 0)[0]
+            return float(null[alive[0], L[alive[0]]]) if len(alive) == 1 else 0.0
+        if L[s] <= 0:
+            return 0.0
+        return float(cols[s][(L - self.ONE[s]) @ self.PWC[s]])
+
+    def points(self, L, s):
+        return self._value(self.JC, self.JN, L, s) * self.j_scale
+
+    def chance(self, L, s):
+        return self._value(self.PC, self.PN, L, s) * self.p_scale
+
+    def child_rows(self, child):
+        """As Table.child_rows, with zeros wherever nothing is kept - just as
+        the dense table has there."""
+        n = len(child)
+        cj = np.zeros((n, N_LETTERS + 1), dtype=np.float32)
+        cp = np.zeros((n, N_LETTERS + 1), dtype=np.float32)
+        alive = child > 0
+        for i in range(len(self.root)):
+            live = alive[:, i]
+            if live.any():
+                at = (child[live] - self.ONE[i]) @ self.PWC[i]
+                cj[live, i] = self.JC[i][at]
+                cp[live, i] = self.PC[i][at]
+        lone = np.nonzero(alive.sum(1) == 1)[0]
+        if len(lone):
+            tile = alive[lone].argmax(1)
+            left = child[lone, tile]
+            cj[lone, NULL] = self.JN[tile, left]
+            cp[lone, NULL] = self.PN[tile, left]
+        return cj * self.j_scale, cp * self.p_scale
+
+
+def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False):
     """Solve J and P exactly for every state in the box [0, root].
 
     States are solved in order of total remaining uses, so every move's
@@ -309,7 +402,9 @@ def solve_box(root, groups, compact=None, chunk=1 << 14):
     best-valued first; its P follows the same moves.
 
     A compact box (the full board) builds J in float16 and P straight in
-    uint8 - P is only shown, never steers - and ends with J in uint8 too.
+    uint8 - P is only shown, never steers - and ends with J in uint8 too,
+    kept as a CompactTable (or the dense uint8 Table, with `dense`, to check
+    the compact one against).
     """
     root = tuple(int(r) for r in root)
     R = np.array([r + 1 for r in root], dtype=np.int64)
@@ -458,7 +553,9 @@ def solve_box(root, groups, compact=None, chunk=1 << 14):
     for start in range(0, N, chunk):
         Jq[start:start + chunk] = np.rint(
             np.clip(VJ[start:start + chunk].astype(np.float32), 0.0, j_max) / j_scale)
-    return Table(root, Jq, VP, j_scale, p_read)
+    VJ = None                  # 30 MB for the full board, gone before the compact copy
+    table = Table(root, Jq, VP, j_scale, p_read)
+    return table if dense else CompactTable(table, chunk)
 
 
 @dataclass
@@ -497,9 +594,7 @@ def _child_values(table, L, s, SIG):
     """(J, P) of the state each move (a row of SIG) leaves from (L, s),
     averaged over where the spice lands next."""
     child = np.asarray(L, dtype=np.int64)[None, :] - SIG
-    idx = child @ table.PW
-    cj = table.J[idx].astype(np.float32) * table.j_scale
-    cp = table.P[idx].astype(np.float32) * table.p_scale
+    cj, cp = table.child_rows(child)
     alive = child > 0
     landing = alive.copy()
     if s is not None:
@@ -755,20 +850,31 @@ def states_below(L):
 
 
 class TableCache:
-    """The shared full-board table: one board at a time, built lazily in a
-    background thread the first time a request needs it.
+    """Full-board tables, built in a background thread, one build at a time.
 
-    One Smush board a day means one heavy build a day (James's call,
-    2026-10-09). Nothing is persisted: a dyno restart just rebuilds on the
-    next request. A newer fingerprint for the same board (a crowd correction,
-    a newly played or flagged word) rebuilds it, but at most once per
-    `rebuild_gap`, and the old table keeps answering meanwhile. A table no
-    request has used for `idle_seconds` goes (release_idle, IdleSweeper).
+    /smush_dev's cache (the defaults) holds one board: whatever board was
+    last asked for, built the first time a request needs it. A newer
+    fingerprint for that board (a crowd correction, a newly played or
+    flagged word) rebuilds it, at most once per `rebuild_gap`, and the old
+    table keeps answering meanwhile. A table no request has used for
+    `idle_seconds` goes (release_idle, IdleSweeper).
+
+    /smush's (routes/smush_ice.py) holds today's boards, up to `max_tables`
+    of them: each built the moment its board is decided (prewarm), never
+    rebuilt (`rebuild_gap` None), and dropped when a newer board needs the
+    room - before that board's build starts, so a build never runs on top of
+    a full cache - or after a long idle. A board waiting for the build in
+    progress, or for memory (`may_start`, asked again every `wait_retry`
+    seconds after a no), starts as soon as it can.
+
+    Nothing is persisted: a dyno restart builds again.
     """
 
     def __init__(self, solve=None, spawn=None, clock=time.monotonic, on_error=None,
                  max_builds_per_day=12, retry_after=600.0, rebuild_gap=900.0,
-                 expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS):
+                 expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS,
+                 max_tables=1, may_start=None, wait_retry=300.0, on_built=None,
+                 today=date.today):
         self.solve = solve or solve_box
         self.spawn = spawn or self._spawn_thread
         self.clock = clock
@@ -778,10 +884,17 @@ class TableCache:
         self.rebuild_gap = rebuild_gap
         self.expected_seconds = expected_seconds
         self.idle_seconds = idle_seconds
+        self.max_tables = max_tables
+        self.may_start = may_start
+        self.wait_retry = wait_retry
+        self.on_built = on_built
+        self.today = today
         self._lock = threading.Lock()
-        self._entry = None           # (key, fingerprint, table, built_at)
-        self._used_at = None         # when a request last got the table
+        # key -> [fingerprint, table, built_at, used_at], least recently used first
+        self._tables = OrderedDict()
         self._job = None             # (key, fingerprint, started_at)
+        self._queue = OrderedDict()  # key -> (fingerprint, make_pool): builds waiting their turn
+        self._held_back = None       # when may_start last said no
         self._failed = {}            # key -> when it failed
         self._day = None
         self._builds = 0
@@ -794,34 +907,74 @@ class TableCache:
         return max(1, int(round(self.expected_seconds - (now - self._job[2]))))
 
     def _may_build(self):
-        today = date.today()
+        today = self.today()
         if self._day != today:
             self._day, self._builds = today, 0
         return self._builds < self.max_builds_per_day
 
+    def _building(self, key):
+        return self._job is not None and self._job[0] == key
+
     def get(self, key, fingerprint, make_pool):
         """-> (table or None, status, eta_seconds). Status is 'ready',
-        'building', 'failed' (retrying soon) or 'capped' (no builds left
-        today). make_pool() runs in the build thread."""
+        'building' (eta None while it waits its turn), 'failed' (retrying
+        soon) or 'capped' (no builds left today). make_pool() runs in the
+        build thread."""
         with self._lock:
             now = self.clock()
-            entry = self._entry
-            if entry is not None and entry[0] == key:
-                self._used_at = now
-                if (entry[1] != fingerprint and self._job is None
-                        and now - entry[3] >= self.rebuild_gap and self._may_build()):
-                    self._start(key, fingerprint, make_pool, now)
-                return entry[2], 'ready', None
-            if self._job is not None:
-                # One build at a time; another board's has to finish first.
-                return None, 'building', self._eta(now)
+            held = self._tables.get(key)
+            if held is None:
+                return (None,) + self._ask(key, fingerprint, make_pool, now)
+            held[3] = now
+            self._tables.move_to_end(key)
+            if (self.rebuild_gap is not None and held[0] != fingerprint
+                    and now - held[2] >= self.rebuild_gap and not self._building(key)
+                    and key not in self._queue and self._may_build()):
+                self._queue[key] = (fingerprint, make_pool)
+                self._next(now)
+            return held[1], 'ready', None
+
+    def prewarm(self, key, fingerprint, make_pool):
+        """Queue a board's build before anyone asks for it. -> its status
+        ('ready' when it's already held)."""
+        with self._lock:
+            if key in self._tables:
+                return 'ready'
+            return self._ask(key, fingerprint, make_pool, self.clock())[0]
+
+    def _ask(self, key, fingerprint, make_pool, now):
+        """(status, eta) for a board with no table yet, queueing its build
+        unless it failed lately or today's builds are used up."""
+        if not self._building(key) and key not in self._queue:
             failed_at = self._failed.get(key)
             if failed_at is not None and now - failed_at < self.retry_after:
-                return None, 'failed', None
+                return 'failed', None
             if not self._may_build():
-                return None, 'capped', None
-            self._start(key, fingerprint, make_pool, now)
-            return None, 'building', self._eta(now)
+                return 'capped', None
+            self._queue[key] = (fingerprint, make_pool)
+            self._next(now)
+        return 'building', self._eta(now) if self._building(key) else None
+
+    def _next(self, now):
+        """Start the first queued build, if none is running and may_start
+        allows it. Called with the lock held."""
+        if self._job is not None or not self._queue:
+            return
+        if not self._may_build():
+            self._queue.clear()
+            return
+        if self.may_start is not None:
+            if self._held_back is not None and now - self._held_back < self.wait_retry:
+                return
+            if not self.may_start():
+                self._held_back = now
+                return
+            self._held_back = None
+        key, (fingerprint, make_pool) = self._queue.popitem(last=False)
+        if key not in self._tables:
+            while self._tables and len(self._tables) >= self.max_tables:
+                self._tables.popitem(last=False)
+        self._start(key, fingerprint, make_pool, now)
 
     def _start(self, key, fingerprint, make_pool, now):
         self._job = (key, fingerprint, now)
@@ -835,33 +988,49 @@ class TableCache:
                 with self._lock:
                     self._failed[key] = self.clock()
                     self._job = None
+                    self._next(self.clock())
                 if self.on_error:
                     self.on_error(e)
                 return
             with self._lock:
-                self._entry = (key, fingerprint, table, self.clock())
-                self._used_at = self.clock()
+                done = self.clock()
+                self._tables[key] = [fingerprint, table, done, done]
+                self._tables.move_to_end(key)
                 self._failed.pop(key, None)
                 self._job = None
-                self.expected_seconds = max(5.0, self.clock() - started)
+                self.expected_seconds = max(5.0, done - started)
             # The build's scratch arrays (~70 MB), and any table this one replaced.
             release_memory()
+            if self.on_built:
+                self.on_built(key, done - started)
+            with self._lock:
+                self._next(self.clock())
 
         self.spawn(run)
+
+    def has(self, key):
+        """Whether this board's table is held right now."""
+        with self._lock:
+            return key in self._tables
 
     def holding(self):
         """Whether there's a table, or one on the way."""
         with self._lock:
-            return self._entry is not None or self._job is not None
+            return bool(self._tables) or self._job is not None or bool(self._queue)
 
     def release_idle(self):
-        """Drop the table if no request has used it for idle_seconds.
-        -> whether it went. A build in progress carries on."""
+        """Drop the tables no request has used for idle_seconds (a build in
+        progress carries on), then start a build that was waiting for
+        memory - the sweeper calls this every minute. -> whether any table
+        went."""
         with self._lock:
-            if self._entry is None or self.clock() - self._used_at < self.idle_seconds:
-                return False
-            self._entry = None
-        return True
+            now = self.clock()
+            idle = [] if self.idle_seconds is None else [
+                key for key, held in self._tables.items() if now - held[3] >= self.idle_seconds]
+            for key in idle:
+                del self._tables[key]
+            self._next(now)
+        return bool(idle)
 
 
 class ExactCache:

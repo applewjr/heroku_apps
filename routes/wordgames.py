@@ -10,6 +10,7 @@ from routes import chainle
 from routes import guess_the_phrase as gtp
 from routes import ribbit
 from routes import smush as smush_crowd
+from routes import smush_ice
 from routes.ribbit import parse_ribbit_board
 from routes.smush import get_smush_words
 
@@ -338,9 +339,12 @@ def run_smush():
     """The page, a solve, or a JSON action. Today's board (routes/smush.py)
     shows while SMUSH_BOARD_LIVE."""
     show_board = smush_crowd.SMUSH_BOARD_LIVE
+    ice_live = show_board and smush_crowd.SMUSH_ICE_LIVE
     schema_data = make_schema_data(
         "Smush Solver - Find Today's Pangram & Best Words",
-        "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points. Free solver for Hank Green's daily word game.",
+        "Find today's Smush pangram in seconds - enter your nine letters and see every playable word ranked by points"
+        + (", plus an ICE COLD plan for today's board" if ice_live else "")
+        + ". Free solver for Hank Green's daily word game.",
         "https://www.jamesapplewhite.com/smush"
     )
 
@@ -356,15 +360,23 @@ def run_smush():
             return smush_crowd.handle_vote(data)
 
         center, outer_uses, spicy, first_word, rejected, played, want_plan = parse_solve(data)
+        # The 🧊 Ice Cold tab asks for an ICE COLD plan (routes/smush_ice.py),
+        # which only today's boards get.
+        ice_cold = data.get('ice_cold', False)
+        if not isinstance(ice_cold, bool):
+            raise ValidationError('ice_cold must be a boolean')
 
         # Solve untruncated: the all-8 planner needs the cheap low-point words
         # that the ranked response cuts off.
+        smush_words = get_smush_words()
         results, total_playable, pangram_status = all_words.smush_solver(
-            center, outer_uses, spicy, first_word, get_smush_words(),
+            center, outer_uses, spicy, first_word, smush_words,
             list_len=None, exclude=rejected, played=played, popularity=word_pop)
 
         plan = None
-        if want_plan:
+        if ice_cold and ice_live:
+            plan = smush_ice.public_plan(center, outer_uses, spicy, results, smush_words)
+        elif want_plan:
             plan_words, leftover = all_words.smush_all_plan(results, outer_uses)
             plan = {'complete': not leftover, 'words': plan_words,
                     'leftover': leftover}
@@ -380,7 +392,8 @@ def run_smush():
         todays_board, board_date = smush_crowd.page_board(show_board)
         return render_template("smush.html", schema_data=schema_data,
                                show_board=show_board, todays_board=todays_board,
-                               board_date=board_date)
+                               board_date=board_date, ice_live=ice_live,
+                               ice_new=ice_live and smush_ice.is_new())
 
 
 @bp.route("/ribbit", methods=["POST", "GET"])

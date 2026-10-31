@@ -744,8 +744,9 @@ def test_the_tab_a_vote_came_from_is_logged_never_refused(client, smush_db, sent
     ({"mode": "pan"}, True, "dev_pan"),
     ({"mode": "all8", "ice_cold": "yes"}, True, "dev_all8"),
     ({"ice_cold": True}, True, None),
-    # Only /smush_dev has the Ice Cold toggle.
+    # Only /smush_dev has the Ice Cold toggle; /smush's 🧊 Ice Cold is a tab.
     ({"mode": "all8", "ice_cold": True}, False, "all8"),
+    ({"mode": "ice"}, False, "ice"),
 ])
 def test_smush_dev_votes_are_tagged_as_dev(data, dev, logged):
     from routes.smush import _vote_mode
@@ -754,10 +755,14 @@ def test_smush_dev_votes_are_tagged_as_dev(data, dev, logged):
 
 def test_the_logged_tabs_are_the_pages_tabs():
     from routes.smush import SMUSH_RESULT_TABS
-    for page in ("smush.html", "smush_dev.html"):
+
+    def tabs(page):
         source = (TEMPLATES / page).read_text(encoding="utf-8")
-        tabs = re.search(r"const SORT_MODES = \[(.*?)\];", source).group(1)
-        assert sorted(re.findall(r"'(\w+)'", tabs)) == sorted(SMUSH_RESULT_TABS), page
+        return set(re.findall(r"'(\w+)'", re.search(r"const SORT_MODES = \[(.*?)\];", source).group(1)))
+
+    assert tabs("smush.html") == set(SMUSH_RESULT_TABS)
+    # /smush_dev has every tab but /smush's 🧊 Ice Cold (it has a toggle instead).
+    assert tabs("smush_dev.html") == set(SMUSH_RESULT_TABS) - {"ice"}
     # The longest mode still fits the log's VARCHAR(16).
     assert max(len(f"dev_{tab}_ice") for tab in SMUSH_RESULT_TABS) <= 16
 

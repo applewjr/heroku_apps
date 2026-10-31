@@ -423,6 +423,75 @@ def test_a_build_on_the_way_counts_as_holding():
     assert cache.holding() and not cache.release_idle()
 
 
+# /smush's today's boards (routes/smush_ice.py): two held, built ahead, never rebuilt.
+
+def test_two_boards_are_held_and_a_third_makes_room_before_it_builds():
+    cache, jobs, clock, _ = _cache(max_tables=2)
+    pool = lambda: ice.Pool([])
+    cache.get("a", None, pool); jobs.pop()()
+    cache.get("b", None, pool); jobs.pop()()
+    clock.now += 1
+    cache.get("a", None, pool)                            # A is the fresher
+    assert cache.get("c", None, pool)[1] == "building"
+    # B went before C's build even started: never three tables at once.
+    assert cache.has("a") and not cache.has("b") and not cache.has("c")
+    jobs.pop()()
+    assert cache.has("a") and cache.has("c")
+
+
+def test_a_board_waiting_behind_a_build_starts_when_it_ends():
+    cache, jobs, clock, _ = _cache(max_tables=2)
+    pool = lambda: ice.Pool([])
+    assert cache.prewarm("a", None, pool) == "building"
+    assert cache.prewarm("b", None, pool) == "building"
+    assert cache.get("b", None, pool)[1:] == ("building", None)   # queued: no ETA yet
+    assert len(jobs) == 1
+    jobs.pop()()                                          # A done: B starts by itself
+    assert cache.has("a") and len(jobs) == 1
+    jobs.pop()()
+    assert cache.has("b") and cache.prewarm("b", None, pool) == "ready"
+
+
+def test_todays_tables_are_never_rebuilt():
+    cache, jobs, clock, _ = _cache(rebuild_gap=None)
+    pool = lambda: ice.Pool([])
+    cache.get("k", "f1", pool); jobs.pop()()
+    clock.now += 10 ** 6
+    assert cache.get("k", "f2", pool)[:2] == ("table-1", "ready")
+    assert not jobs
+
+
+def test_a_build_waits_for_memory_and_starts_once_there_is_room():
+    room, asked = [False], []
+
+    def may_start():
+        asked.append(1)
+        return room[0]
+
+    cache, jobs, clock, _ = _cache(may_start=may_start, wait_retry=300)
+    pool = lambda: ice.Pool([])
+    assert cache.get("k", None, pool)[1:] == ("building", None)
+    assert not jobs and cache.holding()                   # held back, still on its way
+    clock.now += 299
+    cache.release_idle()
+    cache.get("k", None, pool)
+    assert len(asked) == 1 and not jobs                   # not asked again so soon
+    room[0] = True
+    clock.now += 1
+    cache.release_idle()                                  # the sweeper's minute
+    assert len(jobs) == 1 and len(asked) == 2
+
+
+def test_yesterdays_table_goes_after_a_long_idle():
+    cache, jobs, clock, _ = _cache(max_tables=2, rebuild_gap=None, idle_seconds=6 * 3600)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool); jobs.pop()()
+    clock.now += 6 * 3600 - 1
+    assert not cache.release_idle()
+    clock.now += 1
+    assert cache.release_idle() and not cache.holding()
+
+
 def test_exact_tables_all_go_once_none_is_used():
     clock = _Clock()
     cache = ice.ExactCache(clock=clock, idle_seconds=900)
@@ -509,7 +578,8 @@ def test_a_compact_table_decides_as_well_as_a_full_precision_one():
     letters, L, pool = _real_board(outer)
     full = ice.solve_box(L, pool.groups, compact=False)
     small = ice.solve_box(L, pool.groups, compact=True)
-    assert small.J.dtype == np.uint8 and small.P.dtype == np.uint8
+    assert isinstance(small, ice.CompactTable)
+    assert all(a.dtype == np.uint8 for a in small.JC + small.PC)
     for spice in range(len(letters)):
         moves = ice.rank_moves(full, pool, L, spice)
         if not moves:
@@ -518,6 +588,28 @@ def test_a_compact_table_decides_as_well_as_a_full_precision_one():
         best, _ = ice.plan_value(moves)
         tried = sorted(moves, key=lambda m: m.group.sig != picked)   # the pick first
         assert best - ice.plan_value(tried)[0] <= 0.5
+
+
+def test_the_compact_table_holds_every_value_the_dense_one_does():
+    # The full board's table is kept compact (no spent tile's spice column,
+    # the spice-free column only with one tile left). On a real position,
+    # every value it hands the planner - and so every plan - must be the
+    # dense table's own, in less memory.
+    outer = {"e": 3, "g": 2, "i": 2, "m": 2, "n": 2, "o": 2, "p": 2, "y": 2}
+    letters, L, pool = _real_board(outer)
+    dense = ice.solve_box(L, pool.groups, compact=True, dense=True)
+    small = ice.solve_box(L, pool.groups, compact=True)
+    assert isinstance(dense, ice.Table) and isinstance(small, ice.CompactTable)
+    every = (np.arange(int(np.prod(dense.R)))[:, None] // dense.PW) % dense.R
+    for got, want in zip(small.child_rows(every), dense.child_rows(every)):
+        assert np.array_equal(got, want)
+    for state in every[::37]:
+        for s in list(range(len(letters))) + [None]:
+            assert small.points(state, s) == dense.points(state, s)
+            assert small.chance(state, s) == dense.chance(state, s)
+    for spice in list(range(len(letters))) + ["unknown"]:
+        assert ice.plan_payload(small, pool, L, spice, letters) == ice.plan_payload(dense, pool, L, spice, letters)
+    assert small.nbytes < 0.75 * dense.nbytes
 
 
 def test_a_fallback_word_promises_no_clean_finish():

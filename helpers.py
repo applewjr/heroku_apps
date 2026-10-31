@@ -56,6 +56,19 @@ def release_memory():
     libc.malloc_trim(0)
 
 
+def rss_mb():
+    """This process's resident memory in MB, from /proc (Linux: the dyno), or
+    None where there's no /proc (Windows, macOS)."""
+    try:
+        with open('/proc/self/status') as f:
+            for line in f:
+                if line.startswith('VmRSS:'):
+                    return int(line.split()[1]) / 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 class ValidationError(ValueError):
     """User-supplied form input failed validation.
 

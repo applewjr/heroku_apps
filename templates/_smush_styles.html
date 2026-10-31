@@ -219,27 +219,80 @@
 
 .tool-btn:hover, .tool-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
 
-/* ---------- status chips ---------- */
-.smush-status {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-    margin: 16px auto 4px;
-    max-width: 560px;
-}
-
-.status-chip {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 999px;
-    padding: 7px 14px;
+/* ---------- ICE COLD plan ---------- */
+.ice-card {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #cfe0e0;
+    background-color: #eef4f4;
+    color: #02484d;
+    text-align: left;
     font-size: 13px;
-    color: #374151;
+    line-height: 1.5;
 }
 
-.status-chip b { color: #02484d; }
-.status-chip.spicy-chip b { color: #c0392b; }
+.ice-card.bad { background-color: #fbf6ec; border-color: #ecdfc0; color: #7a5d1d; }
+
+.ice-chance { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.ice-chance small { font-size: 13px; font-weight: 600; margin-left: 6px; }
+
+.ice-label {
+    margin: 12px 0 2px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #02484d;
+    text-align: left;
+}
+
+.spice-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.spice-tile {
+    flex: 0 0 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 2px solid #e55555;
+    background-color: #fff;
+    color: #02484d;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spice-row .word-result { flex: 1 1 auto; margin: 0; min-width: 0; }
+.spice-chance { flex: 0 0 auto; font-size: 11px; color: #6b7280; min-width: 34px; text-align: right; }
+
+.ice-finish { margin-top: 8px; }
+.ice-finish b { letter-spacing: 1px; }
+.ice-source { margin-top: 6px; font-size: 11px; color: #6b7280; }
+
+@media (max-width: 480px) {
+    .ice-chance { font-size: 22px; }
+    .spice-tile { flex-basis: 28px; height: 28px; font-size: 14px; }
+}
+
+/* /smush's 🧊 Ice Cold tab: an icy chip while it isn't the one shown, the
+   one-line intro, and the card that says stop to keep the x5. */
+.sort-chip.ice-chip { background-color: #eaf6fc; border-color: #b8dcef; }
+.sort-chip.ice-chip.active, .sort-chip.ice-chip:hover { background-color: #02484d; color: #fff; border-color: #02484d; }
+.sort-chip .jj-more-tag { margin-left: 4px; vertical-align: 1px; }
+
+.ice-intro { margin: 0 0 12px; font-size: 13px; line-height: 1.5; text-align: left; color: #02484d; }
+.ice-how { margin-top: 4px; }
+.ice-how summary { cursor: pointer; font-weight: 600; }
+.ice-how p { margin: 6px 0 0; color: #374151; }
+
+.ice-card.ice-stop { background-color: #fffbe6; border: 2px solid #ffd700; font-size: 14px; }
+.spice-chance.spice-stop { text-align: left; font-size: 12px; font-weight: 600; color: #7a5d1d; }
 
 .pangram-banner {
     max-width: 480px;
