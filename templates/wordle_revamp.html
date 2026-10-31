@@ -51,7 +51,7 @@
       "name": "What is the solve rate?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The solver achieves a 97% solve rate across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone."
+        "text": "The solver achieves a 99.9% solve rate across all 5,710 possible Wordle answers in backtesting, averaging 3.8 guesses (3.7 on common words). Every suggestion is scored by how much its colors would narrow down the answers still possible."
       }
     },
     {
@@ -59,7 +59,7 @@
       "name": "What strategy does the solver use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an eliminator word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick."
+        "text": "For each guess it could suggest, the solver works out the colors that guess would get against every answer still possible, and scores it by how much those colors would narrow the answers down (its expected information). Common words count as likelier answers, since daily answers are everyday words. The Picks are the best guesses that could still be the answer, so they always fit your hints, hard mode included. On the final guess, or with two answers left, the most common word goes first."
       }
     },
     {
@@ -67,7 +67,7 @@
       "name": "What are Alt Picks?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Alt Picks appear when the top suggestions all differ by only 1-2 letters (e.g. WAVER / RAVER / SAVER). Instead of guessing similar words one by one, an Alt Pick is a word from the full dictionary chosen to test several of those uncertain letters in a single guess, helping you narrow down the answer faster."
+        "text": "Alt Picks appear when a word that can't be the answer would narrow the answers down more than any word that can, for example when the answers left differ by a letter or two (WAVER / RAVER / SAVER). One guess then tests several uncertain letters at once, instead of trying the look-alikes one by one."
       }
     },
     {
@@ -75,7 +75,7 @@
       "name": "About this tool",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidate ranking uses a custom letter-frequency scoring model. Word popularity scores (used on the final guess) are derived from the wordfreq open-source Python library (https://github.com/rspeer/wordfreq). Not affiliated with or endorsed by the New York Times."
+        "text": "This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidates are ranked by the information their colors would reveal. Word popularity scores (used to weigh likely answers, and on the final guess) are derived from the wordfreq open-source Python library (https://github.com/rspeer/wordfreq). Not affiliated with or endorsed by the New York Times."
       }
     }
   ]
@@ -179,19 +179,19 @@
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is the solve rate?</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver achieves a <strong>97% solve rate</strong> across all 5,710 possible Wordle answers in backtesting. It uses an information-first strategy that adapts as guesses run out, switching from candidate guesses to eliminator words when the remaining option pool is too large to win by guessing alone.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver achieves a <strong>99.9% solve rate</strong> across all 5,710 possible Wordle answers in backtesting, averaging 3.8 guesses (3.7 on common words). Every suggestion is scored by how much its colors would narrow down the answers still possible.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What strategy does the solver use?</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver uses an information-first approach that adapts as guesses run out. Early on, it picks words that eliminate as many letters as possible. When candidates narrow to a similar cluster, it automatically switches to an <em>eliminator</em> word from the full word list, one that resolves several uncertain letters at once rather than cycling through similar guesses. As guesses run low, it becomes more aggressive: the eliminator threshold drops and the search triggers even when candidates aren't obviously similar, because arriving at the last guess with many options is a losing position. On the final guess, it prioritizes the most commonly used words to maximize the chance of a correct pick.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">For each guess it could suggest, the solver works out the colors that guess would get against every answer still possible, and scores it by how much those colors would narrow the answers down (its <em>expected information</em>). Common words count as likelier answers, since daily answers are everyday words. The Picks are the best guesses that could still be the answer, so they always fit your hints, hard mode included. On the final guess, or with two answers left, the most common word goes first.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What are Alt Picks?</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Alt Picks appear when the top suggestions all differ by only 1 or 2 letters (e.g. WAVER / RAVER / SAVER). Instead of guessing similar words one by one, an Alt Pick is a word from the full dictionary chosen to test several of those uncertain letters in a single guess, helping you narrow down the answer faster.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Alt Picks appear when a word that can't be the answer would narrow the answers down more than any word that can, for example when the answers left differ by a letter or two (WAVER / RAVER / SAVER). One guess then tests several uncertain letters at once, instead of trying the look-alikes one by one.</p>
         </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidate ranking uses a custom letter-frequency scoring model. Word popularity scores (used on the final guess) are derived from the <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #538d4e;">wordfreq</a> open-source Python library. Not affiliated with or endorsed by the New York Times.</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial solver for the New York Times Wordle puzzle, provided for assistance and entertainment purposes only. Candidates are ranked by the information their colors would reveal. Word popularity scores (used to weigh likely answers, and on the final guess) are derived from the <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #538d4e;">wordfreq</a> open-source Python library. Not affiliated with or endorsed by the New York Times.</p>
         </div>
       </div>
     </section>

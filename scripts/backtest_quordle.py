@@ -50,11 +50,11 @@ from collections import Counter
 
 sys.path.insert(0, 'c:/Users/james/projects/heroku_apps')
 sys.path.insert(0, 'c:/Users/james/projects/heroku_apps/scripts')
-from functions.wordle import quordle_solver_split_revamp, _filter_candidates, _picks, _options_line, ALPHABET
-from backtest_wordle import color_guess, extract_word, COLOR_CHAR
+from functions.wordle import quordle_solver_split_revamp, _picks, _options_line, ALPHABET
+from backtest_wordle import color_guess, extract_word, COLOR_CHAR, old_columns, _filter_candidates
 
 
-DATASET_PATH = 'c:/Users/james/projects/heroku_apps/datasets/word_data_created.csv'
+DATASET_PATH = 'c:/Users/james/projects/heroku_apps/datasets/wordle_words.csv'
 PAGE_ROWS = 10  # rows per board on the /quordle page
 GUESS_LIMITS = {'quordle': 9, 'sequence': 10}
 OLD_LEAD = 3    # old policy: a board with this many options or fewer is a lead
@@ -193,7 +193,7 @@ def board_view(out: tuple, k: int) -> tuple[list[str], int]:
 
 
 def old_policy(df, boxes, view):
-    out = old_solve(df, boxes)
+    out = old_solve(old_columns(df), boxes)
     played = set(view['history'])
     combined = [w for w in (extract_word(p) for p in out[:5]) if w and w not in played]
     open_boards = [k for k in range(4) if view['open'][k] and not view['solved'][k]]

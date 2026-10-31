@@ -1,9 +1,18 @@
 import re
 import numpy as np
 
-# The dataset's letter-by-position columns, first to fifth.
-PLACES = ['one', 'two', 'three', 'four', 'five']
 ALPHABET = 'abcdefghijklmnopqrstuvwxyz'
+# Each letter's value, a to z: how common it is in the word list, frozen when
+# the list was first scored. A word's static score is the sum over its
+# different letters (a repeat adds nothing), rounded to 4 places. It ranks
+# /fixer's words and breaks Quordle's last ties.
+LETTER_VALUE = np.array([
+    0.082313053, 0.026294971, 0.035524581, 0.041062347, 0.09949143,   # a-e
+    0.018722923, 0.024185346, 0.029572424, 0.058052364, 0.003428141,  # f-j
+    0.021171595, 0.053870785, 0.029610096, 0.045884347, 0.063514786,  # k-o
+    0.032774534, 0.002034281, 0.067281974, 0.098398945, 0.054548879,  # p-t
+    0.039969862, 0.011602938, 0.018346205, 0.005236391, 0.032586174,  # u-y
+    0.004520625])                                                     # z
 
 
 def _read_board(wordle_data_dict):
@@ -69,22 +78,54 @@ def _read_board(wordle_data_dict):
     return complete_rows, first_incomplete_row, gray, greens, yellows, guessed_word_set
 
 
-def _filter_candidates(df, gray, greens, yellows):
-    """The words in `df` a board allows, in df's order: every yellow letter
-    somewhere, no gray letter anywhere, each green in its position, and no
-    yellow letter in the position it was yellow in."""
+_words = None  # (df, the arrays _word_arrays returns)
+
+
+def _word_arrays(df):
+    """For the words in df, built once per df: letter codes (n, 5), letter
+    presence (n, 26), the static score (see LETTER_VALUE) and popularity."""
+    global _words
+    data = _words
+    if data is None or data[0] is not df:
+        codes = np.array([[ord(c) - 97 for c in w] for w in df['word']], dtype=np.int8)
+        has = np.zeros((len(codes), 26), bool)
+        for i in range(5):
+            has[np.arange(len(codes)), codes[:, i]] = True
+        # left to right, each letter's first use only
+        score = LETTER_VALUE[codes[:, 0]]
+        for i in range(1, 5):
+            score = score + LETTER_VALUE[codes[:, i]] * (codes[:, i:i + 1] != codes[:, :i]).all(1)
+        data = _words = (df, codes, has, np.round(score, 4), df['popularity_score'].to_numpy())
+    return data
+
+
+def _letter_code(letter):
+    """0 to 25 for a to z, else None (a letter no word has)."""
+    return ord(letter) - 97 if len(letter) == 1 and 'a' <= letter <= 'z' else None
+
+
+def _allowed(codes, has, gray, greens, yellows):
+    """Which words a board allows: every yellow letter somewhere, no gray
+    letter anywhere, each green in its position, and no yellow letter in the
+    position it was yellow in."""
+    keep = np.ones(len(codes), bool)
     for letter in ''.join(yellows):
-        df = df[df['word'].str.contains(letter, regex=False)]
-    for place in PLACES:
-        for letter in gray:
-            df = df[df[place] != letter]
-    for place, green in zip(PLACES, greens):
-        if green != '':
-            df = df[df[place] == green]
-    for place, letters in zip(PLACES, yellows):
+        c = _letter_code(letter)
+        keep &= has[:, c] if c is not None else False
+    for letter in gray:
+        c = _letter_code(letter)
+        if c is not None:
+            keep &= ~has[:, c]
+    for i, green in enumerate(greens):
+        if green:
+            c = _letter_code(green)
+            keep &= codes[:, i] == c if c is not None else False
+    for i, letters in enumerate(yellows):
         for letter in letters:
-            df = df[df[place] != letter]
-    return df
+            c = _letter_code(letter)
+            if c is not None:
+                keep &= codes[:, i] != c
+    return keep
 
 
 def _picks(df):
@@ -104,39 +145,82 @@ def _options_line(remaining, total):
     return f'Options remaining: {remaining}/{total} ({round(remaining/total*100,2)}%)'
 
 
-def wordle_solver_split_revamp(import_df, wordle_data_dict):
-    complete_rows, first_incomplete_row, gray, greens, yellows, guessed_word_set = \
-        _read_board(wordle_data_dict)
-    df = _filter_candidates(import_df, gray, greens, yellows)
-    # exclude already-guessed words from suggestions
-    if guessed_word_set:
-        df = df[~df['word'].isin(guessed_word_set)]
+# --- wordle -----------------------------------------------------------------
+# Every word is scored by how much its colors would tell about the answers
+# still possible (entropy, in bits), with common words counted as likelier
+# answers: daily answers are common words. Picks 1-5 are the best of the
+# possible answers, so they always fit the board (hard mode too). When a word
+# that can't be the answer would tell more than all of them, the best such
+# words are Alt Picks. On the last guess, or with two answers left, the most
+# common answer goes first. Quordle's machinery, on one board.
+# scripts/backtest_wordle.py measures it.
 
-    # on the final 2 guesses sort by popularity; otherwise sort by word_score for information gain
-    final_guess = first_incomplete_row == 6
-    df = df.sort_values(by='popularity_score' if final_guess else 'word_score', ascending=False)
-    rank_label = 'popularity' if final_guess else 'word score'
-    return (*_picks(df), f'{_options_line(len(df), len(import_df))} · ranked by {rank_label}',
-            first_incomplete_row, complete_rows, ''.join(gray), guessed_word_set)
+WORDLE_SHORTLIST = 60  # words, and possible answers, scored exactly each tap, by a cheap letter count first
+WORDLE_SAMPLE = 150    # possible answers each of them is scored against
+
+_wordle_opener = None  # (df, the empty board's result)
+
+
+def wordle_solver_split_revamp(import_df, wordle_data_dict):
+    """The 14-tuple for a board: five picks, the options line, the first
+    incomplete row, the complete rows, then whether to show Alt Picks and
+    the five Alt Picks."""
+    global _wordle_opener
+    df = import_df
+    empty = not any(entry['letter'] for entry in wordle_data_dict)
+    if empty and _wordle_opener is not None and _wordle_opener[0] is df:
+        return _wordle_opener[1]
+    complete_rows, first_incomplete_row, _, _, _, guessed_word_set = _read_board(wordle_data_dict)
+    _, codes, has, _, popularity = _word_arrays(df)
+    _, weights, _ = _quordle_arrays(df)
+    words = df['word'].to_numpy()
+    unplayed = ~np.isin(words, list(guessed_word_set))
+    cand = _board_answers(df, codes, wordle_data_dict, _played_rows(wordle_data_dict), unplayed)
+
+    alt = [False, '', '', '', '', '']
+    if len(cand) <= 2 or first_incomplete_row == 6:
+        ranked, rank_label = cand[np.argsort(-popularity[cand], kind='stable')], 'popularity'
+    else:
+        cheap = _letter_score(codes, has, [cand], weights)
+        cheap[~unplayed] = -np.inf
+        pool = np.union1d(np.argsort(-cheap, kind='stable')[:WORDLE_SHORTLIST],
+                          cand[np.argsort(-cheap[cand], kind='stable')[:WORDLE_SHORTLIST]])
+        sample = _spread(cand, WORDLE_SAMPLE)
+        bits = _entropy(_patterns(codes[pool], codes[sample]), weights[sample] / weights[sample].sum())
+        answer = np.isin(pool, cand)
+        best = np.argsort(-(bits + 1e-9 * answer), kind='stable')  # ties go to a possible answer
+        scored = np.full(len(df), -np.inf)
+        scored[pool] = bits
+        ranked, rank_label = cand[np.lexsort((-cheap[cand], -scored[cand]))], 'information'
+        if not answer[best[0]]:
+            others = pool[best[~answer[best]]][:5]
+            alt = [True] + [f'Alt Pick {k + 1}: {words[i]}' for k, i in enumerate(others)]
+            alt += [''] * (6 - len(alt))
+    result = (*_picks(df.iloc[ranked[:5]]), f'{_options_line(len(cand), len(df))} · ranked by {rank_label}',
+              first_incomplete_row, complete_rows, *alt)
+    if empty:
+        _wordle_opener = (df, result)
+    return result
 
 
 # last letter solver
 def find_word_with_letters(import_df, must_be_present: str):
     """The words with the most of these letters (a repeated one counts
-    again), best word_score first: 'Pick 1: word (n match)' to 'Pick 5'."""
-    must_be_present = must_be_present.lower()
-
-    df = import_df.copy()
-    df['char_match_count'] = [sum(1 for j in must_be_present if j in word) for word in df['word']]
-
-    df = df.sort_values(by = ['char_match_count', 'word_score'], ascending =  False)
-    df = df[['word', 'char_match_count']]
+    again), best static score first: 'Pick 1: word (n match)' to 'Pick 5'."""
+    _, _, has, score, _ = _word_arrays(import_df)
+    count = np.zeros(len(has), np.int64)
+    for letter in must_be_present.lower():
+        c = _letter_code(letter)
+        if c is not None:
+            count += has[:, c]
+    rank = np.lexsort((-score, -count))  # stable: ties stay in df's order
+    words = import_df['word'].to_numpy()
 
     picks = []
     for k in range(5):
-        try:
-            picks.append(f"Pick {k + 1}: {df.iat[k, 0]} ({df['char_match_count'].iloc[k]} match)")
-        except Exception:
+        if k < len(rank):
+            picks.append(f'Pick {k + 1}: {words[rank[k]]} ({count[rank[k]]} match)')
+        else:
             picks.append('No words found' if k == 0 else '')
     return tuple(picks)
 
@@ -148,85 +232,24 @@ def _pick_word(pick_str):
     return m.group(1).lower() if m else None
 
 
-def compute_alt_picks(import_df, picks, gray_letters='', guessed_word_set=None, min_match=4, force=False):
-    """
-    Given the top picks, check if Pick 1/2/3 differ by <=2 letter positions from each other.
-    If so, collect the unique letters in the varying positions across all top picks and find
-    eliminator words that cover as many of those letters as possible.
-    Searches the full word list minus gray (eliminated) letters so eliminators aren't
-    constrained to the answer candidate pool.
-
-    min_match: minimum number of varying letters the alt pick must cover (default 4).
-               Lower this when guesses are running out.
-    force: skip the "top 3 within 2 positions" gate. Use when remaining >> guesses_left.
-
-    Returns (show_alt, alt1, alt2, alt3, alt4, alt5).
-    """
-    words = [_pick_word(p) for p in picks[:3]]
-    if len(words) < 3 or any(w is None for w in words):
-        return False, '', '', '', '', ''
-
-    def pos_diff(a, b):
-        return sum(1 for x, y in zip(a, b) if x != y)
-
-    if not force:
-        pairs = [(words[0], words[1]), (words[0], words[2]), (words[1], words[2])]
-        if not all(pos_diff(a, b) <= 2 for a, b in pairs):
-            return False, '', '', '', '', ''
-
-    all_words = [_pick_word(p) for p in picks if p]
-    all_words = [w for w in all_words if w is not None]
-
-    varying_letters = set()
-    for pos in range(5):
-        letters_at_pos = {w[pos] for w in all_words if len(w) > pos}
-        if len(letters_at_pos) > 1:
-            varying_letters.update(letters_at_pos)
-
-    if not varying_letters:
-        return False, '', '', '', '', ''
-
-    # Search full word list, filtered to only gray (eliminated) letters
-    search_df = import_df.copy()
-    for letter in gray_letters:
-        search_df = search_df[~search_df['word'].str.contains(letter)]
-
-    # Exclude words already shown as regular picks or already guessed on the board
-    top_word_set = set(all_words)
-    if guessed_word_set:
-        top_word_set |= guessed_word_set
-    search_df = search_df[~search_df['word'].isin(top_word_set)]
-
-    if len(search_df) == 0:
-        return False, '', '', '', '', ''
-
-    raw = find_word_with_letters(search_df, ''.join(sorted(varying_letters)))
-
-    if raw[0]:
-        m = re.search(r'\((\d+) match\)', raw[0])
-        if not m or int(m.group(1)) < min_match:
-            return False, '', '', '', '', ''
-
-    relabeled = [re.sub(r'^Pick \d+:', f'Alt Pick {i}:', r) if r else '' for i, r in enumerate(raw, 1)]
-    return True, relabeled[0], relabeled[1], relabeled[2], relabeled[3], relabeled[4]
-
-
 # --- antiwordle ---------------------------------------------------------------
 # Antiwordle is won by lasting: every guess must keep the grays out, the greens
 # in place and the yellows somewhere, until only the answer is left to play.
-# The solver picks the guess whose likely colors leave the most words playable,
-# scored on log(words left) so one big all-gray outcome can't hide a likely
-# green, and a guess that could be the answer loses its odds of ending the game.
-# scripts/backtest_antiwordle.py measures it.
+# The solver picks the guess whose likely colors leave the most safe words:
+# playable words the colors prove can't be the answer, so playing one can't
+# end the game. Scored on log(safe words left) so one big all-gray outcome
+# can't hide a likely green, and a guess that could be the answer loses its
+# odds of ending the game. scripts/backtest_antiwordle.py measures it.
 
 # Answer odds by word: a logistic curve on popularity_score (a Zipf value), so
 # common words count as likely answers and rare ones as nearly safe.
-ANTI_POP_MID = 3.2
-ANTI_POP_SLOPE = 2.5
+ANTI_POP_MID = 2.8
+ANTI_POP_SLOPE = 1.5
 ANTI_PRERANK = 300  # possible answers the cheap pre-rank uses, evenly spaced
 ANTI_SAMPLE = 1000  # and the ones each of the top guesses is scored against
                     # (backtest: as long games as scoring against all of them)
-ANTI_TOP_K = 30     # guesses scored on words kept, after the pre-rank
+ANTI_SHORTLIST = 600  # playable words the pre-rank looks at: those whose letters reveal least
+ANTI_TOP_K = 100    # guesses scored on safe words kept, after the pre-rank
 _HIT = 242          # all green: the guess was the answer
 _POW3 = 3 ** np.arange(5)
 
@@ -239,11 +262,7 @@ def _anti_arrays(df):
     global _anti_data
     data = _anti_data
     if data is None or data[0] is not df:
-        codes = np.array([[ord(c) - 97 for c in w] for w in df['word']], dtype=np.int8)
-        has = np.zeros((len(codes), 26), bool)
-        for i in range(5):
-            has[np.arange(len(codes)), codes[:, i]] = True
-        pop = df['popularity_score'].to_numpy()
+        _, codes, has, _, pop = _word_arrays(df)
         odds = 1 / (1 + np.exp(-ANTI_POP_SLOPE * (pop - ANTI_POP_MID)))
         data = _anti_data = (df, codes, has, odds, {})
     return data
@@ -253,22 +272,47 @@ def _patterns(guesses, targets):
     """The colors each guess gets against each target (both rows of letter
     codes), as (len(guesses), len(targets)) codes 0 to 242: position k adds
     3**k for yellow and 2 * 3**k for green. Greens first, then yellows left
-    to right while the target has that letter to spare, as the game does."""
-    out = np.empty((len(guesses), len(targets)), np.int16)
-    t = targets[None, :, :]
-    step = max(1, 200_000 // max(1, len(targets)))  # keeps each block a few MB
-    for start in range(0, len(guesses), step):
-        g = guesses[start:start + step, None, :]
-        green = g == t
-        yellow = np.zeros_like(green)
-        code = np.zeros(green.shape[:2], np.int16)
-        for i in range(5):
-            letter = g[:, :, i:i + 1]
-            spare = ((t == letter) & ~green).sum(-1)
-            used = ((g[:, :, :i] == letter) & yellow[:, :, :i]).sum(-1)
-            yellow[:, :, i] = ~green[:, :, i] & (spare > used)
-            code += green[:, :, i] * (2 * 3 ** i) + yellow[:, :, i] * 3 ** i
-        out[start:start + step] = code
+    to right while the target has that letter to spare, as the game does.
+    A guess with five different letters takes a shortcut: a letter that
+    isn't green is yellow when the target has it at all."""
+    n = len(targets)
+    # how many of each letter each target has, (26, n)
+    count = np.bincount((targets.astype(np.intp) * n + np.arange(n)[:, None]).ravel(),
+                        minlength=26 * n).reshape(26, n).astype(np.int8)
+    has = count > 0
+    ordered = np.sort(guesses, 1)
+    distinct = (ordered[:, 1:] != ordered[:, :-1]).all(1)
+    out = np.empty((len(guesses), n), np.int16)
+    step = max(1, 400_000 // max(1, n))  # keeps each block a few MB
+    for rows, repeats in ((np.flatnonzero(distinct), False), (np.flatnonzero(~distinct), True)):
+        for start in range(0, len(rows), step):
+            block = rows[start:start + step]
+            g = guesses[block]
+            green = [g[:, i, None] == targets[None, :, i] for i in range(5)]
+            code = np.zeros((len(block), n), np.int16)
+            yellow = []
+            for i in range(5):
+                letter = g[:, i]
+                if not repeats:
+                    y = has[letter] & ~green[i]
+                else:
+                    # the target's copies of the letter that greens leave,
+                    # against the earlier yellows of it in this guess
+                    spare = count[letter].copy()
+                    for j in range(5):
+                        same = g[:, j] == letter
+                        if same.any():
+                            spare -= green[j] & same[:, None]
+                    used = np.zeros_like(spare)
+                    for j in range(i):
+                        same = g[:, j] == letter
+                        if same.any():
+                            used += yellow[j] & same[:, None]
+                    y = ~green[i] & (spare > used)
+                yellow.append(y)
+                code += green[i] * np.int16(2 * 3 ** i)
+                code += y * np.int16(3 ** i)
+            out[block] = code
     return out
 
 
@@ -309,8 +353,14 @@ def _played_rows(wordle_data_dict):
 def _anti_rank(codes, has, weights, playable, possible, known):
     """The playable word indexes, best guess first (just the top
     ANTI_TOP_K)."""
-    idx = np.flatnonzero(playable)
+    playable_idx = np.flatnonzero(playable)
     cand = np.flatnonzero(possible)
+    idx = playable_idx
+    if len(idx) > ANTI_SHORTLIST:
+        # the words whose letters split the answers least: where the pre-rank's
+        # picks come from anyway, at a fraction of the cost
+        cheap = _letter_score(codes, has, [cand], weights)
+        idx = np.sort(idx[np.argsort(cheap[idx], kind='stable')[:ANTI_SHORTLIST]])
 
     def spread(n):
         return cand[np.unique(np.linspace(0, len(cand) - 1, min(len(cand), n)).astype(int))]
@@ -327,11 +377,13 @@ def _anti_rank(codes, has, weights, playable, possible, known):
         bunched[start:start + 1000] = (buckets ** 2).sum(1)
     top = np.argsort(-bunched, kind='stable')[:ANTI_TOP_K]
 
-    # score: expected log(words still playable), times the odds the guess isn't the answer
+    # score: expected log(safe words still playable), times the odds the guess
+    # isn't the answer. The safe words are the playable ones less the answers
+    # the colors leave, which the sample estimates.
     sample = spread(ANTI_SAMPLE)
     weight = weights[sample]
     pats = _patterns(codes[idx[top]], codes[sample])
-    codes_a, has_a = codes[idx], has[idx]
+    codes_a, has_a = codes[playable_idx], has[playable_idx]
     total = weights[cand].sum()
     scores = []
     for pos, row in zip(top, pats):
@@ -340,10 +392,12 @@ def _anti_rank(codes, has, weights, playable, possible, known):
         for pattern in np.unique(row):
             if pattern == _HIT:
                 continue
-            w = weight[row == pattern].sum()
+            same = row == pattern
+            w = weight[same].sum()
             keep = _kept(codes_a, has_a, guess, pattern, known)
-            keep[pos] = False
-            value += w * np.log1p(keep.sum())
+            keep[np.searchsorted(playable_idx, idx[pos])] = False
+            answers = same.sum() / len(row) * len(cand)
+            value += w * np.log1p(max(keep.sum() - answers, 0))
             mass += w
         risk = weights[idx[pos]] / total if possible[idx[pos]] else 0
         scores.append((1 - risk) * value / mass if mass else 0)
@@ -496,8 +550,8 @@ def _board_answers(df, codes, boxes, rows, unplayed):
             possible[idx[pats // 3 ** i % 3 != digit]] = False
     if not possible.any():
         _, _, gray, greens, yellows, _ = _read_board(boxes)
-        allowed = _filter_candidates(df, gray, greens, yellows)['word']
-        possible = df['word'].isin(allowed).to_numpy() & unplayed
+        _, _, has, _, _ = _word_arrays(df)
+        possible = _allowed(codes, has, gray, greens, yellows) & unplayed
     return np.flatnonzero(possible)
 
 
@@ -509,7 +563,7 @@ def quordle_solver_split_revamp(import_df, quordle_data_dict, mode='quordle', po
     'quordle' or 'sequence'; popularity=False treats every word as an
     equally likely answer, for scripts/backtest_quordle.py."""
     df = import_df
-    _, codes, has, _, _ = _anti_arrays(df)
+    _, codes, has, word_score, _ = _word_arrays(df)
     _, odds, cache = _quordle_arrays(df)
     n = len(df)
     empty = not any(entry['letter'] for entry in quordle_data_dict)
@@ -571,7 +625,6 @@ def quordle_solver_split_revamp(import_df, quordle_data_dict, mode='quordle', po
         result = _picks(df.iloc[:0])
     result.append(_options_line(n, n))
 
-    word_score = df['word_score'].to_numpy()
     for k in boxes:
         if solved[k]:
             result += ['', '', '', '', '', 'Solved']

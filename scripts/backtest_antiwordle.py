@@ -12,12 +12,37 @@ Runs against every word in the dataset, or the most common ones, and reports
 the average game length and its distribution.
 
 Full runs, average guesses (all 5710 words / the 2300 most popular):
-  old ranking                    7.80 / 8.00
-  live                           9.21 / 10.06
-  live, --no-popularity          9.41 / 9.73
+  old ranking                                   7.80 / 8.00
+  most words left playable (2026-10-25)         9.21 / 10.06   longest game 24
+  live: most safe words left (2026-10-30)       9.55 / 10.27   longest game 27
+  live, --no-popularity                         9.54 / 9.55
+A safe word is a playable word the colors prove can't be the answer, so
+playing it can't end the game. The page has 30 rows.
+The popularity curve (midpoint / slope), full runs with the safe-word value:
+  3.2 / 2.5 (the 2026-10-25 curve)  9.30 / 10.17     2.8 / 2.0   9.49 / 10.25
+  3.0 / 2.0                         9.48 / 10.28     2.8 / 2.5   9.47 / 10.26
+  2.8 / 1.5 (live)                  9.55 / 10.27     2.6 / 2.0   9.46 / 10.18
+  2.5 / 1.5                         9.52 / 10.19
 Tried on 600 random targets and dropped: playing the rarest word once 10 or
 25 or fewer are playable (8.38 / 9.31 and 7.87 / 8.78), and an exact search
-of every order once 20 or fewer are playable (+0.04).
+of every order once 20 or fewer are playable (+0.04). Against the 2026-10-25
+ranking's 9.345 on those targets:
+  - an entropy term, a weight per nat the colors reveal: rewarding it
+    (+0.15 / +0.5: 9.375 / 9.350) or penalizing it (-0.15 / -0.5: 9.305 / 8.747)
+  - scoring more guesses, or against more answers (60 or 100 scored, 2000
+    sampled): 9.345, no change
+  - the safe-word value with 30 guesses scored, as before: 9.312. It needs
+    100 (9.470).
+Against the safe-word value's 9.470 there (3.2 / 2.5 curve):
+  - more guesses scored, 200 / 300: 9.210 / 9.400, and a 1200-word shortlist
+    with 200 scored: 9.210. A wider search finds more guesses that score
+    well on the value but play worse.
+  - a two-move lookahead (the top 4 guesses, their likeliest colors): 9.143,
+    and about 8x slower
+  - 2000 sampled answers: +0.03 to +0.07 on full runs (2.5 / 1.5 curve), for
+    15-20% more time
+  - log(answers left) added to the value (x0.25 / x0.5): 9.448 / 9.295; no
+    risk term: 9.322
 """
 
 import sys
@@ -30,11 +55,11 @@ from statistics import median
 
 sys.path.insert(0, 'c:/Users/james/projects/heroku_apps')
 sys.path.insert(0, 'c:/Users/james/projects/heroku_apps/scripts')
-from functions.wordle import antiwordle_solver_split_revamp, _read_board, _filter_candidates
-from backtest_wordle import color_guess, build_wordle_data, extract_word, COLOR_CHAR
+from functions.wordle import antiwordle_solver_split_revamp, _read_board
+from backtest_wordle import color_guess, build_wordle_data, extract_word, COLOR_CHAR, old_columns, _filter_candidates
 
 
-DATASET_PATH = 'c:/Users/james/projects/heroku_apps/datasets/word_data_created.csv'
+DATASET_PATH = 'c:/Users/james/projects/heroku_apps/datasets/wordle_words.csv'
 MAX_GUESSES = 100  # safety cap; a game ends on the answer long before this
 PAGE_ROWS = 30     # rows on the /antiwordle page
 
@@ -57,6 +82,7 @@ def load_df():
 def old_pick(df: pd.DataFrame, wordle_data: list[dict]) -> str | None:
     """Pick 1 from the ranking before the overhaul: the playable word with
     the lowest word_score, a yellow kept in its yellow spot scoring 0.75."""
+    df = old_columns(df)
     _, _, gray, greens, yellows, guessed = _read_board(wordle_data)
     cand = _filter_candidates(df.copy(), gray, greens, [''] * 5)
     required = ''.join(yellows)
