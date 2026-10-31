@@ -63,11 +63,11 @@ WITH rows_7d AS (
 SELECT
  CASE WHEN is_total = 1 THEN 'all games'
       ELSE REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') END AS page
-,visits
 ,people
 ,uses
 ,users
 ,ROUND(100 * users / NULLIF(people, 0)) AS use_rate_pct
+,visits
 ,ROUND(usual_by_now) AS usual_by_now
 ,ROUND(100 * (visits / NULLIF(usual_by_now, 0) - 1)) AS vs_usual_pct
 ,ROUND(per_day_7d) AS per_day_7d
