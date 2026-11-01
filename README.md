@@ -10,6 +10,8 @@ I'm a data analyst working toward data engineering, and casual data science like
 
 The web app itself is a hobby. I'm not trying to become a software engineer, I just enjoy building the place where the data lands. The first page this site deployed, in October 2022, was a Wordle solver, and the solvers have kept coming since.
 
+Building tools for people I'll never meet has convinced me that UX matters. Nobody is there to walk them through it, so the page itself has to show how it works, without a wall of instructions, and it has to be easy to use. My shorthand when I build is "1 click is unfortunate, 2 clicks is a tragedy." It's an exaggeration, but it keeps me honest about friction.
+
 ## Data projects
 
 ### Magic: The Gathering price tracker
