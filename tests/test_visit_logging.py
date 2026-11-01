@@ -75,13 +75,13 @@ def no_db(monkeypatch):
     import routes.misc
     import routes.ribbit
     import routes.smush
-    import routes.smush_dev
+    import routes.smush_ice
 
     def down():
         raise RuntimeError("no database in tests")
 
     for module in (crowd, extensions, routes.blossom, routes.chainle, routes.dashboards,
-                   routes.misc, routes.ribbit, routes.smush, routes.smush_dev):
+                   routes.misc, routes.ribbit, routes.smush, routes.smush_ice):
         monkeypatch.setattr(module, "db_cursor", down)
 
 

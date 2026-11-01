@@ -28,9 +28,12 @@ def _body(outer_uses, **extra):
 
 
 class _Dev:
-    def __init__(self, client, headers, jobs, db, module, sweeps):
+    def __init__(self, client, headers, jobs, db, module, sweeps, ice_module):
         self.client, self.headers, self.jobs, self.db, self.module = client, headers, jobs, db, module
         self.sweeps = sweeps
+        # routes/smush_ice.py: the ✗ counts, board caches and plan helpers
+        # this page shares with /smush.
+        self.ice = ice_module
 
     def post(self, body, headers=None):
         return self.client.post("/smush_dev", json=body,
@@ -40,13 +43,14 @@ class _Dev:
 @pytest.fixture
 def dev(client, monkeypatch):
     import routes.smush_dev as smush_dev
+    import routes.smush_ice as smush_ice
     import routes.wordgames as wordgames
 
     # Hermetic like smush_client: the committed word list, no DB curation.
     monkeypatch.setattr(wordgames, "get_smush_words", lambda: words)
     monkeypatch.setattr(smush_dev, "get_smush_words", lambda: words)
     db = _ScriptedDB()
-    monkeypatch.setattr(smush_dev, "db_cursor", db)
+    monkeypatch.setattr(smush_ice, "db_cursor", db)
     jobs = []
     monkeypatch.setattr(smush_dev, "TABLES", ice.TableCache(spawn=jobs.append))
     monkeypatch.setattr(smush_dev, "EXACT", ice.ExactCache())
@@ -54,10 +58,8 @@ def dev(client, monkeypatch):
     sweeps = []
     monkeypatch.setattr(smush_dev, "SWEEPER", ice.IdleSweeper(
         lambda: (smush_dev.TABLES, smush_dev.EXACT), start=sweeps.append))
-    monkeypatch.setattr(smush_dev, "_vote_counts", {})
-    monkeypatch.setattr(smush_dev, "_board_results", {})
     monkeypatch.setattr(smush_dev, "_played", {"day": None, "boards": {}})
-    return _Dev(client, _admin_headers(monkeypatch), jobs, db, smush_dev, sweeps)
+    return _Dev(client, _admin_headers(monkeypatch), jobs, db, smush_dev, sweeps, smush_ice)
 
 
 def test_the_page_and_its_api_need_the_admin_password(dev):
@@ -119,11 +121,11 @@ def test_a_finished_game_gives_its_tables_back(dev, monkeypatch):
 
 def test_boards_played_once_dont_pile_up(dev):
     dev.post(_body(LATE, spicy="m"))
-    for cache in (dev.module._board_results, dev.module._vote_counts):
+    for cache in (dev.ice._board_results, dev.ice._vote_counts):
         cache[TAG] = (0.0, cache[TAG][1])                  # long run out
     dev.post(dict(_body(dict.fromkeys("bcghlntu", 1)), center="i"))
-    assert list(dev.module._board_results) == ["i:bcghlntu"]
-    assert list(dev.module._vote_counts) == ["i:bcghlntu"]
+    assert list(dev.ice._board_results) == ["i:bcghlntu"]
+    assert list(dev.ice._vote_counts) == ["i:bcghlntu"]
 
 
 def test_played_words_count_as_accepted_for_the_board(dev):
@@ -133,19 +135,19 @@ def test_played_words_count_as_accepted_for_the_board(dev):
 
 def test_x_votes_are_read_once_per_board(dev, monkeypatch):
     db = _ScriptedDB(rows={"FROM smush_word_votes v": [("glum", 2)]})
-    monkeypatch.setattr(dev.module, "db_cursor", db)
+    monkeypatch.setattr(dev.ice, "db_cursor", db)
     dev.post(_body(LATE, spicy="m"))
     dev.post(_body(LATE, spicy="g"))
     [(sql, params)] = db.statements("FROM smush_word_votes v")
     assert sql.startswith("SELECT")
     assert params[-1] == CROWD_MAX_INVALID_PER_DAY
-    assert dev.module.invalid_vote_counts(TAG, ["glum"]) == {"glum": 2}
+    assert dev.ice.invalid_vote_counts(TAG, ["glum"]) == {"glum": 2}
 
 
 def test_a_database_blip_just_means_no_x_evidence(dev, monkeypatch):
     def broken():
         raise RuntimeError("JawsDB is napping")
-    monkeypatch.setattr(dev.module, "db_cursor", broken)
+    monkeypatch.setattr(dev.ice, "db_cursor", broken)
     resp = dev.post(_body(LATE, spicy="m"))
     assert resp.status_code == 200
     assert resp.get_json()["plan"]["mode"] == "ice_cold"
@@ -196,5 +198,5 @@ def test_junk_input_returns_400(dev, patch):
 def test_planning_spice(dev, spicy, uses, expected):
     letters = tuple(sorted(uses))
     L = tuple(uses[l] for l in letters)
-    got = dev.module.planning_spice(spicy, letters, L)
+    got = dev.ice.planning_spice(spicy, letters, L)
     assert (letters[got] if isinstance(got, int) else got) == expected

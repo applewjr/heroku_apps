@@ -45,6 +45,33 @@ def no_board_reads(monkeypatch):
         monkeypatch.setattr(module, "_board_cache", {})
 
 
+@pytest.fixture(autouse=True)
+def no_ice_builds(monkeypatch):
+    """Never really build an ICE COLD table in a test, for every test.
+
+    A full-board build takes a minute and ~110 MB, and its pool reads ✗
+    counts from smush_word_votes - the production JawsDB, through
+    ``secret_pass.py``. Any read of a day's board can start one
+    (routes/smush.py _prewarm_ice), so today's boards' cache here keeps its
+    build threads in a list instead of running them, its sweeper never
+    starts, and its caches start empty. tests/test_smush_ice.py runs the
+    builds it needs by hand.
+    """
+    import routes.smush_ice as smush_ice
+    from functions import smush_ice_cold as ice
+
+    builds = []
+    monkeypatch.setattr(smush_ice, "TODAY_TABLES",
+                        smush_ice.today_tables(spawn=builds.append, may_start=None,
+                                               must_shed=None))
+    monkeypatch.setattr(smush_ice, "EXACT", ice.ExactCache())
+    monkeypatch.setattr(smush_ice, "SWEEPER", ice.IdleSweeper(
+        lambda: (smush_ice.TODAY_TABLES, smush_ice.EXACT), start=lambda loop: None))
+    monkeypatch.setattr(smush_ice, "_vote_counts", {})
+    monkeypatch.setattr(smush_ice, "_board_results", {})
+    return builds
+
+
 @pytest.fixture(scope="session")
 def flask_app():
     # Importing app.py wires the blueprints, SSLify, ProxyFix, and pings Redis.

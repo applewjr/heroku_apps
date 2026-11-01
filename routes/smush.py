@@ -110,14 +110,15 @@ def _puzzle_tag(center, outer):
 
 
 SMUSH_VOTE_ACTIONS = ('reject', 'restore', 'suggest_missing')
-# The results tabs, as SORT_MODES in smush.html and smush_dev.html. A ✗ on
-# the All 8 tab also re-plans, so some of those are steering, not refusals.
-SMUSH_RESULT_TABS = ('pts', 'eff', 'all8', 'pan')
+# The results tabs, as SORT_MODES in smush.html (smush_dev.html has all but
+# 'ice', /smush's 🧊 Ice Cold tab). A ✗ on the All 8 or Ice Cold tab also
+# re-plans, so some of those are steering, not refusals.
+SMUSH_RESULT_TABS = ('pts', 'eff', 'all8', 'pan', 'ice')
 
 
 def _vote_mode(data, dev):
     """The tab the player voted from, for the vote log only: 'dev_<tab>'
-    from /smush_dev, plus '_ice' with Ice Cold on. None when the page didn't
+    from /smush_dev, plus '_ice' with its Ice Cold toggle on. None when the page didn't
     say (one loaded before it started saying) or said something else - never
     a reason to refuse the vote."""
     tab = data.get('mode')
@@ -244,8 +245,9 @@ def smush_remove_word():
 # Live on /smush since 2026-10-24 (James's call), after a dark launch from
 # 2026-10-23 in which /smush only logged boards and /smush_dev2, his
 # password-only copy of the public page (removed 2026-10-25), served them.
-# (/smush_dev, with ICE COLD, isn't for release.) Players are never told how
-# a board is chosen (see crowd.py on why).
+# Today's boards are also the only ones /smush plans ICE COLD for
+# (routes/smush_ice.py): a board decided here starts its plan building.
+# Players are never told how a board is chosen (see crowd.py on why).
 
 # Players on one board that serve it, when nothing is approved (James,
 # 2026-10-23).
@@ -266,6 +268,10 @@ APPROVAL = 'admin'
 # Live on /smush (James's call, 2026-10-24). False goes back to the dark
 # launch: /smush logs boards but serves none, even to a direct call.
 SMUSH_BOARD_LIVE = True
+# /smush's 🧊 Ice Cold tab, on today's board (routes/smush_ice.py; it needs
+# SMUSH_BOARD_LIVE too). False is the kill switch: no tab, no plans, no
+# builds.
+SMUSH_ICE_LIVE = True
 # A date counts toward a puzzle's first_seen only once this many networks
 # logged it then, so one device with a wrong clock can't make today's puzzle
 # look like an older one.
@@ -562,7 +568,21 @@ def _board_for(day):
         _board_cache[day] = (time.monotonic() + BOARD_RETRY_SECONDS, None)
     for old in [d for d in list(_board_cache) if abs((d - day).days) > 2]:
         _board_cache.pop(old, None)
+    if board is not None:
+        _prewarm_ice(day, board)
     return board
+
+
+def _prewarm_ice(day, board):
+    """`board` is (still) the one for `day`: if `day` is today somewhere, its
+    ICE COLD table starts building now, so it's ready before anyone opens the
+    tab (routes/smush_ice.py). This is how a board the crowd just settled, a
+    restart and an approval all start one. Never raises."""
+    try:
+        from routes import smush_ice      # here: smush_ice imports this module
+        smush_ice.prewarm(day, board)
+    except Exception as e:  # noqa: BLE001 - nothing here may take a page down
+        alerts.alert_throttled('smush_ice_build_failed', exc=type(e).__name__, msg=e)
 
 
 def _log_board(data):
@@ -667,6 +687,7 @@ def smush_approve_board():
         print(f"Error approving smush board: {e}")
         return _back(error='Database error')
     _board_cache.clear()
+    _prewarm_ice(day, {'center': letters[0], 'outer': letters[1:]})
     spice = f" with {spicy.upper()} spicy" if spicy else ''
     return _back(success=f"Approved {board_text(letters)}{spice} for {day:%m-%d}")
 
