@@ -31,6 +31,7 @@ requests only (routes/smush_dev.py).
 
 import threading
 import time
+from collections import OrderedDict
 from datetime import date, datetime, timedelta, timezone
 
 from crowd import CROWD_MAX_INVALID_PER_DAY
@@ -159,6 +160,52 @@ def full_board_results(tag, center, letters, smush_words):
     return results
 
 
+##### the simulated chance and points #####
+
+# What simulate() found for the positions players asked about lately, so a
+# re-poll or a tap on another spicy tile costs nothing.
+SIMS = ice.ExactCache(size=256)
+# Today's boards' openings, worked out in the build thread right after each
+# table is built (OPENING_TILES runs of ice.SIM_OPENING_ROLLOUTS games), so
+# the first card every player sees is the precise one:
+# (tag, pool fingerprint) -> {spice: ice.Simulated}.
+_openings = OrderedDict()
+OPENINGS_KEPT = 4
+OPENING_TILES = ['unknown'] + list(range(ice.N_LETTERS))
+
+
+def simulate_opening(tag, table, pool):
+    """TableCache after_built: a just-built table's opening, for every spicy
+    tile and an untapped one (about 2 s each)."""
+    started = time.monotonic()
+    runs = {s: ice.simulate(table, pool, ice.FULL_ROOT, s, 0, ice.SIM_OPENING_ROLLOUTS,
+                            ice._seed(ice.FULL_ROOT, s))
+            for s in OPENING_TILES}
+    print(f"smush_ice: simulated {tag}'s opening in {time.monotonic() - started:.0f} s, "
+          f"{runs['unknown'].chance:.0%} clean")
+    key = (tag, pool.fingerprint())
+    with _cache_lock:
+        _openings[key] = runs
+        _openings.move_to_end(key)
+        while len(_openings) > OPENINGS_KEPT:
+            _openings.popitem(last=False)
+
+
+def simulated(tag, table, pool, L, spice, words_played):
+    """simulate()'s result for this position: the opening's, worked out
+    ahead, when the player's word list is still the board's; else played
+    out now and kept a while."""
+    fingerprint = pool.fingerprint()
+    if L == ice.FULL_ROOT and words_played == 0:
+        with _cache_lock:
+            hit = _openings.get((tag, fingerprint), {}).get(spice)
+        if hit is not None:
+            return hit
+    return SIMS.get((tag, id(table), fingerprint, L, spice, words_played),
+                    lambda: ice.simulate(table, pool, L, spice, words_played,
+                                         ice.SIM_ROLLOUTS, ice._seed(L, spice)))
+
+
 ##### the tables #####
 
 def alert_build_failed(exc):
@@ -192,7 +239,8 @@ def _short_of_memory():
 def today_tables(**overrides):
     """Today's boards' cache, as TODAY_TABLES has it (tests swap in their own,
     with a spawn that never runs)."""
-    settings = dict(on_error=alert_build_failed, on_built=log_built, max_tables=ICE_MAX_TABLES,
+    settings = dict(on_error=alert_build_failed, on_built=log_built,
+                    after_built=simulate_opening, max_tables=ICE_MAX_TABLES,
                     rebuild_gap=None, idle_seconds=TODAY_IDLE_SECONDS,
                     max_builds_per_day=TODAY_BUILDS_PER_DAY, may_start=_room_to_build,
                     must_shed=_short_of_memory, wait_retry=ICE_BUILD_WAIT_SECONDS,
@@ -205,7 +253,7 @@ TODAY_TABLES = today_tables()
 EXACT = ice.ExactCache()
 # Drops yesterday's table and idle exact tables, and starts a build that
 # waited for memory; it stops once nothing is held.
-SWEEPER = ice.IdleSweeper(lambda: (TODAY_TABLES, EXACT))
+SWEEPER = ice.IdleSweeper(lambda: (TODAY_TABLES, EXACT, SIMS))
 _plan_slots = threading.BoundedSemaphore(PLANS_AT_ONCE)
 
 
@@ -299,34 +347,38 @@ def waiting(status, eta, spice, letters):
     """A plan payload with no plan in it yet, or none to come."""
     return {'mode': 'ice_cold', 'status': status, 'eta': eta, 'p_success': None,
             'expected_points': None, 'next': [], 'by_spice': {}, 'finish_words': [],
-            'sim_win_rate': None, 'reason': WAITING_REASONS.get(status),
+            'sim_games': 0, 'reason': WAITING_REASONS.get(status),
             'spice': None if spice is None else ('unknown' if spice == 'unknown' else letters[spice])}
 
 
-def exact_plan(cache, tag, letters, L, spice, results, accepted, votes):
+def exact_plan(cache, tag, letters, L, spice, results, accepted, votes, words_played=0):
     """The plan solved exactly from this player's own pool (their played and
     ✗'d words are already out of `results`), for a small box."""
     pool = ice.Pool(ice.make_groups(results, letters, accepted, votes))
     table = cache.get((tag, L, pool.fingerprint()), lambda: ice.solve_box(L, pool.groups))
-    payload = ice.plan_payload(table, pool, L, spice, letters)
+    sim = simulated(tag, table, pool, L, spice, words_played)
+    payload = ice.plan_payload(table, pool, L, spice, letters, words_played, sim)
     payload['source'] = 'exact'
     return payload
 
 
-def table_plan(table, status, eta, letters, L, spice, results, accepted, votes):
+def table_plan(table, status, eta, tag, letters, L, spice, results, accepted, votes,
+               words_played=0):
     """The plan from a board's full table, or why there isn't one yet."""
     if table is None:
         return waiting(status, eta, spice, letters)
     pool = ice.Pool(ice.make_groups(results, letters, accepted, votes))
-    payload = ice.plan_payload(table, pool, L, spice, letters)
+    sim = simulated(tag, table, pool, L, spice, words_played)
+    payload = ice.plan_payload(table, pool, L, spice, letters, words_played, sim)
     payload['source'] = 'table'
     return payload
 
 
-def public_plan(center, outer_uses, spicy, results, smush_words):
+def public_plan(center, outer_uses, spicy, results, smush_words, words_played=0):
     """/smush's 🧊 Ice Cold tab: the plan for this position, on today's board
     only, with no played-word evidence. `results` is the player's own solve
-    (smush_solver, their played and ✗'d words out)."""
+    (smush_solver, their played and ✗'d words out); `words_played` counts
+    them, for Word Hoard."""
     letters = tuple(sorted(outer_uses))
     tag = board_tag(center, letters)
     L = tuple(outer_uses[l] for l in letters)
@@ -339,10 +391,12 @@ def public_plan(center, outer_uses, spicy, results, smush_words):
         full = full_board_results(tag, center, letters, smush_words)
         votes = invalid_vote_counts(tag, sorted({r['word'] for r in full}))
         if ice.states_below(L) <= ice.ICE_EXACT_STATES:
-            payload = exact_plan(EXACT, tag, letters, L, spice, results, frozenset(), votes)
+            payload = exact_plan(EXACT, tag, letters, L, spice, results, frozenset(), votes,
+                                 words_played)
         else:
             table, status, eta = today_table(tag, center, letters)
-            payload = table_plan(table, status, eta, letters, L, spice, results, frozenset(), votes)
+            payload = table_plan(table, status, eta, tag, letters, L, spice, results,
+                                 frozenset(), votes, words_played)
     finally:
         _plan_slots.release()
     SWEEPER.poke()

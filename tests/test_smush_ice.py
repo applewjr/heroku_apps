@@ -176,6 +176,43 @@ def test_what_a_player_says_they_played_is_never_proof(client, today, monkeypatc
     assert seen and not any(seen)
 
 
+def test_the_opening_worked_out_ahead_answers_the_first_card(today, monkeypatch):
+    # After a build, the opening's numbers are worked out once; a player
+    # whose word list is still the board's gets those, not a fresh sample.
+    pool = smush_ice._shared_pool(TAG, "e", tuple("adilnrst"))
+    ahead = ice.Simulated(0.42, 123.0, ("lead",), ice.SIM_OPENING_ROLLOUTS)
+    monkeypatch.setitem(smush_ice._openings, (TAG, pool.fingerprint()), {"unknown": ahead})
+    monkeypatch.setattr(smush_ice, "SIMS", ice.ExactCache())
+    calls = []
+    monkeypatch.setattr(ice, "simulate",
+                        lambda *a, **k: calls.append(a) or ice.Simulated(0.1, 1.0, (), 64))
+    table = object()
+    assert smush_ice.simulated(TAG, table, pool, ice.FULL_ROOT, "unknown", 0) is ahead
+    assert not calls
+    smush_ice.simulated(TAG, table, pool, ice.FULL_ROOT, "unknown", 1)   # one word in
+    smush_ice.simulated(TAG, table, pool, ice.FULL_ROOT, "unknown", 1)   # asked again: kept
+    assert len(calls) == 1
+
+
+def test_a_flat_board_answers_done(client, today):
+    plan = _ice(client, dict.fromkeys("adilnrst", 0), played=["lead", "tide", "rent"])
+    assert plan["status"] == "done" and plan["p_success"] == 1.0
+
+
+def test_the_played_words_count_toward_word_hoard(client, today, monkeypatch):
+    seen = []
+    real = ice.simulate
+
+    def spy(table, pool, L, s, words_played=0, *rest, **kw):
+        seen.append(words_played)
+        return real(table, pool, L, s, words_played, *rest, **kw)
+
+    monkeypatch.setattr(ice, "simulate", spy)
+    monkeypatch.setattr(smush_ice, "SIMS", ice.ExactCache())
+    plan = _ice(client, LATE, played=["lead", "deal"])
+    assert seen == [2] and plan["sim_games"] == ice.SIM_ROLLOUTS
+
+
 def test_too_many_plans_at_once_answer_busy(client, today, monkeypatch):
     monkeypatch.setattr(smush_ice, "_plan_slots", threading.BoundedSemaphore(1))
     smush_ice._plan_slots.acquire()                # another player's plan is being worked out

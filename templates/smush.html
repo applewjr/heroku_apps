@@ -1094,11 +1094,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const hoard = played.length >= HOARD_WORDS ? 'Word Hoard ✓'
                         : `Word Hoard: ${played.length}/${HOARD_WORDS} words`;
-            html += `<div class="ice-card${p.p_success > 0 ? '' : ' bad'}">
+            // The chance is the share of simulated games that finished clean:
+            // none of them, with a clean line still there, is a long shot,
+            // not a lost cause. Only a reason says no clean finish is left.
+            const chance = p.p_success || p.reason ? pct(p.p_success) : 'Under 2%';
+            html += `<div class="ice-card${p.reason ? ' bad' : ''}">
                 <div class="ice-chance">≈ ${finalScore(p.expected_points)}<small>expected final score</small></div>
-                ${pct(p.p_success)} chance of a clean ICE COLD finish · ${hoard}
-                ${p.p_success > 0 ? '' : `<br>🫥 No clean finish is left: ${esc(p.reason || '')}
-                    Playing for the most ICE COLD points instead.`}
+                ${chance} chance of a clean ICE COLD finish · ${hoard}
+                ${p.reason ? `<br>🫥 No clean finish is left: ${esc(p.reason)}
+                    Playing for the most ICE COLD points instead.` : ''}
             </div>`;
             if (p.spice === 'unknown') {
                 html += `<div class="ice-label">Where's the 🌶 now? Tap it, or play that tile's word</div>`;
@@ -1106,7 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!ch || i === CENTER || (uses[ch] ?? MAX_USES) === 0) return;
                     const w = (p.by_spice || {})[ch];
                     html += `<div class="spice-row"><span class="spice-tile">${ch.toUpperCase()}</span>`;
-                    html += w ? `${wordRowHtml(w)}<span class="spice-chance" title="expected final score · clean-finish chance">≈${finalScore(w.exp)}<br>${pct(w.p)}</span>`
+                    html += w ? wordRowHtml(w)
                               : `<span class="spice-chance spice-stop">${enough ? '🌶 here? Stop now (×5 kept)' : '🌶 here? ICE COLD is out'}</span>`;
                     html += `</div>`;
                 });

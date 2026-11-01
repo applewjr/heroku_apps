@@ -375,7 +375,8 @@ def run_smush():
 
         plan = None
         if ice_cold and ice_live:
-            plan = smush_ice.public_plan(center, outer_uses, spicy, results, smush_words)
+            plan = smush_ice.public_plan(center, outer_uses, spicy, results, smush_words,
+                                         words_played=len(played))
         elif want_plan:
             plan_words, leftover = all_words.smush_all_plan(results, outer_uses)
             plan = {'complete': not leftover, 'words': plan_words,

@@ -26,9 +26,12 @@ cleaned ICE COLD at all (a Q that no word but the pangram can spend).
 The model. A state is the remaining uses L (a count 0..5 per outer letter, in
 sorted letter order) and the spicy tile s (a letter index, or None in the
 null turn). From each state, under the best play:
-  - J(L, s) is the points still to come before the x5: every word's points,
-    plus CLEAN_BONUS on a clean finish, plus WORD_HOARD_PER_WORD a word;
-  - P(L, s) is that same plan's chance of a clean finish, for the page.
+  - J(L, s) is what the plan steers by: the points still to come before the
+    x5 (every word's points, plus WORD_HOARD_PER_WORD a word), plus
+    CLEAN_PLAN_BONUS on a clean finish;
+  - P(L, s) is that same plan's chance of a clean finish, as the table sees it.
+Neither is shown: the page's chance and points come from simulate(), the plan
+played out against the player's own word list.
 Where:
   - a move is a cost signature (uses of each letter) that avoids s and fits
     L; words sharing a signature are interchangeable, so they form a Group;
@@ -56,6 +59,13 @@ averages 206 points before the x5 (1,030 after) and finishes clean in 35 of
 88 games; playing for the clean finish alone averages 190 (951) and
 finishes clean in 43. Told exactly which words Smush takes, this planner
 would average 218.
+
+On 2026-11-01 (James's call) the plan began counting a clean finish at
+CLEAN_PLAN_BONUS instead of its real 75. Played out on the live word lists
+of the ten boards from 2026-10-23 to 11-01 (words taken at the odds below,
+a random first spice, 1,000 games a board), it finishes clean in 63% of
+games against 48%, for 2% fewer final points (1,079 against 1,105). The
+2026-11-01 board went from no clean finishes at all to 14%.
 
 J and P are solved exactly, bottom-up with numpy, over the box of every state
 at or below a root L (mixed-radix indexing, one layer per total remaining
@@ -101,14 +111,32 @@ COMPACT_STATES = 200_000
 
 # Points before the x5 that a clean finish adds: Clean Plate +50, and the
 # Unassisted +25 a stuck game loses by ending through "stuck?" (a hint).
-# Planning as if it were worth 100 or 150 won back no clean finishes in
-# simulation (35-36 of 88) and scored a little less.
 CLEAN_BONUS = 75.0
+# What the table and the move order count a clean finish as (James's call,
+# 2026-11-01). The table underrates how often a clean line comes off - a
+# turn ends after three refusals, a group's later uses get its worse words,
+# and a state the n-uses rule blocks counts as a dead end though the plan
+# plays on - so planning at the real 75 gave up clean finishes it could
+# have had. On the 2026-11-01 board that plan finished clean in 0.3% of
+# simulated games for 921 final; planning at 1,000, 17% for 1,020. Only the
+# planning uses it: everything shown counts CLEAN_BONUS (simulate).
+CLEAN_PLAN_BONUS = 1000.0
 # Word Hoard is +25 for 13+ words. The table can't count words (that would
 # multiply it by 14), so each word carries a share of it instead. Simulated:
 # 2 a word scored 206 a game with 24 Word Hoards in 88 games; 0 scored 200
 # with 15.
 WORD_HOARD_PER_WORD = 2.0
+# The bonus itself, as simulate() counts it: +25 at the end of a game of
+# HOARD_WORDS words or more.
+HOARD_WORDS = 13
+HOARD_BONUS = 25.0
+
+# Games simulate() plays for the chance and points the page shows: per
+# request (about 250 ms at the opening, measured 2026-11-01; about +/-5
+# points of chance), and for a board's opening, worked out once after its
+# table is built (about 2 s per spicy tile).
+SIM_ROLLOUTS = 64
+SIM_OPENING_ROLLOUTS = 500
 
 # Acceptance priors: the share of our dictionary's words Smush accepted, by
 # Zipf popularity bucket (>= 3.3, >= 2.7, >= 2.0, > 0, unknown), measured
@@ -395,7 +423,7 @@ def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False, progress=N
     each spicy column, the moves are the groups that fit, avoid that letter
     and pass the n-uses rule. A move is worth its expected word points, plus
     the Word Hoard share, plus the child's J averaged over where the spice
-    lands (CLEAN_BONUS if it clears the board). The state keeps the
+    lands (CLEAN_PLAN_BONUS if it clears the board). The state keeps the
     KEEP_MOVES moves that would deliver most if tried first (acceptance x
     value) - keeping the highest values instead let rare long shots crowd out
     the likely word and halve a state's worth - and its J is their try list,
@@ -497,7 +525,7 @@ def solve_box(root, groups, compact=None, chunk=1 << 14, dense=False, progress=N
                 valid = alive[rows] & ~POS[g][None, :]
                 # The spice-free turn (one tile left): from no spice, it lands
                 # on any living tile - or the board is clear.
-                qjn = np.where(child == 0, CLEAN_BONUS, csj / np.maximum(cn, 1.0))
+                qjn = np.where(child == 0, CLEAN_PLAN_BONUS, csj / np.maximum(cn, 1.0))
                 qpn = np.where(child == 0, 1.0, csp / np.maximum(cn, 1.0))
                 smushed = ((Dr == SIG8[g]) & POS[g]).sum(1)
                 word = EB[g] * (1 + smushed) + hoard
@@ -613,7 +641,7 @@ def _child_values(table, L, s, SIG):
     qj = np.where(n > 0, (cj[:, :N_LETTERS] * landing).sum(1) / np.maximum(n, 1), cj[:, NULL])
     qp = np.where(n > 0, (cp[:, :N_LETTERS] * landing).sum(1) / np.maximum(n, 1), cp[:, NULL])
     clear = ~alive.any(1)
-    return np.where(clear, CLEAN_BONUS, qj), np.where(clear, 1.0, qp)
+    return np.where(clear, CLEAN_PLAN_BONUS, qj), np.where(clear, 1.0, qp)
 
 
 def legal_moves(pool, L, s, used=None, window=True):
@@ -713,13 +741,13 @@ def plan_value(moves):
     return points, chance
 
 
-def fallback_moves(pool, L, s):
+def fallback_moves(pool, L, s, used=None):
     """Every safe move from (L, s), ignoring the n-uses rule, by the points
     it scores now. Only for when the plan has no move at all (a board where
     every opening word would be a group's first of several uses, or a lost
     endgame): the table can't value what comes after - it could count on
     playing the same word again - so these promise no clean finish."""
-    idx = legal_moves(pool, L, s, window=False)
+    idx = legal_moves(pool, L, s, used, window=False)
     if not len(idx):
         return []
     SIG = pool.SIG[idx]
@@ -736,36 +764,74 @@ def moves_from(table, pool, L, s):
     return rank_moves(table, pool, L, s) or fallback_moves(pool, L, s)
 
 
-def finish_words(table, pool, L, s, seed, rollouts=24, top=3):
-    """Play the plan out `rollouts` times against a random spice (words all
-    taken) and report the words its clean games end on - the closer and the
-    solo word worth saving - with the share of games that finished clean."""
+@dataclass(frozen=True)
+class Simulated:
+    """What simulate() saw: the share of games that finished clean, the
+    points still to come before the x5, and the words the clean games ended
+    on, most often first."""
+    chance: float
+    points: float
+    finish_words: tuple
+    games: int
+
+
+def simulate(table, pool, L, s, words_played=0, rollouts=SIM_ROLLOUTS, seed=0, top=3):
+    """Play the plan out `rollouts` times from (L, s), the way a player
+    following the page would, and average what they get.
+
+    Each turn plays the plan's word (best_move, or the best-scoring safe word
+    when the plan has none), and Smush takes it at its odds. A refused word
+    is spent - the player ✗s it - and the plan goes again from the same
+    position; a taken one scores base x (1 + letters smushed flat) and moves
+    the spice to a random other living tile, as the game does. A game ends
+    clean (+CLEAN_BONUS), or when no safe word is left. Word Hoard's +25
+    counts once the game's words, `words_played` included, reach HOARD_WORDS.
+
+    The table only chooses the moves. Its own J and P misjudge some boards
+    in both directions (a turn ends after three refusals, the n-uses dead
+    ends, and words removed since it was built), so what the page shows comes
+    from here, against the player's current word list."""
     rng = random.Random(seed)
     tally = Counter()
     wins = 0
+    total = 0.0
     for _ in range(rollouts):
         state = list(L)
         spice = s
         if spice == 'unknown':
-            spice = rng.choice([i for i, l in enumerate(state) if l > 0])
+            alive = [i for i, l in enumerate(state) if l > 0]
+            spice = rng.choice(alive) if alive else None
         used = {}
         path = []
+        points = 0.0
         for _step in range(4 * N_LETTERS * 5):
             if not any(state):
-                wins += 1
-                tally.update(path[-2:])
                 break
             move = best_move(table, pool, state, spice, used)
             if move is None:
-                break
+                fallback = fallback_moves(pool, state, spice, used)
+                if not fallback:
+                    break
+                move = fallback[0]
             g = move.group
             k = used.get(g.sig, 0)
             used[g.sig] = k + 1
+            if rng.random() >= g.accepts[k]:
+                continue
+            points += g.bases[k] * (1 + sum(1 for c, l in zip(g.sig, state) if c and c == l))
             path.append(g.words[k])
             state = [l - c for l, c in zip(state, g.sig)]
             landing = [i for i, l in enumerate(state) if l > 0 and i != spice]
             spice = rng.choice(landing) if landing else None
-    return [w for w, _ in tally.most_common(top)], wins / rollouts if rollouts else 0.0
+        if not any(state):
+            wins += 1
+            points += CLEAN_BONUS
+            tally.update(path[-2:])
+        if words_played + len(path) >= HOARD_WORDS:
+            points += HOARD_BONUS
+        total += points
+    n = max(rollouts, 1)
+    return Simulated(wins / n, total / n, tuple(w for w, _ in tally.most_common(top)), rollouts)
 
 
 def impossible_reason(pool, L, letters, s='unknown'):
@@ -798,41 +864,42 @@ def _seed(L, s):
     return int(hashlib.sha1(repr((tuple(L), s)).encode()).hexdigest()[:8], 16)
 
 
-def plan_payload(table, pool, L, s, letters, rollouts=24):
-    """The /smush_dev plan for a solved table: the best word (with its try
-    order) for the known spicy tile, or the best word for each tile it could
-    be on; the expected points still to come (before the x5) and the chance
-    of a clean finish; and the words worth saving for the end.
+def plan_payload(table, pool, L, s, letters, words_played=0, sim=None):
+    """The plan for a solved table: the best word (with its try order) for
+    the known spicy tile, or the best word for each tile it could be on; the
+    chance of a clean finish and the points still to come (before the x5);
+    and the words worth saving for the end.
+
+    The words come from the table; the chance, the points and the words to
+    save come from simulate() (or `sim`, worked out ahead for a board's
+    opening), so they hold for the player's own, current word list. A reason
+    for no clean finish is only given when the table finds none either and
+    no simulated game got one.
 
     status is 'ready' whenever there's a word to play - even with no clean
-    finish left (p_success 0, with a reason), the points still count x5 -
-    'impossible' when no word avoids the spice at all, and 'done' when the
-    board is clear."""
+    finish left, the points still count x5 - 'impossible' when no word
+    avoids the spice at all, and 'done' when the board is clear."""
     alive = [i for i, l in enumerate(L) if l > 0]
     payload = {'mode': 'ice_cold', 'status': 'ready', 'next': [], 'by_spice': {},
-               'finish_words': [], 'sim_win_rate': None, 'reason': None,
-               'expected_points': None, 'p_success': None,
+               'finish_words': [], 'reason': None, 'expected_points': None,
+               'p_success': None, 'sim_games': 0,
                'spice': None if s is None else ('unknown' if s == 'unknown' else letters[s])}
     if not alive:
-        payload.update(status='done', p_success=1.0, expected_points=CLEAN_BONUS)
+        payload.update(status='done', p_success=1.0, expected_points=CLEAN_BONUS + (
+            HOARD_BONUS if words_played >= HOARD_WORDS else 0.0))
         return payload
 
     if s == 'unknown':
-        points, chances = [], []
+        chance = 0.0
         for i in alive:
             moves = moves_from(table, pool, L, i)
-            pts, chance = plan_value(moves)
-            points.append(pts)
-            chances.append(chance)
+            chance = max(chance, plan_value(moves)[1])
             if moves:
-                payload['by_spice'][letters[i]] = dict(
-                    moves[0].entry(letters), p=round(chance, 3), exp=round(pts, 1))
-        points = sum(points) / len(points)
-        chance = sum(chances) / len(chances)
+                payload['by_spice'][letters[i]] = moves[0].entry(letters)
         playable = bool(payload['by_spice'])
     else:
         moves = moves_from(table, pool, L, s)
-        points, chance = plan_value(moves)
+        chance = plan_value(moves)[1]
         for m in moves:
             for k in range(m.group.n):
                 if len(payload['next']) >= 3:
@@ -842,16 +909,14 @@ def plan_payload(table, pool, L, s, letters, rollouts=24):
                 break
         playable = bool(moves)
 
-    payload['expected_points'] = round(points, 1)
-    payload['p_success'] = round(chance, 3)
+    if sim is None:
+        sim = simulate(table, pool, L, s, words_played, SIM_ROLLOUTS, _seed(L, s))
+    payload.update(p_success=round(sim.chance, 3), expected_points=round(sim.points, 1),
+                   finish_words=list(sim.finish_words), sim_games=sim.games)
     if not playable:
         payload['status'] = 'impossible'
-    if chance <= 0:
+    if chance <= 0 and sim.chance <= 0:
         payload['reason'] = impossible_reason(pool, L, letters, s)
-        return payload
-    words, rate = finish_words(table, pool, L, s, _seed(L, s), rollouts)
-    payload['finish_words'] = words
-    payload['sim_win_rate'] = round(rate, 2)
     return payload
 
 
@@ -888,7 +953,7 @@ class TableCache:
                  max_builds_per_day=12, retry_after=600.0, rebuild_gap=900.0,
                  expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS,
                  max_tables=1, may_start=None, wait_retry=300.0, on_built=None,
-                 must_shed=None, today=date.today):
+                 must_shed=None, today=date.today, after_built=None):
         self.solve = solve or solve_box
         self.spawn = spawn or self._spawn_thread
         self.clock = clock
@@ -902,6 +967,9 @@ class TableCache:
         self.may_start = may_start
         self.wait_retry = wait_retry
         self.on_built = on_built
+        # (key, table, pool) once a table is in, still in the build thread:
+        # work that needs the table but mustn't hold up the requests.
+        self.after_built = after_built
         self.must_shed = must_shed
         self.today = today
         self._lock = threading.Lock()
@@ -1020,7 +1088,8 @@ class TableCache:
         def run():
             started = self.clock()
             try:
-                table = self.solve(FULL_ROOT, make_pool().groups, progress=heard)
+                pool = make_pool()
+                table = self.solve(FULL_ROOT, pool.groups, progress=heard)
             except Exception as e:   # noqa: BLE001 - a failed build must never kill the thread silently
                 with self._lock:
                     self._failed[key] = self.clock()
@@ -1040,6 +1109,12 @@ class TableCache:
             release_memory()
             if self.on_built:
                 self.on_built(key, done - started)
+            if self.after_built:
+                try:
+                    self.after_built(key, table, pool)
+                except Exception as e:  # noqa: BLE001 - the table is in; this is extra
+                    if self.on_error:
+                        self.on_error(e)
             with self._lock:
                 self._next(self.clock())
 
