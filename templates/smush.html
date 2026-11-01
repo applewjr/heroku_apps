@@ -481,6 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Marks this page load's first solve, so the server logs one use of it
     // however many solves follow (extensions.log_solve).
     let firstSolve = true;
+    // The GA4 events this page load has already sent (gaOnce).
+    const gaSent = new Set();
     // How the letters got on the board (see "today's board" below): 'typed',
     // 'loaded' (today's board) or 'edited' (loaded, then a letter changed).
     let boardSource = 'typed';
@@ -1131,9 +1133,32 @@ document.addEventListener('DOMContentLoaded', () => {
         wireResults();
     }
 
+    /* Which tabs players use, counted in GA4, each event at most once per
+       page load: smush_solve when results first show, smush_tab_<tab> the
+       first time each tab shows (landing on the remembered tab counts), and
+       smush_ice_offered the first time the 🧊 Ice Cold tab is on offer. */
+    function gaOnce(name) {
+        if (gaSent.has(name) || typeof gtag !== 'function') return;
+        gaSent.add(name);
+        // base.html sets GA4 up on window load: an event queued before that
+        // would sit ahead of the setup, so it waits.
+        if (document.readyState === 'complete') gtag('event', name);
+        else window.addEventListener('load', () => gtag('event', name));
+    }
+
+    // Called from renderResults: nothing in here may stop results showing.
+    function countView(mode) {
+        try {
+            gaOnce('smush_solve');
+            gaOnce('smush_tab_' + mode);
+            if (iceEligible()) gaOnce('smush_ice_offered');
+        } catch (_) {}
+    }
+
     function renderResults() {
         if (!solveMode) { resultsContainer.innerHTML = ''; return; }
         const mode = tabMode();
+        countView(mode);
         renderPangramBanner();
         if (mode === 'ice') { renderIcePlan(); return; }
         if (mode === 'all8') { renderPlan(); return; }

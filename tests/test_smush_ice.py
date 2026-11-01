@@ -219,3 +219,11 @@ def test_the_page_has_the_tab_and_no_stats_row(client, today):
     blocks = [json.loads(b) for b in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)]
     faq = next(b for b in blocks if b.get("@type") == "FAQPage")
     assert any(q["name"] == "What is ICE COLD in Smush?" for q in faq["mainEntity"])
+
+
+def test_the_page_counts_tab_use_in_ga4(client, today):
+    # Who gets results, which tabs they see, and who is offered Ice Cold:
+    # GA4 events, each at most once a page load.
+    html = client.get("/smush").get_data(as_text=True)
+    for event in ("gaOnce('smush_solve')", "gaOnce('smush_tab_' + mode)", "gaOnce('smush_ice_offered')"):
+        assert event in html, event
