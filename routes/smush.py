@@ -41,7 +41,7 @@ def _forget_smush_words():
         from routes import smush_ice      # here: smush_ice imports this module
         smush_ice.forget_board_results()
     except Exception as e:  # noqa: BLE001 - a correction must never fail on this
-        print(f"Error resetting ICE COLD's board words: {e}")
+        print(f"smush_ice: couldn't reset the boards' words after a list change: {e}")
 
 
 def get_smush_words():
@@ -197,7 +197,7 @@ def smush_admin():
         from routes import smush_ice      # here: smush_ice imports this module
         ice_plans = smush_ice.ice_plans()
     except Exception as e:
-        print(f"Error loading ICE COLD plans for the admin: {e}")
+        print(f"smush_ice: couldn't load the admin's ICE COLD plans panel: {e}")
         ice_plans = []
     try:
         return render_template('smush_admin.html',
@@ -717,7 +717,7 @@ def smush_recalc_ice():
             return _back(error="That board isn't one of today's")
         status = smush_ice.recalc(tag)
     except Exception as e:
-        print(f"Error recalculating an ICE COLD plan: {e}")
+        print(f"smush_ice: Recalc of {tag} failed: {e}")
         return _back(error='Recalc failed')
     text = board_text(tag.replace(':', ''))
     if status == 'building':
