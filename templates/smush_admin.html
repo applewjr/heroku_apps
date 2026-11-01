@@ -73,6 +73,13 @@
     font-size: 14px;
     text-transform: none;
 }
+
+/* The words an ICE COLD table's list lost or gained: can run to a dozen or
+   more, so they wrap (.when doesn't), keeping Recalc on screen. */
+.ice-words {
+    font-size: 12px;
+    color: #666;
+}
 </style>
 
 
@@ -163,30 +170,28 @@
                 <thead>
                     <tr>
                         <th>Board</th>
-                        <th>Table</th>
                         <th>Changed since the build</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in ice_plans %}
                     <tr>
-                        <td><span class="board-text">{{ p.text }}</span><br><span class="when">for {{ p.days|join(', ') }}</span></td>
-                        <td>{{ p.table }}</td>
                         <td>
-                            {% if p.removed or p.added %}
-                            {{ p.removed|length }} out, {{ p.added|length }} in
-                            <br><span class="when">{% if p.removed %}out: {{ p.removed|join(', ') }}{% endif %}{% if p.removed and p.added %}; {% endif %}{% if p.added %}in: {{ p.added|join(', ') }}{% endif %}</span>
-                            {% if p.backstop %}<br><span class="when">{{ p.backstop }}</span>{% endif %}
-                            {% elif p.known %}<span class="status-served">up to date</span>
-                            {% else %}<span class="status-waiting">-</span>{% endif %}
-                        </td>
-                        <td class="row-actions">
+                            <span class="board-text">{{ p.text }}</span>
+                            <br><span class="ice-words">for {{ p.days|join(', ') }}: {{ p.table }}</span>
                             <form method="POST" action="/smush_admin/recalc_ice" class="remove-form">
                                 <input type="hidden" name="tag" value="{{ p.tag }}">
                                 {{ keep_view() }}
                                 <button type="submit" class="btn btn-success">Recalc now</button>
                             </form>
+                        </td>
+                        <td>
+                            {% if p.removed or p.added %}
+                            {{ p.removed|length }} out, {{ p.added|length }} in
+                            <br><span class="ice-words">{% if p.removed %}out: {{ p.removed|join(', ') }}{% endif %}{% if p.removed and p.added %}; {% endif %}{% if p.added %}in: {{ p.added|join(', ') }}{% endif %}</span>
+                            {% if p.backstop %}<br><span class="ice-words">{{ p.backstop }}</span>{% endif %}
+                            {% elif p.known %}<span class="status-served">up to date</span>
+                            {% else %}<span class="status-waiting">-</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
