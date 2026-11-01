@@ -443,6 +443,92 @@ def test_a_failing_after_built_keeps_the_table():
     assert [str(e) for e in errors] == ["opening failed"]
 
 
+def test_a_recalc_keeps_the_old_table_answering_until_the_new_one_is_in():
+    cache, jobs, _, _ = _cache()
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    assert cache.get("k", None, pool)[:2] == ("table-1", "ready")    # still answering
+    assert cache.refresh("k", None, pool) == "building" and len(jobs) == 1   # no second build
+    jobs.pop()()
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_short_of_memory_a_recalc_drops_the_old_table_first():
+    cache, jobs, _, _ = _cache(may_refresh=lambda: False)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    assert cache.get("k", None, pool)[:2] == (None, "building")
+    jobs.pop()()
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_a_recalc_of_a_board_with_no_table_builds_it():
+    cache, jobs, _, _ = _cache()
+    assert cache.refresh("k", None, lambda: ice.Pool([])) == "building" and len(jobs) == 1
+
+
+def test_recalcs_count_toward_the_daily_cap():
+    cache, jobs, _, _ = _cache(max_builds_per_day=2)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "capped"
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_a_recalc_right_after_a_failed_one_waits():
+    jobs, clock, errors, calls = [], _Clock(), [], []
+
+    def solve(root, groups, progress=None):
+        calls.append(root)
+        if len(calls) == 2:
+            raise RuntimeError("no memory")
+        return "table-%d" % len(calls)
+
+    cache = ice.TableCache(solve=solve, spawn=jobs.append, clock=clock, on_error=errors.append)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    cache.refresh("k", None, pool)
+    jobs.pop()()                                                  # the rebuild fails...
+    assert cache.get("k", None, pool)[:2] == ("table-1", "ready") and errors   # ...the old one stays
+    assert cache.refresh("k", None, pool) == "failed"
+    clock.now += cache.retry_after
+    assert cache.refresh("k", None, pool) == "building"
+
+
+def test_describe_says_what_a_boards_table_is_doing():
+    cache, jobs, clock, _ = _cache()
+    pool = lambda: ice.Pool([])
+    assert cache.describe("k") == {"held": False, "age": None, "building": False,
+                                   "queued": False, "eta": None}
+    cache.get("k", None, pool)
+    assert cache.describe("k")["building"]
+    jobs.pop()()
+    clock.now += 600
+    state = cache.describe("k")
+    assert state["held"] and state["age"] == 600 and not state["building"]
+
+
+def test_the_sweeper_runs_its_hook_every_pass_and_survives_a_failing_one():
+    calls = []
+
+    def hook():
+        calls.append(1)
+        raise RuntimeError("hook failed")
+
+    sweeper = ice.IdleSweeper(lambda: (), start=lambda loop: None, on_sweep=hook)
+    sweeper.sweep()
+    sweeper.sweep()
+    assert len(calls) == 2
+
+
 def test_newer_evidence_rebuilds_but_not_too_often():
     cache, jobs, clock, _ = _cache(rebuild_gap=900)
     pool = lambda: ice.Pool([])

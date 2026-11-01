@@ -152,6 +152,50 @@
             </div>
         </form>
 
+        {% if ice_plans %}
+        <div class="admin-section">
+            <strong>🧊 ICE COLD plans</strong>
+            <details class="admin-help"><summary>When to Recalc</summary>
+                <p class="crowd-note">Each of today's boards plans from a table built from its word list as it stood at the build. Words removed or added since still reach players' words and the card's chance and points straight away, but not the table's steering for the first few words. Press Recalc when you're done with a batch of removals: the old table answers until the new one is in, a minute or two later. A board whose list changed with no Recalc rebuilds by itself after 2 hours, for the player votes that land after your pass.</p>
+            </details>
+            <div class="table-wrap">
+            <table class="words-table">
+                <thead>
+                    <tr>
+                        <th>Board</th>
+                        <th>Table</th>
+                        <th>Changed since the build</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in ice_plans %}
+                    <tr>
+                        <td><span class="board-text">{{ p.text }}</span><br><span class="when">for {{ p.days|join(', ') }}</span></td>
+                        <td>{{ p.table }}</td>
+                        <td>
+                            {% if p.removed or p.added %}
+                            {{ p.removed|length }} out, {{ p.added|length }} in
+                            <br><span class="when">{% if p.removed %}out: {{ p.removed|join(', ') }}{% endif %}{% if p.removed and p.added %}; {% endif %}{% if p.added %}in: {{ p.added|join(', ') }}{% endif %}</span>
+                            {% if p.backstop %}<br><span class="when">{{ p.backstop }}</span>{% endif %}
+                            {% elif p.known %}<span class="status-served">up to date</span>
+                            {% else %}<span class="status-waiting">-</span>{% endif %}
+                        </td>
+                        <td class="row-actions">
+                            <form method="POST" action="/smush_admin/recalc_ice" class="remove-form">
+                                <input type="hidden" name="tag" value="{{ p.tag }}">
+                                {{ keep_view() }}
+                                <button type="submit" class="btn btn-success">Recalc now</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+        {% endif %}
+
         {% for d in days %}
         <h3>{{ d.day.strftime('%Y-%m-%d') }}{% if d.day == pacific_today %} (today, Pacific){% endif %}</h3>
         <div class="table-wrap">

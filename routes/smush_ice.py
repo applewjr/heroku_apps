@@ -9,19 +9,18 @@ those boards' full table is built once, in the background, the moment the
 board is decided (prewarm, called from routes/smush.py), and every player
 shares it, so almost nobody waits for a build.
 
-A table is never rebuilt for a correction made later in the day. A word
-removed mid-day is never offered, since a plan's moves come from the
-player's own, current word list; the table only prices where each move
-leads. Measured 2026-10-31 by building a day's table from its start-of-day
-and its end-of-day word list, then playing 300 games from the live list:
-
-    day      changes left out    first word differs    points lost a game
-    10-23    32 out, 3 in        29% of decisions      ~2.2 of ~213 (1%)
-    10-30    14 out, 2 in        13%                   ~0.6 (0.3%)
-
-A rebuild would hold the old table, the new build and the other board's
-table at once (about +180 MB) for that 0.3-1%. The next day's board, or a
-restart, picks the corrections up.
+Corrections made after a build: a removed word is never offered, since a
+plan's moves come from the player's own, current word list, and the card's
+chance and points are played out on that list too (simulated). Only the
+table's own steering keeps the old list, and since 2026-11-01 that matters:
+a plan that plays for the clean finish steers toward the finishers it was
+built with. The 2026-11-01 board, built before that night's removals, played
+out on the new list cleaned 0.4% of games, against 17% from a fresh table.
+So James rebuilds a board when his removals are done (Recalc on
+/smush_admin, his call), and a board whose list changed with no Recalc for
+ICE_REFRESH_BACKSTOP_SECONDS rebuilds by itself (player votes land after
+his pass). The old table answers until the new one is in, when there's
+memory for both.
 
 What a plan knows about which words Smush takes: popularity priors and ✗
 votes, never what a player says they played (James, 2026-10-31: "players
@@ -71,9 +70,19 @@ ICE_BUILD_WAIT_SECONDS = 300
 # a minute). So a live board's table stays while the site has visitors, and
 # yesterday's goes once nobody reads it.
 TODAY_IDLE_SECONDS = 6 * 3600
-# Builds a Pacific day: two boards, plus restarts and deploys. Only a loop
-# of failures or evictions could reach it.
-TODAY_BUILDS_PER_DAY = 8
+# Builds a Pacific day: two boards, restarts and deploys, and Recalcs (an
+# admin's, or the backstop's). Only a loop of failures or evictions could
+# reach it.
+TODAY_BUILDS_PER_DAY = 12
+# A Recalc keeps the old table answering while the new one builds only at
+# or under this: the build's ~110 MB plus the new table's ~22 MB on top
+# stays under the dyno's 512 MB, with the master. Above it, the old table
+# goes first and the board shows "building" for the minute or two.
+ICE_REFRESH_MAX_RSS_MB = 330
+# A live board whose word list changed after its table was built, with no
+# Recalc this long after the change was first seen, rebuilds by itself:
+# the player votes that land after James's pass.
+ICE_REFRESH_BACKSTOP_SECONDS = 2 * 3600
 # Plans worked out at once. One holds the GIL for up to about a second, so
 # any more answer 'busy' and the page asks again BUSY_SECONDS later, which
 # keeps gunicorn's 8 threads free for every other page.
@@ -144,6 +153,15 @@ def _drop_expired(cache, now):
         del cache[tag]
 
 
+def forget_board_results():
+    """Read every board's words and ✗ counts afresh next time: Smush's word
+    list just changed (routes/smush.py), so a Recalc or the admin's panel
+    must not see the list from up to BOARD_CACHE_SECONDS ago."""
+    with _cache_lock:
+        _board_results.clear()
+        _vote_counts.clear()
+
+
 def full_board_results(tag, center, letters, smush_words):
     """Every word on this board at full uses - a full table's pool."""
     now = time.monotonic()
@@ -174,9 +192,24 @@ OPENINGS_KEPT = 4
 OPENING_TILES = ['unknown'] + list(range(ice.N_LETTERS))
 
 
+# Today's boards' builds, for Recalc and its backstop: tag -> the words its
+# table was built from (pangrams aside, as the planner leaves them), when,
+# and when a change to them was first seen (time.monotonic), if one has been.
+_built = {}
+
+
+def table_built(tag, table, pool):
+    """TableCache after_built: note what the table was built from, then work
+    out its opening."""
+    with _cache_lock:
+        _built[tag] = {'words': frozenset(w for g in pool.groups for w in g.words),
+                       'at': datetime.now(timezone.utc), 'noticed': None}
+    simulate_opening(tag, table, pool)
+
+
 def simulate_opening(tag, table, pool):
-    """TableCache after_built: a just-built table's opening, for every spicy
-    tile and an untapped one (about 2 s each)."""
+    """A just-built table's opening, for every spicy tile and an untapped
+    one (about 2 s each)."""
     started = time.monotonic()
     runs = {s: ice.simulate(table, pool, ice.FULL_ROOT, s, 0, ice.SIM_OPENING_ROLLOUTS,
                             ice._seed(ice.FULL_ROOT, s))
@@ -227,6 +260,12 @@ def _room_to_build():
     return False
 
 
+def _room_to_refresh():
+    """TableCache may_refresh: True where RSS can't be read."""
+    rss = rss_mb()
+    return rss is None or rss <= ICE_REFRESH_MAX_RSS_MB
+
+
 def _short_of_memory():
     """TableCache must_shed: False where RSS can't be read."""
     rss = rss_mb()
@@ -239,8 +278,8 @@ def _short_of_memory():
 def today_tables(**overrides):
     """Today's boards' cache, as TODAY_TABLES has it (tests swap in their own,
     with a spawn that never runs)."""
-    settings = dict(on_error=alert_build_failed, on_built=log_built,
-                    after_built=simulate_opening, max_tables=ICE_MAX_TABLES,
+    settings = dict(on_error=alert_build_failed, on_built=log_built, after_built=table_built,
+                    may_refresh=_room_to_refresh, max_tables=ICE_MAX_TABLES,
                     rebuild_gap=None, idle_seconds=TODAY_IDLE_SECONDS,
                     max_builds_per_day=TODAY_BUILDS_PER_DAY, may_start=_room_to_build,
                     must_shed=_short_of_memory, wait_retry=ICE_BUILD_WAIT_SECONDS,
@@ -251,9 +290,9 @@ def today_tables(**overrides):
 
 TODAY_TABLES = today_tables()
 EXACT = ice.ExactCache()
-# Drops yesterday's table and idle exact tables, and starts a build that
-# waited for memory; it stops once nothing is held.
-SWEEPER = ice.IdleSweeper(lambda: (TODAY_TABLES, EXACT, SIMS))
+# Drops yesterday's table and idle exact tables, starts a build that waited
+# for memory, and runs the Recalc backstop; it stops once nothing is held.
+SWEEPER = ice.IdleSweeper(lambda: (TODAY_TABLES, EXACT, SIMS), on_sweep=lambda: backstop())
 _plan_slots = threading.BoundedSemaphore(PLANS_AT_ONCE)
 
 
@@ -320,6 +359,109 @@ def prewarm(day, board):
         SWEEPER.poke()
     except Exception as e:  # noqa: BLE001 - nothing here may take a page down
         alert_build_failed(e)
+
+
+##### Recalc: a table built again from its board's list as it is now #####
+
+def _current_words(tag):
+    """The words a table built now would plan with (pangrams and
+    center-only words aside, as make_groups leaves them)."""
+    center, outer = tag.split(':')
+    full = full_board_results(tag, center, tuple(outer), smush_crowd.get_smush_words())
+    return frozenset(r['word'] for r in full if not r['pangram'] and r['cost'])
+
+
+def changed_words(tag):
+    """(removed, added) since this board's table was built, sorted; None if
+    no build of it is on record."""
+    with _cache_lock:
+        built = _built.get(tag)
+    if built is None:
+        return None
+    now = _current_words(tag)
+    return sorted(built['words'] - now), sorted(now - built['words'])
+
+
+def recalc(tag):
+    """Build this board's table again from its word list as it is now: the
+    admin's Recalc, or the backstop. -> TableCache.refresh's status."""
+    center, outer = tag.split(':')
+    letters = tuple(outer)
+    forget_board_results()
+    status = TODAY_TABLES.refresh(tag, None, lambda: _shared_pool(tag, center, letters))
+    SWEEPER.poke()
+    return status
+
+
+def backstop(now=None):
+    """The sweeper's minute: a held board whose list changed after its build
+    is noted when the change is first seen, and recalculated once
+    ICE_REFRESH_BACKSTOP_SECONDS pass with no Recalc - the player votes
+    that land after James's pass. A Recalc's build starts the record over."""
+    now = time.monotonic() if now is None else now
+    with _cache_lock:
+        tags = list(_built)
+    for tag in tags:
+        if not TODAY_TABLES.has(tag):
+            with _cache_lock:
+                _built.pop(tag, None)
+            continue
+        changed = changed_words(tag)
+        with _cache_lock:
+            built = _built.get(tag)
+            if built is None:
+                continue
+            if not changed or not any(changed):
+                built['noticed'] = None
+                continue
+            if built['noticed'] is None:
+                built['noticed'] = now
+            due = now - built['noticed'] >= ICE_REFRESH_BACKSTOP_SECONDS
+        state = TODAY_TABLES.describe(tag)
+        if due and not (state['building'] or state['queued']):
+            print(f"smush_ice: {tag}'s word list changed ({len(changed[0])} out, "
+                  f"{len(changed[1])} in) with no Recalc; rebuilding")
+            recalc(tag)
+
+
+def _ago(seconds):
+    minutes = int(seconds // 60)
+    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60} min"
+
+
+def ice_plans():
+    """Today's boards' tables, for /smush_admin: one row a board, with what
+    its table is doing and which of its words changed since the build."""
+    if not _live():
+        return []
+    rows = {}
+    for day in sorted(live_days()):
+        board = smush_crowd._board_for(day)
+        if not board:
+            continue
+        tag = board_tag(board['center'], board['outer'])
+        row = rows.setdefault(tag, {
+            'tag': tag, 'days': [],
+            'text': smush_crowd.board_text(board['center'] + ''.join(sorted(board['outer'])))})
+        row['days'].append(day.strftime('%m-%d'))
+    for tag, row in rows.items():
+        state = TODAY_TABLES.describe(tag)
+        if state['building']:
+            row['table'] = 'building' + (f", about {_ago(state['eta'] + 59)} left" if state['eta'] else '')
+        elif state['held']:
+            row['table'] = f"built {_ago(state['age'])} ago" + (', rebuild waiting' if state['queued'] else '')
+        else:
+            row['table'] = 'waiting to build' if state['queued'] else 'not built'
+        changed = changed_words(tag) if state['held'] else None
+        row['removed'], row['added'] = changed or ([], [])
+        row['known'] = changed is not None
+        with _cache_lock:
+            noticed = (_built.get(tag) or {}).get('noticed')
+        row['backstop'] = None
+        if noticed is not None and (row['removed'] or row['added']):
+            left = ICE_REFRESH_BACKSTOP_SECONDS - (time.monotonic() - noticed)
+            row['backstop'] = f"rebuilds by itself in {_ago(max(0, left))}"
+    return list(rows.values())
 
 
 ##### the plan #####

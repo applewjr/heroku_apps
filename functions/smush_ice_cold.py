@@ -935,10 +935,11 @@ class TableCache:
     `idle_seconds` goes (release_idle, IdleSweeper).
 
     /smush's (routes/smush_ice.py) holds today's boards, up to `max_tables`
-    of them: each built the moment its board is decided (prewarm), never
-    rebuilt (`rebuild_gap` None), and dropped when a newer board needs the
-    room - before that board's build starts, so a build never runs on top of
-    a full cache - or after a long idle. Every read of a held table's board
+    of them: each built the moment its board is decided (prewarm), rebuilt
+    only when asked (refresh: an admin's Recalc, or its backstop), and
+    dropped when a newer board needs the room - before that board's build
+    starts, so a build never runs on top of a full cache - or after a long
+    idle. Every read of a held table's board
     (prewarm) counts as a use, so only a board nobody reads any more idles
     out. A board waiting for the build in
     progress, or for memory (`may_start`, asked again every `wait_retry`
@@ -953,7 +954,7 @@ class TableCache:
                  max_builds_per_day=12, retry_after=600.0, rebuild_gap=900.0,
                  expected_seconds=60.0, idle_seconds=IDLE_RELEASE_SECONDS,
                  max_tables=1, may_start=None, wait_retry=300.0, on_built=None,
-                 must_shed=None, today=date.today, after_built=None):
+                 must_shed=None, today=date.today, after_built=None, may_refresh=None):
         self.solve = solve or solve_box
         self.spawn = spawn or self._spawn_thread
         self.clock = clock
@@ -970,6 +971,9 @@ class TableCache:
         # (key, table, pool) once a table is in, still in the build thread:
         # work that needs the table but mustn't hold up the requests.
         self.after_built = after_built
+        # Whether there's room to keep a table answering while it's rebuilt
+        # (refresh); if not, it goes first.
+        self.may_refresh = may_refresh
         self.must_shed = must_shed
         self.today = today
         self._lock = threading.Lock()
@@ -1120,6 +1124,46 @@ class TableCache:
 
         self.spawn(run)
 
+    def refresh(self, key, fingerprint, make_pool):
+        """Build this board's table again now, from its pool as it is now:
+        an admin's Recalc, or its backstop. The old table answers until the
+        new one is in; short of room for both (may_refresh says no), it goes
+        first and the board waits like a new one. A board with no table gets
+        a build as usual. -> 'building', 'failed' (it failed lately and
+        retries soon) or 'capped'."""
+        dropped = False
+        with self._lock:
+            now = self.clock()
+            if key not in self._tables:
+                return self._ask(key, fingerprint, make_pool, now)[0]
+            if self._building(key) or key in self._queue:
+                return 'building'
+            failed_at = self._failed.get(key)
+            if failed_at is not None and now - failed_at < self.retry_after:
+                return 'failed'
+            if not self._may_build():
+                return 'capped'
+            if self.may_refresh is not None and not self.may_refresh():
+                del self._tables[key]
+                dropped = True
+            self._queue[key] = (fingerprint, make_pool)
+            self._next(now)
+        if dropped:
+            release_memory()
+        return 'building'
+
+    def describe(self, key):
+        """This board's table, for an admin: whether it's held, how long ago
+        it was built (seconds), and whether a build of it is running (with
+        its ETA) or waiting its turn."""
+        with self._lock:
+            now = self.clock()
+            held = self._tables.get(key)
+            building = self._building(key)
+            return {'held': held is not None, 'age': None if held is None else now - held[2],
+                    'building': building, 'queued': key in self._queue,
+                    'eta': self._eta(now) if building else None}
+
     def has(self, key):
         """Whether this board's table is held right now."""
         with self._lock:
@@ -1196,13 +1240,15 @@ class IdleSweeper:
 
     Call poke() whenever a request has touched the caches; it starts the loop
     if it isn't running. `caches` is a function returning them, so it always
-    sweeps the current ones (tests swap them out)."""
+    sweeps the current ones (tests swap them out). `on_sweep`, if given, runs
+    after every pass (routes/smush_ice.py's Recalc backstop)."""
 
-    def __init__(self, caches, every=60.0, start=None, sleep=time.sleep):
+    def __init__(self, caches, every=60.0, start=None, sleep=time.sleep, on_sweep=None):
         self.caches = caches
         self.every = every
         self.start = start or self._start_thread
         self.sleep = sleep
+        self.on_sweep = on_sweep
         self._lock = threading.Lock()
         self._running = False
 
@@ -1222,6 +1268,11 @@ class IdleSweeper:
         dropped = [cache.release_idle() for cache in self.caches()]
         if any(dropped):
             release_memory()
+        if self.on_sweep is not None:
+            try:
+                self.on_sweep()
+            except Exception as e:  # noqa: BLE001 - the sweeper must keep sweeping
+                print(f"smush_ice: sweep hook failed: {type(e).__name__}: {e}")
         return any(dropped)
 
     def _loop(self):

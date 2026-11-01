@@ -32,10 +32,16 @@ _smush_words = {'value': None, 'expires': 0.0}
 
 
 def _forget_smush_words():
-    """Make the next get_smush_words() re-read the corrections, and the next
-    today's board recompute its hints, which come from them."""
+    """Make the next get_smush_words() re-read the corrections, the next
+    today's board recompute its hints, which come from them, and ICE COLD
+    read its boards' words afresh (so a Recalc builds from this list)."""
     _smush_words['expires'] = 0.0
     _board_cache.clear()
+    try:
+        from routes import smush_ice      # here: smush_ice imports this module
+        smush_ice.forget_board_results()
+    except Exception as e:  # noqa: BLE001 - a correction must never fail on this
+        print(f"Error resetting ICE COLD's board words: {e}")
 
 
 def get_smush_words():
@@ -188,10 +194,16 @@ def smush_admin():
         crowd_error = f'{type(e).__name__}: {e}'
     days, load_error = _admin_days()
     try:
+        from routes import smush_ice      # here: smush_ice imports this module
+        ice_plans = smush_ice.ice_plans()
+    except Exception as e:
+        print(f"Error loading ICE COLD plans for the admin: {e}")
+        ice_plans = []
+    try:
         return render_template('smush_admin.html',
                                **view,
                                crowd_error=crowd_error,
-                               days=days, load_error=load_error,
+                               days=days, load_error=load_error, ice_plans=ice_plans,
                                board_live=SMUSH_BOARD_LIVE,
                                serve_crowd=SERVE_CROWD,
                                pangram_remove_votes=crowd.CROWD_REMOVE_VOTES,
@@ -690,6 +702,30 @@ def smush_approve_board():
     _prewarm_ice(day, {'center': letters[0], 'outer': letters[1:]})
     spice = f" with {spicy.upper()} spicy" if spicy else ''
     return _back(success=f"Approved {board_text(letters)}{spice} for {day:%m-%d}")
+
+
+@bp.route(ADMIN + '/recalc_ice', methods=['POST'])
+@auth.login_required
+def smush_recalc_ice():
+    """Build one of today's boards' ICE COLD tables again from its word list
+    as it is now: James presses it when his removals are done (his call,
+    2026-11-01). The old table answers until the new one is in."""
+    tag = request.form.get('tag', '')
+    try:
+        from routes import smush_ice      # here: smush_ice imports this module
+        if tag not in smush_ice.todays_tags():
+            return _back(error="That board isn't one of today's")
+        status = smush_ice.recalc(tag)
+    except Exception as e:
+        print(f"Error recalculating an ICE COLD plan: {e}")
+        return _back(error='Recalc failed')
+    text = board_text(tag.replace(':', ''))
+    if status == 'building':
+        return _back(success=f"Rebuilding {text}'s ICE COLD plan: the new table takes over "
+                             f"in a minute or two")
+    if status == 'capped':
+        return _back(error="Today's ICE COLD builds are used up; the plan stays as it is")
+    return _back(error=f"{text}'s last build failed; it tries again in a few minutes")
 
 
 @bp.route(ADMIN + '/unapprove_board', methods=['POST'])

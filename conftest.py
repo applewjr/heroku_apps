@@ -63,12 +63,15 @@ def no_ice_builds(monkeypatch):
     builds = []
     monkeypatch.setattr(smush_ice, "TODAY_TABLES",
                         smush_ice.today_tables(spawn=builds.append, may_start=None,
-                                               must_shed=None))
+                                               must_shed=None, may_refresh=None))
     monkeypatch.setattr(smush_ice, "EXACT", ice.ExactCache())
+    monkeypatch.setattr(smush_ice, "SIMS", ice.ExactCache())
     monkeypatch.setattr(smush_ice, "SWEEPER", ice.IdleSweeper(
         lambda: (smush_ice.TODAY_TABLES, smush_ice.EXACT), start=lambda loop: None))
     monkeypatch.setattr(smush_ice, "_vote_counts", {})
     monkeypatch.setattr(smush_ice, "_board_results", {})
+    monkeypatch.setattr(smush_ice, "_openings", type(smush_ice._openings)())
+    monkeypatch.setattr(smush_ice, "_built", {})
     return builds
 
 
