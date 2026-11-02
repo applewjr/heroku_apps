@@ -90,7 +90,7 @@
       "name": "What is ICE COLD in Smush?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "ICE COLD is a hidden Smush bonus: play at least five words without any of them ever using the spicy letter, and your whole final score is multiplied by 5. The spicy letter moves to a random tile after every word, so it takes a plan. On today's board, this solver's Ice Cold tab is that plan: the word to play for wherever the spicy letter is, your chance of a clean ICE COLD finish, and the words to save for the end. Skip the pangram - it always uses the spicy letter, so ICE COLD can't be combined with PERFECT, but x5 is worth more than x2. If every word left would use the spicy letter, the tab tells you to stop: end the game with Smush's stuck? link and keep the x5."
+        "text": "ICE COLD is a hidden Smush bonus: play at least five words without any of them ever using the spicy letter, and your whole final score is multiplied by 5. The spicy letter moves to a random tile after every word, so it takes a plan. On today's board, this solver's Ice Cold tab is that plan: the word to play for wherever the spicy letter is, your chance of a clean ICE COLD finish, and the words to save for the end. Skip the pangram - it always uses the spicy letter, so ICE COLD can't be combined with PERFECT, but x5 is worth more than x2. If every word left would use the spicy letter, the tab tells you to stop: tick No hints (hardcore) in Smush's Settings, then end the game with its stuck? link to keep the x5 and the Unassisted bonus."
       }
     },{% endif %}
     {
@@ -401,7 +401,7 @@
     {% if ice_live %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is ICE COLD in Smush?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">ICE COLD is a hidden Smush bonus: play at least five words without any of them ever using the 🌶 spicy letter, and your whole final score is multiplied by 5. The spicy letter moves to a random tile after every word, so it takes a plan. On today's board, this solver's 🧊 Ice Cold tab is that plan: the word to play for wherever the 🌶 is, your chance of a clean ICE COLD finish, and the words to save for the end. Skip the ★ pangram - it always uses the spicy letter, so ICE COLD can't be combined with PERFECT, but ×5 is worth more than ×2. If every word left would use the 🌶, the tab tells you to stop: end the game with Smush's <em>stuck?</em> link and keep the ×5.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">ICE COLD is a hidden Smush bonus: play at least five words without any of them ever using the 🌶 spicy letter, and your whole final score is multiplied by 5. The spicy letter moves to a random tile after every word, so it takes a plan. On today's board, this solver's 🧊 Ice Cold tab is that plan: the word to play for wherever the 🌶 is, your chance of a clean ICE COLD finish, and the words to save for the end. Skip the ★ pangram - it always uses the spicy letter, so ICE COLD can't be combined with PERFECT, but ×5 is worth more than ×2. If every word left would use the 🌶, the tab tells you to stop: tick <em>No hints (hardcore)</em> in Smush's Settings, then end the game with its <em>stuck?</em> link to keep the ×5 and the Unassisted bonus.</p>
     </div>
     {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -1048,7 +1048,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     the word shown for it. Skip the pangram - it always uses the spicy letter, so ICE COLD can't
                     be combined with PERFECT (×2), but ×5 is worth more. A clean finish clears every tile but the
                     spicy one, then spends that last tile with a word of just its letter and the center. When no
-                    safe word is left, the plan tells you to stop and keep the ×5.</p>
+                    safe word is left, the plan tells you to stop and keep the ×5. Tick <em>No hints (hardcore)</em>
+                    in Smush's Settings first: then its <em>stuck?</em> link ends the game without counting a hint,
+                    so the +25 Unassisted bonus stays too.</p>
                 </details>
             </div>`;
     }
@@ -1086,8 +1088,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (p.status === 'impossible') {
             html += enough
                 ? `<div class="ice-card ice-stop">🛑 <b>Stop here to keep your ×5.</b> Every word left uses the
-                   🌶 spicy letter. End the game with Smush's <em>stuck?</em> link, then <em>I'm done</em>.
-                   That counts as a hint, so the +25 Unassisted bonus goes, but the ×5 stays.</div>`
+                   🌶 spicy letter. In Smush, open Settings and tick <em>No hints (hardcore)</em>, then tap
+                   <em>stuck?</em>: the game ends with no hint counted, so the +25 Unassisted bonus stays as
+                   well as the ×5.</div>`
                 : `<div class="ice-card bad">🫥 ICE COLD is out of reach for this game: every word left uses the
                    🌶, and ICE COLD needs at least ${ICE_MIN_WORDS} words (you've played ${played.length}).
                    The Points tab has the best words from here.</div>`;

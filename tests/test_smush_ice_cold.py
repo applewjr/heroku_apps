@@ -185,6 +185,24 @@ def test_a_group_tries_its_most_common_word_first():
     assert g.accept == pytest.approx(expected)
 
 
+def test_same_cost_common_words_go_highest_scoring_first():
+    # A refusal is free, so the 4-point word is tried before the likelier
+    # 3-point one. The group's odds and each use's odds stay as before.
+    rows = [row("zaz", {"a": 1}, pop=5.0, base=3), row("zazz", {"a": 1}, pop=2.9, base=4)]
+    [g] = ice.make_groups(rows, LETTERS)
+    assert g.words == ("zazz", "zaz")
+    a1, a2 = ice.ACCEPT_SOLO[0], ice.ACCEPT_SOLO[1]
+    assert g.accept == pytest.approx(1 - (1 - a1) * (1 - a2))
+    assert g.use_accept(1, 2) == pytest.approx(a1)
+    assert g.use_accept(2, 2) == pytest.approx(a2)
+
+
+def test_a_rare_word_never_goes_ahead_of_a_common_one():
+    rows = [row("zaz", {"a": 1}, pop=5.0, base=3), row("zazzz", {"a": 1}, pop=1.5, base=9)]
+    [g] = ice.make_groups(rows, LETTERS)
+    assert g.words == ("zaz", "zazzz")
+
+
 def test_played_evidence_beats_x_votes():
     [g] = ice.make_groups([row("tit", {"a": 1})], LETTERS,
                           accepted=frozenset({"tit"}), invalid_counts={"tit": 3})
@@ -371,6 +389,15 @@ def test_word_hoard_counts_once_the_game_reaches_13_words(before, hoard):
     table, pool = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
     sim = ice.simulate(table, pool, uses(a=1, b=1), A, words_played=before, rollouts=5)
     assert sim.points == pytest.approx(6 + 6 + ice.CLEAN_BONUS + hoard)
+
+
+def test_a_stopped_game_keeps_unassisted():
+    # No solo word for A, so no clean finish: the game stops after BZ, and
+    # with No hints ticked "stuck?" ends it without a hint.
+    table, pool = solve([row("bz", {"b": 1})], uses(a=1, b=1))
+    sim = ice.simulate(table, pool, uses(a=1, b=1), A, rollouts=5)
+    assert sim.chance == 0.0
+    assert sim.points == pytest.approx(2 * 2 + ice.UNASSISTED_BONUS)   # BZ smushes B: x2
 
 
 def test_no_clean_simulated_game_is_a_long_shot_not_a_lost_cause():

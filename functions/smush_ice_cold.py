@@ -109,9 +109,15 @@ ICE_EXACT_STATES = 25_000
 # scale): the full board's two tables are 30 MB that way instead of 120.
 COMPACT_STATES = 200_000
 
-# Points before the x5 that a clean finish adds: Clean Plate +50, and the
-# Unassisted +25 a stuck game loses by ending through "stuck?" (a hint).
-CLEAN_BONUS = 75.0
+# Points before the x5 the end of a game adds. Clean Plate +50 comes only
+# with a clean finish. Unassisted +25 comes with every finish: a clean game
+# ends by itself, and the page tells players to tick Smush's Settings ->
+# "No hints (hardcore)" before they stop, so its "stuck?" link ends the game
+# without counting a hint (read from the game's page, 2026-11-01).
+CLEAN_PLATE_BONUS = 50.0
+UNASSISTED_BONUS = 25.0
+# All a clean finish adds.
+CLEAN_BONUS = CLEAN_PLATE_BONUS + UNASSISTED_BONUS
 # What the table and the move order count a clean finish as (James's call,
 # 2026-11-01). The table underrates how often a clean line comes off - a
 # turn ends after three refusals, a group's later uses get its worse words,
@@ -119,7 +125,7 @@ CLEAN_BONUS = 75.0
 # plays on - so planning at the real 75 gave up clean finishes it could
 # have had. On the 2026-11-01 board that plan finished clean in 0.3% of
 # simulated games for 921 final; planning at 1,000, 17% for 1,020. Only the
-# planning uses it: everything shown counts CLEAN_BONUS (simulate).
+# planning uses it: everything shown counts the real bonuses (simulate).
 CLEAN_PLAN_BONUS = 1000.0
 # Word Hoard is +25 for 13+ words. The table can't count words (that would
 # multiply it by 14), so each word carries a share of it instead. Simulated:
@@ -185,8 +191,9 @@ def word_accept(pop, solo, invalid_players=0, played=False):
 
 @dataclass(frozen=True)
 class Group:
-    """Words that cost the same uses of each letter, in try order: most
-    likely accepted first, then highest base score."""
+    """Words that cost the same uses of each letter, in try order (see
+    make_groups): the most likely words, highest-scoring first unless rare,
+    then the rest by acceptance."""
     sig: tuple                   # uses of each letter, in the planner's letter order
     words: tuple
     accepts: tuple               # word_accept() of each word, same order
@@ -221,8 +228,10 @@ class Group:
         G-solo words needs both of them accepted, not the best one twice - so
         this use gets the j-th most likely word, backed up by the words no
         path can ever need. A group used once is backed by its top words, as
-        `accept` is."""
-        a = self.accepts
+        `accept` is. The odds are taken most likely first whatever the try
+        order: trying a higher-scoring word first doesn't change which words
+        a path can count on."""
+        a = sorted(self.accepts, reverse=True)
         miss = 1.0 - a[min(j, len(a)) - 1]
         for k in range(J, min(len(a), J + GROUP_BACKUP_WORDS)):
             miss *= 1.0 - a[k]
@@ -267,6 +276,14 @@ def make_groups(results, letters, accepted=frozenset(), invalid_counts=None):
         miss = 1.0
         for a, _, _, _ in rows[:GROUP_ACCEPT_WORDS]:
             miss *= 1.0 - a
+        # A refused word costs nothing, so the words the group counts on are
+        # tried highest-scoring first (James, 2026-11-01: SASS for 8 before
+        # ASS for 6). Rare words (the page's ⚠) stay behind common ones, so
+        # players don't meet more refusals. Simulated on the ten boards
+        # 10-23..11-01: +4 final points a game, clean finishes unchanged.
+        top = sorted(rows[:GROUP_ACCEPT_WORDS],
+                     key=lambda t: (t[3] < ZIPF_FLOORS[-1], -t[1], -t[0], t[2]))
+        rows = top + rows[GROUP_ACCEPT_WORDS:]
         groups.append(Group(sig, tuple(t[2] for t in rows), tuple(t[0] for t in rows),
                             tuple(t[3] for t in rows), tuple(t[1] for t in rows), 1.0 - miss))
     return groups
@@ -784,8 +801,10 @@ def simulate(table, pool, L, s, words_played=0, rollouts=SIM_ROLLOUTS, seed=0, t
     is spent - the player ✗s it - and the plan goes again from the same
     position; a taken one scores base x (1 + letters smushed flat) and moves
     the spice to a random other living tile, as the game does. A game ends
-    clean (+CLEAN_BONUS), or when no safe word is left. Word Hoard's +25
-    counts once the game's words, `words_played` included, reach HOARD_WORDS.
+    clean, or when no safe word is left and the player stops: Unassisted
+    counts either way (see UNASSISTED_BONUS), Clean Plate only when clean.
+    Word Hoard's +25 counts once the game's words, `words_played` included,
+    reach HOARD_WORDS.
 
     The table only chooses the moves. Its own J and P misjudge some boards
     in both directions (a turn ends after three refusals, the n-uses dead
@@ -823,9 +842,10 @@ def simulate(table, pool, L, s, words_played=0, rollouts=SIM_ROLLOUTS, seed=0, t
             state = [l - c for l, c in zip(state, g.sig)]
             landing = [i for i, l in enumerate(state) if l > 0 and i != spice]
             spice = rng.choice(landing) if landing else None
+        points += UNASSISTED_BONUS
         if not any(state):
             wins += 1
-            points += CLEAN_BONUS
+            points += CLEAN_PLATE_BONUS
             tally.update(path[-2:])
         if words_played + len(path) >= HOARD_WORDS:
             points += HOARD_BONUS

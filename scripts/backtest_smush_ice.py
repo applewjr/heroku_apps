@@ -11,9 +11,11 @@ stored). Every turn the plan's first word is tried; Smush takes it at the
 planner's own odds (popularity priors and ✗ votes). A refused word is spent and
 the player re-plans from the same position, from their own word list. A taken
 word scores base x (1 + letters smushed flat) and moves the spice to a random
-other living tile, as the game does. The game ends clean (+75: Clean Plate and
-Unassisted) or when no safe word is left. Word Hoard's +25 counts at 13+ words.
-The final score is all of that x5.
+other living tile, as the game does. The game ends clean or when no safe word
+is left: Unassisted (+25) counts either way, since the page tells players to
+tick Smush's No hints (hardcore) before they stop, and Clean Plate (+50) only
+when clean. Word Hoard's +25 counts at 13+ words. The final score is all of
+that x5.
 
 Data, read-only (SELECTs only, nothing written anywhere):
   - each day's board: its most reported letters in smush_boards;
@@ -28,16 +30,23 @@ to an exact solve of the player's list once 25k states or fewer remain. Words
 are taken at our odds, not by the real game. So it compares plans; it doesn't
 predict what players will score.
 
-Results, the ten boards 2026-10-23..11-01, 1,000 games each, random first spice:
+Results, the ten boards 2026-10-23..11-01, 1,000 games each, random first spice
+(scored as above since 2026-11-01: Unassisted on every finish, so these run
+higher than the earlier 1,105 / 1,079):
   planning value    clean   final
-  75 (to 10-31)     48.4%   1,105
-  1,000 (live)      63.3%   1,079    since 2026-11-01, James's call
+  75                48.9%   1,174
+  1,000 (live)      63.3%   1,128    since 2026-11-01, James's call
   per day, 75 -> 1,000:
-    10-23  49.3%   937 -> 71.0%   911     10-28  56.5%   984 -> 73.2% 1,011
-    10-24  67.4% 1,222 -> 73.4% 1,220     10-29  79.7% 1,234 -> 88.7% 1,190
-    10-25  38.8% 1,264 -> 66.0% 1,252     10-30  30.6%   824 -> 34.3%   825
-    10-26  73.9% 1,165 -> 85.0% 1,138     10-31  55.0% 1,411 -> 80.8% 1,285
-    10-27  33.1% 1,065 -> 47.3%   963     11-01   0.0%   940 -> 13.6%   998
+    10-23  47.0% 1,003 -> 69.3%   944     10-28  56.0% 1,035 -> 73.1% 1,045
+    10-24  66.5% 1,260 -> 76.4% 1,263     10-29  82.2% 1,272 -> 87.3% 1,206
+    10-25  43.3% 1,359 -> 63.8% 1,293     10-30  34.2%   927 -> 37.0%   920
+    10-26  73.9% 1,201 -> 84.8% 1,156     10-31  53.8% 1,454 -> 80.9% 1,313
+    10-27  32.0% 1,148 -> 50.8% 1,044     11-01   0.4% 1,076 ->  9.2% 1,095
+Same boards and luck, the live value (2026-11-01 research): trying a group's
+higher-scoring common words first added 4 final points a game with clean
+finishes unchanged (shipped); keeping 6 tries a state in the full-board table
+added 18 more but builds ~1.25x longer (not shipped, James's call); pure
+points scored 996 against 1,079 on the old scoring.
 Ranking moves purely by clean chance (points only breaking ties) got 64% clean
 for 1,043 on the same boards (500 games each): more points lost for the same
 clean finishes.
@@ -151,7 +160,7 @@ def play(table, board, rng, spice=None):
         landing = [i for i, n in enumerate(L) if n > 0 and i != s]
         s = rng.choice(landing) if landing else None
     clean = not any(L)
-    return (score + ice.CLEAN_BONUS * clean
+    return (score + ice.UNASSISTED_BONUS + ice.CLEAN_PLATE_BONUS * clean
             + (ice.HOARD_BONUS if played >= ice.HOARD_WORDS else 0)), clean
 
 

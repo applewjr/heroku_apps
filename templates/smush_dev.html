@@ -136,7 +136,8 @@
         that's spicy right now, hit <strong>✓&nbsp;Played</strong>, and it re-plans. If Smush refuses one,
         hit <strong>✗</strong> - no letters are spent and the spice doesn't move. Some boards can't be
         cleaned ICE COLD at all (a letter only the pangram can spend); the plan says so, and ICE COLD alone
-        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain.
+        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain
+        (tick <em>No hints (hardcore)</em> in its Settings first, so ending that way keeps Unassisted).
     </div>
 </div>
 
@@ -750,8 +751,8 @@ document.addEventListener('DOMContentLoaded', () => {
                      ICE COLD plus the Clean Plate.</div>`;
         } else if (p.status === 'impossible') {
             html += `<div class="ice-card bad">🫥 Nothing left avoids the 🌶. ${esc(p.reason || '')}
-                     <br>Your ICE COLD ×5 is safe if you stop here: end the game with Smush's <em>stuck?</em>
-                     link - it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
+                     <br>Your ICE COLD ×5 is safe if you stop here: in Smush, open Settings and tick <em>No hints
+                     (hardcore)</em>, then tap <em>stuck?</em> - no hint is counted, so the +25 Unassisted bonus stays.</div>`;
         } else {
             const hoard = played.length >= HOARD
                 ? `Word Hoard ✓ (${played.length} words)`
