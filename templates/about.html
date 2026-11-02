@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}About James Applewhite - JJ Apps{% endblock %}
+
+{% block meta %}
+<meta name="description" content="James Applewhite builds and runs JJ Apps, a free site of word game solvers, puzzle games and data projects. He's a data analyst working toward data engineering.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/about">
+<meta property="og:title" content="About James Applewhite - JJ Apps">
+<meta property="og:description" content="James Applewhite builds and runs JJ Apps, a free site of word game solvers, puzzle games and data projects.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/about">
+<meta property="og:type" content="website">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "About James Applewhite",
+  "url": "https://www.jamesapplewhite.com/about",
+  "mainEntity": {
+    "@type": "Person",
+    "name": "James Applewhite",
+    "url": "https://www.jamesapplewhite.com/about",
+    "sameAs": [
+      "https://www.linkedin.com/in/j-applewhite/",
+      "https://github.com/applewjr"
+    ]
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="jj-prose">
+    <h1>About</h1>
+
+    <p>I'm James Applewhite, a data analyst working toward data engineering, and a casual data science liker. A pipeline that ends as a few database tables nobody sees isn't much fun, so this site is where my projects show up: scheduled jobs load the data, and these pages put it in front of people.</p>
+
+    <p>The web app itself is a hobby. My focus is the data, but I enjoy building the place where it lands. The first page here was a Wordle solver in October 2022, and the solvers have kept coming since.</p>
+
+    <p>Building tools for people I'll never meet has convinced me that UX matters. Nobody is there to walk them through it, so the page itself has to show how it works, and it has to be easy to use. My shorthand when I build is "1 click is unfortunate, 2 clicks is a tragedy." It's an exaggeration, but it keeps me honest about friction.</p>
+
+    <h2>Projects</h2>
+
+    <p>The <a href="/mtg">Magic: The Gathering price tracker</a> runs on a daily AWS pipeline that follows about 100K cards for under $1 a month. It has its own <a href="https://github.com/applewjr/mtg-prices" target="_blank" rel="noopener noreferrer">repo</a> and <a href="https://mtg-price-dashboard.streamlit.app" target="_blank" rel="noopener noreferrer">Streamlit dashboard</a>, and a bot posts the day's biggest price changes to <a href="https://bsky.app/profile/mtgprices.bsky.social" target="_blank" rel="noopener noreferrer">Bluesky</a>.</p>
+
+    <p><a href="/youtube_trending">YouTube Trending</a> pulls the day's trending videos from the YouTube Data API into MySQL and shows 30-day trends by category.</p>
+
+    <p>The site also tracks its own traffic and health, and the code for all of it is on <a href="https://github.com/applewjr/heroku_apps" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+
+    <p>I also built a private tool for dialing in espresso. I log each shot, and a k-nearest-neighbors model recommends the settings for the next one.</p>
+
+    <h2>The site</h2>
+
+    <p>Everything here is free, and there are no accounts. Ads help pay for hosting, and the <a href="/privacy-policy">Privacy Policy</a> covers what the site keeps.</p>
+
+    <h2>Contact</h2>
+
+    <p>For anything about the site, the <a href="/feedback">feedback page</a> is the best way to reach me. Otherwise, I'm on <a href="https://www.linkedin.com/in/j-applewhite/" target="_blank" rel="noopener noreferrer">LinkedIn</a>.</p>
+</div>
+{% endblock %}

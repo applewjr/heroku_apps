@@ -528,6 +528,24 @@ li { margin-bottom: 10px; }
 }
 .jj-more-also a:hover { text-decoration: underline; }
 .jj-more-also .jj-more-tag { margin-left: 5px; vertical-align: 1px; }
+/* A reading column for long text (templates/about.html and
+   privacy_policy.html). The site-wide a and ul rules above strip the
+   underlines and bullets prose needs, so they come back here. A long URL
+   breaks rather than running off a narrow phone. */
+.jj-prose {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 3.5rem;
+    box-sizing: border-box;
+    text-align: left;
+    line-height: 1.6;
+    overflow-wrap: break-word;
+}
+.jj-prose h1 { font-size: 1.75rem; font-weight: 600; color: #111; line-height: 1.25; margin: 0 0 1rem; }
+.jj-prose h2 { font-size: 1.35rem; font-weight: 600; color: #02484d; line-height: 1.3; margin: 2rem 0 0.5rem; }
+.jj-prose a { color: #02484d; text-decoration: underline; text-underline-offset: 2px; }
+.jj-prose a:hover { color: #03282b; }
+.jj-prose ul { padding-left: 1.4em; margin: 0 0 1em; }
     </style>
 
     {% block head %}{% endblock %}
@@ -591,6 +609,8 @@ li { margin-bottom: 10px; }
         </div>
       </div>
       <div class="jj-overlay-footer">
+        <a href="/about">About</a>
+        <br>
         <a href="/privacy-policy">Privacy Policy</a>
         <br>
         <a href="/feedback">Feedback</a>

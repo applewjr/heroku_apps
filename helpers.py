@@ -353,7 +353,8 @@ def make_schema_data(name, description, url, operating_system='Web'):
         },
         "creator": {
             "@type": "Person",
-            "name": "James Applewhite"
+            "name": "James Applewhite",
+            "url": "https://www.jamesapplewhite.com/about"
         }
     }
     if operating_system:

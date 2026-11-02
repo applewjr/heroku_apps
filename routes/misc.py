@@ -1,4 +1,5 @@
-"""Front page, static games, feedback, SEO files, redirects, and catch-all."""
+"""Front page, static games, the about and privacy pages, feedback, SEO
+files, redirects, and catch-all."""
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
 
@@ -73,6 +74,11 @@ def kintsugi_game():
 @bp.route("/thread")
 def thread_game():
     return render_template("thread.html")
+
+
+@bp.route('/about')
+def about():
+    return render_template('about.html')
 
 
 @bp.route('/privacy-policy')
@@ -162,7 +168,7 @@ def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/smush', '/ribbit', '/guess_the_phrase', '/chainle', '/any_word', '/feedback',
-        '/privacy-policy',
+        '/about', '/privacy-policy',
         '/mtg', '/youtube_trending', '/umbra', '/tiltconnect4', '/kintsugi',
         '/thread',
     ]
