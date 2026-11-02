@@ -45,11 +45,11 @@ def test_two_solo_letters_finish_whatever_the_spice_does(no_hoard):
     # A:1 and B:1, each with its own solo word: play the other letter's word,
     # the spice has nowhere left but none, and the last solo finishes it.
     # Points: two 3-point words that each smush their letter (x2), plus the
-    # clean finish.
+    # clean finish at what the plan counts it as.
     table, _ = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
     for spice in (A, B):
         assert table.chance(uses(a=1, b=1), spice) == pytest.approx(1.0)
-        assert table.points(uses(a=1, b=1), spice) == pytest.approx(6 + 6 + ice.CLEAN_BONUS)
+        assert table.points(uses(a=1, b=1), spice) == pytest.approx(6 + 6 + ice.CLEAN_PLAN_BONUS)
 
 
 def test_one_finisher_needs_the_spice_on_it():
@@ -119,7 +119,7 @@ def test_refusal_odds_lower_the_chance_and_the_points(no_hoard):
     table, _ = solve(rows, uses(a=1, b=1), accepted=set())
     solo = ice.ACCEPT_SOLO[0]
     assert table.chance(uses(a=1, b=1), A) == pytest.approx(solo * solo, abs=0.01)
-    last = solo * (6 + ice.CLEAN_BONUS)
+    last = solo * (6 + ice.CLEAN_PLAN_BONUS)
     assert table.points(uses(a=1, b=1), A) == pytest.approx(solo * (6 + last), abs=0.5)
 
 
@@ -139,13 +139,14 @@ def test_one_word_smushing_three_letters_beats_three_that_smush_one(no_hoard):
     assert plan["expected_points"] == pytest.approx(36 + 6 + ice.CLEAN_BONUS)
 
 
-@pytest.mark.parametrize("big_base, closer_first", [(20, True), (50, False)])
-def test_a_clean_finish_is_worth_its_75(no_hoard, big_base, closer_first):
-    # A:1 B:1 C:1, spice on A. The closer BC (6) then AZ (4) finishes clean:
-    # 6 + 4 + 75 = 85. BQ alone scores big_base x 2, but leaves C with no solo
-    # word, so the board can't be cleared: 2 x big_base + 4 after AZ. At 20
-    # that's 44 and the clean line wins; at 50 it's 104, and the plan takes
-    # the points - which is what playing for points means.
+@pytest.mark.parametrize("big_base, closer_first", [(20, True), (50, True), (600, False)])
+def test_the_plan_plays_for_a_clean_finish_over_a_bigger_score(no_hoard, big_base, closer_first):
+    # A:1 B:1 C:1, spice on A. The closer BC (6) then AZ (4) finishes clean.
+    # BQ alone scores big_base x 2, but leaves C with no solo word, so the
+    # board can't be cleared: 2 x big_base + 4 after AZ. At 50 that's 104,
+    # more than the clean line's 10 + 75 - yet the plan counts a clean finish
+    # at CLEAN_PLAN_BONUS, so it still closes. Only a score past that
+    # (1,204 at 600) outbids the clean finish.
     rows = [row("bc", {"b": 1, "c": 1}, base=2), row("az", {"a": 1}, base=2),
             row("bq", {"b": 1}, base=big_base)]
     L = uses(a=1, b=1, c=1)
@@ -182,6 +183,24 @@ def test_a_group_tries_its_most_common_word_first():
     # at least one of the two accepted
     expected = 1 - (1 - ice.ACCEPT_SOLO[0]) * (1 - ice.ACCEPT_SOLO[4])
     assert g.accept == pytest.approx(expected)
+
+
+def test_same_cost_common_words_go_highest_scoring_first():
+    # A refusal is free, so the 4-point word is tried before the likelier
+    # 3-point one. The group's odds and each use's odds stay as before.
+    rows = [row("zaz", {"a": 1}, pop=5.0, base=3), row("zazz", {"a": 1}, pop=2.9, base=4)]
+    [g] = ice.make_groups(rows, LETTERS)
+    assert g.words == ("zazz", "zaz")
+    a1, a2 = ice.ACCEPT_SOLO[0], ice.ACCEPT_SOLO[1]
+    assert g.accept == pytest.approx(1 - (1 - a1) * (1 - a2))
+    assert g.use_accept(1, 2) == pytest.approx(a1)
+    assert g.use_accept(2, 2) == pytest.approx(a2)
+
+
+def test_a_rare_word_never_goes_ahead_of_a_common_one():
+    rows = [row("zaz", {"a": 1}, pop=5.0, base=3), row("zazzz", {"a": 1}, pop=1.5, base=9)]
+    [g] = ice.make_groups(rows, LETTERS)
+    assert g.words == ("zaz", "zazzz")
 
 
 def test_played_evidence_beats_x_votes():
@@ -278,8 +297,8 @@ def test_unknown_spice_offers_a_word_for_every_living_tile():
     assert plan["by_spice"]["a"]["word"] == "bbz"     # spice on A: play B's word
     assert plan["by_spice"]["b"]["word"] == "aaz"
     assert plan["p_success"] == pytest.approx(1.0)
-    assert plan["expected_points"] > ice.CLEAN_BONUS
-    assert plan["by_spice"]["a"]["exp"] == pytest.approx(plan["expected_points"], abs=0.2)
+    assert plan["expected_points"] == pytest.approx(6 + 6 + ice.CLEAN_BONUS)
+    assert set(plan["by_spice"]["a"]) >= {"word", "pts", "cost"}
 
 
 def test_known_spice_gives_the_word_and_its_try_order():
@@ -329,6 +348,70 @@ def test_a_flat_board_is_done():
     assert plan["status"] == "done" and plan["expected_points"] == ice.CLEAN_BONUS
 
 
+# --- what the page shows: the plan played out ------------------------------------
+
+def test_a_sure_endgame_simulates_clean_every_time():
+    # Every word known to be taken: whichever tile is spicy, the other's solo
+    # word closes and the last one finishes - 3 x 2 twice, plus the real 75.
+    table, pool = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
+    sim = ice.simulate(table, pool, uses(a=1, b=1), "unknown", rollouts=50)
+    assert sim.chance == 1.0 and sim.points == pytest.approx(6 + 6 + ice.CLEAN_BONUS)
+    assert set(sim.finish_words) == {"aaz", "bbz"} and sim.games == 50
+
+
+def test_a_flat_board_simulates_as_a_clean_finish():
+    # Nothing alive, so no spicy tile to guess at: the game is already clean.
+    table, pool = solve([row("az", {"a": 1})], uses(a=1))
+    sim = ice.simulate(table, pool, uses(), "unknown", rollouts=3)
+    assert sim.chance == 1.0 and sim.points == ice.CLEAN_BONUS
+
+
+def test_refusals_cost_simulated_games_at_the_words_odds():
+    # Both solo words common but unproven, spice on A: BBZ must be taken to
+    # close and AAZ to finish, so about ACCEPT_SOLO squared of games are clean.
+    rows = [row("aaz", {"a": 1}, pop=4.0), row("bbz", {"b": 1}, pop=4.0)]
+    table, pool = solve(rows, uses(a=1, b=1), accepted=set())
+    sim = ice.simulate(table, pool, uses(a=1, b=1), A, rollouts=4000, seed=7)
+    assert sim.chance == pytest.approx(ice.ACCEPT_SOLO[0] ** 2, abs=0.03)
+
+
+def test_a_position_always_shows_the_same_numbers():
+    rows = [row("aaz", {"a": 1}, pop=4.0), row("bbz", {"b": 1}, pop=2.0),
+            row("abz", {"a": 1, "b": 1}, pop=3.0)]
+    table, pool = solve(rows, uses(a=1, b=1), accepted=set())
+    L = uses(a=1, b=1)
+    assert ice.plan_payload(table, pool, L, A, LETTERS) == ice.plan_payload(table, pool, L, A, LETTERS)
+
+
+@pytest.mark.parametrize("before, hoard", [(10, 0.0), (11, ice.HOARD_BONUS), (13, ice.HOARD_BONUS)])
+def test_word_hoard_counts_once_the_game_reaches_13_words(before, hoard):
+    # Two words to go: 10 + 2 falls short, 11 + 2 reaches it.
+    table, pool = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
+    sim = ice.simulate(table, pool, uses(a=1, b=1), A, words_played=before, rollouts=5)
+    assert sim.points == pytest.approx(6 + 6 + ice.CLEAN_BONUS + hoard)
+
+
+def test_a_stopped_game_keeps_unassisted():
+    # No solo word for A, so no clean finish: the game stops after BZ, and
+    # with No hints ticked "stuck?" ends it without a hint.
+    table, pool = solve([row("bz", {"b": 1})], uses(a=1, b=1))
+    sim = ice.simulate(table, pool, uses(a=1, b=1), A, rollouts=5)
+    assert sim.chance == 0.0
+    assert sim.points == pytest.approx(2 * 2 + ice.UNASSISTED_BONUS)   # BZ smushes B: x2
+
+
+def test_no_clean_simulated_game_is_a_long_shot_not_a_lost_cause():
+    # The table still has a clean line, so a sample that missed it gives no
+    # "no clean finish is left" reason. With no line at all, it does.
+    missed = ice.Simulated(0.0, 12.0, (), ice.SIM_ROLLOUTS)
+    table, pool = solve([row("aaz", {"a": 1}), row("bbz", {"b": 1})], uses(a=1, b=1))
+    plan = ice.plan_payload(table, pool, uses(a=1, b=1), A, LETTERS, sim=missed)
+    assert plan["p_success"] == 0 and plan["reason"] is None
+    table, pool = solve([row("az", {"a": 1}), row("hz", {"h": 1})], uses(a=1, h=2))
+    plan = ice.plan_payload(table, pool, uses(a=1, h=2), A, LETTERS, sim=missed)
+    assert plan["reason"].startswith("H has 2 uses left")
+
+
 # --- the shared table -----------------------------------------------------------
 
 class _Clock:
@@ -362,6 +445,115 @@ def test_the_first_request_starts_one_build():
     table, status, _ = cache.get("l:egimnopy", "f1", pool)
     assert (table, status) == ("table-1", "ready")
     assert built == [ice.FULL_ROOT]
+
+
+def test_a_built_table_and_its_pool_go_to_after_built():
+    seen, errors = [], []
+    cache, jobs, _, _ = _cache(after_built=lambda key, table, pool: seen.append((key, table, pool)),
+                               on_error=errors.append)
+    pool = ice.Pool([])
+    cache.get("k", "f1", lambda: pool)
+    jobs.pop()()
+    assert seen == [("k", "table-1", pool)] and not errors
+
+
+def test_a_failing_after_built_keeps_the_table():
+    errors = []
+
+    def boom(key, table, pool):
+        raise RuntimeError("opening failed")
+
+    cache, jobs, _, _ = _cache(after_built=boom, on_error=errors.append)
+    cache.get("k", "f1", lambda: ice.Pool([]))
+    jobs.pop()()
+    assert cache.get("k", "f1", lambda: ice.Pool([]))[:2] == ("table-1", "ready")
+    assert [str(e) for e in errors] == ["opening failed"]
+
+
+def test_a_recalc_keeps_the_old_table_answering_until_the_new_one_is_in():
+    cache, jobs, _, _ = _cache()
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    assert cache.get("k", None, pool)[:2] == ("table-1", "ready")    # still answering
+    assert cache.refresh("k", None, pool) == "building" and len(jobs) == 1   # no second build
+    jobs.pop()()
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_short_of_memory_a_recalc_drops_the_old_table_first():
+    cache, jobs, _, _ = _cache(may_refresh=lambda: False)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    assert cache.get("k", None, pool)[:2] == (None, "building")
+    jobs.pop()()
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_a_recalc_of_a_board_with_no_table_builds_it():
+    cache, jobs, _, _ = _cache()
+    assert cache.refresh("k", None, lambda: ice.Pool([])) == "building" and len(jobs) == 1
+
+
+def test_recalcs_count_toward_the_daily_cap():
+    cache, jobs, _, _ = _cache(max_builds_per_day=2)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "building"
+    jobs.pop()()
+    assert cache.refresh("k", None, pool) == "capped"
+    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+
+
+def test_a_recalc_right_after_a_failed_one_waits():
+    jobs, clock, errors, calls = [], _Clock(), [], []
+
+    def solve(root, groups, progress=None):
+        calls.append(root)
+        if len(calls) == 2:
+            raise RuntimeError("no memory")
+        return "table-%d" % len(calls)
+
+    cache = ice.TableCache(solve=solve, spawn=jobs.append, clock=clock, on_error=errors.append)
+    pool = lambda: ice.Pool([])
+    cache.get("k", None, pool)
+    jobs.pop()()
+    cache.refresh("k", None, pool)
+    jobs.pop()()                                                  # the rebuild fails...
+    assert cache.get("k", None, pool)[:2] == ("table-1", "ready") and errors   # ...the old one stays
+    assert cache.refresh("k", None, pool) == "failed"
+    clock.now += cache.retry_after
+    assert cache.refresh("k", None, pool) == "building"
+
+
+def test_describe_says_what_a_boards_table_is_doing():
+    cache, jobs, clock, _ = _cache()
+    pool = lambda: ice.Pool([])
+    assert cache.describe("k") == {"held": False, "age": None, "building": False,
+                                   "queued": False, "eta": None}
+    cache.get("k", None, pool)
+    assert cache.describe("k")["building"]
+    jobs.pop()()
+    clock.now += 600
+    state = cache.describe("k")
+    assert state["held"] and state["age"] == 600 and not state["building"]
+
+
+def test_the_sweeper_runs_its_hook_every_pass_and_survives_a_failing_one():
+    calls = []
+
+    def hook():
+        calls.append(1)
+        raise RuntimeError("hook failed")
+
+    sweeper = ice.IdleSweeper(lambda: (), start=lambda loop: None, on_sweep=hook)
+    sweeper.sweep()
+    sweeper.sweep()
+    assert len(calls) == 2
 
 
 def test_newer_evidence_rebuilds_but_not_too_often():
@@ -652,10 +844,11 @@ def test_a_real_mid_game_board_plans_without_touching_spice():
     letters, L, pool = _real_board(outer)
     table = ice.solve_box(L, pool.groups)
     plan = ice.plan_payload(table, pool, L, "unknown", letters)
+    assert plan["by_spice"]
     for tile, w in plan["by_spice"].items():
         assert tile not in w["cost"]
         assert all(n <= outer[l] for l, n in w["cost"].items())
-        assert 0.0 <= w["p"] <= 1.0 and w["exp"] >= w["pts"]
+    assert 0.0 <= plan["p_success"] <= 1.0 and plan["sim_games"] == ice.SIM_ROLLOUTS
 
 
 def test_a_compact_table_decides_as_well_as_a_full_precision_one():

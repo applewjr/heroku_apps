@@ -93,7 +93,8 @@ def ice_cold_plan(center, outer_uses, spicy, results, played, smush_words, want_
             return None
         # Small enough to solve from this player's exact pool: their played
         # and ✗'d words are already out of `results`.
-        payload = smush_ice.exact_plan(EXACT, tag, letters, L, spice, results, accepted, votes)
+        payload = smush_ice.exact_plan(EXACT, tag, letters, L, spice, results, accepted, votes,
+                                       len(played))
         SWEEPER.poke()
         return payload
 
@@ -108,7 +109,8 @@ def ice_cold_plan(center, outer_uses, spicy, results, played, smush_words, want_
         SWEEPER.poke()
     if not want_plan:
         return None
-    return smush_ice.table_plan(table, status, eta, letters, L, spice, results, accepted, votes)
+    return smush_ice.table_plan(table, status, eta, tag, letters, L, spice, results, accepted,
+                                votes, len(played))
 
 
 ##### the page #####

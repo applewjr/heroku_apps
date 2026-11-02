@@ -136,7 +136,8 @@
         that's spicy right now, hit <strong>✓&nbsp;Played</strong>, and it re-plans. If Smush refuses one,
         hit <strong>✗</strong> - no letters are spent and the spice doesn't move. Some boards can't be
         cleaned ICE COLD at all (a letter only the pangram can spend); the plan says so, and ICE COLD alone
-        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain.
+        still ×5s your score - finish those with Smush's <em>stuck?</em> link once only spicy words remain
+        (tick <em>No hints (hardcore)</em> in its Settings first, so ending that way keeps Unassisted).
     </div>
 </div>
 
@@ -750,17 +751,18 @@ document.addEventListener('DOMContentLoaded', () => {
                      ICE COLD plus the Clean Plate.</div>`;
         } else if (p.status === 'impossible') {
             html += `<div class="ice-card bad">🫥 Nothing left avoids the 🌶. ${esc(p.reason || '')}
-                     <br>Your ICE COLD ×5 is safe if you stop here: end the game with Smush's <em>stuck?</em>
-                     link - it counts as a hint, so the +25 Unassisted bonus goes.</div>`;
+                     <br>Your ICE COLD ×5 is safe if you stop here: in Smush, open Settings and tick <em>No hints
+                     (hardcore)</em>, then tap <em>stuck?</em> - no hint is counted, so the +25 Unassisted bonus stays.</div>`;
         } else {
             const hoard = played.length >= HOARD
                 ? `Word Hoard ✓ (${played.length} words)`
                 : `Word Hoard: ${played.length}/${HOARD} words`;
-            html += `<div class="ice-card${p.p_success > 0 ? '' : ' bad'}">
+            const chance = p.p_success || p.reason ? pct(p.p_success) : 'Under 2%';
+            html += `<div class="ice-card${p.reason ? ' bad' : ''}">
                 <div class="ice-chance">≈ ${finalScore(p.expected_points)}<small>expected final score</small></div>
-                ${pct(p.p_success)} chance of a clean ICE COLD finish · ${hoard}
-                ${p.p_success > 0 ? '' : `<br>🫥 No clean finish is left: ${esc(p.reason)}
-                    Playing for the most ICE COLD points instead.`}
+                ${chance} chance of a clean ICE COLD finish · ${hoard}
+                ${p.reason ? `<br>🫥 No clean finish is left: ${esc(p.reason)}
+                    Playing for the most ICE COLD points instead.` : ''}
                 <br><small>Counts the 🌶's luck, Smush taking our words and the ×5. Speed, streak, rank and
                 Long Boy bonuses come on top. The plan changes every turn: play the word for the tile that's
                 spicy right now, then hit ✓&nbsp;Played - or ✗ if Smush refuses it.</small>
@@ -771,7 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!ch || i === CENTER || (uses[ch] ?? MAX_USES) === 0) return;
                     const w = (p.by_spice || {})[ch];
                     html += `<div class="spice-row"><span class="spice-tile">${ch.toUpperCase()}</span>`;
-                    html += w ? `${wordRowHtml(w)}<span class="spice-chance" title="expected final score · clean-finish chance">≈${finalScore(w.exp)}<br>${pct(w.p)}</span>`
+                    html += w ? wordRowHtml(w)
                               : `<span class="spice-chance" style="text-align:left">nothing avoids the 🌶 there</span>`;
                     html += `</div>`;
                 });
@@ -793,8 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             html += `<div class="ice-source">${p.source === 'exact'
                         ? 'Solved exactly for your remaining letters and words'
-                        : "From today's full-board table"}${p.sim_win_rate == null ? ''
-                        : ` · won ${pct(p.sim_win_rate)} of 24 simulated games if Smush takes every word`}</div>`;
+                        : "From today's full-board table"}${p.sim_games
+                        ? ` · chance and score from ${p.sim_games} simulated games on your word list` : ''}</div>`;
         }
         resultsContainer.innerHTML = html;
         wireResults();
