@@ -30,6 +30,7 @@ GET_OK = [
     "/kintsugi",
     "/thread",
     "/dogs",
+    "/about",
     "/privacy-policy",
     "/feedback",
     "/blossom_feedback",
@@ -166,6 +167,47 @@ def test_ribbit_clear_board_sits_right_of_give_feedback(client):
     controls = re.search(r'<div class="rb-board-controls">(.*?)</div>', html, re.S).group(1)
     assert 'id="clear-btn"' not in controls and 'id="rotate-btn"' in controls
     assert html.index("💬 Give Feedback") < html.index('id="clear-btn"') < html.index(STRIP)
+
+
+def test_the_about_page_is_linked_from_the_menu_home_page_and_sitemap(client):
+    # Findable but quiet (James, 2026-11-01): the menu on every page, one
+    # small line under the home page's cards, and the sitemap.
+    assert 'href="/about"' in client.get("/feedback").get_data(as_text=True)
+    home = client.get("/").get_data(as_text=True)
+    assert re.search(r'class="index-about">[^<]*<a href="/about">About</a>', home)
+    sitemap = client.get("/sitemap.xml").get_data(as_text=True)
+    assert "<loc>https://www.jamesapplewhite.com/about</loc>" in sitemap
+
+
+def test_the_about_page_names_its_author_and_never_hints_at_vote_counts(client):
+    import json
+    html = client.get("/about").get_data(as_text=True)
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    about = next(json.loads(block) for block in blocks if '"AboutPage"' in block)
+    person = about["mainEntity"]
+    assert person["@type"] == "Person" and person["name"] == "James Applewhite"
+    assert set(person["sameAs"]) == {"https://www.linkedin.com/in/j-applewhite/",
+                                     "https://github.com/applewjr"}
+    # In the page's own text: the menu links both on every page anyway.
+    prose = html.split('<div class="jj-prose">', 1)[1]
+    for path in ("/privacy-policy", "/feedback"):
+        assert f'href="{path}"' in prose, path
+    # The rule every solver page follows (test_players_are_never_told_the_vote_counts).
+    lowered = html.lower()
+    for hint in ("crowd_remove_votes", "crowd_add_votes", "different players",
+                 "another player", "players flag", "players agreed", "for everyone",
+                 "5 players", "five players", "two players", "2 players"):
+        assert hint not in lowered, f"page hints at the threshold: {hint!r}"
+
+
+def test_the_privacy_policy_uses_the_site_layout(client):
+    # A bare fragment until 2026-11-02: no menu, no title and no viewport
+    # tag, so phones showed it zoomed out.
+    html = client.get("/privacy-policy").get_data(as_text=True)
+    assert '<nav class="jj-navbar">' in html
+    assert "<title>Privacy Policy - JJ Apps</title>" in html
+    assert 'name="viewport"' in html
+    assert '<div class="jj-prose">' in html
 
 
 # ---------------------------------------------------------------------------

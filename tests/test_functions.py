@@ -554,3 +554,5 @@ def test_schema_data_has_required_keys():
     assert schema["name"] == "Name"
     for key in ("@context", "url", "offers", "creator", "operatingSystem"):
         assert key in schema
+    # The creator links to the About page, which carries the Person details.
+    assert schema["creator"]["url"] == "https://www.jamesapplewhite.com/about"

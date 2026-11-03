@@ -102,6 +102,21 @@
         letter-spacing: 0.05em;
         vertical-align: 2px;
     }
+    /* The quiet way to the About page, under the last cards. The link's
+       padding gives it a thumb-sized tap target, like .jj-more-also's. */
+    .index-about {
+        margin: 3rem 0 0;
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+    .index-about a {
+        display: inline-block;
+        padding: 12px 4px;
+        line-height: 20px;
+        color: #02484d;
+        font-weight: 600;
+    }
+    .index-about a:hover { text-decoration: underline; }
 </style>
 {% endblock %}
 
@@ -205,6 +220,8 @@
             <div class="app-card-desc">Live fast, count dogs</div>
         </a>
     </div>
+
+    <p class="index-about">Made by James Applewhite · <a href="/about">About</a></p>
 
 </div>
 
