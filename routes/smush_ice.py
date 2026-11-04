@@ -418,7 +418,10 @@ def backstop(now=None):
                 built['noticed'] = now
             due = now - built['noticed'] >= ICE_REFRESH_BACKSTOP_SECONDS
         state = TODAY_TABLES.describe(tag)
-        if due and not (state['building'] or state['queued']):
+        # Only with room for both tables. Without it, refresh drops the old
+        # one first, and over ICE_BUILD_MAX_RSS_MB the new one can't start,
+        # so the board has no plan at all (2026-11-03). Still due next sweep.
+        if due and not (state['building'] or state['queued']) and _room_to_refresh():
             print(f"smush_ice: {tag}'s word list changed ({len(changed[0])} out, "
                   f"{len(changed[1])} in) with no Recalc; rebuilding")
             recalc(tag)
