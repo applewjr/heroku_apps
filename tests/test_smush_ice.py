@@ -227,6 +227,7 @@ def _built_table(monkeypatch):
     monkeypatch.setattr(smush_ice, "TODAY_TABLES", smush_ice.today_tables(
         spawn=jobs.append, solve=lambda root, groups, progress=None: "a table",
         may_start=None, may_refresh=None))
+    monkeypatch.setattr(smush_ice, "_room_to_refresh", lambda: True)   # never this machine's real RSS
     monkeypatch.setattr(smush_ice, "simulate_opening", lambda tag, table, pool: None)
     smush_ice.prewarm(DAY, {"center": "e", "outer": "adilnrst"})
     jobs.pop()()
@@ -263,6 +264,23 @@ def test_the_backstop_rebuilds_once_two_hours_after_a_change_nobody_recalculated
     assert len(jobs) == 1                              # ...not again while it builds
     jobs.pop()()
     assert smush_ice.changed_words(TAG) == ([], [])    # the new table has the list's words
+
+
+def test_the_backstop_keeps_the_old_table_until_theres_room_for_both(today, monkeypatch):
+    # 2026-11-03: the rebuild dropped the table, its build waited for memory,
+    # and the board had no plan at all.
+    jobs = _built_table(monkeypatch)
+    room = [False]
+    monkeypatch.setattr(smush_ice, "_room_to_refresh", lambda: room[0])
+    smush_ice.TODAY_TABLES.may_refresh = smush_ice._room_to_refresh   # as in production
+    smush_ice._built[TAG]["words"] |= {"zzz"}          # a word removed since the build
+    two_hours = smush_ice.ICE_REFRESH_BACKSTOP_SECONDS
+    smush_ice.backstop(now=100.0)                      # first seen
+    smush_ice.backstop(now=100.0 + two_hours)
+    assert not jobs and smush_ice.TODAY_TABLES.has(TAG)
+    room[0] = True
+    smush_ice.backstop(now=100.0 + two_hours + 60)     # the next sweep
+    assert len(jobs) == 1 and smush_ice.TODAY_TABLES.has(TAG)
 
 
 def test_a_recalc_rebuilds_while_the_old_table_answers(today, monkeypatch):
