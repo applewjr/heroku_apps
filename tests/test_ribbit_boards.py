@@ -161,10 +161,9 @@ def test_a_day_of_players(client, boards):
     old_letters, old_links, t = ribbit.canonical(old, tuple(LINKS))
     for voter in ("then-a", "then-b"):
         boards.store(DAY - timedelta(days=3), voter, None, old_letters, old_links, t, "typed")
-    # ...so it never becomes today's board, even when more players replay it
-    # today than entered today's.
-    for p in (5, 6, 7, 8):
-        _log(client, p, letters=old)
+    # ...but only today's entries count toward today's boards, and one
+    # player replaying it is one board: it isn't served today.
+    _log(client, 5, letters=old)
     assert _todays(client) == [_as_board(LETTERS, LINKS)]
     # ...but typing that older board's letters fills in its links, in the
     # player's own view.
@@ -891,6 +890,53 @@ def test_ribbit_has_no_approve_bar(client):
     assert 'id="rb-approve"' not in html and "/ribbit_admin" not in html
     assert "PRELOAD" not in html
     assert 'id="phase-solve">▶ Solve</button>' in html
+
+
+# ---------------------------------------------------------------------------
+# Ribbit reuses boards: an older board counts only that day's entries
+# (James, 2026-11-18)
+# ---------------------------------------------------------------------------
+
+def test_a_reused_board_two_players_enter_today_is_served(client, boards):
+    import routes.ribbit as ribbit
+    old = "zebracowsdognewt"
+    old_letters, old_links, t = ribbit.canonical(old, tuple(LINKS))
+    boards.store(DAY - timedelta(days=3), "then-a", None, old_letters, old_links, t, "typed")
+    for p in (1, 2, 3):
+        _log(client, p)
+    _log(client, 4, letters=old)
+    _log(client, 5, letters=old)
+    # Two of today's players agree on it, so it's one of today's boards,
+    # after the one more of today's players entered.
+    assert _todays(client) == [_as_board(LETTERS, LINKS), _as_board(old, LINKS)]
+
+
+def test_an_old_board_you_approve_today_is_served(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    # One player entered this board weeks ago; Ribbit brings it back today
+    # and James approves his game's board for today.
+    old_day = DAY - timedelta(days=25)
+    canon_letters, canon_links, t = ribbit.canonical(LETTERS, tuple(LINKS))
+    boards.store(old_day, "then-a", None, canon_letters, canon_links, t, "typed")
+    letters, links = _turned(LETTERS, LINKS)
+    _typed(client, monkeypatch, cells=letters, links=links)
+    assert _todays(client) == [_as_board(letters, links)]          # as he typed it
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert '<td class="status-served">Served</td>' in html
+    assert f"{old_day:%m-%d}<br>" in html                         # still shows when it was first seen
+
+
+def test_an_old_approval_does_not_serve_an_archive_replay(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    old_day = DAY - timedelta(days=3)
+    canon_letters, canon_links, t = ribbit.canonical(LETTERS, tuple(LINKS))
+    boards.approve(old_day, canon_letters, canon_links, t)          # approved on its own day
+    _log(client, 1)                                                # replayed today
+    assert _todays(client) == []
+    assert _links_for(client, LETTERS) == [list(p) for p in LINKS]   # its links still fill in
+    html = client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert f"first seen {old_day:%m-%d}; needs 1 more matching board" in html
+    assert 'action="/ribbit_admin/approve_board"' in html           # Add can approve it for today
 
 
 # ---------------------------------------------------------------------------
