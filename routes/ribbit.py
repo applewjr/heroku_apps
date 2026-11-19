@@ -328,11 +328,12 @@ def todays_boards(rows, day):
     Today's boards are the letters logged on `day` that are settled (see
     consensus): the approved ones first, in the order they were approved
     (James can play both Puzzmo's and Yahoo's), then the players' boards,
-    most players first, at most TODAYS_BOARDS_MAX. Never letters first logged on an earlier day - that
-    is an older puzzle, so an archive game. Returns (boards, groups): boards
-    is a list of {'letters', 'edges'}, each in its approval's view or else
-    the one most of its players used; groups is every set of letters with
-    its consensus and 'served', most players first, for the admin page.
+    most players first, at most TODAYS_BOARDS_MAX. Letters first logged on an
+    earlier day count only `day`'s own entries (see below). Returns (boards,
+    groups): boards is a list of {'letters', 'edges'}, each in its approval's
+    view or else the one most of its players used; groups is every set of
+    letters with its consensus and 'served', most players first, for the
+    admin page.
     """
     by_letters = {}
     for row in rows:
@@ -340,17 +341,29 @@ def todays_boards(rows, day):
 
     groups = []
     for letters, group_rows in by_letters.items():
-        if not any(row[PLAYED_ON] == day for row in group_rows):
+        on_day = [row for row in group_rows if row[PLAYED_ON] == day]
+        if not on_day:
             continue
         result = consensus(group_rows)
+        if result['first_seen'] < day:
+            # Ribbit reuses boards (James's 11-18 board was first seen
+            # 10-24), so an older board can be the day's board, but only
+            # that day's entries count: his approval for the day, or that
+            # day's players settling it. An archive replay plus whoever
+            # entered it weeks ago is not enough (James, 2026-11-18). Add
+            # still copies the newest board of any day, so its fields stay.
+            whole = result
+            result = consensus(on_day)
+            for key in ('first_seen', 'latest_at', 'latest_finished'):
+                result[key] = whole[key]
+            if result['why']:
+                result['why'] = f"first seen {whole['first_seen']:%m-%d}; {result['why']}"
         result['letters'] = letters
         result['served'] = False
-        if result['first_seen'] < day:
-            result['why'] = f"older puzzle, first seen {result['first_seen']:%m-%d}"
         groups.append(result)
     groups.sort(key=lambda g: (-g['players'], g['letters']))
 
-    settled = [g for g in groups if g['first_seen'] >= day and g['links'] is not None]
+    settled = [g for g in groups if g['links'] is not None]
     approved = sorted((g for g in settled if g['approved']), key=lambda g: g['approved_at'])
     offered = approved + [g for g in settled if not g['approved']]
     for g in offered[TODAYS_BOARDS_MAX:]:
