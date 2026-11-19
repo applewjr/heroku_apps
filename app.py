@@ -33,13 +33,14 @@ if config.IS_HEROKU:
 
 # First, before data.py and pandas load: stops glibc holding freed memory,
 # the cause of the dyno's +9-13 MB/hour staircase (helpers.py has the detail).
-from helpers import ValidationError, is_new, pin_malloc_thresholds
+from helpers import ValidationError, is_beta, is_new, pin_malloc_thresholds
 
 pin_malloc_thresholds()
 
 from extensions import NOT_FOUND_LIMITS, ad_slot, cache, limiter, log_page_visit, show_ads
 from monitoring import alerts
-from routes import blossom, chainle, dashboards, espresso, guess_the_phrase, misc, ribbit, smush, smush_dev, wordgames
+from routes import (blossom, chainle, circuits, dashboards, espresso, guess_the_phrase, misc, ribbit, smush,
+                    smush_dev, wordgames)
 
 app = Flask(__name__)
 
@@ -80,13 +81,16 @@ app.register_blueprint(smush_dev.bp)
 app.register_blueprint(ribbit.bp)
 app.register_blueprint(guess_the_phrase.bp)
 app.register_blueprint(chainle.bp)
+app.register_blueprint(circuits.bp)
 app.register_blueprint(espresso.bp)
 app.register_blueprint(dashboards.bp)
 
 ##### templates #####
 
-# The solver links' NEW tag (templates/_related_solvers.html, index.html).
+# The solver links' NEW tag (templates/_related_solvers.html, index.html),
+# and the Beta tag pages wear until James takes it off (helpers.BETA_PAGES).
 app.add_template_global(is_new)
+app.add_template_global(is_beta)
 # Whether a page loads AdSense (base.html), and its deliberate ad unit
 # (templates/_ad_slot.html).
 app.add_template_global(show_ads)

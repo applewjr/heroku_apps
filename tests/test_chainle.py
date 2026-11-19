@@ -92,8 +92,13 @@ def test_page_says_unofficial_and_credits_every_source(client, tiny):
 
 
 def test_page_no_longer_says_beta(client, tiny):
+    # Chainle's own words, that is: its title, and the page from its heading
+    # to the solver links. The menu and those links tag other pages Beta
+    # (helpers.BETA_PAGES).
     html = client.get('/chainle').get_data(as_text=True)
-    assert not re.search(r'\bbeta\b', html, re.I)
+    own = re.search(r'<title>.*?</title>', html, re.S).group(0)
+    own += html[html.index('<h1'):html.index('class="jj-more"')]
+    assert not re.search(r'\bbeta\b', own, re.I)
 
 
 def test_answers_are_listed_without_a_show_button(client, tiny):

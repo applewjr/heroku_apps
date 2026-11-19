@@ -194,6 +194,69 @@ def test_extra_pairs_join_the_data(data):
     assert words(r) == ['ROOM']
 
 
+def test_an_arrow_from_a_tile_next_to_two_boxes_may_be_one_the_game_lacks(data):
+    # HOT [DOG] above HOUSE, GAS [?] below it. DOG HOUSE is real; HOUSE down
+    # into the second box is an arrow the page drew by itself. HOUSE has
+    # arrows to two boxes, so HOUSE + MASK missing costs nothing and GAS MASK
+    # wins. Were it a sure arrow, HOUSE BOAT (missing only GAS) would.
+    rows = blank_rows(['HOT', B, ''], ['', 'HOUSE', ''], ['GAS', B, ''])
+    r = cz.solve(data, board(rows, [(0, 1), (1, 4), (4, 7), (6, 7)]))
+    assert words(r) == ['DOG', 'MASK']
+    arcs = r['boxes'][1]['arcs']
+    assert [(a['given'], a['known'], a['doubtful']) for a in arcs] == [('HOUSE', False, True), ('GAS', True, False)]
+    assert [a['doubtful'] for a in r['boxes'][0]['arcs']] == [False, True]
+    assert cz.doubtful_tiles(board(rows, [(0, 1), (1, 4), (4, 7), (6, 7)])) == {4}
+
+
+def test_a_kept_word_is_a_tile_to_the_boxes_next_to_it(data):
+    # The second box's only tile is HOT, whose other arrow goes to the third
+    # box (HOT DOG, DOG HOUSE). With FIRE kept above it, it takes a word that
+    # joins FIRE, which HOT alone would never have offered.
+    rows = blank_rows(['', B, ''], ['HOT', B, ''], [B, '', ''], ['HOUSE', '', ''])
+    b = board(rows, [(1, 4), (3, 4), (3, 6), (6, 9)])
+    r = cz.solve(data, b, locked={1: 'fire'})
+    assert words(r)[0] == 'FIRE' and words(r)[2] == 'DOG'
+    assert words(r)[1] in {'MAN', 'STATION', 'PLACE', 'TRUCK'}
+    assert r['boxes'][1]['arcs'][0] == {'other': 1, 'first': False, 'box': 1, 'known': True}
+
+
+def test_first_letters_narrow_a_box(data):
+    # SNOW ___ alone fits BALL, MAN, FLAKE and STORM; a Bolt's S leaves STORM.
+    b = board(blank_rows(['SNOW', B, '']), [(0, 1)])
+    assert words(cz.solve(data, b, starts={1: 's'})) == ['STORM']
+    assert words(cz.solve(data, b, starts={1: 'FL'})) == ['FLAKE']
+    # Letters nothing fits leave the box empty rather than break them.
+    assert words(cz.solve(data, b, starts={1: 'Q'})) == [None]
+    # A kept word wins over letters; letters that aren't letters, or for a
+    # cell that isn't a box, are ignored.
+    assert words(cz.solve(data, b, locked={1: 'ball'}, starts={1: 'S'})) == ['BALL']
+    assert words(cz.solve(data, b, starts={1: 'S1', 0: 'S'}))[0] in {'BALL', 'MAN', 'FLAKE', 'STORM'}
+
+
+def test_shapes():
+    assert cz.shape_name(4, 4) == '4x4' and cz.parse_shape('4x4') == (4, 4) and cz.parse_shape('5x3') == (5, 3)
+    assert cz.parse_shape('6x6') is None and cz.parse_shape('5') is None and cz.parse_shape(None) is None
+    # A 4 by 4 board: arrows across a row end at its fourth column.
+    cells = ['', '', 'SNOW', ''] + ['', '', B, ''] + [''] * 8
+    b = cz.parse_board(cells, [[2, 6]], 4, 4)
+    assert b.boxes == [6] and (b.rows, b.cols) == (4, 4)
+    with pytest.raises(cz.BoardError):
+        cz.parse_board(cells, [[3, 4]], 4, 4)
+    with pytest.raises(cz.BoardError):
+        cz.parse_board(cells[:15], [[2, 6]], 4, 4)
+
+
+def test_a_word_in_an_added_pair_may_be_an_answer():
+    # GNU is in the data but too rare to be an answer, until James adds a
+    # pair with it: his answers can be rarer words than the solver guesses.
+    small = cz.Data(**cz.pack({('snow', 'gnu'): 2.5, ('gnu', 'herd'): 2.5},
+                              zipf={'snow': 4.0, 'gnu': 2.0, 'herd': 3.5}, answer={'snow', 'herd'}))
+    b = board(blank_rows(['SNOW', B, 'HERD']), [(0, 1), (1, 2)])
+    assert words(cz.solve(small, b)) == [None]
+    extra = {(small.id('snow'), small.id('gnu')): 3.0}
+    assert words(cz.solve(small, b, extra=extra)) == ['GNU']
+
+
 # --- the shipped file -----------------------------------------------------------
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), os.pardir, 'datasets', 'circuits_data.npz')
@@ -233,3 +296,136 @@ def test_shipped_data_passes_its_canaries_and_budget():
     assert len(shipped.succ_ids) <= build.MAX_PAIRS
     assert len(shipped.succ_ids) == len(shipped.pred_ids)
     assert np.all(np.diff(shipped.succ_ptr) >= 0)
+
+
+# --- the page (routes/circuits.py, templates/circuits.html) ---------------------
+
+@pytest.fixture
+def tiny(monkeypatch, data):
+    """The tiny word data in place of the shipped file. conftest.py keeps
+    every database cursor of routes/circuits.py failing."""
+    import routes.circuits as rc
+    monkeypatch.setattr(rc, '_static', {'data': data, 'failed_at': 0.0, 'version': None})
+    return data
+
+
+def _faq(html):
+    import json
+    import re
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    return next(d for d in map(json.loads, blocks) if d.get('@type') == 'FAQPage')
+
+
+def test_page_shows_the_loaded_marker_and_says_unofficial(client, tiny):
+    html = client.get('/circuits').get_data(as_text=True)
+    # The hourly web probe expects this marker (datasets/health_web.yaml).
+    assert 'id="cc-data-ok"' in html
+    assert 'Unofficial helper. Not affiliated with or endorsed by Puzzmo.' in html
+
+
+def test_page_says_when_the_data_is_unavailable(client, monkeypatch):
+    import time
+    import routes.circuits as rc
+    monkeypatch.setattr(rc, '_static', {'data': None, 'failed_at': time.time(), 'version': None})
+    html = client.get('/circuits').get_data(as_text=True)
+    assert 'id="cc-data-ok"' not in html and 'The solver is unavailable right now' in html
+    resp = client.post('/circuits', json={'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]]})
+    assert resp.status_code == 503
+
+
+def test_faq_structured_data_parses_and_matches_the_visible_faq(client, tiny):
+    import re
+    html = client.get('/circuits').get_data(as_text=True)
+    faq = _faq(html)
+    visible = re.sub(r'<[^>]+>', '', re.sub(r'<script.*?</script>', '', html, flags=re.S))
+    visible = ' '.join(visible.split())
+    for q in faq['mainEntity']:
+        assert q['name'] in visible
+        assert q['acceptedAnswer']['text'] in visible
+
+
+def test_page_credits_every_source(client, tiny):
+    # The credits the sources' licences ask for (datasets/CIRCUITS_DATA.md).
+    html = client.get('/circuits').get_data(as_text=True)
+    for required in (
+        'Wikipedia contributors', 'Wiktionary contributors', 'creativecommons.org/licenses/by-sa/4.0',
+        'WordNet 3.0 Copyright 2006 by Princeton University', 'Wikidata',
+        'creativecommons.org/publicdomain/zero/1.0', 'ENABLE', 'wordfreq', 'Robyn Speer', 'SUBTLEX',
+        'Brysbaert', 'freely available', 'Google Books Ngrams', 'ConceptNet Numberbatch',
+        'Luminoso Technologies', 'List of Dirty, Naughty, Obscene, and Otherwise Bad Words',
+        'creativecommons.org/licenses/by/4.0',
+    ):
+        assert required in html, required
+
+
+def test_the_page_wears_a_beta_tag_until_it_comes_off(client, tiny, monkeypatch):
+    import re
+    import helpers
+    html = client.get('/circuits').get_data(as_text=True)
+    assert re.search(r'<h1 class="cc-h1">Circuits Answers &amp; Hints <span class="jj-beta-tag">Beta</span></h1>', html)
+    # Visual only: never in the title or the description.
+    assert 'Beta' not in re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+    home = client.get('/').get_data(as_text=True)
+    assert re.search(r'Circuits Solver<span class="beta-tag">Beta</span>', home)
+    strip = client.get('/smush').get_data(as_text=True).split('More daily puzzle solvers')[1]
+    assert re.search(r'href="/circuits".*?jj-more-beta">Beta</span>', strip, re.S)
+    assert 'href="/circuits">Circuits Solver<span class="jj-beta-tag">Beta</span>' in home
+    # One switch takes it off everywhere.
+    monkeypatch.setattr(helpers, 'BETA_PAGES', frozenset())
+    for path in ('/circuits', '/', '/smush'):
+        assert '>Beta</span>' not in client.get(path).get_data(as_text=True), path
+
+
+def test_the_public_page_never_names_the_admin_pages(client, tiny):
+    html = client.get('/circuits').get_data(as_text=True)
+    assert 'circuits_admin' not in html and 'circuitsApproveState' not in html
+
+
+def test_players_are_never_told_how_boards_are_chosen(client, tiny):
+    lowered = client.get('/circuits').get_data(as_text=True).lower()
+    for hint in ('different players', 'another player', 'players agreed', 'for everyone',
+                 'two players', '2 players', 'three players', '3 players', 'majority'):
+        assert hint not in lowered, f'page hints at the threshold: {hint!r}'
+
+
+def test_a_solve_through_the_route(client, tiny):
+    cells = ['SNOW', B, 'ROOM', '', B, '', 'BATTLE', B, ''] + [''] * 6
+    arrows = [[0, 1], [1, 2], [1, 4], [4, 7], [6, 7]]
+    reply = client.post('/circuits', json={'cells': cells, 'arrows': arrows}).get_json()
+    assert [b['word'] for b in reply['boxes']] == ['BALL', 'GAME', 'PLAN']
+    assert reply['checked'] is False and reply['known_arrows'] is None
+    assert 'solutions' not in reply
+    # A kept word holds, and the rest is solved around it.
+    reply = client.post('/circuits', json={'cells': cells, 'arrows': arrows, 'locked': {'4': 'show'}}).get_json()
+    assert reply['boxes'][1]['word'] == 'SHOW' and reply['boxes'][1]['confidence'] == 'locked'
+    # First letters from a Bolt narrow a box.
+    reply = client.post('/circuits', json={'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]],
+                                           'starts': {'1': 's'}}).get_json()
+    assert [b['word'] for b in reply['boxes']] == ['STORM']
+
+
+def test_a_four_by_four_board_through_the_route(client, tiny):
+    # SNOW [BALL] ROOM along the second row of a 4 by 4 grid, GAME under BALL.
+    cells = [''] * 4 + ['SNOW', B, 'ROOM', ''] + ['', B, '', ''] + ['', 'PLAN', '', '']
+    arrows = [[4, 5], [5, 6], [5, 9], [9, 13]]
+    reply = client.post('/circuits', json={'rows': 4, 'cols': 4, 'cells': cells, 'arrows': arrows}).get_json()
+    assert [b['word'] for b in reply['boxes']] == ['BALL', 'GAME']
+    # The same cells sent without a shape are a 5 by 3 board: 15 cells, not 16.
+    assert client.post('/circuits', json={'cells': cells, 'arrows': arrows}).status_code == 400
+
+
+@pytest.mark.parametrize('body', [
+    {'cells': ['SNOW'] * 15, 'arrows': []},                       # no box
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[1, 0]]},       # an arrow pointing left
+    {'cells': ['SN0W', B] + [''] * 13, 'arrows': [[0, 1]]},       # not letters
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'0': 'ball'}},   # not a box
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'1': 'two words'}},
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'1': 's1'}},     # letters only
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'0': 's'}},      # a box's
+    {'cells': ['SNOW', B] + [''] * 34, 'arrows': [[0, 1]], 'rows': 6, 'cols': 6},      # not a shape the page offers
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'rows': '5', 'cols': 3},    # not a number
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'rows': 5.0, 'cols': 3.0},
+    {'cells': ['SNOW', B] + [''] * 14, 'arrows': [[0, 1]], 'rows': 4, 'cols': True},
+])
+def test_bad_solves_are_400s(client, tiny, body):
+    assert client.post('/circuits', json=body).status_code == 400

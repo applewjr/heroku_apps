@@ -108,6 +108,8 @@ def test_password_only_pages_load_no_ads(client, slots, monkeypatch):
     board = _page(client, "/ribbit_admin/board", headers=headers)
     assert UNIT not in board and LOADER not in board
     assert LOADER not in _page(client, "/ribbit_admin", headers=headers)
+    board = _page(client, "/circuits_admin/board", headers=headers)
+    assert UNIT not in board and LOADER not in board
     # The same browser, back on a public page, gets them again.
     assert LOADER in _page(client, "/ribbit", headers=headers)
 

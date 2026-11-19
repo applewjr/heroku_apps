@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block title %}Circuits Admin - Boards and Answers{% endblock %}
+
+{% block content %}
+{% from '_crowd_admin.html' import styles, keep_view, flash with context %}
+{{ styles() }}
+<style>
+/* Each tab is its own page load (the Accuracy tab re-solves boards). */
+a.tab-button { color: inherit; text-decoration: none; }
+
+/* A Circuits board, small: tiles, numbered boxes, and the arrows between,
+   in its own number of columns (c3, c4: the shapes boards come in). */
+.mini-board {
+    display: inline-grid;
+    gap: 2px 0;
+    align-items: center;
+    font-size: 11px;
+    line-height: 1.15;
+}
+.mini-board .tile { background-color: #02484d; color: #fff; border-radius: 4px; padding: 3px 4px; text-align: center; font-weight: 700; }
+.mini-board .box { border: 1.5px solid #02484d; color: #02484d; border-radius: 4px; padding: 2px 4px; text-align: center; font-weight: 700; }
+.mini-board .blank { min-height: 12px; }
+.mini-board .gap { text-align: center; color: #02484d; font-weight: 700; font-size: 12px; }
+{% for n in shape_cols %}.mini-board.c{{ n }} { grid-template-columns: {% for c in range(n) %}minmax(46px, auto){% if not loop.last %} 14px {% endif %}{% endfor %}; }
+{% endfor %}
+.board-open { display: inline-block; padding: 4px 6px; border: 1px solid #cdd8d7; border-radius: 6px; color: #02484d; text-decoration: none; }
+.board-open:hover { border-color: #02484d; background-color: #eef4f4; }
+.board-open-label { display: block; margin-top: 3px; font-size: 11px; text-decoration: underline; }
+
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.when { white-space: nowrap; font-size: 12px; }
+.approve-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px; }
+.approve-entry .btn { margin: 0; padding: 6px 12px; font-size: 13px; }
+.site-forms { display: flex; flex-direction: column; gap: 4px; }
+.site-forms .btn { margin: 0; }
+
+/* An approved board's answers, its misses, and the pairs the data lacks. */
+.review { margin: 6px 0 14px; padding: 10px 12px; border: 1px solid #cfe0e0; border-radius: 8px; background-color: #f8fbfb; text-align: left; }
+.review h4 { margin: 0 0 6px; font-size: 14px; color: #02484d; }
+.answer-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.answer-grid .answer { display: flex; flex-direction: column; gap: 2px; font-size: 13px; font-weight: 600; }
+.answer-grid input { width: 120px; padding: 4px 6px; font-size: 14px; text-transform: uppercase; }
+.pick { font-size: 12px; color: #666; }
+.pick.right { color: #218838; }
+.miss { color: #a55; }
+.pair-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.pair-list li { margin: 3px 0; }
+.pair-list form { display: inline; }
+.pair-list .btn { padding: 2px 8px; font-size: 12px; }
+.totals { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 6px 0 10px; font-size: 14px; }
+</style>
+
+<div class="admin-container">
+    <div class="admin-top">
+        <h1>Circuits Admin - Boards and Answers</h1>
+        <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
+            <a href="/circuits" target="_blank" rel="noopener" class="btn btn-primary">Back to Circuits Solver</a>
+            <a href="https://www.puzzmo.com/play/circuits" target="_blank" rel="noopener" class="btn btn-success puzzmo-circuits-link">Puzzmo Circuits</a>
+            <a href="https://www.yahoo.com/games/play/circuits/" target="_blank" rel="noopener" class="btn btn-success">Yahoo Circuits</a>
+        </nav>
+    </div>
+
+    {{ flash() }}
+
+    {% if not data_ok %}
+    <div class="alert alert-error">The word data didn't load: answers and reviews are off until it does.</div>
+    {% endif %}
+
+    <div class="stats">
+        <strong>Game day (America/Chicago):</strong> {{ game_today.strftime('%Y-%m-%d') }} |
+        <strong>Today's boards:</strong> {{ 'live on /circuits' if boards_live else 'logging only; served on /circuits_admin/board' }}
+    </div>
+
+    <div class="tab-container">
+        <a class="tab-button{% if active_tab == 'boards' %} active{% endif %}" href="/circuits_admin?tab=boards">Today's Boards</a>
+        <a class="tab-button{% if active_tab == 'accuracy' %} active{% endif %}" href="/circuits_admin?tab=accuracy">Accuracy</a>
+        <a class="tab-button{% if active_tab == 'pairs' %} active{% endif %}" href="/circuits_admin?tab=pairs">Added Pairs</a>
+    </div>
+
+    {% if active_tab == 'boards' %}
+    <div class="tab-content active">
+        <div class="tab-head">
+            <h2>Today's Boards</h2>
+            <details class="admin-help"><summary>How boards are served</summary>
+                <p class="crowd-note">The game day is Puzzmo's: the date in America/Chicago, for every player. Puzzmo and Yahoo Games (powered by Puzzmo) each have their own daily board, both linked at the top, so a day can have more than one real board.</p>
+                <p class="crowd-note">Boards players typed are logged once they use the solver on them. A board is served once {{ serve_majority }} players enter the same cells (each arrow kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: a box, and every tile on an arrow. A player's board only ever gains arrows, and a board loaded from today's boards counts only once it's changed. Players on one network count as one. Served are the boards offered that day, for each player to pick theirs: your approvals first, then boards the players settled, most players first, at most {{ todays_boards_max }}.</p>
+                <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add for a site on a board you entered yourself on /circuits (Add copies the most recently updated board with those cells, its time under the buttons, and approves nothing if a newer one came in before you pressed it). Each site has its own approval. Undo takes a site's approval back and leaves the players' boards alone. Remove deletes that day's entries of the board, approvals too.</p>
+                <p class="crowd-note">Answers: an approved board gets a box per answer, filled with what you saved, else a word {{ entered_prefill }}+ players kept, else the solver's pick. Saved answers show to players as checked on that board. Once saved, the solver's misses and the pairs your answers need that the data lacks are listed; Add teaches the solver a pair.</p>
+            </details>
+        </div>
+        {% if load_error %}
+        <div class="alert alert-error">
+            Couldn't read the boards ({{ load_error }}). Have mysql_tables/circuits_boards.sql, circuits_boards_shape.sql and circuits_pairs.sql been run?
+        </div>
+        {% endif %}
+
+        <div class="approve-entry">
+            <strong>Approve your game's board:</strong>
+            <a href="/circuits_admin/board" class="btn btn-success">Enter your board</a>
+            <span class="crowd-note">or click a board below to start from it.</span>
+        </div>
+
+        {% for d in days %}
+        <h3>{{ d.day.strftime('%Y-%m-%d') }}</h3>
+        {% for g in d.groups %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Board</th>
+                    <th>Players</th>
+                    <th>Half-drawn</th>
+                    <th>Arrows agreed / tied</th>
+                    <th>Status</th>
+                    <th>First seen / last update</th>
+                    <th>Approve</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><a class="board-open" href="/circuits_admin/board?key={{ g.key }}&amp;day={{ d.day.strftime('%Y-%m-%d') }}"
+                           title="Open this board in the board editor to check, fix and approve it"><span class="mini-board c{{ g.cols }}">{% for row in g.picture %}{% for item in row %}<span class="{{ item.kind }}">{{ item.text }}</span>{% endfor %}{% endfor %}</span><span class="board-open-label">Open in editor</span></a></td>
+                    <td>{{ g.players }}</td>
+                    <td>{{ g.half_drawn }}</td>
+                    <td>{{ g.agreed }} / {{ g.tied }}</td>
+                    <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                    <td class="when">
+                        {{ g.first_seen.strftime('%m-%d') }}<br>
+                        {{ g.last_update.strftime('%m-%d %H:%M') }}
+                    </td>
+                    <td>
+                        <div class="site-forms">
+                        {% for site, name in sites.items() %}
+                            {% if site in g.sites %}
+                            <form method="POST" action="/circuits_admin/unapprove_board" class="remove-form">
+                                <input type="hidden" name="key" value="{{ g.key }}">
+                                <input type="hidden" name="site" value="{{ site }}">
+                                {{ keep_view() }}
+                                <span class="status-served">{{ name }} approved</span>
+                                <button type="submit" class="btn btn-secondary">Undo</button>
+                            </form>
+                            {% elif g.latest_finished %}
+                            <form method="POST" action="/circuits_admin/approve_board" class="remove-form"
+                                  onsubmit="return confirm('Serve the board last updated {{ g.latest_at.strftime('%m-%d %H:%M') }} for {{ name }}?')">
+                                <input type="hidden" name="key" value="{{ g.key }}">
+                                <input type="hidden" name="site" value="{{ site }}">
+                                <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                                <input type="hidden" name="latest" value="{{ g.latest_stamp }}">
+                                {{ keep_view() }}
+                                <button type="submit" class="btn btn-success">Add for {{ name }}</button>
+                            </form>
+                            {% endif %}
+                        {% endfor %}
+                        {% if g.latest_at and g.latest_finished %}<span class="when">board from {{ g.latest_at.strftime('%H:%M') }}</span>{% elif not g.approved %}<span class="status-waiting">latest board not finished</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <form method="POST" action="/circuits_admin/remove_board" class="remove-form"
+                              onsubmit="return confirm('Delete every entry of this board on {{ d.day.strftime('%Y-%m-%d') }}, approvals too?')">
+                            <input type="hidden" name="key" value="{{ g.key }}">
+                            <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        {% if g.review %}
+        <div class="review">
+            <h4>Answers{% if not g.review.saved %} (not saved yet){% endif %}</h4>
+            <form method="POST" action="/circuits_admin/save_answers">
+                <input type="hidden" name="key" value="{{ g.key }}">
+                {{ keep_view() }}
+                <div class="answer-grid">
+                    {% for f in g.review.form %}
+                    <label class="answer">Box {{ f.n }}
+                        <input type="text" name="answer" value="{{ f.value }}" maxlength="24" autocomplete="off">
+                        <span class="pick{% if f.right %} right{% endif %}">{% if f.pick %}solver: {{ f.pick }} ({{ f.confidence }}){% else %}solver: nothing{% endif %}</span>
+                    </label>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary">Save answers</button>
+                </div>
+            </form>
+            {% if g.review.saved %}
+            {% if g.review.misses %}
+            <p class="crowd-note miss">The solver misses {% for f in g.review.misses %}box {{ f.n }} ({{ f.value }}, it says {{ f.pick or 'nothing' }}){% if not loop.last %}, {% endif %}{% endfor %}.</p>
+            {% else %}
+            <p class="crowd-note">The solver gets every box right.</p>
+            {% endif %}
+            {% if g.review.pairs %}
+            <p class="crowd-note">Pairs your answers need that the data lacks:</p>
+            <ul class="pair-list">
+                {% for p in g.review.pairs %}
+                <li>{{ p.label }}
+                    {% if p.note %}<span class="crowd-note">- {{ p.note }}</span>
+                    {% else %}
+                    <form method="POST" action="/circuits_admin/add_pair">
+                        <input type="hidden" name="first" value="{{ p.first }}">
+                        <input type="hidden" name="second" value="{{ p.second }}">
+                        {{ keep_view() }}
+                        <button type="submit" class="btn btn-success">Add {{ p.first|upper }} + {{ p.second|upper }}</button>
+                    </form>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="crowd-note">The data has every pair your answers need.</p>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        {% if not load_error %}<p>No boards logged in the last few days.</p>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if active_tab == 'accuracy' %}
+    <div class="tab-content active">
+        <div class="tab-head">
+            <h2>Accuracy</h2>
+            <details class="admin-help"><summary>What these numbers are</summary>
+                <p class="crowd-note">Every approved board with saved answers from the last {{ accuracy_days }} days. Data alone is today's solver on the shipped data, without your added pairs (they come from these very boards, so they'd flatter it); its labels show how far each one can be trusted. Shown is what the solver showed players when they logged the board.</p>
+            </details>
+        </div>
+        {% if accuracy_error %}
+        <div class="alert alert-error">Couldn't read the boards ({{ accuracy_error }}).</div>
+        {% endif %}
+        {% if totals and totals.alone[1] %}
+        <div class="totals">
+            <span><strong>Data alone:</strong> {{ totals.alone[0] }} / {{ totals.alone[1] }} boxes right ({{ '%.0f' % (100 * totals.alone[0] / totals.alone[1]) }}%)</span>
+            {% for label in ('sure', 'likely', 'guess', 'none') %}{% if label in totals.labels %}
+            <span>{{ label|capitalize }}: {{ totals.labels[label][0] }} / {{ totals.labels[label][1] }}</span>
+            {% endif %}{% endfor %}
+            {% if totals.shown[1] %}<span><strong>Shown:</strong> {{ totals.shown[0] }} / {{ totals.shown[1] }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if accuracy %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr><th>Day</th><th>Sites</th><th>Board</th><th>Data alone</th><th>Misses</th><th>Shown</th></tr>
+            </thead>
+            <tbody>
+                {% for b in accuracy %}
+                <tr>
+                    <td class="when">{{ b.day.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ b.sites|join(', ') }}</td>
+                    <td><span class="mini-board c{{ b.cols }}">{% for row in b.picture %}{% for item in row %}<span class="{{ item.kind }}">{{ item.text }}</span>{% endfor %}{% endfor %}</span></td>
+                    <td>{% if b.alone %}{{ b.alone[0] }} / {{ b.alone[1] }}{% else %}-{% endif %}</td>
+                    <td>{% for m in b.misses %}<span class="miss">box {{ m.n }}: {{ m.answer }} (said {{ m.word or 'nothing' }}, {{ m.confidence }})</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                    <td>{% if b.shown %}{{ b.shown[0] }} / {{ b.shown[1] }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% elif not accuracy_error %}
+        <p>No approved boards with answers yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if active_tab == 'pairs' %}
+    <div class="tab-content active">
+        <div class="tab-head">
+            <h2>Added Pairs</h2>
+            <details class="admin-help"><summary>About added pairs</summary>
+                <p class="crowd-note">Compounds you taught the solver: the first word written first (SNOW + BALL). The solver counts each as sure, and a word in one can be an answer even if it's rarer than the solver would guess on its own. Both sides must be words the data knows. Remove takes one back.</p>
+            </details>
+        </div>
+        {% if pairs_error %}
+        <div class="alert alert-error">Couldn't read the pairs ({{ pairs_error }}). Has mysql_tables/circuits_pairs.sql been run?</div>
+        {% endif %}
+        <form method="POST" action="/circuits_admin/add_pair" class="approve-entry">
+            <input type="text" name="first" placeholder="first word" maxlength="24" required>
+            <span>+</span>
+            <input type="text" name="second" placeholder="second word" maxlength="24" required>
+            {{ keep_view() }}
+            <button type="submit" class="btn btn-success">Add pair</button>
+        </form>
+        {% if pairs %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead><tr><th>Pair</th><th>Added</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for first, second, added_at in pairs %}
+                <tr>
+                    <td><strong>{{ first|upper }} + {{ second|upper }}</strong></td>
+                    <td class="when">{{ added_at.strftime('%Y-%m-%d %H:%M') if added_at else '' }}</td>
+                    <td>
+                        <form method="POST" action="/circuits_admin/remove_pair" class="remove-form"
+                              onsubmit="return confirm('Remove {{ first|upper }} + {{ second|upper }}?')">
+                            <input type="hidden" name="first" value="{{ first }}">
+                            <input type="hidden" name="second" value="{{ second }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% elif not pairs_error %}
+        <p>No pairs added yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Puzzmo's Circuits URL carries the date in Puzzmo's calendar (America/Chicago).
+document.querySelectorAll('.puzzmo-circuits-link').forEach(function (a) {
+    try {
+        var day = new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
+        a.href = 'https://www.puzzmo.com/puzzle/' + day + '/circuits';
+    } catch (_) {}
+});
+</script>
+
+{% endblock %}

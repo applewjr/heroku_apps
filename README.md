@@ -60,6 +60,7 @@ These are the hobby part of the hobby.
 | [Ribbit](https://www.jamesapplewhite.com/ribbit) | Rebuild the 4x4 board and trace every word through it, longest first |
 | [Guess The Phrase](https://www.jamesapplewhite.com/guess_the_phrase) | Spoiler-free hints for the daily phrase, one letter at a time, from a bank of 660K+ phrases built from Wikidata, Wiktionary, and WordNet |
 | [Chainle](https://www.jamesapplewhite.com/chainle) | The word that links your clues, found with ConceptNet Numberbatch word vectors and WordNet, with a hint before the answer |
+| [Circuits](https://www.jamesapplewhite.com/circuits) | Fills every box of the compound-word grid at once, from 1.3M word pairs counted in Wikipedia and word lists, with hints first and how sure it is about each box |
 | [Wordiply](https://www.jamesapplewhite.com/wordiply) | The longest words containing a given starter |
 | [Last Letter Helper](https://www.jamesapplewhite.com/fixer) | Words that contain specific letters |
 
@@ -84,14 +85,15 @@ These are the hobby part of the hobby.
 | `scheduled_tasks_*/` | Scheduled jobs: MTG Bluesky posts, YouTube loads, espresso import, Redis to MySQL |
 | `monitoring/` | Health checks, alerts, job wrapper, daily digest |
 | `mysql_tables/`, `mysql_views/` | Table changes and dashboard views |
-| `datasets/` | Word lists, phrase and Chainle data, dashboard and health check YAML |
+| `datasets/` | Word lists, phrase, Chainle and Circuits data, dashboard and health check YAML |
 | `scripts/` | Offline data builds, backtests, and evaluations |
 | `tests/` | pytest suite |
 | `_archived_scheduled_tasks_*/` | Retired jobs (Riot Games, Spotify, a Twitter bot, web scraping), kept for reference |
 
 ## Licensing
 
-The code is MIT licensed ([LICENSE](LICENSE)). Two sets of data files in `datasets/` are not, and carry their sources' licences instead:
+The code is MIT licensed ([LICENSE](LICENSE)). Three sets of data files in `datasets/` are not, and carry their sources' licences instead:
 
 - The Guess The Phrase files (`phrase_*`): CC BY-SA 4.0, CC BY 4.0, and the WordNet 3.0 licence, listed in [datasets/PHRASE_BANK.md](datasets/PHRASE_BANK.md).
 - The Chainle solver's `chainle_data.npz`: CC BY-SA 4.0 and the WordNet 3.0 licence, listed in [datasets/CHAINLE_DATA.md](datasets/CHAINLE_DATA.md).
+- The Circuits solver's `circuits_data.npz`: CC BY-SA 4.0 and the WordNet 3.0 licence, listed in [datasets/CIRCUITS_DATA.md](datasets/CIRCUITS_DATA.md).

@@ -24,7 +24,8 @@ WITH visits AS (
     FROM app_visits
     WHERE submit_time >= pst_now() - INTERVAL 14 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
-                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html')
+                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
+                          'circuits.html')
         AND referrer REGEXP '^https://(www\\.)?jamesapplewhite\\.com([/?#]|$)'
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
@@ -52,7 +53,7 @@ SELECT
 ,SUM(recent) - SUM(NOT recent) AS moves_change
 FROM moves
 WHERE from_page IN ('home', 'smush', 'blossom', 'chainle', 'ribbit', 'wordiply', 'gtp',
-                    'wordle', 'antiwordle', 'quordle')
+                    'wordle', 'antiwordle', 'quordle', 'circuits')
     AND from_page <> to_page
 GROUP BY from_page, to_page
 ORDER BY moves_7d DESC, prior_7d DESC

@@ -13,10 +13,12 @@ Every board is invented here, never taken from a real puzzle:
   scoring (the game promises one answer per box).
 
 No word list knows every compound the game uses, so each board is solved
-again with a share of its own pairs hidden from the solver. The report gives
-box and whole-board accuracy at each share, accuracy per confidence label,
-accuracy by score gap (to set SURE_GAP and LIKELY_GAP in functions/circuits.py),
-and solve times.
+again with a share of its own pairs hidden from the solver. Each is also
+solved with the arrows the page draws by itself (every box to each filled
+square next to it), as a player who never taps an arrow sends them. The
+report gives, for both, box and whole-board accuracy at each share, accuracy
+per confidence label, accuracy by score gap (to set SURE_GAP and LIKELY_GAP
+in functions/circuits.py), and solve times.
 """
 
 import argparse
@@ -122,6 +124,19 @@ def neighbours(c):
 def arrow(a, b):
     """The arrow between neighbouring cells a and b, pointing right or down."""
     return (a, b) if b > a else (b, a)
+
+
+def page_arrows(cells):
+    """The arrows the page draws by itself: one between each box and every
+    filled square next to it. A tile next to two boxes often links to just
+    one in the game, so a player who leaves these alone sends extras."""
+    out = []
+    for i in range(len(cells)):
+        r, k = divmod(i, cz.COLS)
+        for j in ([i + 1] if k < cz.COLS - 1 else []) + ([i + cz.COLS] if r < cz.ROWS - 1 else []):
+            if cells[i] and cells[j] and cz.BOX in (cells[i], cells[j]):
+                out.append([i, j])
+    return out
 
 
 def layout(rng, ladder):
@@ -281,52 +296,71 @@ def one_board(seed):
         for g in givens:
             cells[g] = data.word(word[g]).upper()
         board = cz.parse_board(cells, [list(a) for a in arrows])
+        drawn = page_arrows(cells)
+        extras = sum(1 for a in drawn if tuple(a) not in set(arrows))
+        boards = {'exact': board, 'page': cz.parse_board(cells, drawn) if extras else board}
         truth = [data.word(word[c]).upper() for c in board.boxes]
         pairs = [(word[a], word[b]) for a, b in arrows]
         records = []
         for share in HIDE:
             k = int(round(share * len(pairs)))
             hidden = {pairs[j] for j in rng.choice(len(pairs), k, replace=False)} if k else set()
-            t = time.perf_counter()
-            r = cz.solve(Hidden(data, hidden), board)
-            ms = (time.perf_counter() - t) * 1000
-            boxes_out = [(b['word'] == want, b['confidence'], b['gap']) for b, want in zip(r['boxes'], truth)]
-            records.append((share, boxes_out, ms, r['partial']))
-        return {'seed': seed, 'ladder': ladder, 'records': records}
+            done = {}
+            for kind in ('exact', 'page'):
+                if kind == 'page' and not extras:
+                    records.append((kind, share) + done['exact'])
+                    continue
+                t = time.perf_counter()
+                r = cz.solve(Hidden(data, hidden), boards[kind])
+                ms = (time.perf_counter() - t) * 1000
+                boxes_out = [(b['word'] == want, b['confidence'], b['gap']) for b, want in zip(r['boxes'], truth)]
+                done[kind] = (boxes_out, ms, r['partial'])
+                records.append((kind, share) + done[kind])
+        return {'seed': seed, 'ladder': ladder, 'extras': extras, 'records': records}
     return None
+
+
+KINDS = (('exact', "the board's own arrows"),
+         ('page', 'the arrows the page draws, extras left in'))
 
 
 def report(results, asked):
     results = [r for r in results if r]
-    print(f'{len(results)} of {asked} boards filled ({sum(r["ladder"] for r in results)} ladders)\n')
-    print(' hidden   boxes right   boards right    sure (right)    likely (right)   guess (right)   p50 ms  p95 ms  partial')
-    for share in HIDE:
-        recs = [rec for r in results for rec in r['records'] if rec[0] == share]
-        boxes = [b for rec in recs for b in rec[1]]
-        right = sum(b[0] for b in boxes)
-        boards = sum(all(b[0] for b in rec[1]) for rec in recs)
-        by = {}
-        for label in ('sure', 'likely', 'guess'):
-            got = [b for b in boxes if b[1] == label]
-            by[label] = f'{len(got):5d} ({(sum(b[0] for b in got) / len(got) * 100 if got else 0):5.1f}%)'
-        ms = sorted(rec[2] for rec in recs)
-        print(f'  {share:4.0%}   {right / len(boxes) * 100:6.1f}%      {boards / len(recs) * 100:6.1f}%     '
-              f'{by["sure"]}   {by["likely"]}   {by["guess"]}   {ms[len(ms) // 2]:6.0f}  {ms[int(len(ms) * .95)]:6.0f}'
-              f'  {sum(rec[3] for rec in recs)}')
-    print('\nboxes right by shape:')
-    for name, want in (('ladder', True), ('random', False)):
-        line = []
+    print(f'{len(results)} of {asked} boards filled ({sum(r["ladder"] for r in results)} ladders, '
+          f'{sum(1 for r in results if r["extras"])} with arrows the page would add, '
+          f'{sum(r["extras"] for r in results)} extra arrows in all)')
+    for kind, title in KINDS:
+        print(f'\nSolved with {title}:')
+        print(' hidden   boxes right   boards right    sure (right)    likely (right)   guess (right)   p50 ms  p95 ms  partial')
         for share in HIDE:
-            boxes = [b for r in results if r['ladder'] == want
-                     for rec in r['records'] if rec[0] == share for b in rec[1]]
-            line.append(f'{share:.0%}: {sum(b[0] for b in boxes) / max(1, len(boxes)) * 100:5.1f}%')
-        print(f'  {name:7s}', '   '.join(line))
-    print('\naccuracy by score gap (all hidden shares together):')
-    boxes = [b for r in results for rec in r['records'] for b in rec[1] if b[1] != 'none']
-    for lo, hi in zip(GAP_BINS, GAP_BINS[1:]):
-        got = [b for b in boxes if lo <= b[2] < hi]
-        if got:
-            print(f'  gap {lo:4.1f} - {hi:4.1f}: {len(got):5d} boxes, {sum(b[0] for b in got) / len(got) * 100:5.1f}% right')
+            recs = [rec[2:] for r in results for rec in r['records'] if rec[:2] == (kind, share)]
+            boxes = [b for rec in recs for b in rec[0]]
+            right = sum(b[0] for b in boxes)
+            boards = sum(all(b[0] for b in rec[0]) for rec in recs)
+            by = {}
+            for label in ('sure', 'likely', 'guess'):
+                got = [b for b in boxes if b[1] == label]
+                by[label] = f'{len(got):5d} ({(sum(b[0] for b in got) / len(got) * 100 if got else 0):5.1f}%)'
+            ms = sorted(rec[1] for rec in recs)
+            print(f'  {share:4.0%}   {right / len(boxes) * 100:6.1f}%      {boards / len(recs) * 100:6.1f}%     '
+                  f'{by["sure"]}   {by["likely"]}   {by["guess"]}   {ms[len(ms) // 2]:6.0f}  {ms[int(len(ms) * .95)]:6.0f}'
+                  f'  {sum(rec[2] for rec in recs)}')
+        print('boxes right by shape:')
+        for name, keep in (('ladder', lambda r: r['ladder']), ('random', lambda r: not r['ladder']),
+                           ('extras', lambda r: r['extras'] > 0)):
+            line = []
+            for share in HIDE:
+                boxes = [b for r in results if keep(r)
+                         for rec in r['records'] if rec[:2] == (kind, share) for b in rec[2]]
+                line.append(f'{share:.0%}: {sum(b[0] for b in boxes) / max(1, len(boxes)) * 100:5.1f}%')
+            print(f'  {name:7s}', '   '.join(line))
+        print('  (extras: the boards where the page would draw arrows the board lacks)')
+        print('accuracy by score gap (all hidden shares together):')
+        boxes = [b for r in results for rec in r['records'] if rec[0] == kind for b in rec[2] if b[1] != 'none']
+        for lo, hi in zip(GAP_BINS, GAP_BINS[1:]):
+            got = [b for b in boxes if lo <= b[2] < hi]
+            if got:
+                print(f'  gap {lo:4.1f} - {hi:4.1f}: {len(got):5d} boxes, {sum(b[0] for b in got) / len(got) * 100:5.1f}% right')
 
 
 def main():

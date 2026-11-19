@@ -377,6 +377,19 @@ def is_new(path):
     return until is not None and pacific_today() <= until
 
 
+# Pages tagged Beta: next to the page's own heading, and in the menu, the home
+# page's card and the solver links, where NEW would go (a Beta page never
+# wears NEW too). No date: the tag stays until James says to take it off
+# (2026-11-19), then the entry goes and the next deploy drops it everywhere.
+BETA_PAGES = frozenset({'/circuits'})
+
+
+def is_beta(path):
+    """True if the page at `path` is tagged Beta (see BETA_PAGES). A
+    template global, like is_new."""
+    return path in BETA_PAGES
+
+
 def make_trending_jsonld(items, list_name="YouTube Trending - Top videos today"):
     """Build a schema.org ItemList of trending videos for SEO.
 

@@ -9,7 +9,11 @@ SNOWBALL, FIRE + STATION is FIRE STATION). Each box has one intended answer.
 The solver fills every box at once. A filling scores the sum, over arrows, of
 how well the two words are known to join, plus a small bonus for common
 words. A pair the data lacks costs MISS rather than ruling the filling out,
-since no word list knows every compound. The best fillings come from a
+since no word list knows every compound. An arrow from a tile next to two or
+more boxes may not be in the game at all (the page draws one from each box
+to every square next to it), so a pair it lacks costs nothing (DOUBT_MISS).
+A word the player keeps counts as a tile, and first letters from a Bolt
+narrow a box to words that start that way. The best fillings come from a
 depth-first search that starts where the givens pin a box down hardest and
 prunes on an optimistic bound. A box's confidence is how far the best filling
 beats the best one with a different word in that box.
@@ -27,10 +31,12 @@ from collections import defaultdict
 
 import numpy as np
 
-# The board. Every board seen so far is 5 rows by 3 columns with some cells
-# blank; the size is kept in one place in case a bigger one turns up.
+# The board: a grid of rows by columns with some cells blank. Puzzmo's boards
+# seen so far are 5 by 3 and Yahoo's 4 by 4 (2026-11-19). The page offers the
+# SHAPES (ROWS by COLS first); the solver itself takes any shape.
 ROWS = 5
 COLS = 3
+SHAPES = ((5, 3), (4, 4))
 BOX = '?'
 MAX_CELL_LEN = 24
 _GIVEN = re.compile(r"[A-Z](?:[A-Z '\-]{0,%d}[A-Z])?" % (MAX_CELL_LEN - 2))
@@ -50,6 +56,12 @@ FIELDS = ('vocab', 'zipf', 'flags', 'succ_ptr', 'succ_ids', 'succ_w',
 # the word that touches the box, at PART_FACTOR of the weight.
 CAP = 3.0
 MISS = -1.0
+# A tile with arrows to two or more boxes: the page draws an arrow from each
+# box to every square next to it, and in the game such a tile often links to
+# just one of them. Its arrows are doubtful: a known pair counts as usual, a
+# missing one costs DOUBT_MISS, and a word needn't join any of them to be a
+# candidate.
+DOUBT_MISS = 0.0
 PRIOR = 0.25
 PRIOR_FROM = 3.0
 PRIOR_TO = 5.5
@@ -206,6 +218,20 @@ class Board:
         return '|'.join(self.cells)
 
 
+def shape_name(rows, cols):
+    """A shape as stored with a board: '5x3'."""
+    return f'{rows}x{cols}'
+
+
+def parse_shape(text):
+    """(rows, cols) from shape_name's text, if it's one of SHAPES, else None."""
+    try:
+        rows, cols = (int(x) for x in str(text).split('x'))
+    except ValueError:
+        return None
+    return (rows, cols) if (rows, cols) in SHAPES else None
+
+
 def clean_cell(value):
     """A cell as typed: '' (blank), BOX, or a given in upper case with single
     spaces. Raises BoardError for anything else."""
@@ -271,12 +297,19 @@ class _Pairs:
         self.data = data
         self.extra_succ = defaultdict(dict)
         self.extra_pred = defaultdict(dict)
+        self.extra_words = set()
         for (a, b), w in (extra or {}).items():
             if a >= 0 and b >= 0:
                 self.extra_succ[a][b] = max(w, self.extra_succ[a].get(b, 0.0))
                 self.extra_pred[b][a] = max(w, self.extra_pred[b].get(a, 0.0))
+                self.extra_words.update((a, b))
         self._succ = {}
         self._pred = {}
+
+    def may_answer(self, x):
+        """Can word x fill a box? A common single word, or one in a pair
+        James added (his answers can be rarer words)."""
+        return self.data.can_answer(x) or x in self.extra_words
 
     def succ(self, i):
         """{word id: weight} of the words that can follow word i."""
@@ -350,6 +383,14 @@ def _given_id(data, text, given_first):
     return -1, 0.0
 
 
+def tile_word(data, text, given_first):
+    """The word or unit the solver matches a given tile by, as one side of an
+    arrow (see _given_id), or None if it knows neither. The admin page uses
+    it to name a pair the data lacks exactly as the solver would look it up."""
+    i, _ = _given_id(data, text, given_first)
+    return data.word(i) if i >= 0 else None
+
+
 def _locked_ids(data, board, locked):
     """{box cell: word id} for the words the player already has. A word the
     data doesn't know gets its own negative id: it has no pairs, and its
@@ -365,45 +406,84 @@ def _locked_ids(data, board, locked):
     return out, words
 
 
-def solve(data, board, locked=None, extra=None, budget_s=BUDGET_S, top=TOP_SOLUTIONS):
+def _starts(board, starts, lock_ids):
+    """{box cell: lower-case letters} a box's word is known to start with (a
+    Bolt in the game shows one letter at a time). Kept boxes don't need it."""
+    out = {}
+    for cell, letters in (starts or {}).items():
+        if (cell in board.boxes and cell not in lock_ids and isinstance(letters, str)
+                and _WORD.fullmatch(letters.strip())):
+            out[cell] = letters.strip().lower()
+    return out
+
+
+def doubtful_tiles(board):
+    """The given tiles with arrows to two or more boxes (see DOUBT_MISS)."""
+    count = defaultdict(int)
+    for i, j in board.arrows:
+        for t in (i, j):
+            if board.cells[t] != BOX:
+                count[t] += 1
+    return {t for t, n in count.items() if n >= 2}
+
+
+def solve(data, board, locked=None, extra=None, budget_s=BUDGET_S, top=TOP_SOLUTIONS, starts=None):
     """Fill every box. Returns a JSON-ready dict:
 
     boxes        per box, in reading order: its cell and number, the best
                  word (None if nothing fits), confidence ('sure', 'likely',
                  'guess' or 'none'), the gap behind it, letter count, the
                  alternatives, and its arrows with whether each is known
+                 (and, for a tile's, whether it's doubtful: see DOUBT_MISS)
     unknown      given tiles the data doesn't know (their arrows don't count)
     start        the number of the box to start with, for hints
     partial      True if the time budget ran out before the search finished
     solutions    the best fillings' words, best first (for the admin and tests)
 
-    locked  {box cell: word} the player already has
+    locked  {box cell: word} the player already has; each is a tile to the
+            boxes next to it
     extra   {(first id, second id): weight}: James's added pairs
+    starts  {box cell: letters} a box's word is known to begin with
     """
     deadline = time.monotonic() + budget_s
     pairs = _Pairs(data, extra)
     lock_ids, lock_words = _locked_ids(data, board, locked)
+    prefix = _starts(board, starts, lock_ids)
     cells = board.cells
     boxes = board.boxes
     unknown = set()
+    doubtful = doubtful_tiles(board)
 
-    # Each box's arrows to given tiles: (word id, factor, given written first).
+    # Each box's arrows to given tiles, as (word id, factor, given written
+    # first, doubtful). A box the player has filled counts as a tile.
     given_arcs = {c: [] for c in boxes}
     box_arcs = []
     for i, j in board.arrows:
         if cells[i] == BOX and cells[j] == BOX:
-            box_arcs.append((i, j))
+            if (i in lock_ids) != (j in lock_ids):
+                kept, box = (i, j) if i in lock_ids else (j, i)
+                if lock_ids[kept] >= 0:
+                    given_arcs[box].append((lock_ids[kept], 1.0, kept == i, False))
+            else:
+                box_arcs.append((i, j))
             continue
         box, given, given_first = (j, i, True) if cells[j] == BOX else (i, j, False)
         gid, factor = _given_id(data, cells[given], given_first)
         if gid < 0:
             unknown.add(cells[given])
             continue
-        given_arcs[box].append((gid, factor, given_first))
+        given_arcs[box].append((gid, factor, given_first, given in doubtful))
 
-    # Box domains: candidates from the givens, scored on their own.
+    def starts_ok(c, x):
+        return c not in prefix or (x >= 0 and data.word(x).startswith(prefix[c]))
+
+    # Box domains: candidates from the givens, scored on their own. A word
+    # must join all but one of the box's sure arrows. With none sure, or a
+    # first letter known, joining any one arrow will do, and the box takes
+    # candidates through its neighbour boxes as well (widen).
     local = {c: {} for c in boxes}
     domain = {}
+    widen = set()
     for c in boxes:
         if c in lock_ids:
             x = lock_ids[c]
@@ -411,24 +491,30 @@ def solve(data, board, locked=None, extra=None, budget_s=BUDGET_S, top=TOP_SOLUT
             domain[c] = [x]
             continue
         arcs = given_arcs[c]
+        sure = sum(1 for a in arcs if not a[3])
+        if c in prefix or (arcs and not sure):
+            widen.add(c)
         if not arcs:
             continue
-        total, known = defaultdict(float), defaultdict(int)
-        for gid, factor, given_first in arcs:
+        total, hits, sure_hits = defaultdict(float), defaultdict(int), defaultdict(int)
+        for gid, factor, given_first, doubt in arcs:
             row = pairs.succ(gid) if given_first else pairs.pred(gid)
             for x, w in row.items():
                 total[x] += min(w, CAP) * factor
-                known[x] += 1
-        need = max(1, len(arcs) - 1)
-        scored = {x: total[x] + MISS * (len(arcs) - n) + _prior(data, x)
-                  for x, n in known.items() if n >= need and data.can_answer(x)}
+                hits[x] += 1
+                if not doubt:
+                    sure_hits[x] += 1
+        need = 0 if c in widen else max(1, sure - 1)
+        scored = {x: (total[x] + MISS * (sure - sure_hits[x])
+                      + DOUBT_MISS * (len(arcs) - sure - (n - sure_hits[x])) + _prior(data, x))
+                  for x, n in hits.items() if sure_hits[x] >= need and pairs.may_answer(x) and starts_ok(c, x)}
         if scored:
             best = heapq.nlargest(DOMAIN, scored.items(), key=lambda kv: kv[1])
             local[c] = dict(best)
             domain[c] = [x for x, _ in best]
 
     # Boxes no known tile pins down: candidates through neighbouring boxes.
-    _two_hop(data, pairs, boxes, box_arcs, given_arcs, local, domain)
+    _two_hop(data, pairs, boxes, box_arcs, given_arcs, local, domain, widen, starts_ok)
 
     # Box-to-box tables, restricted to the domains: {x: {y: score}}.
     tables = {}
@@ -441,7 +527,7 @@ def solve(data, board, locked=None, extra=None, budget_s=BUDGET_S, top=TOP_SOLUT
     solvable = [c for c in boxes if c in domain]
     sols, partial = _search(data, solvable, domain, local, box_arcs, tables, deadline, top)
     return _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
-                   sols, partial, unknown, lock_ids, lock_words)
+                   sols, partial, unknown, lock_ids, lock_words, doubtful)
 
 
 def _given_score(pairs, x, arcs):
@@ -449,46 +535,65 @@ def _given_score(pairs, x, arcs):
     score = 0.0
     if x < 0:
         return 0.0
-    for gid, factor, given_first in arcs:
+    for gid, factor, given_first, doubt in arcs:
         w = pairs.weight(gid, x) if given_first else pairs.weight(x, gid)
-        score += min(w, CAP) * factor if w is not None else MISS
+        score += min(w, CAP) * factor if w is not None else (DOUBT_MISS if doubt else MISS)
     return score
 
 
-def _two_hop(data, pairs, boxes, box_arcs, given_arcs, local, domain):
+def _two_hop(data, pairs, boxes, box_arcs, given_arcs, local, domain, widen=(), starts_ok=None):
     """Candidates for boxes the tiles don't pin down (no known tile, or no
     word joining all but one of them), from the words that join their
     neighbour boxes' best candidates. A box's own tile arrows still count in
     its score. Runs outwards until nothing changes, so a chain of such boxes
-    still gets candidates."""
+    still gets candidates. A box in `widen` keeps the best half of its own
+    candidates and takes these for the rest."""
+    def support_for(c):
+        support = defaultdict(float)
+        reach = defaultdict(set)
+        for u, v in box_arcs:
+            if c not in (u, v):
+                continue
+            other = v if u == c else u
+            if other not in domain:
+                continue
+            top = heapq.nlargest(TWO_HOP_FROM, domain[other], key=lambda x: local[other].get(x, 0.0))
+            for y in top:
+                if y < 0:
+                    continue
+                row = pairs.pred(y) if u == c else pairs.succ(y)
+                for x, w in row.items():
+                    if pairs.may_answer(x) and (starts_ok is None or starts_ok(c, x)):
+                        support[x] += min(w, CAP)
+                        reach[x].add(other)
+        if not support:
+            return []
+        return heapq.nlargest(DOMAIN, support,
+                              key=lambda x: (len(reach[x]), support[x] / TWO_HOP_FROM + _prior(data, x)))
+
+    hopped = set()
     while True:
         grew = False
         for c in boxes:
             if c in domain:
                 continue
-            support = defaultdict(float)
-            reach = defaultdict(set)
-            for u, v in box_arcs:
-                if c not in (u, v):
-                    continue
-                other = v if u == c else u
-                if other not in domain:
-                    continue
-                top = heapq.nlargest(TWO_HOP_FROM, domain[other], key=lambda x: local[other].get(x, 0.0))
-                for y in top:
-                    row = pairs.pred(y) if u == c else pairs.succ(y)
-                    for x, w in row.items():
-                        if data.can_answer(x):
-                            support[x] += min(w, CAP)
-                            reach[x].add(other)
-            if support:
-                best = heapq.nlargest(DOMAIN, support,
-                                      key=lambda x: (len(reach[x]), support[x] / TWO_HOP_FROM + _prior(data, x)))
+            best = support_for(c)
+            if best:
                 local[c] = {x: _given_score(pairs, x, given_arcs[c]) + _prior(data, x) for x in best}
                 domain[c] = best
+                hopped.add(c)
                 grew = True
         if not grew:
-            return
+            break
+    for c in boxes:
+        if c not in widen or c in hopped or c not in domain:
+            continue
+        own = domain[c][:DOMAIN // 2]
+        mine = set(own)
+        more = [x for x in support_for(c) if x not in mine][:DOMAIN - len(own)]
+        for x in more:
+            local[c][x] = _given_score(pairs, x, given_arcs[c]) + _prior(data, x)
+        domain[c] = own + more
 
 
 def _search(data, boxes, domain, local, box_arcs, tables, deadline, top):
@@ -639,7 +744,7 @@ def _search(data, boxes, domain, local, box_arcs, tables, deadline, top):
 
 
 def _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
-            sols, partial, unknown, lock_ids, lock_words):
+            sols, partial, unknown, lock_ids, lock_words, doubtful=frozenset()):
     cells = board.cells
     best_score, best = sols[0] if sols else (0.0, {})
 
@@ -693,6 +798,7 @@ def _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
                 gid, _ = _given_id(data, cells[other], other == i)
                 entry['known'] = gid >= 0 and x is not None and (known(gid, x) if other == i else known(x, gid))
                 entry['unknown_tile'] = gid < 0
+                entry['doubtful'] = other in doubtful
             arcs.append(entry)
         if x is None:
             out_boxes.append({'cell': c, 'n': n, 'word': None, 'confidence': 'none', 'gap': 0.0,
