@@ -42,6 +42,7 @@ SOLVES = {
                                 "min_len": 4}),
     "/chainle": ("chainle.html", {"clues": ["snow", "basket"], "kind": "bridge"}),
     "/circuits": ("circuits.html", {"cells": ["SNOW", "?", "ROOM"] + [""] * 12, "arrows": [[0, 1], [1, 2]]}),
+    "/typeshift": ("typeshift.html", {"columns": ["scb", "trl", "oai", "nm", "ep"]}),
     "/guess_the_phrase": ("guess_the_phrase.html", {"board": BOARD, "tried": "", "category": "song"}),
     "/wordiply": ("wordiply.html", {"search_string": "ab"}),
     "/wordle": ("wordle_revamp.html", {"wordle_data": []}),
@@ -78,12 +79,13 @@ def no_db(monkeypatch):
     import routes.ribbit
     import routes.smush
     import routes.smush_ice
+    import routes.typeshift
 
     def down():
         raise RuntimeError("no database in tests")
 
     for module in (crowd, extensions, routes.blossom, routes.chainle, routes.circuits, routes.dashboards,
-                   routes.misc, routes.ribbit, routes.smush, routes.smush_ice):
+                   routes.misc, routes.ribbit, routes.smush, routes.smush_ice, routes.typeshift):
         monkeypatch.setattr(module, "db_cursor", down)
 
 
@@ -243,6 +245,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
     import routes.guess_the_phrase as gtp
     import routes.ribbit as ribbit
     import routes.smush as smush
+    import routes.typeshift as typeshift
 
     def reply(*args, **kwargs):
         return jsonify(status="success")
@@ -251,6 +254,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
                           (ribbit, ("handle_action",)),
                           (chainle, ("handle_rounds_action", "handle_vote")),
                           (circuits, ("handle_action",)),
+                          (typeshift, ("handle_action",)),
                           (gtp, ("handle_vote",)),
                           (blossom, ("_toggle_invalid", "_suggest_missing", "_log_board",
                                      "_todays_board_reply"))):
@@ -261,6 +265,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
         "/ribbit": ("shared_board", "board_links", "log_board", "reject", "suggest_missing"),
         "/chainle": ("todays_rounds", "log_round", "refuse"),
         "/circuits": ("todays_boards", "log_board"),
+        "/typeshift": ("todays_boards", "log_board", "reject", "restore", "suggest_missing"),
         "/guess_the_phrase": ("suggest_missing",),
         "/blossom": ("toggle_invalid", "suggest_missing", "log_board", "todays_board", "toggle_word"),
     }
@@ -275,7 +280,8 @@ def test_admin_copies_never_log(client, monkeypatch, tiny, no_db):
     import routes.ribbit as ribbit
     monkeypatch.setattr(ribbit, "handle_action", lambda data, serve_dark=False: jsonify(boards=[]))
     auth = _admin_headers(monkeypatch)
-    for path in ("/smush_dev", "/chainle_dev", "/ribbit_admin/board", "/circuits_admin/board"):
+    for path in ("/smush_dev", "/chainle_dev", "/ribbit_admin/board", "/circuits_admin/board",
+                 "/typeshift_admin/board"):
         assert client.get(path, headers=auth).status_code == 200, path
     solve = dict(SOLVES["/smush"][1], first_solve=True)
     assert client.post("/smush_dev", json=solve, headers=auth).status_code == 200
@@ -285,6 +291,8 @@ def test_admin_copies_never_log(client, monkeypatch, tiny, no_db):
     assert client.post("/ribbit_admin/board", json=board, headers=auth).status_code == 200
     circuits = dict(SOLVES["/circuits"][1], first_solve=True)
     assert client.post("/circuits_admin/board", json=circuits, headers=auth).status_code == 200
+    typeshift = dict(SOLVES["/typeshift"][1], first_solve=True)
+    assert client.post("/typeshift_admin/board", json=typeshift, headers=auth).status_code == 200
     assert _visits() == []
 
 
@@ -300,7 +308,7 @@ def _page_list(view):
 def test_the_use_views_count_every_solver_and_its_uses():
     # A misspelled '(solve)' name would read zero forever without an error.
     pages = _page_list("vw_prod_word_solver_page_visits.sql")
-    assert len(pages) == 10
+    assert len(pages) == 11
     expected = pages | {f"{page} (solve)" for page in pages}
     assert _page_list("vw_prod_traffic_today.sql") == expected
     assert _page_list("vw_prod_solver_use_7d.sql") == expected

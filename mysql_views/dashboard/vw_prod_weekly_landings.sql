@@ -16,12 +16,13 @@ SELECT
 ,SUM(page_name = 'antiwordle_revamp.html') AS antiwordle
 ,SUM(page_name = 'quordle.html') AS quordle
 ,SUM(page_name = 'circuits.html') AS circuits
+,SUM(page_name = 'typeshift.html') AS typeshift
 ,COUNT(*) AS total
 FROM app_visits
 WHERE submit_time >= DATE(pst_now()) - INTERVAL WEEKDAY(pst_now()) DAY - INTERVAL 7 WEEK
     AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                       'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                      'circuits.html')
+                      'circuits.html', 'typeshift.html')
     AND user_agent <> 'jj-healthcheck'
     AND referrer NOT LIKE '%127.0.0.1:5000%'
     AND referrer NOT LIKE '%apple-apps-staging%'

@@ -67,6 +67,39 @@ def no_circuits_db(monkeypatch):
     monkeypatch.setattr(circuits, "_verdicts", {})
 
 
+@pytest.fixture(scope="session")
+def typeshift_index():
+    """/typeshift's index of the plain word list, built once a session."""
+    from data import words
+    from functions import typeshift as ts
+    return ts.Index.build(words)
+
+
+@pytest.fixture(autouse=True)
+def no_typeshift_db(monkeypatch, typeshift_index):
+    """Keep /typeshift off the database, for every test.
+
+    Its solves read Typeshift's word corrections and its word reports vote
+    (both through crowd.py), and today's boards come from typeshift_boards:
+    ``secret_pass.py`` points at the production JawsDB. Every cursor in
+    routes/typeshift.py and crowd.py fails here, as in an outage (the page
+    fails safe), the word list is the plain one with no corrections to read,
+    and the boards memo starts empty. A test's own fixture can still put a
+    fake in either place (tests/test_typeshift_boards.py,
+    tests/test_typeshift_crowd.py and the other crowd games' tests do).
+    """
+    import crowd
+    import routes.typeshift as typeshift
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(typeshift, "db_cursor", down)
+    monkeypatch.setattr(crowd, "db_cursor", down)
+    monkeypatch.setattr(typeshift, "_boards_cache", {})
+    monkeypatch.setattr(typeshift, "_index", {"value": typeshift_index, "expires": float("inf")})
+
+
 @pytest.fixture(autouse=True)
 def no_ice_builds(monkeypatch):
     """Never really build an ICE COLD table in a test, for every test.

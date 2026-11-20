@@ -71,6 +71,13 @@ circuits:
     expect: 'id="cc-data-ok"'
     sev: warn
 
+# Typeshift's page: the marker renders once the word list is there.
+typeshift:
+    path: "/typeshift"
+    max_ms: 4000
+    expect: 'id="ts-data-ok"'
+    sev: warn
+
 wordle:
     path: "/wordle"
     max_ms: 3000

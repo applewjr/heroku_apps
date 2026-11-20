@@ -1185,9 +1185,9 @@ def test_the_digest_covers_every_crowd_game():
     from monitoring.crowd_report import CROWD_GAMES
     html, _o, _b, _m = _render()
     for admin in ('/blossom_admin', '/smush_admin', '/ribbit_admin', '/chainle_admin',
-                  '/guess_the_phrase_admin'):
+                  '/guess_the_phrase_admin', '/typeshift_admin'):
         assert admin in html
-    assert len(CROWD_GAMES) == 5
+    assert len(CROWD_GAMES) == 6
 
 
 def test_digest_vote_window_matches_the_app():
