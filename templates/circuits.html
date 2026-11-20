@@ -43,7 +43,7 @@
       "name": "How do I enter the board?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter or Tab to move to the next square. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
+        "text": "Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
       }
     },{% if boards_on %}
     {
@@ -493,7 +493,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     <div class="instructions-body">
         <strong>1. Type the board.</strong> Pick the board size that matches your game, 5 by 3 or 4 by 4.
         Tap a square and type the word on that tile, then press
-        Enter (or Tab) to go to the next square. For an empty box, tap <strong>Box</strong> (or type ?); for a
+        Enter to go on to the next empty square (Tab goes to the very next one). For an empty box, tap <strong>Box</strong> (or type ?); for a
         square with nothing in it, tap <strong>Blank</strong>.{% if boards_on %} Once other players
         have entered today's board, you can skip this: tap it above the board and it fills in for you.{% endif %}
         <br><br>
@@ -602,7 +602,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter or Tab to move to the next square. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -989,8 +989,15 @@ document.addEventListener('DOMContentLoaded', () => {
         afterEdit();
     }
 
+    // On to the next empty square (Enter, Next, Box, Blank), past the ones
+    // already filled; with none left after this one, the editor closes. Tab
+    // goes to the very next square instead (the keydown handler below).
     function advance() {
-        if (selected >= 0 && selected < N - 1) selectCell(selected + 1, true);
+        let next = -1;
+        for (let i = selected + 1; selected >= 0 && i < N; i++) {
+            if (!cells[i]) { next = i; break; }
+        }
+        if (next >= 0) selectCell(next, true);
         else { selectCell(-1); editInput.blur(); }
     }
 
