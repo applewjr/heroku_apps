@@ -1,0 +1,1653 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if approve %}Approve your Typeshift board{% else %}Typeshift Answers & Hints - Solver for Today's Puzzmo Typeshift{% endif %}{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Stuck on Puzzmo's Typeshift? Type the columns and get a hint for each letter you have left, one letter at a time, or the fewest words that use every letter.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/typeshift">
+<meta name="keywords" content="typeshift answers, typeshift puzzmo, typeshift hints, puzzmo typeshift today, typeshift solver, typeshift word game, typeshift core words">
+<meta property="og:title" content="Typeshift Answers & Hints - Solver for Today's Puzzmo Typeshift">
+<meta property="og:description" content="Type Puzzmo's Typeshift columns and get spoiler-free hints for the letters you have left, or the fewest words that use every letter.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/typeshift">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+{% if not approve %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Typeshift?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Typeshift is Puzzmo's daily word puzzle. The board is a row of columns of letters. Slide the columns up and down to make a word across the middle row, one letter from each column. Each word you find turns its letters solid, and the goal is to turn every letter solid."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this solver help without spoiling the puzzle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type the board in, then pick Help or Solve. Help shows how many words use each letter and gives a hint for the hardest letter you have left: a word with that letter, hidden, that you uncover one letter at a time. Solve shows the fewest words that use every letter, and every word that fits. The page remembers which one you like."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I enter the board?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type each column's letters from top to bottom into its own box. Tab, Enter or Space goes to the next box, which is always shown dashed after the last column you typed. When the game turns letters solid, tap the same letters on the board here, and the help covers only the letters you have left."
+      }
+    },
+    {% if boards_on %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type the board in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and the columns fill in for you. Check it matches your game before you trust the answers."
+      }
+    },
+    {% endif %}
+    {
+      "@type": "Question",
+      "name": "When does a new Typeshift puzzle come out?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "At midnight US Central time, for every player wherever they are: 10pm Pacific, 11pm Mountain and 1am Eastern. Puzzmo's day follows the date in Chicago."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is a word missing, or listed when the game won't take it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The solver uses its own English word list, not Puzzmo's, so a few words differ. If Typeshift refuses a word, tap the cross next to it and choose that Typeshift refused it: the word is hidden for you, and your report helps fix the list. If the game takes a word the list lacks, send it with the box under the results."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work for older puzzles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The solver only needs the board you type, so it works for today's puzzle, for past ones and for practice boards alike."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial helper for Typeshift, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its words come from the public-domain ENABLE word list, ranked by how common each word is in English."
+      }
+    }
+  ]
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- intro ---------- */
+.ts-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.ts-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
+.ts-notice {
+    max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
+    background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
+}
+.ts-h1 { text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2; }
+.ts-h1 .jj-beta-tag { font-size: 0.4em; vertical-align: 0.6em; }
+
+/* ---------- mode pills (as on /circuits) ---------- */
+.ts-modes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px auto 0; padding: 0 12px; }
+.ts-modes[hidden] { display: none; }
+.ts-modes-label { font-size: 13px; color: #6b7280; margin-right: 2px; }
+.ts-mode {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 7px 16px;
+    min-height: 40px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.ts-mode.active { background-color: #02484d; border-color: #02484d; color: #fff; }
+
+/* ---------- today's boards ---------- */
+.ts-shared {
+    box-sizing: border-box;
+    width: min(92vw, 440px);
+    margin: 12px auto 0;
+    padding: 12px 14px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+    text-align: center;
+}
+.ts-shared[hidden] { display: none; }
+.ts-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; margin: 0 0 10px; }
+.ts-shared-text[hidden] { display: none; }
+.ts-shared-picks { display: flex; flex-direction: column; gap: 10px; }
+.ts-shared-pick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background-color: #fff;
+    border: 2px solid #02484d;
+    border-radius: 10px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.ts-shared-pick:hover, .ts-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+.ts-mini { display: flex; align-items: flex-start; gap: 3px; }
+.ts-mini-col { display: flex; flex-direction: column; gap: 2px; }
+.ts-mini-col span {
+    display: flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 3px;
+    background-color: #02484d; color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
+}
+.ts-shared-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ts-shared-btn {
+    background-color: #02484d; border-radius: 8px; color: #fff; font-size: 15px; font-weight: 600;
+    padding: 10px 14px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center;
+}
+.ts-shared-site { font-size: 12px; font-weight: 600; color: #6b7280; }
+
+/* ---------- the column boxes (the editor) ---------- */
+.ts-editor { box-sizing: border-box; width: min(92vw, 520px); margin: 14px auto 0; }
+.ts-editor-label { font-size: 13px; color: #374151; margin: 0 0 8px; line-height: 1.4; }
+.ts-cols { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 6px; }
+.ts-col { display: flex; flex-direction: column; align-items: stretch; flex: 0 0 76px; min-width: 0; }
+.ts-col-num { font-size: 11px; font-weight: 700; color: #4f9a97; margin-bottom: 2px; text-align: center; }
+/* Two classes, to beat base.html's input[type=text] padding. */
+.ts-editor .ts-col-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 6px;
+    border: 2px solid #02484d;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    font-size: 17px;   /* 16px+ keeps iOS from zooming on focus */
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    text-transform: uppercase;
+}
+.ts-editor .ts-col-input::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; font-size: 13px; }
+.ts-editor .ts-col-input:focus { outline: none; border-color: #02484d; box-shadow: 0 0 0 3px #ffd700; }
+/* The next box: dashed until something is typed in it, and ringed in gold
+   while the box before it has the keyboard. */
+.ts-col.next .ts-col-num { color: #9ca3af; }
+.ts-editor .ts-col.next .ts-col-input { border-style: dashed; border-color: #9cc3c1; background-color: #f9fbfb; }
+.ts-editor .ts-col.next.hot .ts-col-input { border-color: #e0a800; box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.5); }
+.ts-editor .ts-col.next .ts-col-input:focus { border-style: solid; border-color: #02484d; box-shadow: 0 0 0 3px #ffd700; background-color: #fff; }
+.ts-editor .ts-col.gap .ts-col-input { border-color: #e55555; }
+
+/* ---------- the board ---------- */
+.ts-board {
+    --n: 4;
+    --tile: min(48px, calc((min(92vw, 520px) - 24px - (var(--n) - 1) * 6px) / var(--n)));
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 6px;
+    box-sizing: border-box;
+    width: min(92vw, 520px);
+    margin: 14px auto 0;
+    padding: 12px;
+    background-color: #f4f8f8;
+    border: 2px solid #cfe0e0;
+    border-radius: 14px;
+}
+.ts-board[hidden] { display: none; }
+.ts-stack { display: flex; flex-direction: column; gap: 6px; }
+.ts-tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tile);
+    height: var(--tile);
+    box-sizing: border-box;
+    padding: 0;
+    border: 2px solid #02484d;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #02484d;
+    font-family: inherit;
+    font-size: calc(var(--tile) * 0.48);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.15);
+    -webkit-tap-highlight-color: transparent;
+}
+.ts-tile.solid { background-color: #02484d; color: #fff; }
+.ts-tile.only { box-shadow: 0 0 0 3px #ffd700; }
+.ts-tile.target { background-color: #ffd700; border-color: #e0a800; color: #02484d; }
+.ts-tile.lit { box-shadow: 0 0 0 3px #4f9a97; }
+.ts-tile.dead { border-color: #e55555; color: #e55555; }
+.ts-tile:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+.ts-count {
+    position: absolute; top: -7px; right: -7px;
+    min-width: 17px; height: 17px; box-sizing: border-box; padding: 0 4px;
+    border-radius: 999px; background-color: #4f9a97; color: #fff;
+    font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
+    pointer-events: none;
+}
+.ts-tile.only .ts-count { background-color: #e0a800; }
+.ts-tile.dead .ts-count { background-color: #e55555; }
+.ts-twice {
+    position: absolute; top: 3px; left: 3px; width: 7px; height: 7px; border-radius: 50%;
+    background-color: #e55555; pointer-events: none;
+}
+.ts-board-tip { font-size: 13px; color: #6b7280; margin: 12px auto 0; padding: 0 12px; }
+.ts-board-tip[hidden] { display: none; }
+.ts-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 460px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
+.ts-hint.warn { color: #a55; }
+
+/* ---------- results ---------- */
+.ts-results { max-width: 600px; margin: 6px auto 0; text-align: left; }
+.ts-results[hidden] { display: none; }
+.ts-results.stale { opacity: 0.55; }
+.ts-summary { font-size: 15px; font-weight: 600; color: #02484d; margin: 10px 12px 0; line-height: 1.5; text-align: center; }
+.ts-note { font-size: 13px; color: #374151; margin: 8px 12px 0; line-height: 1.5; text-align: center; }
+.ts-note.warn { color: #a55; }
+.ts-card {
+    margin: 12px 12px;
+    padding: 12px 14px;
+    border: 1px solid #f0d97a;
+    border-radius: 8px;
+    background-color: #fffdf3;
+}
+.ts-card-title { font-size: 15px; font-weight: 700; color: #02484d; margin: 0; }
+.ts-mask {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 22px; font-weight: 700; letter-spacing: 3px; color: #02484d; margin: 8px 0 0;
+    overflow-wrap: anywhere;
+}
+.ts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ts-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+.ts-btn:hover { background-color: #eef4f4; }
+.ts-btn.primary { background-color: #02484d; border-color: #02484d; color: #fff; }
+.ts-btn.primary:hover { background-color: #03595f; }
+.ts-btn:disabled, .ts-btn:disabled:hover { background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+.ts-section { font-size: 14px; font-weight: 700; color: #02484d; margin: 16px 12px 6px; }
+.ts-section .ts-legend { font-weight: 400; color: #6b7280; font-size: 12px; }
+.ts-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 12px; }
+.ts-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin: 0; padding: 4px 10px;
+    border: 1px solid #cdd8d7; border-radius: 999px; background-color: #fff; color: #02484d;
+    font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.ts-chip:hover { background-color: #eef4f4; }
+.ts-chip.on { border-color: #e0a800; background-color: #fffbe6; }
+.ts-chip-col { font-size: 11px; font-weight: 600; color: #6b7280; }
+.ts-chip-n { font-size: 11px; font-weight: 700; color: #fff; background-color: #4f9a97; border-radius: 999px; padding: 1px 6px; }
+.ts-chip.one .ts-chip-n { background-color: #e0a800; }
+.ts-words { margin: 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.ts-word-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px;
+    padding: 6px 8px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa;
+}
+.ts-word-row.plan { border-color: #9cc3c1; background-color: #eef4f4; }
+.ts-word {
+    margin: 0; padding: 4px 2px; border: none; background: none; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 17px; font-weight: 700; letter-spacing: 2px; color: #02484d;
+    -webkit-tap-highlight-color: transparent;
+}
+.ts-word:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ts-word.on { background-color: #e6f1f0; border-radius: 4px; }
+.ts-tag { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.ts-tag.rare { color: #a55; border: 1px solid #ecd3d3; background-color: #fbf0f0; }
+.ts-tag.gain { color: #02484d; border: 1px solid #9cc3c1; background-color: #fff; }
+.ts-tag.done { color: #fff; background-color: #02484d; }
+.ts-row-end { margin-left: auto; display: flex; gap: 6px; }
+.ts-icon-btn {
+    min-width: 40px; min-height: 36px; margin: 0; padding: 0 10px;
+    border: 1px solid #cdd8d7; border-radius: 8px; background-color: #fff; color: #02484d;
+    font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.ts-icon-btn:hover { background-color: #eef4f4; }
+.ts-icon-btn.reject { color: #a55; }
+.ts-more { margin: 8px 12px 0; }
+.reject-confirm {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+    padding: 8px; border: 1px dashed #e55555; border-radius: 8px; background-color: #fff;
+}
+.reject-confirm-q { width: 100%; font-size: 13px; font-weight: 600; color: #374151; }
+.reject-confirm button {
+    min-height: 36px; padding: 4px 10px; border: 1px solid #cdd8d7; border-radius: 8px;
+    background-color: #fff; color: #02484d; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.reject-confirm .confirm-refused { color: #a55; border-color: #ecd3d3; }
+.ts-hidden-pile { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 12px; }
+.ts-hidden-pile button {
+    min-height: 34px; padding: 4px 10px; border: 1px dashed #cdd8d7; border-radius: 999px; background-color: #fff;
+    color: #6b7280; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px;
+    font-weight: 700; letter-spacing: 1px; text-decoration: line-through; cursor: pointer;
+}
+.ts-suggest {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 18px auto 0;
+    padding: 10px 12px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa; text-align: left;
+}
+.ts-suggest[hidden] { display: none; }
+.ts-suggest label { font-size: 13px; font-weight: 600; color: #374151; }
+.ts-suggest-row { display: flex; gap: 8px; margin-top: 6px; }
+.ts-suggest .ts-suggest-input {
+    flex: 1 1 auto; min-width: 0; box-sizing: border-box; min-height: 40px; margin: 0; padding: 6px 10px;
+    border: 1px solid #cdd8d7; border-radius: 8px; background-color: #fff; color: #1f2937;
+    font-family: inherit; font-size: 16px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+}
+.ts-suggest .ts-suggest-input::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; font-size: 14px; }
+.ts-suggest .ts-btn { min-height: 40px; flex-shrink: 0; }
+.ts-suggest-status { font-size: 13px; color: #6b7280; margin: 6px 0 0; min-height: 18px; }
+
+{% if approve %}
+/* ---------- James's board entry ---------- */
+.ts-dev-note {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 8px auto 0;
+    padding: 8px 12px; font-size: 13px; line-height: 1.4; color: #02484d;
+    background-color: #eef4f4; border: 1px dashed #4f9a97; border-radius: 8px;
+}
+.ts-load-error { color: #a55; background-color: #fbf0f0; border: 1px solid #ecd3d3; }
+.ts-approve {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 14px auto 0;
+    padding: 12px; background-color: #eef4f4; border: 1px solid #4f9a97; border-radius: 8px; text-align: left;
+}
+.ts-approve label { font-size: 14px; font-weight: 600; color: #02484d; }
+.ts-approve input[type=date] { font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #cdd8d7; border-radius: 6px; }
+.ts-approve-sites { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ts-approve-status { margin: 8px 0 0; font-size: 13px; color: #6b7280; }
+{% endif %}
+
+/* ---------- shared bits ---------- */
+.ts-play-row { margin: 20px 0; text-align: center; min-height: 51px; }
+.ts-clear-btn {
+    background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+    border-radius: 8px; display: inline-block; margin: 4px; font-family: inherit; font-size: 14px;
+    white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
+}
+.ts-clear-btn:hover { background-color: #e9ecef; }
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+.ts-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+.ts-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .ts-board { padding: 10px; }
+    .ts-card { margin: 12px 8px; padding: 12px; }
+    .ts-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<center>
+<br>
+<h1 class="ts-h1">{% if approve %}Approve your game's board{% else %}Typeshift Answers &amp; Hints{% if is_beta('/typeshift') %} <span class="jj-beta-tag">Beta</span>{% endif %}{% endif %}</h1>
+{% if approve %}
+<p class="ts-dev-note">Enter your game's board: type each column top to bottom. Approve for Puzzmo serves it as you typed it to every player on the date you pick, first of the day's boards. Nothing here counts as a player. <a href="/typeshift_admin">Back to Typeshift admin</a></p>
+{% if load_error %}<p class="ts-dev-note ts-load-error" role="alert">{{ load_error }}.</p>{% endif %}
+{% endif %}
+{% if data_ok %}
+<p class="ts-sub" id="ts-data-ok">Help with Puzzmo's Typeshift: a hint for each letter you have left, or the fewest words that use every letter.</p>
+{% else %}
+<div class="ts-notice" role="alert">The solver is unavailable right now. Please try again in a few minutes.</div>
+{% endif %}
+<p class="ts-unofficial">Unofficial helper. Not affiliated with or endorsed by Puzzmo.</p>
+
+{# Hidden, not left out, on the approve page: the script below wires it. #}
+<div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Type the board.</strong> Type each column's letters, top to bottom, into its own box:
+        the first column in box 1, the second in box 2, and so on. Tab, Enter or Space moves to the next
+        box, which is shown dashed after the last column you typed.{% if boards_on %} Once other players
+        have entered today's board, you can skip this: tap it above the boxes and it fills in for you.{% endif %}
+        <br><br>
+        <strong>2. Help or Solve.</strong> <strong>Help</strong> shows how many words use each letter,
+        rings in gold the letters only one word uses, and gives a hint for the hardest letter left:
+        <strong>Show a letter</strong> uncovers its word one letter at a time, <strong>Show word</strong>
+        the whole word. Tap a letter in the Letters left list for its own hint. <strong>Solve</strong>
+        shows the fewest words that use every letter left, and every word that fits.
+        <br><br>
+        <strong>3. Keep up with your game.</strong> When the game turns letters solid, tap the same letters
+        on the board here (tap again to undo), or tap &#10003; on a word you played. The solver then plans
+        only for the letters you have left. If Typeshift refuses a word, tap &#10007; next to it.
+    </div>
+</div>
+
+<div class="ts-modes" id="ts-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
+    <span class="ts-modes-label">Show me:</span>
+    <button type="button" class="ts-mode" data-mode="help">Help</button>
+    <button type="button" class="ts-mode" data-mode="solve">Solve</button>
+</div>
+
+{% if boards_on %}
+<div class="ts-shared" id="ts-shared" hidden>
+    <p class="ts-shared-text" id="ts-shared-one">Other players already entered today's board for you. Tap it to load it.</p>
+    <p class="ts-shared-text" id="ts-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
+    <div class="ts-shared-picks" id="ts-shared-picks"></div>
+</div>
+{% endif %}
+
+<div class="ts-editor" id="ts-editor">
+    <p class="ts-editor-label" id="ts-editor-label">Type each column's letters, top to bottom. Tab or Enter goes to the next column.</p>
+    <div class="ts-cols" id="ts-cols" role="group" aria-labelledby="ts-editor-label"></div>
+</div>
+
+<p class="ts-board-tip" id="ts-board-tip" hidden>Tap a letter you've already turned solid.</p>
+<div class="ts-board" id="ts-board" aria-label="Your board" hidden></div>
+<p class="ts-hint" id="ts-hint" aria-live="polite"></p>
+
+{% if approve %}
+{# The board as it stands goes in columns when an Approve button is pressed
+   (see the approve section of the script); routes/typeshift.py checks it
+   all again. #}
+<form method="POST" action="/typeshift_admin/approve_typed_board" class="ts-approve" id="ts-approve">
+    <label>Date <input type="date" name="played_on" id="ts-approve-date" value="{{ approve_day.strftime('%Y-%m-%d') }}" required></label>
+    <input type="hidden" name="columns" id="ts-approve-columns">
+    <input type="hidden" name="tab" value="boards">
+    <div class="ts-approve-sites">
+        {% for site, name in sites.items() %}
+        <button type="submit" name="site" value="{{ site }}" class="ts-btn primary ts-approve-btn" disabled>Approve for {{ name }}</button>
+        {% endfor %}
+    </div>
+    <p class="ts-approve-status" id="ts-approve-status" aria-live="polite"></p>
+</form>
+{% endif %}
+
+<div class="ts-results" id="ts-results" aria-live="polite" hidden></div>
+
+{% if not approve %}
+<div class="ts-suggest" id="ts-suggest" hidden>
+    <label for="ts-suggest-input">Typeshift accepted a word that isn't listed?</label>
+    <div class="ts-suggest-row">
+        <input type="text" class="ts-suggest-input" id="ts-suggest-input" maxlength="10" autocomplete="off"
+               autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send" placeholder="The word you played">
+        <button type="button" class="ts-btn" id="ts-suggest-btn">Send</button>
+    </div>
+    <p class="ts-suggest-status" id="ts-suggest-status" aria-live="polite"></p>
+</div>
+{% endif %}
+
+<br>
+<div class="ts-play-row">
+    {% if not approve %}
+    <a href="https://www.puzzmo.com/play/typeshift" class="action-btn puzzmo-typeshift-link" target="_blank" rel="noopener noreferrer">&#8597;&#65039; Play Typeshift</a>
+    <a href="/feedback" class="action-btn">&#128172; Give Feedback</a>
+    {% endif %}
+    <button type="button" class="ts-clear-btn" id="ts-clear">&#128260; Clear board</button>
+</div>
+
+{% if not approve %}
+{% with current='/typeshift' %}{% include '_related_solvers.html' %}{% endwith %}
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Typeshift?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Typeshift is Puzzmo's daily word puzzle. The board is a row of columns of letters. Slide the columns up and down to make a word across the middle row, one letter from each column. Each word you find turns its letters solid, and the goal is to turn every letter solid.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the board in, then pick Help or Solve. Help shows how many words use each letter and gives a hint for the hardest letter you have left: a word with that letter, hidden, that you uncover one letter at a time. Solve shows the fewest words that use every letter, and every word that fits. The page remembers which one you like.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type each column's letters from top to bottom into its own box. Tab, Enter or Space goes to the next box, which is always shown dashed after the last column you typed. When the game turns letters solid, tap the same letters on the board here, and the help covers only the letters you have left.</p>
+    </div>
+    {% if boards_on %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and the columns fill in for you. Check it matches your game before you trust the answers.</p>
+    </div>
+    {% endif %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">When does a new Typeshift puzzle come out?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">At midnight US Central time, for every player wherever they are: 10pm Pacific, 11pm Mountain and 1am Eastern. Puzzmo's day follows the date in Chicago.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why is a word missing, or listed when the game won't take it?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The solver uses its own English word list, not Puzzmo's, so a few words differ. If Typeshift refuses a word, tap the cross next to it and choose that Typeshift refused it: the word is hidden for you, and your report helps fix the list. If the game takes a word the list lacks, send it with the box under the results.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. The solver only needs the board you type, so it works for today's puzzle, for past ones and for practice boards alike.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Typeshift, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its words come from the public-domain ENABLE word list, ranked by how common each word is in English.</p>
+    </div>
+  </div>
+</section>
+{% endif %}
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const MIN_COLS = {{ min_cols }}, MAX_COLS = {{ max_cols }}, MAX_LETTERS = {{ max_letters }};
+    // Yesterday's board stays on offer, and saved, this many hours into
+    // Puzzmo's new day (routes/typeshift.py YESTERDAY_HOURS).
+    const YESTERDAY_HOURS = {{ yesterday_hours }};
+    // Where this copy posts, and whether it offers today's boards.
+    const POST_URL = {{ post_url | tojson }};
+    const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
+    const APPROVE = {{ 'true' if approve else 'false' }};
+    {# James's board entry keeps a board of its own, so it never touches his
+       game on the public page, and it never logs a board or a vote. Jinja
+       comments here keep that page's address out of the public page. #}
+    const STORAGE_KEY = {{ ('typeshiftApproveState_v1' if approve else 'typeshiftSolverState_v1') | tojson }};
+    const LOG_BOARDS = !APPROVE;
+    const VOTES = !APPROVE;
+    const MODE_KEY = 'typeshiftMode_v1';
+    // A board the player has looked at this long, untouched, counts as used
+    // and is logged (once per version).
+    const LOG_AFTER_MS = 4000;
+    // A pause in typing this long solves the board again.
+    const SOLVE_AFTER_MS = 500;
+    // Solve's word list shows this many until Show all.
+    const LIST_FIRST = 40;
+
+    /* ---------- state ---------- */
+    let columns = [''];              // each box's letters, upper case; one empty "next" box at the end
+    let solid = {};                  // 'c:i' -> the letter there, for tiles the game has turned solid
+    let reveal = {};                 // word -> how many letters Help has shown beyond the hint's own
+    let target = null;               // 'c:i' of the letter the hint card is on; null: the hardest
+    let played = [];                 // words the player marked played
+    let hidden = [];                 // words hidden with ✗ (Typeshift refused them)
+    let boardSource = 'typed';       // 'typed' | 'shared' (a board on offer, untouched) | 'edited' (shared, then changed)
+    let boardDay = '';               // Puzzmo's date when this board was started
+    let loggedSig = '';              // the board as last logged
+    let mode = 'help';
+    let last = null, lastSig = '';   // the solver's reply, and what it answers
+    let litWord = null;              // a word whose letters are ringed on the board
+    let showAll = false;
+    let solveTimer = null, solveSeq = 0, logTimer = null;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
+    let sharedBoards = [], sharedYesterday = [], sharedDay = '', sharedYesterdayDay = '';
+
+    const colsEl = document.getElementById('ts-cols');
+    const boardEl = document.getElementById('ts-board');
+    const tipEl = document.getElementById('ts-board-tip');
+    const hintEl = document.getElementById('ts-hint');
+    const resultsEl = document.getElementById('ts-results');
+    const modesEl = document.getElementById('ts-modes');
+    const sharedEl = document.getElementById('ts-shared');
+    const sharedOne = document.getElementById('ts-shared-one');
+    const sharedMany = document.getElementById('ts-shared-many');
+    const sharedPicks = document.getElementById('ts-shared-picks');
+    const SHARED_ONE_TEXT = sharedOne ? sharedOne.textContent : '';
+    const suggestBox = document.getElementById('ts-suggest');
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const LETTERS = /^[A-Z]*$/;
+
+    /* ---------- Puzzmo's calendar ---------- */
+    // The date in America/Chicago, for every player, as YYYY-MM-DD built from
+    // its parts (a locale's own date pattern can change), as on /circuits.
+    function chicagoParts() {
+        const p = {};
+        try {
+            new Intl.DateTimeFormat('en-US', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit',
+                                              day: '2-digit', hour: 'numeric', hourCycle: 'h23'})
+                .formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+        } catch (_) {}
+        return p;
+    }
+    function gameDay() {
+        const p = chicagoParts();
+        if (/^\d{4}$/.test(p.year) && /^\d{2}$/.test(p.month) && /^\d{2}$/.test(p.day)) {
+            return p.year + '-' + p.month + '-' + p.day;
+        }
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function gameHour() {
+        const h = Number(chicagoParts().hour);
+        return Number.isInteger(h) ? h : 12;
+    }
+    function dayBefore(day) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+        if (!m) return '';
+        return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) - 1)).toISOString().slice(0, 10);
+    }
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function shortDay(day) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+        return m ? MONTHS[Number(m[2]) - 1] + ' ' + Number(m[3]) : '';
+    }
+
+    /* ---------- the board ---------- */
+    // The columns typed so far, up to the last box with letters; `gap` is the
+    // first empty box among them (-1 if none).
+    function board() {
+        let lastFilled = -1;
+        columns.forEach((c, i) => { if (c) lastFilled = i; });
+        const cols = columns.slice(0, lastFilled + 1);
+        return {cols, gap: cols.findIndex(c => !c)};
+    }
+    const ready = b => b.gap < 0 && b.cols.length >= MIN_COLS;
+    const keyOf = (c, i) => c + ':' + i;
+    // The solid tiles that are still on the board, with the same letter.
+    function solidList(b) {
+        const out = [];
+        Object.keys(solid).forEach(k => {
+            const [c, i] = k.split(':').map(Number);
+            if (b.cols[c] && b.cols[c][i] === solid[k]) out.push([c, i]);
+        });
+        return out.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    }
+    const sigOf = () => {
+        const b = board();
+        return JSON.stringify([b.cols, solidList(b), hidden.slice().sort()]);
+    };
+    // A letter that's in one column twice (the game may never do this).
+    function repeats(col) {
+        const seen = {}, twice = new Set();
+        [...col].forEach(ch => { if (seen[ch]) twice.add(ch); seen[ch] = true; });
+        return twice;
+    }
+
+    /* ---------- the column boxes ---------- */
+    // One box per column typed, plus one empty "next" box after the last
+    // filled one (up to MAX_COLS). Boxes are kept between renders, so the one
+    // being typed in keeps the keyboard and its caret.
+    function syncBoxes() {
+        let lastFilled = -1;
+        columns.forEach((c, i) => { if (c) lastFilled = i; });
+        const want = Math.min(MAX_COLS, lastFilled + 2);
+        const focused = focusedBox();
+        while (columns.length < want) columns.push('');
+        while (columns.length > Math.max(want, focused + 1)) columns.pop();
+        renderBoxes();
+    }
+
+    function focusedBox() {
+        const a = document.activeElement;
+        return a && a.classList && a.classList.contains('ts-col-input') ? Number(a.dataset.i) : -1;
+    }
+
+    function renderBoxes() {
+        const boxes = [...colsEl.querySelectorAll('.ts-col')];
+        while (boxes.length > columns.length) boxes.pop().remove();
+        while (boxes.length < columns.length) {
+            const i = boxes.length;
+            const wrap = document.createElement('label');
+            wrap.className = 'ts-col';
+            const num = document.createElement('span');
+            num.className = 'ts-col-num';
+            num.textContent = String(i + 1);
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'ts-col-input';
+            input.dataset.i = String(i);
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('autocapitalize', 'characters');
+            input.setAttribute('spellcheck', 'false');
+            input.setAttribute('enterkeyhint', 'next');
+            input.setAttribute('aria-label', 'Column ' + (i + 1) + ', its letters top to bottom');
+            wrap.append(num, input);
+            colsEl.appendChild(wrap);
+            boxes.push(wrap);
+        }
+        const b = board();
+        const focused = focusedBox();
+        boxes.forEach((wrap, i) => {
+            const input = wrap.querySelector('input');
+            // Only letters that differ: lower case typed in the box shows in
+            // capitals anyway, and resetting it would move the caret.
+            if (cleanBox(input.value) !== columns[i]) input.value = columns[i];
+            const isNext = !columns[i] && i >= b.cols.length;
+            wrap.classList.toggle('next', isNext);
+            wrap.classList.toggle('hot', isNext && focused === i - 1);
+            wrap.classList.toggle('gap', !columns[i] && i < b.cols.length);
+            input.placeholder = isNext ? (i === 0 ? 'letters' : 'next') : '';
+        });
+    }
+
+    function focusBox(i) {
+        const input = colsEl.querySelector('.ts-col-input[data-i="' + i + '"]');
+        if (!input) return false;
+        input.focus();
+        const end = input.value.length;
+        try { input.setSelectionRange(end, end); } catch (_) {}
+        return true;
+    }
+
+    const cleanBox = v => v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, MAX_LETTERS);
+
+    // Anything but a letter is dropped; a space, comma or slash ends the box,
+    // and letters after one go in the boxes after it (a pasted board).
+    colsEl.addEventListener('input', e => {
+        const input = e.target.closest('.ts-col-input');
+        if (!input) return;
+        const i = Number(input.dataset.i);
+        const raw = input.value.toUpperCase().replace(/[^A-Z\s,\/|;]/g, '');
+        const parts = raw.split(/[\s,\/|;]+/);
+        let j = i;
+        columns[i] = parts[0].slice(0, MAX_LETTERS);
+        parts.slice(1).forEach(p => {
+            if (p && j + 1 < MAX_COLS) {
+                j++;
+                while (columns.length <= j) columns.push('');
+                columns[j] = p.slice(0, MAX_LETTERS);
+            }
+        });
+        // A separator, a digit or an 11th letter goes from the box itself.
+        if (/[^A-Za-z]/.test(input.value) || cleanBox(input.value) !== columns[i]) input.value = columns[i];
+        afterEdit();
+        if (parts.length > 1 && !focusBox(j + 1)) focusBox(j);
+    });
+
+    colsEl.addEventListener('keydown', e => {
+        const input = e.target.closest('.ts-col-input');
+        if (!input) return;
+        const i = Number(input.dataset.i);
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            focusBox(i + 1);
+        } else if (e.key === 'Backspace' && input.value === '' && i > 0) {
+            e.preventDefault();
+            focusBox(i - 1);
+        }
+    });
+
+    // Which box has the keyboard decides which "next" box is ringed.
+    colsEl.addEventListener('focusin', renderBoxes);
+    colsEl.addEventListener('focusout', () => setTimeout(() => { syncBoxes(); }, 0));
+
+    function afterEdit() {
+        const b = board();
+        if (!b.cols.length) {
+            boardDay = '';
+            boardSource = 'typed';
+        } else if (!boardDay) {
+            boardDay = gameDay();
+        }
+        if (boardSource === 'shared') boardSource = 'edited';
+        // A solid mark goes with its letter: one whose letter changed goes.
+        Object.keys(solid).forEach(k => {
+            const [c, i] = k.split(':').map(Number);
+            if (!b.cols[c] || b.cols[c][i] !== solid[k]) delete solid[k];
+        });
+        litWord = null;
+        syncBoxes();
+        renderBoard();
+        renderShared();
+        renderResults();
+        renderHint();
+        renderApprove();
+        persist();
+        scheduleSolve(SOLVE_AFTER_MS);
+    }
+
+    /* ---------- drawing the board ---------- */
+    // The hint card's letter: the one the player picked, while it's still a
+    // hint, else the hardest letter left.
+    function hintNow() {
+        if (!last || !Array.isArray(last.hints) || !last.hints.length) return null;
+        return last.hints.find(h => keyOf(h.col, h.pos) === target) || last.hints[0];
+    }
+
+    function renderBoard() {
+        const b = board();
+        const cols = b.gap < 0 ? b.cols : b.cols.slice(0, b.gap);
+        boardEl.hidden = !cols.length;
+        tipEl.hidden = !cols.length || !last;
+        boardEl.style.setProperty('--n', String(Math.max(cols.length, 1)));
+        const fresh = last && lastSig === sigOf() && Array.isArray(last.tiles) && last.tiles.length === cols.length;
+        const h = mode === 'help' && fresh ? hintNow() : null;
+        const lit = new Set();
+        if (litWord && litWord.length === cols.length) {
+            [...litWord.toUpperCase()].forEach((ch, c) => {
+                const col = cols[c] || '';
+                let at = -1;
+                for (let i = 0; i < col.length; i++) {
+                    if (col[i] === ch && (at < 0 || (solid[keyOf(c, at)] && !solid[keyOf(c, i)]))) at = i;
+                }
+                if (at >= 0) lit.add(keyOf(c, at));
+            });
+        }
+        boardEl.replaceChildren(...cols.map((col, c) => {
+            const stack = document.createElement('div');
+            stack.className = 'ts-stack';
+            const twice = repeats(col);
+            [...col].forEach((ch, i) => {
+                const key = keyOf(c, i);
+                const tile = document.createElement('button');
+                tile.type = 'button';
+                tile.className = 'ts-tile';
+                tile.dataset.c = String(c);
+                tile.dataset.i = String(i);
+                tile.dataset.letter = ch;
+                tile.textContent = ch;
+                const isSolid = solid[key] === ch;
+                tile.classList.toggle('solid', isSolid);
+                tile.setAttribute('aria-pressed', isSolid ? 'true' : 'false');
+                let label = ch + ', column ' + (c + 1) + (isSolid ? ', solid' : '');
+                if (fresh && !isSolid) {
+                    const info = last.tiles[c] && last.tiles[c][i];
+                    if (info) {
+                        const badge = document.createElement('span');
+                        badge.className = 'ts-count';
+                        badge.textContent = String(info.count);
+                        tile.appendChild(badge);
+                        tile.classList.toggle('only', info.count === 1);
+                        tile.classList.toggle('dead', info.count === 0);
+                        label += ', ' + info.count + (info.count === 1 ? ' word uses it' : ' words use it');
+                    }
+                }
+                if (h && h.col === c && h.pos === i) tile.classList.add('target');
+                if (lit.has(key)) tile.classList.add('lit');
+                if (twice.has(ch)) {
+                    const dot = document.createElement('span');
+                    dot.className = 'ts-twice';
+                    tile.appendChild(dot);
+                    tile.title = 'This letter is in this column twice: check your game';
+                }
+                tile.setAttribute('aria-label', label);
+                stack.appendChild(tile);
+            });
+            return stack;
+        }));
+    }
+
+    boardEl.addEventListener('click', e => {
+        const tile = e.target.closest('.ts-tile');
+        if (!tile) return;
+        const key = keyOf(tile.dataset.c, tile.dataset.i);
+        if (solid[key]) delete solid[key];
+        else solid[key] = tile.dataset.letter;
+        afterSolid();
+    });
+
+    function afterSolid() {
+        renderBoard();
+        renderResults();
+        persist();
+        scheduleSolve(150);
+    }
+
+    function renderHint(msg, warn) {
+        if (msg !== undefined) {
+            hintEl.textContent = msg;
+            hintEl.classList.toggle('warn', !!warn);
+            return;
+        }
+        const b = board();
+        let text = '', isWarn = false;
+        if (b.gap >= 0) {
+            text = 'Column ' + (b.gap + 1) + " is empty: type its letters, or clear the boxes after it.";
+            isWarn = true;
+        } else if (b.cols.length && b.cols.length < MIN_COLS) {
+            text = 'Type at least ' + MIN_COLS + ' columns.';
+        } else if (b.cols.some(col => repeats(col).size)) {
+            text = 'A letter is in one column twice (marked with a red dot). Check your game: if it really is, each copy needs its own word.';
+        }
+        hintEl.textContent = text;
+        hintEl.classList.toggle('warn', isWarn);
+    }
+
+    /* ---------- solving ---------- */
+    function scheduleSolve(delay) {
+        clearTimeout(solveTimer);
+        if (!ready(board())) {
+            last = null;
+            lastSig = '';
+            renderResults();
+            return;
+        }
+        solveTimer = setTimeout(solve, delay);
+    }
+
+    async function solve() {
+        const b = board();
+        if (!ready(b)) return;
+        const seq = ++solveSeq;
+        const sig = sigOf();
+        const body = {columns: b.cols, solid: solidList(b), exclude: hidden, first_solve: firstSolve};
+        firstSolve = false;
+        try {
+            const resp = await fetch(POST_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            // Only a reply for the board as it is now: a change since then
+            // has a solve of its own on the way.
+            if (seq !== solveSeq || sig !== sigOf()) return;
+            if (!resp.ok) {
+                renderHint(data.error || 'Something went wrong - try again.', true);
+                return;
+            }
+            last = data;
+            lastSig = sig;
+            renderBoard();
+            renderResults();
+            gaOnce(mode === 'help' ? 'typeshift_help' : 'typeshift_solve');
+            clearTimeout(logTimer);
+            logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
+        } catch (_) {
+            if (seq === solveSeq) toast('Could not reach the solver - check your connection', true);
+        }
+    }
+
+    /* ---------- results ---------- */
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+    function summaryText(r) {
+        const n = r.words.length;
+        if (!n) return 'No word in our list fits this board. Check each column matches your game.';
+        if (r.left === 0) return 'Every letter is solid. You solved it.';
+        const fits = plural(n, 'word fits.', 'words fit.');
+        const coverable = r.left - r.dead.length;
+        if (!coverable || !r.plan.length) return fits;
+        const k = plural(r.plan.length, 'word', 'words');
+        const anySolid = r.tiles.some(col => col.some(t => t.solid));
+        if (!anySolid) {
+            const how = r.exact ? ' You can use ' : ' We found a way to use ';
+            if (!r.dead.length) return fits + how + 'every letter in ' + k + '.';
+            const total = r.tiles.reduce((n, col) => n + col.length, 0);
+            return fits + how + coverable + ' of the ' + total + ' letters in ' + k + '.';
+        }
+        return fits + ' ' + plural(coverable, 'letter', 'letters') + ' left. '
+            + (r.exact ? 'You can finish them in ' : 'We found a way to finish them in ') + k + '.';
+    }
+
+    function renderResults() {
+        if (!last) {
+            resultsEl.hidden = true;
+            resultsEl.innerHTML = '';
+            renderSuggest();
+            return;
+        }
+        const r = last;
+        resultsEl.hidden = false;
+        resultsEl.classList.toggle('stale', lastSig !== sigOf());
+        let html = '<p class="ts-summary">' + esc(summaryText(r)) + '</p>';
+        if (r.dead.length && r.words.length) {
+            html += '<p class="ts-note warn">No word we know uses the letters marked 0 in red. Check them against your game, or send a word the game took with the box below.</p>';
+        }
+        html += mode === 'help' ? helpHtml(r) : solveHtml(r);
+        html += hiddenHtml();
+        resultsEl.innerHTML = html;
+        renderSuggest();
+    }
+
+    function wordActions(word) {
+        const isPlayed = played.includes(word);
+        return '<span class="ts-row-end">' +
+            (isPlayed ? '<span class="ts-tag done">played</span>'
+                : '<button type="button" class="ts-icon-btn" data-act="played" data-word="' + esc(word) + '" aria-label="I played ' + esc(word.toUpperCase()) + '" title="I played it">&#10003;</button>') +
+            (VOTES ? '<button type="button" class="ts-icon-btn reject" data-act="reject" data-word="' + esc(word) + '" aria-label="' + esc(word.toUpperCase()) + ' was refused" title="Typeshift refused it">&#10007;</button>' : '') +
+            '</span>';
+    }
+
+    function helpHtml(r) {
+        const h = hintNow();
+        if (!h) return '';
+        const word = h.word;
+        const order = [...Array(word.length).keys()].filter(i => i !== h.col);
+        const open = new Set([h.col].concat(order.slice(0, reveal[word] || 0)));
+        const done = open.size >= word.length;
+        const letter = (r.tiles[h.col] && r.tiles[h.col][h.pos] && r.tiles[h.col][h.pos].letter || '').toUpperCase();
+        let html = '<div class="ts-card">' +
+            '<p class="ts-card-title">A word with the ' + esc(letter) + ' in column ' + (h.col + 1) + ':</p>';
+        if (done) {
+            html += '<div class="ts-word-row plan" data-row="' + esc(word) + '" style="margin-top: 8px;">' +
+                '<button type="button" class="ts-word" data-act="lit" data-word="' + esc(word) + '">' + esc(word.toUpperCase()) + '</button>' +
+                wordActions(word) + '</div>';
+        } else {
+            html += '<p class="ts-mask" aria-label="' + word.length + ' letters, ' + open.size + ' shown">' +
+                [...word].map((ch, i) => (open.has(i) ? esc(ch.toUpperCase()) : '_')).join(' ') + '</p>' +
+                '<div class="ts-actions">' +
+                '<button type="button" class="ts-btn primary" data-act="letter" data-word="' + esc(word) + '">Show a letter</button>' +
+                '<button type="button" class="ts-btn" data-act="word" data-word="' + esc(word) + '">Show word</button>' +
+                '</div>';
+        }
+        html += '</div>';
+        html += '<p class="ts-section">Letters left, hardest first <span class="ts-legend">(how many words use each)</span></p>';
+        html += '<div class="ts-chips">' + r.hints.map(x => {
+            const t = r.tiles[x.col][x.pos];
+            const on = x === h ? ' on' : '';
+            return '<button type="button" class="ts-chip' + on + (t.count === 1 ? ' one' : '') + '" data-act="target" data-target="' +
+                keyOf(x.col, x.pos) + '" aria-label="' + esc(t.letter.toUpperCase()) + ' in column ' + (x.col + 1) + ', ' +
+                plural(t.count, 'word', 'words') + '">' + esc(t.letter.toUpperCase()) +
+                '<span class="ts-chip-col">col ' + (x.col + 1) + '</span><span class="ts-chip-n">' + t.count + '</span></button>';
+        }).join('') + '</div>';
+        return html;
+    }
+
+    function wordRow(w, inPlan) {
+        return '<div class="ts-word-row' + (inPlan ? ' plan' : '') + '" data-row="' + esc(w.word) + '">' +
+            '<button type="button" class="ts-word' + (litWord === w.word ? ' on' : '') + '" data-act="lit" data-word="' + esc(w.word) + '">' +
+            esc(w.word.toUpperCase()) + '</button>' +
+            (w.gain ? '<span class="ts-tag gain" title="Letters left it would turn solid">+' + w.gain + '</span>' : '') +
+            (w.rare ? '<span class="ts-tag rare">rare</span>' : '') +
+            wordActions(w.word) + '</div>';
+    }
+
+    function solveHtml(r) {
+        let html = '';
+        const byWord = {};
+        r.words.forEach(w => { byWord[w.word] = w; });
+        if (r.plan.length) {
+            html += '<p class="ts-section">' + (r.exact ? 'Fewest words' : 'Fewest words we found') +
+                ' for the letters left (' + r.plan.length + ')</p>';
+            html += '<div class="ts-words">' + r.plan.map(w => wordRow(byWord[w] || {word: w, gain: 0}, true)).join('') + '</div>';
+        }
+        if (r.words.length) {
+            // Most letters left first; the server's order (most familiar
+            // first) within each.
+            const list = r.words.slice().sort((a, b) => b.gain - a.gain);
+            const shown = showAll ? list : list.slice(0, LIST_FIRST);
+            html += '<p class="ts-section">All ' + plural(list.length, 'word', 'words') + ' that fit ' +
+                '<span class="ts-legend">(+N: letters left it would turn solid)</span></p>';
+            html += '<div class="ts-words">' + shown.map(w => wordRow(w, false)).join('') + '</div>';
+            if (shown.length < list.length) {
+                html += '<button type="button" class="ts-btn ts-more" data-act="more">Show all ' + list.length + '</button>';
+            }
+        }
+        return html;
+    }
+
+    function hiddenHtml() {
+        if (!hidden.length) return '';
+        return '<p class="ts-section">Hidden <span class="ts-legend">(Typeshift refused them; tap one to bring it back)</span></p>' +
+            '<div class="ts-hidden-pile">' + hidden.map(w =>
+                '<button type="button" data-act="restore" data-word="' + esc(w) + '">' + esc(w.toUpperCase()) + '</button>').join('') +
+            '</div>';
+    }
+
+    resultsEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const act = btn.dataset.act, word = btn.dataset.word;
+        if (act === 'letter') {
+            reveal[word] = (reveal[word] || 0) + 1;
+            persist();
+            renderResults();
+        } else if (act === 'word') {
+            reveal[word] = word.length;
+            persist();
+            renderResults();
+        } else if (act === 'target') {
+            target = btn.dataset.target;
+            persist();
+            renderBoard();
+            renderResults();
+        } else if (act === 'lit') {
+            litWord = litWord === word ? null : word;
+            renderBoard();
+            renderResults();
+        } else if (act === 'played') {
+            markPlayed(word);
+        } else if (act === 'reject') {
+            askRejected(btn, word);
+        } else if (act === 'restore') {
+            restoreRejected(word);
+        } else if (act === 'more') {
+            showAll = true;
+            renderResults();
+        }
+    });
+
+    /* ---------- played and refused ---------- */
+    // A played word turns one hollow copy of each of its letters solid.
+    function markPlayed(word) {
+        const b = board();
+        [...word.toUpperCase()].forEach((ch, c) => {
+            const col = b.cols[c] || '';
+            for (let i = 0; i < col.length; i++) {
+                if (col[i] === ch && !solid[keyOf(c, i)]) { solid[keyOf(c, i)] = ch; break; }
+            }
+        });
+        if (!played.includes(word)) played.push(word);
+        if (litWord === word) litWord = null;
+        toast(word.toUpperCase() + ' played: its letters are solid now.');
+        afterSolid();
+    }
+
+    /* ✗ asks before it reports, as on /smush and /ribbit: ✓ and ✗ both take
+       a word off the plan, so some players would ✗ words they played. The
+       question opens under the row and offers ✓ as well. Taking a ✗ back,
+       from the hidden list, stays one tap. Any re-render drops it. */
+    function askRejected(btn, word) {
+        const open = resultsEl.querySelector('.reject-confirm');
+        if (open) {
+            open.remove();
+            if (open.dataset.word === word) return;
+        }
+        const row = btn.closest('.ts-word-row');
+        if (!row) return;
+        const upper = esc(word.toUpperCase());
+        row.insertAdjacentHTML('afterend',
+            '<div class="reject-confirm" data-word="' + esc(word) + '" role="group" aria-label="Did Typeshift refuse ' + upper + '?">' +
+            '<span class="reject-confirm-q">Did Typeshift refuse ' + upper + '?</span>' +
+            '<button type="button" class="confirm-refused">&#10007; Typeshift refused it</button>' +
+            '<button type="button" class="confirm-played">&#10003; I played it</button>' +
+            '<button type="button" class="confirm-cancel">Cancel</button>' +
+            '</div>');
+        const strip = row.nextElementSibling;
+        strip.addEventListener('click', e => {
+            e.stopPropagation();
+            const answer = e.target.closest('button');
+            if (!answer) return;
+            strip.remove();
+            if (answer.classList.contains('confirm-refused')) markRejected(word);
+            else if (answer.classList.contains('confirm-played')) markPlayed(word);
+        });
+    }
+
+    // The game refused this word: hide it, and tell the server, which fixes
+    // the word list once enough players agree (crowd.py).
+    function markRejected(word) {
+        if (hidden.includes(word)) return;
+        hidden.push(word);
+        if (litWord === word) litWord = null;
+        toast(word.toUpperCase() + ' hidden. Thanks for the report. Tap it below to restore.');
+        postVote({action: 'reject', word: word}).catch(() => {});   // best-effort, like the server side
+        persist();
+        renderResults();
+        scheduleSolve(0);
+    }
+
+    function restoreRejected(word) {
+        hidden = hidden.filter(w => w !== word);
+        postVote({action: 'restore', word: word}).catch(() => {});
+        persist();
+        renderResults();
+        scheduleSolve(0);
+    }
+
+    /* ---------- crowd corrections ---------- */
+    /* Players are never told how many reports a change takes, or when theirs
+       tipped a word over: the server doesn't say, and nothing on this page
+       hints at it. */
+    function postVote(payload) {
+        if (!VOTES) return Promise.resolve(null);
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.assign(payload, {columns: board().cols, mode: mode}))
+        }).then(r => {
+            if (!r.ok) throw new Error('vote failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    const suggestInput = document.getElementById('ts-suggest-input');
+    const suggestBtn = document.getElementById('ts-suggest-btn');
+    const suggestStatus = document.getElementById('ts-suggest-status');
+    const SUGGEST_MESSAGES = {
+        recorded: "Thanks! We'll take your suggestion into account.",
+        already_listed: 'That word is already in our list.',
+        not_on_board: "That word doesn't fit your board: its first letter has to be in column 1, its second in column 2, and so on."
+    };
+
+    function renderSuggest() {
+        if (!suggestBox) return;
+        suggestBox.hidden = !ready(board());
+    }
+
+    function fits(word, cols) {
+        return word.length === cols.length && [...word].every((ch, c) => cols[c].includes(ch));
+    }
+
+    function submitSuggestion() {
+        const w = (suggestInput.value || '').trim().toLowerCase();
+        const cols = board().cols;
+        // The checks the server makes that need no round trip.
+        let problem = '';
+        if (!/^[a-z]+$/.test(w)) problem = 'Letters only, please.';
+        else if (w.length !== cols.length) problem = 'Words on this board are ' + cols.length + ' letters long.';
+        else if (!fits(w.toUpperCase(), cols)) problem = SUGGEST_MESSAGES.not_on_board;
+        else if (hidden.includes(w)) problem = 'You hid ' + w.toUpperCase() + ' with ✗ - tap it in the hidden list to bring it back.';
+        else if (last && last.words.some(x => x.word === w)) problem = SUGGEST_MESSAGES.already_listed;
+        if (problem) { suggestStatus.textContent = problem; return; }
+
+        suggestBtn.disabled = true;
+        suggestStatus.textContent = 'Sending...';
+        postVote({action: 'suggest_missing', word: w})
+            .then(data => {
+                const result = data && data.result;
+                suggestStatus.textContent = SUGGEST_MESSAGES[result] || SUGGEST_MESSAGES.recorded;
+                if (result === 'recorded') suggestInput.value = '';
+            })
+            .catch(() => { suggestStatus.textContent = 'Could not send that. Please try again.'; })
+            .finally(() => { suggestBtn.disabled = false; });
+    }
+
+    if (suggestBtn) {
+        suggestBtn.addEventListener('click', submitSuggestion);
+        suggestInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); submitSuggestion(); }
+        });
+    }
+
+    /* ---------- modes ---------- */
+    function setMode(m) {
+        mode = m;
+        modesEl.querySelectorAll('.ts-mode').forEach(btn => {
+            const on = btn.dataset.mode === m;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (!APPROVE) { try { localStorage.setItem(MODE_KEY, m); } catch (_) {} }
+        renderBoard();
+        renderResults();
+        if (last && lastSig === sigOf()) gaOnce(m === 'help' ? 'typeshift_help' : 'typeshift_solve');
+    }
+    modesEl.addEventListener('click', e => {
+        const btn = e.target.closest('.ts-mode');
+        if (!btn) return;
+        setMode(btn.dataset.mode);
+        if (!last) scheduleSolve(0);
+    });
+
+    /* ---------- today's boards ---------- */
+    function postJSON(payload) {
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) throw new Error('request failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    const isBoard = b => b && Array.isArray(b.columns) && b.columns.length >= MIN_COLS && b.columns.length <= MAX_COLS
+        && b.columns.every(c => typeof c === 'string' && c.length && c.length <= MAX_LETTERS && LETTERS.test(c));
+
+    function fetchShared() {
+        if (!BOARDS_ON) return;
+        postJSON({action: 'todays_boards'})
+            .then(data => {
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+                sharedYesterday = (data && Array.isArray(data.yesterday) ? data.yesterday : []).filter(isBoard);
+                sharedDay = data && typeof data.day === 'string' ? data.day : gameDay();
+                sharedYesterdayDay = data && typeof data.yesterday_day === 'string' ? data.yesterday_day : dayBefore(sharedDay);
+                renderShared();
+            })
+            .catch(() => {});
+    }
+
+    function renderShared() {
+        if (!sharedEl) return;
+        const picks = sharedBoards.map(b => ({b, day: sharedDay, yesterday: false}))
+            .concat(sharedYesterday.map(b => ({b, day: sharedYesterdayDay, yesterday: true})));
+        const show = picks.length > 0 && !board().cols.length;
+        sharedEl.hidden = !show;
+        if (!show) return;
+        sharedOne.hidden = picks.length > 1;
+        sharedMany.hidden = !sharedOne.hidden;
+        sharedOne.textContent = picks.length === 1 && picks[0].yesterday
+            ? "Still on yesterday's puzzle? Other players entered its board. Tap it to load it."
+            : SHARED_ONE_TEXT;
+        sharedPicks.replaceChildren(...picks.map((p, k) => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'ts-shared-pick';
+            pick.dataset.pick = String(k);
+            pick.setAttribute('aria-label', 'Load the board with the columns ' + p.b.columns.join(', '));
+            const mini = document.createElement('span');
+            mini.className = 'ts-mini';
+            mini.setAttribute('aria-hidden', 'true');
+            p.b.columns.forEach(col => {
+                const c = document.createElement('span');
+                c.className = 'ts-mini-col';
+                [...col].forEach(ch => {
+                    const s = document.createElement('span');
+                    s.textContent = ch;
+                    c.appendChild(s);
+                });
+                mini.appendChild(c);
+            });
+            const side = document.createElement('span');
+            side.className = 'ts-shared-side';
+            const label = document.createElement('span');
+            label.className = 'ts-shared-btn';
+            label.textContent = 'Load this board';
+            side.appendChild(label);
+            const note = p.yesterday ? "Yesterday's puzzle, " + shortDay(p.day)
+                : (Array.isArray(p.b.sites) ? p.b.sites.filter(s => typeof s === 'string').join(' and ') : '');
+            if (note) {
+                const site = document.createElement('span');
+                site.className = 'ts-shared-site';
+                site.textContent = note;
+                side.appendChild(site);
+            }
+            pick.append(mini, side);
+            return pick;
+        }));
+        sharedPicks._picks = picks;
+    }
+
+    if (sharedPicks) sharedPicks.addEventListener('click', e => {
+        const el = e.target.closest('[data-pick]');
+        const p = el && sharedPicks._picks && sharedPicks._picks[Number(el.dataset.pick)];
+        if (!p) return;
+        loadBoard(p.b.columns, 'shared', p.day);
+        gaOnce('typeshift_board_loaded');
+        renderHint(p.yesterday ? "Loaded yesterday's board, entered by other players. Check it matches your game."
+            : "Loaded today's board, entered by other players. Check it matches your game.");
+    });
+
+    function loadBoard(cols, source, day) {
+        columns = cols.map(c => c.toUpperCase()).concat(cols.length < MAX_COLS ? [''] : []);
+        solid = {}; reveal = {}; played = []; hidden = []; target = null; litWord = null; showAll = false;
+        last = null; lastSig = '';
+        boardSource = source;
+        boardDay = day || gameDay();
+        sharedBoards = []; sharedYesterday = [];
+        syncBoxes();
+        renderBoard();
+        renderShared();
+        renderResults();
+        renderApprove();
+        persist();
+        scheduleSolve(0);
+    }
+
+    /* ---------- logging ---------- */
+    // A board the player uses (a solve, then a few seconds of looking) is
+    // logged once per version. A board loaded from today's boards and left
+    // as it is is never sent (routes/typeshift.py), so it can't confirm
+    // itself. Nothing in here may stop the page.
+    function maybeLog() {
+        try {
+            const b = board();
+            if (!LOG_BOARDS || !ready(b) || !last || lastSig !== sigOf()) return;
+            if (boardSource === 'shared') return;
+            const sig = (boardDay || gameDay()) + '|' + b.cols.join('|') + '|' + boardSource;
+            if (sig === loggedSig) return;
+            loggedSig = sig;
+            persist();
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', columns: b.cols, source: boardSource, day: boardDay || gameDay()})
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // Players switch to the game and back: log on the way out, and ask for
+    // today's boards again on the way back (more may be in by then).
+    let sharedAt = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') maybeLog();
+        else if (Date.now() - sharedAt > 60000 && !board().cols.length) { sharedAt = Date.now(); fetchShared(); }
+    });
+
+    /* ---------- GA4 ---------- */
+    // typeshift_help / typeshift_solve when results first show in that mode,
+    // typeshift_board_loaded the first time a board on offer is loaded: each
+    // at most once per page load.
+    const gaSent = new Set();
+    function gaOnce(name) {
+        if (APPROVE || gaSent.has(name) || typeof gtag !== 'function') return;
+        gaSent.add(name);
+        if (document.readyState === 'complete') gtag('event', name);
+        else window.addEventListener('load', () => gtag('event', name));
+    }
+
+    {% if approve %}
+    /* ---------- approve ---------- */
+    // Approve is ready once the board has MIN_COLS columns and no empty box
+    // between them.
+    const approveForm = document.getElementById('ts-approve');
+    const approveStatus = document.getElementById('ts-approve-status');
+    const PRELOAD = {{ preload | tojson }};
+    // Set when Approve is pressed; the admin page drops the draft once the
+    // approval worked (templates/typeshift_admin.html), and keeps it if not.
+    const APPROVE_PENDING = 'typeshiftApprovePending_v1';
+
+    function renderApprove() {
+        const b = board();
+        const ok = ready(b);
+        const letters = b.cols.reduce((n, c) => n + c.length, 0);
+        approveStatus.textContent = ok ? 'Ready: ' + plural(b.cols.length, 'column', 'columns') + ', ' + plural(letters, 'letter', 'letters') + '.'
+            : b.gap >= 0 ? 'Column ' + (b.gap + 1) + ' is empty.' : 'Type at least ' + MIN_COLS + ' columns.';
+        approveForm.querySelectorAll('.ts-approve-btn').forEach(btn => { btn.disabled = !ok; });
+    }
+    approveForm.addEventListener('submit', e => {
+        const site = e.submitter ? e.submitter.textContent.replace('Approve for ', '') : 'this site';
+        const day = document.getElementById('ts-approve-date').value;
+        const b = board();
+        if (!ready(b) || !confirm('Serve this board for ' + site + ' on ' + day + '?')) {
+            e.preventDefault();
+            return;
+        }
+        document.getElementById('ts-approve-columns').value = JSON.stringify(b.cols);
+        // The draft stays until the approval works: the admin page drops it
+        // then, so the next board starts empty.
+        persist();
+        try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
+    });
+
+    // A board clicked on the Today's Boards tab (routes/typeshift.py
+    // editor_board): it replaces the draft, to check, fix and approve.
+    function preloaded() {
+        if (!PRELOAD || !Array.isArray(PRELOAD.columns) || !isBoard(PRELOAD)) return false;
+        loadBoard(PRELOAD.columns, 'shared', gameDay());
+        renderHint("Loaded from Today's Boards: " + PRELOAD.note + '. Check it against your game, then approve it.');
+        try {
+            const url = new URL(location.href);
+            url.searchParams.delete('key');
+            history.replaceState(null, '', url.pathname + url.search);
+        } catch (_) {}
+        return true;
+    }
+    {% else %}
+    function renderApprove() {}
+    function preloaded() { return false; }
+    {% endif %}
+
+    /* ---------- saving ---------- */
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                columns, solid, reveal, target, played, hidden, boardSource, loggedSig, boardDay, savedAt: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    // A board saved on an earlier Puzzmo day is a finished puzzle: start
+    // fresh, except yesterday's in the first hours of the new day.
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.columns)) return false;
+        const today = gameDay();
+        const yesterdays = s.boardDay === dayBefore(today) && gameHour() < YESTERDAY_HOURS;
+        if (s.boardDay && s.boardDay !== today && !yesterdays) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.columns.some(c => c)) toast("Cleared yesterday's board - enter today's");
+            return false;
+        }
+        // Anything stored is checked before use: a bad value would stick.
+        columns = s.columns.slice(0, MAX_COLS).map(c => (typeof c === 'string' && LETTERS.test(c) ? c.slice(0, MAX_LETTERS) : ''));
+        if (!columns.length) columns = [''];
+        solid = {};
+        if (s.solid && typeof s.solid === 'object') {
+            Object.entries(s.solid).forEach(([k, v]) => { if (/^\d{1,2}:\d{1,2}$/.test(k) && typeof v === 'string' && /^[A-Z]$/.test(v)) solid[k] = v; });
+        }
+        reveal = {};
+        if (s.reveal && typeof s.reveal === 'object') {
+            Object.entries(s.reveal).forEach(([k, v]) => { if (/^[a-z]{1,10}$/.test(k) && Number.isInteger(v) && v > 0 && v <= 10) reveal[k] = v; });
+        }
+        target = typeof s.target === 'string' && /^\d{1,2}:\d{1,2}$/.test(s.target) ? s.target : null;
+        played = Array.isArray(s.played) ? s.played.filter(w => typeof w === 'string' && /^[a-z]{1,10}$/.test(w)).slice(0, 200) : [];
+        hidden = Array.isArray(s.hidden) ? s.hidden.filter(w => typeof w === 'string' && /^[a-z]{3,10}$/.test(w)).slice(0, 200) : [];
+        boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 400) : '';
+        boardDay = typeof s.boardDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.boardDay) ? s.boardDay : '';
+        if (yesterdays && columns.some(c => c)) {
+            renderHint("This board is from yesterday's puzzle. Today's started at midnight Central: tap Clear board for it.");
+        }
+        return true;
+    }
+
+    function clearBoard(ask) {
+        if (ask && board().cols.length && !confirm('Clear the whole board and start over?')) return;
+        columns = [''];
+        solid = {}; reveal = {}; target = null; played = []; hidden = []; litWord = null; showAll = false;
+        boardSource = 'typed'; loggedSig = ''; boardDay = '';
+        last = null; lastSig = '';
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        syncBoxes();
+        renderBoard();
+        renderResults();
+        renderHint();
+        renderApprove();
+        focusBox(0);
+        fetchShared();
+    }
+    document.getElementById('ts-clear').addEventListener('click', () => clearBoard(true));
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'ts-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('typeshiftInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('typeshiftInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- the Play link ---------- */
+    // Today's puzzle in Puzzmo's own calendar, as /circuits dates its link.
+    document.querySelectorAll('.puzzmo-typeshift-link').forEach(a => {
+        a.href = 'https://www.puzzmo.com/puzzle/' + gameDay() + '/typeshift';
+    });
+
+    /* ---------- boot ---------- */
+    if (APPROVE) {
+        mode = 'solve';
+    } else {
+        try { const m = localStorage.getItem(MODE_KEY); if (m === 'solve' || m === 'help') mode = m; } catch (_) {}
+    }
+    if (!preloaded()) {
+        restore();
+        syncBoxes();
+        renderBoard();
+        if (!hintEl.textContent) renderHint();
+        renderApprove();
+        scheduleSolve(0);
+        // An empty board starts in box 1, with the keyboard up where there's
+        // a mouse.
+        if (!board().cols.length && window.matchMedia && window.matchMedia('(pointer: fine)').matches) focusBox(0);
+    }
+    setMode(mode);
+    if (!board().cols.length) { sharedAt = Date.now(); fetchShared(); }
+});
+</script>
+
+{% endblock %}

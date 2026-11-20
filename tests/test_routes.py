@@ -22,6 +22,7 @@ GET_OK = [
     "/guess_the_phrase",
     "/chainle",
     "/circuits",
+    "/typeshift",
     "/any_word",
     "/fixer",
     "/common_denominator",
@@ -158,7 +159,7 @@ def test_jj_admin_links_every_password_page(client, flask_app, monkeypatch):
     # each ETL round and the espresso pages.
     assert {"/smush_admin", "/ribbit_admin", "/smush_dev",
             "/blossom_admin", "/chainle_admin", "/guess_the_phrase_admin", "/circuits_admin",
-            "/etl_dash/1", "/espresso/home/"} <= pages
+            "/typeshift_admin", "/typeshift_admin/board", "/etl_dash/1", "/espresso/home/"} <= pages
     for path in sorted(pages):
         assert f'href="{path}"' in html, f"/jj_admin doesn't link {path}"
 

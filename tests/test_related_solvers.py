@@ -24,11 +24,13 @@ PAGES = {
     "/wordiply": "Play Wordiply",
     "/guess_the_phrase": "Play Guess The Phrase",
     "/circuits": "Play Circuits",
+    "/typeshift": "Play Typeshift",
     "/wordle": "Play Wordle",
     "/antiwordle": "Play Antiwordle",
     "/quordle": "Play Quordle",
 }
-DAILY = ("/smush", "/blossom", "/chainle", "/ribbit", "/wordiply", "/guess_the_phrase", "/circuits")
+DAILY = ("/smush", "/blossom", "/chainle", "/ribbit", "/wordiply", "/guess_the_phrase", "/circuits",
+         "/typeshift")
 GUESS_HELPERS = ("/wordle", "/antiwordle", "/quordle")
 
 

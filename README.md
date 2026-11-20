@@ -61,6 +61,7 @@ These are the hobby part of the hobby.
 | [Guess The Phrase](https://www.jamesapplewhite.com/guess_the_phrase) | Spoiler-free hints for the daily phrase, one letter at a time, from a bank of 660K+ phrases built from Wikidata, Wiktionary, and WordNet |
 | [Chainle](https://www.jamesapplewhite.com/chainle) | The word that links your clues, found with ConceptNet Numberbatch word vectors and WordNet, with a hint before the answer |
 | [Circuits](https://www.jamesapplewhite.com/circuits) | Fills every box of the compound-word grid at once, from 1.3M word pairs counted in Wikipedia and word lists, with hints first and how sure it is about each box |
+| [Typeshift](https://www.jamesapplewhite.com/typeshift) | Every word that fits the columns, and the fewest words that use every letter, found with a set-cover search, with a hint for each letter left first |
 | [Wordiply](https://www.jamesapplewhite.com/wordiply) | The longest words containing a given starter |
 | [Last Letter Helper](https://www.jamesapplewhite.com/fixer) | Words that contain specific letters |
 
