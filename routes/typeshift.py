@@ -76,10 +76,15 @@ def _game_today():
 # or straight after a change. A module memo, not SimpleCache, which would
 # pickle a copy on every read.
 _index = {'value': None, 'expires': 0.0}
+# Bumped by every change to the corrections. A rebuild already reading or
+# building when one lands can store lists from before it, for 12 hours: if
+# this moved while get_index ran, the next request builds again.
+_words_gen = {'n': 0}
 
 
 def _forget_words():
     """Make the next get_index() re-read the corrections."""
+    _words_gen['n'] += 1
     _index['expires'] = 0.0
 
 
@@ -100,7 +105,11 @@ def get_index():
     players or /typeshift_admin removed taken out, words added put in. Only
     typeshift_* tables count. The raw list if the DB has never been
     reachable (see crowd.CrowdList.corrected)."""
-    return TYPESHIFT_CROWD.corrected(_index, _build_index)
+    gen = _words_gen['n']
+    index = TYPESHIFT_CROWD.corrected(_index, _build_index)
+    if _words_gen['n'] != gen:
+        _index['expires'] = 0.0
+    return index
 
 
 # The offensive-word list (datasets/phrase_blocklist.txt), read once: the plan
@@ -483,14 +492,18 @@ def _boards_for(day):
     while fresh, else read again; never raises. When an entry goes stale,
     the first request pushes it out 15 seconds before reading, and the
     others keep the stale boards meanwhile (routes/circuits.py); a failed
-    read keeps them too, and waits READ_RETRY_SECONDS to try again."""
-    now = time.monotonic()
-    entry = _boards_cache.get(day)
-    if entry is not None and now < entry[0]:
-        return entry[1]
-    if entry is not None:
-        _boards_cache[day] = (now + 15, entry[1])
-    gen = _boards_gen['n']
+    read keeps them too, and waits READ_RETRY_SECONDS to try again. The
+    look, the push and the generation it reads are one step under the lock,
+    so an admin change can't land between them and have the entry it
+    cleared put back."""
+    with _boards_lock:
+        now = time.monotonic()
+        entry = _boards_cache.get(day)
+        if entry is not None and now < entry[0]:
+            return entry[1]
+        if entry is not None:
+            _boards_cache[day] = (now + 15, entry[1])
+        gen = _boards_gen['n']
     try:
         boards = todays_boards(rows_logged_between(day, day), day)[0]
         expires = time.monotonic() + BOARDS_CACHE_SECONDS
@@ -514,11 +527,13 @@ def todays_reply(serve_dark=False):
     today = now.date()
     if not (serve_dark or TYPESHIFT_BOARDS_LIVE):
         return jsonify(boards=[], yesterday=[], day=today.isoformat())
+    # Read once: the same list is offered and checked against yesterday's.
+    todays = _boards_for(today)
     yesterday = []
     if now.hour < YESTERDAY_HOURS:
-        offered = {canonical(b['columns']) for b in _boards_for(today)}
+        offered = {canonical(b['columns']) for b in todays}
         yesterday = [b for b in _boards_for(today - timedelta(days=1)) if canonical(b['columns']) not in offered]
-    return jsonify(boards=_boards_for(today), yesterday=yesterday, day=today.isoformat(),
+    return jsonify(boards=todays, yesterday=yesterday, day=today.isoformat(),
                    yesterday_day=(today - timedelta(days=1)).isoformat())
 
 
@@ -633,9 +648,14 @@ ADMIN = '/typeshift_admin'
 ADMIN_TABS = ('boards', 'reports', 'invalid', 'added')
 # The days the Today's Boards tab shows: the game's today and the two before.
 ADMIN_DAYS_BACK = 2
-# How the tab's Add sends back the time of the board it showed, so the
-# approval can check that board is still the latest.
+# How the tab's Add sends back the entry it showed, so the approval can check
+# that entry is still the day's latest: its time, and its letters as typed
+# (two entries of a board can share a second, in different orders).
 _STAMP = '%Y-%m-%d %H:%M:%S'
+
+
+def _entry_token(updated, letters):
+    return f'{updated:{_STAMP}}|{letters}'
 
 
 def _back(**message):
@@ -661,7 +681,7 @@ def _admin_days():
     while day >= first:
         _boards, groups = todays_boards(rows, day)
         for g in groups:
-            g['latest_stamp'] = g['latest_at'].strftime(_STAMP) if g['latest_at'] else ''
+            g['latest_stamp'] = _entry_token(g['latest_at'], g['latest_letters']) if g['latest_at'] else ''
         if groups:
             days.append({'day': day, 'groups': groups})
         day -= timedelta(days=1)
@@ -689,12 +709,15 @@ def typeshift_admin():
                            yesterday_hours=YESTERDAY_HOURS)
 
 
-def editor_board(key):
+def editor_board(key, day=None):
     """The board /typeshift_admin/board opens with when James clicks one on
     the Today's Boards tab: (columns, note), or None if no row has this key.
     His approval as he typed it, else the order its players settled on,
-    else the latest player's entry."""
+    else the latest player's entry; from `day`'s entries, the day he clicked
+    it on, when it has any."""
     rows = rows_with_key(key)
+    if day is not None:
+        rows = [row for row in rows if row[PLAYED_ON] == day] or rows
     if not rows:
         return None
     result = consensus(rows)
@@ -727,11 +750,12 @@ def typeshift_admin_board():
         return solve_request(data)
     preload, load_error = None, None
     key = request.args.get('key', '')
+    day = parse_iso_day(request.args.get('day', ''))
     if key and not _is_key(key):
         load_error = "Not a board: open one from the Today's Boards tab"
     elif key:
         try:
-            found = editor_board(key)
+            found = editor_board(key, day)
         except Exception as e:
             print(f"Error loading a typeshift board for the editor: {e}")
             found, load_error = None, "Couldn't read the boards"
@@ -740,9 +764,8 @@ def typeshift_admin_board():
             preload = {'columns': columns, 'note': note}
         elif load_error is None:
             load_error = 'No board has that key'
-    day = parse_iso_day(request.args.get('day', '')) or _game_today()
     return render_template(PAGE, schema_data=None, boards_on=True, post_url=ADMIN + '/board',
-                           approve=True, approve_day=day, preload=preload, load_error=load_error,
+                           approve=True, approve_day=day or _game_today(), preload=preload, load_error=load_error,
                            sites=SITE_NAMES, **page_context())
 
 
@@ -755,20 +778,21 @@ def _in_place(replaced, site):
 def typeshift_approve_board():
     """Add: serve the latest player entry of this board, for `site`, straight
     away: for a board James entered himself on /typeshift and trusts.
-    `latest` is that entry's time as the page showed it; if a newer one has
-    come in since, nothing is approved, so a stranger's board can't take its
-    place."""
+    `latest` names the entry the page showed (_entry_token), the latest of
+    that day's; if another has come in since, nothing is approved, so a
+    stranger's board can't take its place."""
     key = request.form.get('key', '')
     day = parse_iso_day(request.form.get('played_on', ''))
     site = request.form.get('site', '')
     if not _is_key(key) or day is None or site not in BOARD_SITES:
         return _back(error='Not a board')
     try:
-        players = [row for row in rows_with_key(key) if row[SOURCE] in BOARD_SOURCES]
+        players = [row for row in rows_with_key(key)
+                   if row[SOURCE] in BOARD_SOURCES and row[PLAYED_ON] == day]
         newest = max(players, key=lambda row: row[UPDATED]) if players else None
         if newest is None:
-            return _back(error='No player board to approve with that key')
-        if newest[UPDATED].strftime(_STAMP) != request.form.get('latest'):
+            return _back(error='No player board that day to approve with that key')
+        if _entry_token(newest[UPDATED], newest[LETTERS]) != request.form.get('latest'):
             return _back(error='A newer board came in since the page loaded. Check it, then approve again')
         replaced = store_approval(day, site, key, newest[LETTERS])
     except Exception as e:

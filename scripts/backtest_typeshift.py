@@ -91,6 +91,9 @@ def check(board, solid, result, words, zipf):
         rest = covers(board, solid, combo)
         return all(rest.get(k, 0) <= goal.get(k, 0) for k in rest)
 
+    if not plan:
+        # Nothing left to plan for (every letter solid, or none coverable).
+        return problems
     for size in range(len(plan)):
         if any(done(combo) for combo in itertools.combinations(words, size)):
             problems.append(f'a plan of {size} words exists, solver gave {len(plan)}')

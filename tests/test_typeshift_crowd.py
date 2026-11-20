@@ -144,6 +144,26 @@ def test_corrections_reach_the_solver(client, crowd_db, monkeypatch):
     assert LISTED not in found and NOT_LISTED in found and 'crane' in found
 
 
+def test_a_change_landing_during_a_rebuild_is_not_lost(crowd_db, monkeypatch):
+    import routes.typeshift as rt
+    monkeypatch.setattr(rt, '_index', {'value': None, 'expires': 0.0})
+    crowd_db()
+    build = rt._build_index
+
+    def change_lands_mid_build(invalid, added):
+        rt._forget_words()                   # James's change commits while this builds
+        return build(invalid, added)
+
+    monkeypatch.setattr(rt, '_build_index', change_lands_mid_build)
+    rt.get_index()
+    # What was stored may predate the change: the next request builds again.
+    assert rt._index['expires'] == 0.0
+    # With no change meanwhile, the memo holds as usual.
+    monkeypatch.setattr(rt, '_build_index', build)
+    rt.get_index()
+    assert rt._index['expires'] > 0.0
+
+
 def test_corrections_never_come_from_another_game(client, crowd_db, monkeypatch):
     import routes.typeshift as rt
     monkeypatch.setattr(rt, '_index', {'value': None, 'expires': 0.0})

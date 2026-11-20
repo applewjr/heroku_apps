@@ -221,14 +221,22 @@ def _plan(words, zipf, need, n, blocked, deadline):
 
     `words` is most familiar first. A word meets one copy of each of its
     letters. Copies no word can meet are left out (a letter no word uses
-    can't be planned for). Words `blocked` calls True are used only for a
-    letter too few other words have."""
+    can't be planned for). Words `blocked` calls True are left out, unless a
+    letter has too few other words: then the blocked words with that letter
+    may be used, for any of their letters."""
     clean = [w for w in words if not (blocked and blocked(w))]
+    allowed = set(clean)
+    if blocked:
+        for (c, letter), copies in need.items():
+            if sum(1 for w in clean if w[c] == letter) < copies:
+                allowed.update(w for w in words if w[c] == letter)
+    # Each letter's candidates are every allowed word with that letter: the
+    # search branches on one letter's candidates at a time, so leaving out a
+    # word that has the letter (a blocked word let in for another letter)
+    # could miss the shortest plan.
     avail = {}
-    for (c, letter), copies in need.items():
-        ws = [w for w in clean if w[c] == letter]
-        if len(ws) < copies:
-            ws += [w for w in words if w[c] == letter and blocked and blocked(w)]
+    for (c, letter) in need:
+        ws = [w for w in words if w in allowed and w[c] == letter]
         if ws:
             avail[(c, letter)] = ws
     target = {key: min(need[key], len(ws)) for key, ws in avail.items()}

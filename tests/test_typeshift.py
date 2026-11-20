@@ -139,6 +139,15 @@ def test_blocked_words_only_when_nothing_else_will_do(tiny):
     assert sum(w[0] == 'b' for w in forced['plan']) == 1
 
 
+def test_a_blocked_word_let_in_for_one_letter_covers_its_others_too():
+    # Only blocked words have the B, and BQY also has the Q: two words do it
+    # (AXY and BQY, or AQY and BXY), not three.
+    index = ts.Index.build(['axy', 'bqy', 'bxy', 'aqy'])
+    result = ts.solve(index, ('ab', 'xq', 'y'), blocked=lambda w: w[0] == 'b')
+    assert len(result['plan']) == 2 and result['exact'] is True
+    assert sum(w[0] == 'b' for w in result['plan']) == 1
+
+
 def test_a_letter_no_word_uses_is_dead_and_left_out_of_the_plan(tiny):
     result = _solve(tiny, board=('bcz', 'aio', 't'))
     assert result['dead'] == [[0, 2]]

@@ -370,25 +370,86 @@ def test_a_bad_typed_approval_changes_nothing(client, boards, monkeypatch, data)
     assert boards.rows == {}
 
 
+def _token(row):
+    """What the tab's Add sends back for a row: its time and its letters."""
+    return f"{row[6]:%Y-%m-%d %H:%M:%S}|{row[1]}"
+
+
+def _approvals(boards):
+    return [row for row in boards.rows.values() if row[3] == 'admin']
+
+
 def test_add_approves_the_latest_player_board_and_checks_its_time(client, boards, monkeypatch):
     auth = _admin_headers(monkeypatch)
     _log(client, 1)
     [row] = boards.mine()
-    stamp = row[6].strftime('%Y-%m-%d %H:%M:%S')
-    form = {'key': _key(), 'played_on': DAY.isoformat(), 'site': 'puzzmo', 'latest': stamp}
+    form = {'key': _key(), 'played_on': DAY.isoformat(), 'site': 'puzzmo', 'latest': _token(row)}
     # A newer entry came in since the page loaded: nothing is approved.
     _log(client, 2, columns=SHUFFLED)
     resp = client.post('/typeshift_admin/approve_board', headers=auth, data=form)
-    assert 'error=' in resp.headers['Location']
-    assert not [row for row in boards.rows.values() if row[3] == 'admin']
+    assert 'error=' in resp.headers['Location'] and not _approvals(boards)
     newest = max(boards.mine(), key=lambda r: r[6])
-    form['latest'] = newest[6].strftime('%Y-%m-%d %H:%M:%S')
+    form['latest'] = _token(newest)
+    # Another order of the board in that same second: not the entry shown.
+    shown = newest[1]
+    newest[1] = '|'.join(COLUMNS)
+    resp = client.post('/typeshift_admin/approve_board', headers=auth, data=form)
+    assert 'error=' in resp.headers['Location'] and not _approvals(boards)
+    newest[1] = shown
     resp = client.post('/typeshift_admin/approve_board', headers=auth, data=form)
     assert 'success=' in resp.headers['Location']
     assert _todays(client) == [_served(SHUFFLED, sites=['Puzzmo'])]
     for bad in ({'key': 'x'}, {'site': 'yahoo'}, {'played_on': 'never'}):
         resp = client.post('/typeshift_admin/approve_board', headers=auth, data=dict(form, **bad))
         assert 'error=' in resp.headers['Location']
+    # A day with no player entry of the board: nothing to copy.
+    resp = client.post('/typeshift_admin/approve_board', headers=auth, data=dict(form, played_on='2026-11-01'))
+    assert 'error=' in resp.headers['Location']
+
+
+def test_add_on_an_earlier_day_copies_that_days_entry(client, boards, monkeypatch):
+    yesterday = DAY - timedelta(days=1)
+    _log(client, 1, columns=SHUFFLED, day=yesterday)
+    [old] = boards.mine(yesterday)
+    _log(client, 2)                          # the same board today, typed the other way, newer
+    form = {'key': _key(), 'played_on': yesterday.isoformat(), 'site': 'puzzmo', 'latest': _token(old)}
+    resp = client.post('/typeshift_admin/approve_board', headers=_admin_headers(monkeypatch), data=form)
+    assert 'success=' in resp.headers['Location']
+    [approval] = _approvals(boards)
+    assert approval[5] == yesterday and approval[1] == '|'.join(SHUFFLED)
+
+
+def test_the_editor_opens_the_board_as_it_was_on_the_day_clicked(client, boards, monkeypatch):
+    auth = _admin_headers(monkeypatch)
+    yesterday = DAY - timedelta(days=1)
+    _log(client, 1, columns=SHUFFLED, day=yesterday)
+    _log(client, 2)                          # today, the other order
+    html = client.get(f'/typeshift_admin/board?key={_key()}&day={yesterday.isoformat()}',
+                      headers=auth).get_data(as_text=True)
+    assert '"columns": ["BSC", "LRT", "IAO", "MN", "PE"]' in html and f'value="{yesterday.isoformat()}"' in html
+    html = client.get(f'/typeshift_admin/board?key={_key()}&day={DAY.isoformat()}', headers=auth).get_data(as_text=True)
+    assert '"columns": ["SCB", "TRL", "OAI", "NM", "EP"]' in html
+
+
+def test_the_boards_memo_is_read_and_pushed_under_its_lock(boards, monkeypatch):
+    """So an admin change can't land between the look and the push, and
+    have the entry it cleared put back."""
+    import routes.typeshift as rt
+
+    class Watched(dict):
+        def get(self, key, default=None):
+            assert rt._boards_lock.locked(), 'read outside the lock'
+            return super().get(key, default)
+
+        def __setitem__(self, key, value):
+            assert rt._boards_lock.locked(), 'written outside the lock'
+            super().__setitem__(key, value)
+
+    watched = Watched()
+    monkeypatch.setattr(rt, '_boards_cache', watched)
+    rt._boards_for(DAY)                      # a miss, then the store
+    rt._boards_for(DAY)                      # stale at once: pushed out, read again
+    assert DAY in watched
 
 
 def test_undo_and_remove(client, boards, monkeypatch):

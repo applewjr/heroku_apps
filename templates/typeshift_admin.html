@@ -200,7 +200,8 @@
                         {% if site in g.sites %}
                         <span class="status-served">Approved{% if sites|length > 1 %} for {{ name }}{% endif %}</span><br>
                         <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span><br>
-                        <form method="POST" action="/typeshift_admin/unapprove_board" class="remove-form">
+                        <form method="POST" action="/typeshift_admin/unapprove_board" class="remove-form"
+                              onsubmit="return confirm('Undo your {{ name }} approval of this board? It comes off every date you approved it for, not just {{ d.day.strftime('%Y-%m-%d') }}.')">
                             <input type="hidden" name="key" value="{{ g.key }}">
                             <input type="hidden" name="site" value="{{ site }}">
                             {{ keep_view() }}

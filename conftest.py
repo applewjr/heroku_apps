@@ -79,20 +79,23 @@ def typeshift_index():
 def no_typeshift_db(monkeypatch, typeshift_index):
     """Keep /typeshift off the database, for every test.
 
-    Its solves read Typeshift's word corrections (through crowd.py), and
-    today's boards come from typeshift_boards: ``secret_pass.py`` points at
-    the production JawsDB. Every cursor in routes/typeshift.py fails here, as
-    in an outage (the page fails safe), the word list is the plain one with
-    no corrections to read, and the boards memo starts empty.
-    tests/test_typeshift_boards.py and tests/test_typeshift_crowd.py put
-    tables of their own in place of these.
+    Its solves read Typeshift's word corrections and its word reports vote
+    (both through crowd.py), and today's boards come from typeshift_boards:
+    ``secret_pass.py`` points at the production JawsDB. Every cursor in
+    routes/typeshift.py and crowd.py fails here, as in an outage (the page
+    fails safe), the word list is the plain one with no corrections to read,
+    and the boards memo starts empty. A test's own fixture can still put a
+    fake in either place (tests/test_typeshift_boards.py,
+    tests/test_typeshift_crowd.py and the other crowd games' tests do).
     """
+    import crowd
     import routes.typeshift as typeshift
 
     def down():
         raise RuntimeError("no database in tests")
 
     monkeypatch.setattr(typeshift, "db_cursor", down)
+    monkeypatch.setattr(crowd, "db_cursor", down)
     monkeypatch.setattr(typeshift, "_boards_cache", {})
     monkeypatch.setattr(typeshift, "_index", {"value": typeshift_index, "expires": float("inf")})
 

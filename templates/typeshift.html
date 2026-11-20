@@ -646,10 +646,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let litWord = null;              // a word whose letters are ringed on the board
     let showAll = false;
     let solveTimer = null, solveSeq = 0, logTimer = null;
+    let solveFailed = false;         // the hint under the board says a solve failed
     // Marks this page load's first solve, so the server logs one use of it
     // however many solves follow (extensions.log_solve).
     let firstSolve = true;
     let sharedBoards = [], sharedYesterday = [], sharedDay = '', sharedYesterdayDay = '';
+    let sharedFetchedOn = '';        // gameDay() when those were asked for
 
     const colsEl = document.getElementById('ts-cols');
     const boardEl = document.getElementById('ts-board');
@@ -780,9 +782,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const focused = focusedBox();
         boxes.forEach((wrap, i) => {
             const input = wrap.querySelector('input');
-            // Only letters that differ: lower case typed in the box shows in
-            // capitals anyway, and resetting it would move the caret.
-            if (cleanBox(input.value) !== columns[i]) input.value = columns[i];
+            // Only when it shows something else: lower case typed in the box
+            // shows in capitals anyway, and resetting it would move the caret.
+            if (!boxShows(input.value, columns[i])) input.value = columns[i];
             const isNext = !columns[i] && i >= b.cols.length;
             wrap.classList.toggle('next', isNext);
             wrap.classList.toggle('hot', isNext && focused === i - 1);
@@ -800,7 +802,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    const cleanBox = v => v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, MAX_LETTERS);
+    // Does a box show exactly its column's letters, in either case?
+    const boxShows = (v, col) => /^[A-Za-z]*$/.test(v) && v.toUpperCase() === col;
 
     // Anything but a letter is dropped; a space, comma or slash ends the box,
     // and letters after one go in the boxes after it (a pasted board).
@@ -820,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         // A separator, a digit or an 11th letter goes from the box itself.
-        if (/[^A-Za-z]/.test(input.value) || cleanBox(input.value) !== columns[i]) input.value = columns[i];
+        if (!boxShows(input.value, columns[i])) input.value = columns[i];
         afterEdit();
         if (parts.length > 1 && !focusBox(j + 1)) focusBox(j);
     });
@@ -894,6 +897,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (at >= 0) lit.add(keyOf(c, at));
             });
         }
+        // The tiles are drawn anew: a tile with the keyboard gets it back.
+        const had = boardEl.contains(document.activeElement) && document.activeElement.classList.contains('ts-tile')
+            ? [document.activeElement.dataset.c, document.activeElement.dataset.i] : null;
         boardEl.replaceChildren(...cols.map((col, c) => {
             const stack = document.createElement('div');
             stack.className = 'ts-stack';
@@ -936,6 +942,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             return stack;
         }));
+        if (had) {
+            const again = boardEl.querySelector('.ts-tile[data-c="' + had[0] + '"][data-i="' + had[1] + '"]');
+            if (again) again.focus({preventScroll: true});
+        }
     }
 
     boardEl.addEventListener('click', e => {
@@ -1004,8 +1014,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // has a solve of its own on the way.
             if (seq !== solveSeq || sig !== sigOf()) return;
             if (!resp.ok) {
-                renderHint(data.error || 'Something went wrong - try again.', true);
+                renderHint((data.error || 'Something went wrong.') + ' Tap Help or Solve to try again.', true);
+                solveFailed = true;
                 return;
+            }
+            // A failure said so under the board: it's done with now.
+            if (solveFailed) {
+                solveFailed = false;
+                renderHint();
             }
             last = data;
             lastSig = sig;
@@ -1015,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(logTimer);
             logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
         } catch (_) {
-            if (seq === solveSeq) toast('Could not reach the solver - check your connection', true);
+            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Help or Solve.', true);
         }
     }
 
@@ -1061,8 +1077,17 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSuggest();
     }
 
+    // A word shows as played while each of its letters is still solid: an
+    // edit or a tap on a tile can take a mark back.
+    function shownPlayed(word) {
+        if (!played.includes(word)) return false;
+        const cols = board().cols;
+        return [...word.toUpperCase()].every((ch, c) =>
+            [...(cols[c] || '')].some((x, i) => x === ch && solid[keyOf(c, i)] === ch));
+    }
+
     function wordActions(word) {
-        const isPlayed = played.includes(word);
+        const isPlayed = shownPlayed(word);
         return '<span class="ts-row-end">' +
             (isPlayed ? '<span class="ts-tag done">played</span>'
                 : '<button type="button" class="ts-icon-btn" data-act="played" data-word="' + esc(word) + '" aria-label="I played ' + esc(word.toUpperCase()) + '" title="I played it">&#10003;</button>') +
@@ -1149,6 +1174,9 @@ document.addEventListener('DOMContentLoaded', () => {
     resultsEl.addEventListener('click', e => {
         const btn = e.target.closest('[data-act]');
         if (!btn) return;
+        // Results for an older board stay in view, faded, until the new
+        // ones come; their buttons wait for those.
+        if (lastSig !== sigOf()) return;
         const act = btn.dataset.act, word = btn.dataset.word;
         if (act === 'letter') {
             reveal[word] = (reveal[word] || 0) + 1;
@@ -1281,7 +1309,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return word.length === cols.length && [...word].every((ch, c) => cols[c].includes(ch));
     }
 
+    // One suggestion at a time, from Send or from Enter in the box.
+    let suggestPending = false;
+
     function submitSuggestion() {
+        if (suggestPending) return;
         const w = (suggestInput.value || '').trim().toLowerCase();
         const cols = board().cols;
         // The checks the server makes that need no round trip.
@@ -1293,16 +1325,18 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (last && last.words.some(x => x.word === w)) problem = SUGGEST_MESSAGES.already_listed;
         if (problem) { suggestStatus.textContent = problem; return; }
 
+        suggestPending = true;
         suggestBtn.disabled = true;
         suggestStatus.textContent = 'Sending...';
         postVote({action: 'suggest_missing', word: w})
             .then(data => {
                 const result = data && data.result;
                 suggestStatus.textContent = SUGGEST_MESSAGES[result] || SUGGEST_MESSAGES.recorded;
-                if (result === 'recorded') suggestInput.value = '';
+                // Not a word typed in the box since.
+                if (result === 'recorded' && (suggestInput.value || '').trim().toLowerCase() === w) suggestInput.value = '';
             })
             .catch(() => { suggestStatus.textContent = 'Could not send that. Please try again.'; })
-            .finally(() => { suggestBtn.disabled = false; });
+            .finally(() => { suggestPending = false; suggestBtn.disabled = false; });
     }
 
     if (suggestBtn) {
@@ -1329,7 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('.ts-mode');
         if (!btn) return;
         setMode(btn.dataset.mode);
-        if (!last) scheduleSolve(0);
+        // No reply for the board as it is (a solve failed): this asks again.
+        if (!last || lastSig !== sigOf()) scheduleSolve(0);
     });
 
     /* ---------- today's boards ---------- */
@@ -1349,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function fetchShared() {
         if (!BOARDS_ON) return;
+        sharedFetchedOn = gameDay();
         postJSON({action: 'todays_boards'})
             .then(data => {
                 sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
@@ -1415,6 +1451,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = e.target.closest('[data-pick]');
         const p = el && sharedPicks._picks && sharedPicks._picks[Number(el.dataset.pick)];
         if (!p) return;
+        // Puzzmo's day has changed since this list came (by this browser's
+        // own clock, both times): ask for the new day's first.
+        if (sharedFetchedOn && sharedFetchedOn !== gameDay()) {
+            sharedBoards = [];
+            sharedYesterday = [];
+            renderShared();
+            fetchShared();
+            renderHint("Puzzmo's day changed at midnight Central. The list now shows the new day's boards, and yesterday's for a few hours.");
+            return;
+        }
         loadBoard(p.b.columns, 'shared', p.day);
         gaOnce('typeshift_board_loaded');
         renderHint(p.yesterday ? "Loaded yesterday's board, entered by other players. Check it matches your game."
@@ -1441,22 +1487,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // A board the player uses (a solve, then a few seconds of looking) is
     // logged once per version. A board loaded from today's boards and left
     // as it is is never sent (routes/typeshift.py), so it can't confirm
-    // itself. Nothing in here may stop the page.
+    // itself. A version counts as logged once the server takes it; one on its
+    // way isn't sent twice, and a failed one goes again next time (the server
+    // keeps one row per board, player and day, so a repeat after a lost reply
+    // changes nothing). Nothing in here may stop the page.
+    let logPending = '';
     function maybeLog() {
         try {
             const b = board();
             if (!LOG_BOARDS || !ready(b) || !last || lastSig !== sigOf()) return;
             if (boardSource === 'shared') return;
             const sig = (boardDay || gameDay()) + '|' + b.cols.join('|') + '|' + boardSource;
-            if (sig === loggedSig) return;
-            loggedSig = sig;
-            persist();
+            if (sig === loggedSig || sig === logPending) return;
+            logPending = sig;
             fetch(POST_URL, {
                 method: 'POST',
                 keepalive: true,
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: 'log_board', columns: b.cols, source: boardSource, day: boardDay || gameDay()})
-            }).catch(() => {});
+            }).then(r => {
+                if (r.ok) {
+                    loggedSig = sig;
+                    persist();
+                }
+            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
         } catch (_) {}
     }
 
@@ -1542,14 +1596,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // A board saved on an earlier Puzzmo day is a finished puzzle: start
-    // fresh, except yesterday's in the first hours of the new day.
+    // fresh, except yesterday's in the first hours of the new day. James's
+    // approval draft never runs out: it stays until he clears it or the
+    // approval works.
     function restore() {
         let s = null;
         try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
         if (!s || !Array.isArray(s.columns)) return false;
         const today = gameDay();
-        const yesterdays = s.boardDay === dayBefore(today) && gameHour() < YESTERDAY_HOURS;
-        if (s.boardDay && s.boardDay !== today && !yesterdays) {
+        const yesterdays = !APPROVE && s.boardDay === dayBefore(today) && gameHour() < YESTERDAY_HOURS;
+        if (!APPROVE && s.boardDay && s.boardDay !== today && !yesterdays) {
             try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
             if (s.columns.some(c => c)) toast("Cleared yesterday's board - enter today's");
             return false;
