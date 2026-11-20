@@ -184,7 +184,7 @@ site_idle:
                          AND user_agent <> 'jj-healthcheck'
                          AND page_name NOT LIKE '% (solve)'
                          AND page_name <> 'index.html'
-                         AND NOT (LOWER(user_agent) REGEXP 'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider')),
+                         AND NOT (LOWER(user_agent) REGEXP 'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider|lighthouse')),
                      CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
                  99999) AS idle_minutes;
 

@@ -1277,7 +1277,7 @@ SELECT LEFT(user_agent, 90) AS agent, COUNT(*) AS hits
 FROM app_visits GROUP BY LEFT(user_agent, 90) ORDER BY hits DESC LIMIT 30;
 
 SELECT CASE WHEN LOWER(user_agent) REGEXP
-         'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider'
+         'bot|crawl|spider|slurp|facebookexternalhit|bingpreview|python-requests|curl|wget|headless|scrapy|semrush|ahrefs|petal|bytespider|lighthouse'
        THEN 'bot' ELSE 'human?' END AS guess,
        COUNT(*) AS hits,
        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct

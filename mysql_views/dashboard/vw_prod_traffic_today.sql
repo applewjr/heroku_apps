@@ -46,7 +46,7 @@ WITH rows_7d AS (
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
         AND referrer NOT LIKE '%apple-apps-staging%'
-        AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
+        AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor|lighthouse')
     )
 ,counts AS (
     SELECT

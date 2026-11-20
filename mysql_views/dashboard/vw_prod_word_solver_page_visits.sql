@@ -42,7 +42,7 @@ WHERE submit_time >= DATE(pst_now()) - INTERVAL 13 DAY
     -- columns and quietly overstate real usage.
     AND user_agent <> 'jj-healthcheck'
     -- Crawlers, link previews and scripts aren't people either.
-    AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
+    AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor|lighthouse')
 GROUP BY date
 ORDER BY date DESC
 ;
