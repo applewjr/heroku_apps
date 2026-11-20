@@ -281,9 +281,9 @@ a.tab-button { color: inherit; text-decoration: none; }
         <div class="alert alert-error">Couldn't read the pairs ({{ pairs_error }}). Has mysql_tables/circuits_pairs.sql been run?</div>
         {% endif %}
         <form method="POST" action="/circuits_admin/add_pair" class="approve-entry">
-            <input type="text" name="first" placeholder="first word" maxlength="24" required>
+            <input type="text" name="first" placeholder="first word or tile" maxlength="24" required>
             <span>+</span>
-            <input type="text" name="second" placeholder="second word" maxlength="24" required>
+            <input type="text" name="second" placeholder="second word or tile" maxlength="24" required>
             {{ keep_view() }}
             <button type="submit" class="btn btn-success">Add pair</button>
         </form>

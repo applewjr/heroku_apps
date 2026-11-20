@@ -14,8 +14,8 @@ SET SESSION lock_wait_timeout = 5;
 
 CREATE TABLE circuits_pairs (
     id           INT           NOT NULL AUTO_INCREMENT,
-    first_word   VARCHAR(24)   NOT NULL,   -- written first: a word or two-word unit, lower case, as the data spells it
-    second_word  VARCHAR(24)   NOT NULL,   -- written second
+    first_word   VARCHAR(24)   NOT NULL,   -- written first: a word as the data spells it, or a tile's whole text ('show and'), lower case
+    second_word  VARCHAR(24)   NOT NULL,   -- written second, the same way
     added_at     DATETIME      NOT NULL,   -- Pacific time, stamped in Python
     PRIMARY KEY (id),
     UNIQUE KEY uq_pair (first_word, second_word)

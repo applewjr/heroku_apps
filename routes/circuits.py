@@ -55,7 +55,9 @@ PAGE = 'circuits.html'
 # A box's word, as the page sends a kept one or the admin an answer.
 _WORD = re.compile(r'[A-Za-z]{1,%d}' % cz.MAX_CELL_LEN)
 # An added pair's side: a word or two-word unit, as the data spells them.
-_PAIR_SIDE = re.compile(r'[a-z]+(?: [a-z]+)?')
+# One side of an added pair: a word, or a tile's whole text (as cz.clean_cell
+# allows, in lower case).
+_PAIR_SIDE = re.compile(r"[a-z](?:[a-z '\-]{0,%d}[a-z])?" % (cz.MAX_CELL_LEN - 2))
 
 # Puzzmo's calendar (see the module docstring).
 GAME_TZ = pytz.timezone('America/Chicago')
@@ -164,7 +166,8 @@ def added_pairs():
 
 
 def get_extra(data):
-    """{(first id, second id): weight} for the solver. The pairs as last read
+    """{(first, second): weight} for the solver, each side a word id, or the
+    text of a tile the data doesn't know (cz._Pairs). The pairs as last read
     if the table can't be read now (none, before the first good read)."""
     now = time.monotonic()
     if _extra['value'] is not None and now < _extra['expires']:
@@ -180,8 +183,8 @@ def get_extra(data):
     value = {}
     for first, second, _when in rows:
         a, b = data.id(first), data.id(second)
-        if a >= 0 and b >= 0:
-            value[(a, b)] = ADDED_WEIGHT
+        if a >= 0 or b >= 0:
+            value[(a if a >= 0 else first, b if b >= 0 else second)] = ADDED_WEIGHT
     _extra['value'] = value
     _extra['expires'] = now + EXTRA_REFRESH_SECONDS
     return value
@@ -855,19 +858,25 @@ def _entered_consensus(rows, boxes):
 
 
 def missing_pairs(solver, extra, cells, arrows, answers):
-    """For a board with answers: each arrow's pair, as the solver looks it up
-    (cz.tile_word), with whether the data has it. [{'first', 'second',
-    'known', 'note'}], one per arrow; note says why a pair can't be added."""
+    """For a board with answers: each arrow's pair, with whether the solver
+    knows it as it solves (James's added pairs too). [{'first', 'second',
+    'label', 'known', 'note'}], one per arrow: first and second are what Add
+    stores, an answer or a tile's whole text (cz.tile_word: SHOW AND, never
+    just its AND); note says why a pair can't be added."""
     words = dict(zip(_boxes(cells), answers))
+    pairs = cz.lookup(solver, extra)
     out = []
     for i, j in sorted(arrows):
-        sides = []
+        sides, ids = [], []
         for cell, first in ((i, True), (j, False)):
             if cells[cell] == cz.BOX:
                 word = (words.get(cell) or '').lower()
-                sides.append(word if word and solver.id(word) >= 0 else None)
+                k = solver.id(word) if word else -1
+                sides.append(word if k >= 0 else None)
+                ids.append(k)
             else:
-                sides.append(cz.tile_word(solver, cells[cell], given_first=first))
+                sides.append(cz.tile_word(solver, cells[cell]))
+                ids.append(pairs.given_id(cells[cell], first)[0])
         a, b = sides
         names = [(words.get(c) or '?').upper() if cells[c] == cz.BOX else cells[c] for c in (i, j)]
         if a is None or b is None:
@@ -875,8 +884,7 @@ def missing_pairs(solver, extra, cells, arrows, answers):
             out.append({'first': a, 'second': b, 'label': ' + '.join(names), 'known': False,
                         'note': f"{unknown} isn't in the word data"})
             continue
-        ia, ib = solver.id(a), solver.id(b)
-        known = solver.pair(ia, ib) is not None or (ia, ib) in extra
+        known = min(ids) >= 0 and pairs.weight(*ids) is not None
         out.append({'first': a, 'second': b, 'label': ' + '.join(names), 'known': known, 'note': None})
     return out
 
@@ -1235,7 +1243,7 @@ def circuits_remove_board():
 
 
 def _pair_from_form():
-    """(first, second) from a form: each a word or a two-word unit, lower
+    """(first, second) from a form: each a word or a tile's text, lower
     case, or None."""
     first = ' '.join(request.form.get('first', '').lower().split())
     second = ' '.join(request.form.get('second', '').lower().split())
@@ -1248,16 +1256,17 @@ def _pair_from_form():
 @auth.login_required
 def circuits_add_pair():
     """Teach the solver a compound it lacks: first + second (first written
-    first), as sure as any pair it knows. Both sides must be in its word
-    data, since the solver only matches words it knows."""
+    first), as sure as any pair it knows. A side can be a tile's whole text
+    the word data lacks (SHOW AND): the solver then knows that tile by it,
+    but never offers it as an answer, so the other side must be a word it
+    has."""
     pair = _pair_from_form()
     if pair is None:
-        return _back(error='A pair is two words (or two-word units) of letters')
+        return _back(error="A pair is two words, or a word and a tile's text, in letters")
     solver = get_data()
-    if solver is not None:
-        for side in pair:
-            if solver.id(side) < 0:
-                return _back(error=f"{side.upper()} isn't in the word data, so the solver can't use it")
+    if solver is not None and all(solver.id(side) < 0 for side in pair):
+        return _back(error=f"Neither {pair[0].upper()} nor {pair[1].upper()} is in the word data, "
+                           "so the solver can't use the pair")
     try:
         store_pair(*pair)
     except Exception as e:

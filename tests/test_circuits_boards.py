@@ -471,11 +471,30 @@ def test_added_pairs_teach_the_solver(client, boards, monkeypatch):
     assert _solve(client, cells=cells, arrows=[[0, 1]])['boxes'][0]['word'] == 'ROOM'
     html = client.get('/circuits_admin?tab=pairs', headers=auth).get_data(as_text=True)
     assert 'SNOW + ROOM' in html
-    # A word the data doesn't know can't be used, so it isn't added.
-    resp = client.post('/circuits_admin/add_pair', headers=auth, data={'first': 'snow', 'second': 'zzyzx'})
-    assert "isn%27t+in+the+word+data" in resp.headers['Location'] or 'error=' in resp.headers['Location']
+    # A pair the data knows neither side of can't be used, so it isn't added.
+    resp = client.post('/circuits_admin/add_pair', headers=auth, data={'first': 'qwerty', 'second': 'zzyzx'})
+    assert 'error=' in resp.headers['Location'] and ('qwerty', 'zzyzx') not in boards.pairs
     resp = client.post('/circuits_admin/remove_pair', headers=auth, data={'first': 'snow', 'second': 'room'})
     assert 'success=' in resp.headers['Location'] and boards.pairs == {}
+
+
+def test_a_two_word_tile_is_added_whole_never_as_its_last_word(client, boards, monkeypatch):
+    # SHOW AND [BALL] ROOM: the tiny data has neither SHOW AND nor AND, so
+    # the Boards tab offers SHOW AND + BALL whole (AND + BALL would join every
+    # tile that ends in AND), and Add stores it so.
+    auth = _admin_headers(monkeypatch)
+    cells = ['SHOW AND'] + CELLS[1:]
+    _approve_typed(client, auth, cells=cells, answers=ANSWERS)
+    html = client.get('/circuits_admin', headers=auth).get_data(as_text=True)
+    assert 'Add SHOW AND + BALL' in html and 'Add AND + BALL' not in html and 'value="show and"' in html
+    resp = client.post('/circuits_admin/add_pair', headers=auth, data={'first': 'show and', 'second': 'ball', 'tab': 'boards'})
+    assert 'success=' in resp.headers['Location'] and ('show and', 'ball') in boards.pairs
+    assert 'Add SHOW AND + BALL' not in client.get('/circuits_admin', headers=auth).get_data(as_text=True)
+    # The solver now knows that tile by it, on any board.
+    reply = _solve(client, cells=['SHOW AND', B, ''] + [''] * 12, arrows=[[0, 1]])
+    assert reply['boxes'][0]['word'] == 'BALL' and reply['unknown'] == []
+    html = client.get('/circuits_admin?tab=pairs', headers=auth).get_data(as_text=True)
+    assert 'SHOW AND + BALL' in html
 
 
 def test_the_accuracy_tab_scores_the_data_alone(client, boards, monkeypatch):

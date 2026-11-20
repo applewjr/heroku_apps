@@ -287,29 +287,73 @@ def _prior(data, i):
     return PRIOR * (min(max(z, PRIOR_FROM), PRIOR_TO) - PRIOR_FROM)
 
 
+def _norm(text):
+    return ' '.join(text.lower().split())
+
+
 class _Pairs:
     """Pair lookups for one solve, with James's added pairs merged in. Only
     the few rows a solve walks whole (the tiles', and the two-hop ones) become
     dicts; single lookups and the box-to-box tables stay in numpy, so a solve
-    makes few Python objects (an allocator keeps the memory they took)."""
+    makes few Python objects (an allocator keeps the memory they took).
+
+    An added pair can name a tile the data doesn't know as a whole (SHOW AND,
+    the start of SHOW AND TELL). Such a tile gets an id of its own past the
+    vocab: its pairs are the ones James added, on top of what its touching
+    word gives (_given_id), and it is never an answer."""
 
     def __init__(self, data, extra):
         self.data = data
+        self.n = len(data.vocab)
+        self.units = {}          # a tile's text -> its id past the vocab
+        self.unit_text = {}      # and back
         self.extra_succ = defaultdict(dict)
         self.extra_pred = defaultdict(dict)
         self.extra_words = set()
         for (a, b), w in (extra or {}).items():
-            if a >= 0 and b >= 0:
-                self.extra_succ[a][b] = max(w, self.extra_succ[a].get(b, 0.0))
-                self.extra_pred[b][a] = max(w, self.extra_pred[b].get(a, 0.0))
-                self.extra_words.update((a, b))
+            a, b = self._side(a), self._side(b)
+            if a is None or b is None:
+                continue
+            self.extra_succ[a][b] = max(w, self.extra_succ[a].get(b, 0.0))
+            self.extra_pred[b][a] = max(w, self.extra_pred[b].get(a, 0.0))
+            self.extra_words.update(x for x in (a, b) if x < self.n)
         self._succ = {}
         self._pred = {}
 
+    def _side(self, side):
+        """One side of an added pair as an id: a word id as given, or text,
+        which is the data's word if it knows it, else a tile of its own."""
+        if isinstance(side, str):
+            text = _norm(side)
+            if not text:
+                return None
+            i = self.data.id(text)
+            if i >= 0:
+                return i
+            if text not in self.units:
+                self.units[text] = self.n + len(self.units)
+                self.unit_text[self.units[text]] = text
+            return self.units[text]
+        return int(side) if side >= 0 else None
+
+    def given_id(self, text, given_first):
+        """(word id, factor) for a given tile as one side of an arrow: the
+        tile as an added pair names it, else as _given_id finds it."""
+        u = self.units.get(_norm(text))
+        if u is not None:
+            return u, 1.0
+        return _given_id(self.data, text, given_first)
+
+    def _touching(self, u, first):
+        """For a tile of its own: the id of its word that touches the box
+        (the last word when the tile is written first), as _given_id picks."""
+        parts = self.unit_text[u].split()
+        return self.data.id(parts[-1] if first else parts[0]) if len(parts) > 1 else -1
+
     def may_answer(self, x):
         """Can word x fill a box? A common single word, or one in a pair
-        James added (his answers can be rarer words)."""
-        return self.data.can_answer(x) or x in self.extra_words
+        James added (his answers can be rarer words). Never a tile."""
+        return 0 <= x < self.n and (self.data.can_answer(x) or x in self.extra_words)
 
     def succ(self, i):
         """{word id: weight} of the words that can follow word i."""
@@ -317,8 +361,12 @@ class _Pairs:
             return {}
         d = self._succ.get(i)
         if d is None:
-            ids, w = self.data.follows(i)
-            d = dict(zip(ids.tolist(), w.tolist()))
+            if i >= self.n:
+                t = self._touching(i, True)
+                d = {x: min(w, CAP) * PART_FACTOR for x, w in self.succ(t).items()} if t >= 0 else {}
+            else:
+                ids, w = self.data.follows(i)
+                d = dict(zip(ids.tolist(), w.tolist()))
             for b, x in self.extra_succ.get(i, {}).items():
                 d[b] = max(x, d.get(b, 0.0))
             self._succ[i] = d
@@ -330,8 +378,12 @@ class _Pairs:
             return {}
         d = self._pred.get(i)
         if d is None:
-            ids, w = self.data.precedes(i)
-            d = dict(zip(ids.tolist(), w.tolist()))
+            if i >= self.n:
+                t = self._touching(i, False)
+                d = {x: min(w, CAP) * PART_FACTOR for x, w in self.pred(t).items()} if t >= 0 else {}
+            else:
+                ids, w = self.data.precedes(i)
+                d = dict(zip(ids.tolist(), w.tolist()))
             for a, x in self.extra_pred.get(i, {}).items():
                 d[a] = max(x, d.get(a, 0.0))
             self._pred[i] = d
@@ -341,6 +393,10 @@ class _Pairs:
         """The weight of "a b", or None."""
         if a < 0 or b < 0:
             return None
+        if a >= self.n:
+            return self.succ(a).get(b)
+        if b >= self.n:
+            return self.pred(b).get(a)
         d = self._succ.get(a)
         if d is not None:
             return d.get(b)
@@ -355,7 +411,7 @@ class _Pairs:
         the head words (a sorted int array), scores capped at CAP."""
         out = {}
         for x in tails:
-            if x < 0:
+            if x < 0 or x >= self.n:
                 continue
             ids, w = self.data.follows_among(x, heads)
             row = dict(zip(ids.tolist(), np.minimum(w, CAP).tolist())) if len(ids) else {}
@@ -383,12 +439,20 @@ def _given_id(data, text, given_first):
     return -1, 0.0
 
 
-def tile_word(data, text, given_first):
-    """The word or unit the solver matches a given tile by, as one side of an
-    arrow (see _given_id), or None if it knows neither. The admin page uses
-    it to name a pair the data lacks exactly as the solver would look it up."""
-    i, _ = _given_id(data, text, given_first)
-    return data.word(i) if i >= 0 else None
+def tile_word(data, text):
+    """The name a pair James adds gives a tile: the data's own word for the
+    whole tile if it has one, else the tile's text in lower case (the solver
+    then knows the tile by it: see _Pairs). Never just one word of a
+    multi-word tile, which would join every tile that ends that way."""
+    i = data.id(text)
+    return data.word(i) if i >= 0 else _norm(text)
+
+
+def lookup(data, extra=None):
+    """The solver's pair lookups, with James's added pairs (as solve takes
+    them): given_id(text, given_first) for a tile and weight(a, b) for a
+    pair, exactly as a solve uses them. For the admin page."""
+    return _Pairs(data, extra)
 
 
 def _locked_ids(data, board, locked):
@@ -468,7 +532,7 @@ def solve(data, board, locked=None, extra=None, budget_s=BUDGET_S, top=TOP_SOLUT
                 box_arcs.append((i, j))
             continue
         box, given, given_first = (j, i, True) if cells[j] == BOX else (i, j, False)
-        gid, factor = _given_id(data, cells[given], given_first)
+        gid, factor = pairs.given_id(cells[given], given_first)
         if gid < 0:
             unknown.add(cells[given])
             continue
@@ -769,7 +833,7 @@ def _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
                 out.append(None if y is None or y < 0 or x < 0 else
                            (known(x, y) if i == c else known(y, x)))
             else:
-                gid, _ = _given_id(data, cells[other], other == i)
+                gid, _ = pairs.given_id(cells[other], other == i)
                 out.append(None if gid < 0 or x < 0 else (known(gid, x) if other == i else known(x, gid)))
         return out
 
@@ -795,7 +859,7 @@ def _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
                 entry['known'] = known(x, y) if i == c else known(y, x)
             else:
                 entry['given'] = cells[other]
-                gid, _ = _given_id(data, cells[other], other == i)
+                gid, _ = pairs.given_id(cells[other], other == i)
                 entry['known'] = gid >= 0 and x is not None and (known(gid, x) if other == i else known(x, gid))
                 entry['unknown_tile'] = gid < 0
                 entry['doubtful'] = other in doubtful

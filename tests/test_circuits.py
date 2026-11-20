@@ -246,6 +246,29 @@ def test_shapes():
         cz.parse_board(cells[:15], [[2, 6]], 4, 4)
 
 
+def test_an_added_pair_can_name_a_whole_tile_the_data_lacks(data):
+    # SHOW AND (the start of SHOW AND TELL) isn't in the tiny data, and nor is
+    # AND, so its box has nothing to go on until SHOW AND + ROOM is added.
+    b = board(blank_rows(['SHOW AND', B, '']), [(0, 1)])
+    r = cz.solve(data, b)
+    assert words(r) == [None] and r['unknown'] == ['SHOW AND']
+    extra = {('show and', data.id('room')): 3.0}
+    r = cz.solve(data, b, extra=extra)
+    assert words(r) == ['ROOM'] and r['unknown'] == [] and r['boxes'][0]['arcs'][0]['known']
+    # The tile is known by its whole text, and is never an answer.
+    pairs = cz.lookup(data, extra)
+    tile, factor = pairs.given_id('Show  And', True)
+    assert tile >= len(data.vocab) and factor == 1.0 and not pairs.may_answer(tile)
+    assert pairs.weight(tile, data.id('room')) == 3.0 and pairs.weight(tile, data.id('ball')) is None
+    # A multi-word tile keeps what its touching word gives: HOT DOG still
+    # finds DOG HOUSE with HOT DOG + PLANT added.
+    hot = board(blank_rows(['HOT DOG', B, 'BOAT']), [(0, 1), (1, 2)])
+    assert words(cz.solve(data, hot, extra={('hot dog', data.id('plant')): 3.0})) == ['HOUSE']
+    # What an added pair calls a tile: the whole tile, never one of its words.
+    assert cz.tile_word(data, 'SHOW  AND') == 'show and' and cz.tile_word(data, 'ICE CREAM') == 'ice cream'
+    assert cz.tile_word(data, 'HOT DOG') == 'hot dog' and cz.tile_word(data, 'SNOW') == 'snow'
+
+
 def test_a_word_in_an_added_pair_may_be_an_answer():
     # GNU is in the data but too rare to be an answer, until James adds a
     # pair with it: his answers can be rarer words than the solver guesses.
