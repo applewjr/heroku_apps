@@ -38,11 +38,12 @@ WITH rows_7d AS (
     WHERE submit_time >= DATE(pst_now()) - INTERVAL 7 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                           'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                          'circuits.html', 'typeshift.html',
+                          'circuits.html', 'typeshift.html', 'four_by_three.html',
                           'smush.html (solve)', 'blossom.html (solve)', 'chainle.html (solve)',
                           'ribbit.html (solve)', 'wordle_revamp.html (solve)', 'guess_the_phrase.html (solve)',
                           'wordiply.html (solve)', 'antiwordle_revamp.html (solve)', 'quordle.html (solve)',
-                          'circuits.html (solve)', 'typeshift.html (solve)')
+                          'circuits.html (solve)', 'typeshift.html (solve)',
+                          'four_by_three.html (solve)')
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
         AND referrer NOT LIKE '%apple-apps-staging%'

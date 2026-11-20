@@ -29,16 +29,17 @@ SELECT
     SUM(page_name = 'quordle.html') AS quordle,
     SUM(page_name = 'circuits.html') AS circuits,
     SUM(page_name = 'typeshift.html') AS typeshift,
+    SUM(page_name = 'four_by_three.html') AS four_by_three,
     COUNT(*) AS total
 FROM app_visits
 WHERE submit_time >= DATE(pst_now()) - INTERVAL 13 DAY
     AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                       'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                      'circuits.html', 'typeshift.html')
+                      'circuits.html', 'typeshift.html', 'four_by_three.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'
     AND referrer NOT LIKE '%apple-apps-staging%'
     -- run_checks fetches /blossom, /smush, /wordle, /guess_the_phrase,
-    -- /chainle, /circuits and /typeshift every hour, and those GETs write
+    -- /chainle, /circuits, /typeshift and /4x3 every hour, and those GETs write
     -- app_visits rows like any other. Counting them would add 24 a day to
     -- seven of these columns and quietly overstate real usage.
     AND user_agent <> 'jj-healthcheck'

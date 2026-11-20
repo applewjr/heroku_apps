@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+
+{% block title %}4x3 Admin - Boards and Answers{% endblock %}
+
+{% block content %}
+{% from '_crowd_admin.html' import styles, keep_view, flash with context %}
+{{ styles() }}
+<style>
+/* Each tab is its own page load (the Accuracy tab reads every answer). */
+a.tab-button { color: inherit; text-decoration: none; }
+
+/* A 4x3 board, small: its nine words three to a row. */
+.mini-board { display: inline-grid; grid-template-columns: repeat(3, minmax(52px, auto)); gap: 2px; }
+.mini-board span {
+    display: flex; align-items: center; justify-content: center; padding: 2px 4px; border-radius: 4px;
+    background-color: #02484d; color: #fff; font-size: 10px; font-weight: 700; line-height: 1.1; text-align: center;
+}
+.mini-board span.hub { background-color: #ffd700; color: #02484d; }
+.board-open { display: inline-block; padding: 4px 6px; border: 1px solid #cdd8d7; border-radius: 6px; color: #02484d; text-decoration: none; }
+.board-open:hover { border-color: #02484d; background-color: #eef4f4; }
+.board-open-label { display: block; margin-top: 3px; font-size: 11px; text-decoration: underline; }
+
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.when { white-space: nowrap; font-size: 12px; }
+.approve-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px; }
+.approve-entry .btn { margin: 0; padding: 6px 12px; font-size: 13px; }
+.groups { margin: 0; padding-left: 16px; font-size: 12px; text-align: left; }
+.groups li { margin: 1px 0; white-space: nowrap; }
+.label { font-size: 11px; color: #666; }
+.right { color: #218838; font-weight: bold; }
+.wrong { color: #a55; font-weight: bold; }
+.totals { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 6px 0 10px; font-size: 14px; }
+.weights { border-collapse: collapse; font-size: 13px; margin: 4px 0 12px; }
+.weights td, .weights th { border: 1px solid #e9ecef; padding: 3px 8px; text-align: right; }
+.weights th:first-child, .weights td:first-child { text-align: left; }
+</style>
+
+<div class="admin-container">
+    <div class="admin-top">
+        <h1>4x3 Admin - Boards and Answers</h1>
+        <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
+            <a href="/4x3" target="_blank" rel="noopener" class="btn btn-primary">Back to 4x3 Solver</a>
+            <a href="https://www.hankgreen.com/fourbythree/" target="_blank" rel="noopener" class="btn btn-success">Play 4x3</a>
+        </nav>
+    </div>
+
+    {{ flash() }}
+
+    {% if not data_ok %}
+    <div class="alert alert-error">The word data didn't load: first passes are off until it does.</div>
+    {% endif %}
+
+    <div class="stats">
+        <strong>Pacific today:</strong> {{ pacific_today.strftime('%Y-%m-%d') }} |
+        <strong>Today's boards:</strong> {{ 'live on /4x3' if boards_live else 'logging only; served on /4x3_admin/board' }} |
+        <strong>Solver weights:</strong>
+        {% if not auto_tune %}defaults (tuning is off){% elif tuned %}tuned on your {{ tuned_on }} answers{% else %}defaults ({{ tuned_on }} of {{ min_tuning }} answers to start tuning){% endif %}
+    </div>
+
+    <div class="tab-container">
+        <a class="tab-button{% if active_tab == 'boards' %} active{% endif %}" href="/4x3_admin?tab=boards">Boards</a>
+        <a class="tab-button{% if active_tab == 'accuracy' %} active{% endif %}" href="/4x3_admin?tab=accuracy">Accuracy</a>
+    </div>
+
+    {% if active_tab == 'boards' %}
+    <div class="tab-content active">
+        <div class="tab-head">
+            <h2>Boards</h2>
+            <details class="admin-help"><summary>How boards and answers are served</summary>
+                <p class="crowd-note">A new 4x3 comes out at each player's own midnight (the game goes by the device's date), so boards are kept by the player's date, and two dates are live at once around the world. This tab shows Pacific tomorrow (players ahead of you), today and the two days before.</p>
+                <p class="crowd-note">Boards players typed are logged once they use the solver on them. A board is its nine words in any order. It's served once {{ serve_networks }} players enter the same words that date; players on one network count as one. A board loaded from today's boards counts only once it's changed. Your approval comes first, then the players' boards, most players first, at most {{ todays_boards_max }}. A board first seen on an earlier date (an archive replay) isn't served unless you approve it for that date. Served boards are in alphabetical order, never a finished game's layout.</p>
+                <p class="crowd-note">Answers: your approval's groups show to every player of that board as Checked, and its names as themes. Without one, a group {{ confirm_networks }}+ players marked right (more right than missed) shows as Confirmed by players, and one {{ confirm_networks }}+ marked as a miss is never suggested. Marks are what the game said: right, one away, not even close.</p>
+                <p class="crowd-note">Approve: Enter your board below, or click a board to open it in the editor with your answer, the players' groups or the solver's filled in. Undo takes your approval back on every date (the players' boards and marks decide again). Remove deletes that date's entries of the board, approvals too. Each answer also tunes the solver, from {{ min_tuning }} answers on (Accuracy tab).</p>
+            </details>
+        </div>
+        {% if load_error %}
+        <div class="alert alert-error">
+            Couldn't read the boards ({{ load_error }}). Has mysql_tables/four_by_three_boards.sql been run?
+        </div>
+        {% endif %}
+
+        <div class="approve-entry">
+            <strong>Approve your game's board:</strong>
+            <a href="/4x3_admin/board" class="btn btn-success">Enter your board</a>
+            <span class="crowd-note">or click a board below to start from it.</span>
+        </div>
+
+        {% for d in days %}
+        <h3>{{ d.day.strftime('%Y-%m-%d') }}</h3>
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Board</th>
+                    <th>Players</th>
+                    <th>Status</th>
+                    <th>First seen / last update</th>
+                    <th>Your answer</th>
+                    <th>Solver's first pass</th>
+                    <th>Players' marks</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in d.groups %}
+                <tr>
+                    <td><a class="board-open" href="/4x3_admin/board?key={{ g.key }}&amp;day={{ d.day.strftime('%Y-%m-%d') }}"
+                           title="Open this board in the board editor to check it, answer it and approve it"><span class="mini-board">{% for t in g.tiles %}<span>{{ t }}</span>{% endfor %}</span><span class="board-open-label">Open in editor</span></a></td>
+                    <td>{{ g.players }}</td>
+                    <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                    <td class="when">
+                        {{ g.first_seen.strftime('%m-%d') }}<br>
+                        {{ g.last_update.strftime('%m-%d %H:%M') }}
+                    </td>
+                    <td>
+                        {% if g.answer %}
+                        <span class="status-served">Hub {{ g.answer.hub }}</span>
+                        <ul class="groups">{% for p in g.answer.pairs %}<li>{{ p|join(' + ') }}{% if g.answer.names[loop.index0] %} <span class="label">({{ g.answer.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul>
+                        {% elif g.approved %}
+                        <span class="status-served">Board approved</span><br><span class="label">no answer yet</span>
+                        {% else %}
+                        <span class="status-waiting">none</span>
+                        {% endif %}
+                        {% if g.approved %}
+                        <form method="POST" action="/4x3_admin/unapprove_board" class="remove-form"
+                              onsubmit="return confirm('Undo your approval of this board? It comes off every date you approved it for.')">
+                            <input type="hidden" name="key" value="{{ g.key }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-secondary">Undo</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if g.first_pass %}
+                        Hub {{ g.first_pass.hub }} <span class="label">({{ g.first_pass.hub_label }})</span>
+                        <ul class="groups">{% for a, b, label in g.first_pass.groups %}<li>{{ a }} + {{ b }} <span class="label">({{ label }})</span></li>{% endfor %}</ul>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if g.confirmed %}<span class="status-served">Confirmed:</span>
+                        <ul class="groups">{% for c in g.confirmed %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+                        {% if g.marks %}
+                        <ul class="groups">{% for words, right, miss in g.marks[:8] %}<li>{{ words }}: <span class="right">{{ right }}</span> / <span class="wrong">{{ miss }}</span></li>{% endfor %}</ul>
+                        <span class="label">right / missed, by network</span>
+                        {% elif not g.confirmed %}<span class="status-waiting">none</span>{% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="/4x3_admin/remove_board" class="remove-form"
+                              onsubmit="return confirm('Delete every entry of this board on {{ d.day.strftime('%Y-%m-%d') }}, approvals too?')">
+                            <input type="hidden" name="key" value="{{ g.key }}">
+                            <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        {% if not load_error %}<p>No boards logged in the last few days.</p>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if active_tab == 'accuracy' %}
+    <div class="tab-content active">
+        <div class="tab-head">
+            <h2>Accuracy</h2>
+            <details class="admin-help"><summary>What these numbers are</summary>
+                <p class="crowd-note">Every board you answered in the last {{ accuracy_days }} days, against the solver's own first pass on it from the moment just before you approved it (no marks, nothing confirmed). The weights it ran with were fit on your earlier answers only, so each line is a fair test. The totals per label show whether "sure" really means sure.</p>
+                <p class="crowd-note">The weights: from {{ min_tuning }} answers on, the solver refits them after each approval or Undo to make your answers most likely, pulled toward the defaults so a few boards can only nudge them. They can re-balance the signals the solver has; a kind of link it can't see (trivia, wordplay) stays a guess until its data grows.</p>
+            </details>
+        </div>
+        {% if accuracy_error %}
+        <div class="alert alert-error">Couldn't read the answers ({{ accuracy_error }}).</div>
+        {% endif %}
+        {% if totals and totals.hub[1] %}
+        <div class="totals">
+            <span><strong>Hub:</strong> {{ totals.hub[0] }} / {{ totals.hub[1] }} right</span>
+            <span><strong>Groups:</strong> {{ totals.groups[0] }} / {{ totals.groups[1] }} right ({{ '%.0f' % (100 * totals.groups[0] / totals.groups[1]) }}%)</span>
+            {% for label in ('sure', 'likely', 'guess') %}{% if label in totals.labels %}
+            <span>{{ label|capitalize }}: {{ totals.labels[label][0] }} / {{ totals.labels[label][1] }}</span>
+            {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        <table class="weights">
+            <thead><tr><th>Signal</th><th>Weight now</th><th>Default</th></tr></thead>
+            <tbody>
+                {% for name, now, default in weights %}
+                <tr><td>{{ name }}</td><td>{{ '%.2f' % now }}</td><td>{{ '%.2f' % default }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if accuracy %}
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead><tr><th>Date</th><th>Your answer</th><th>First pass before it</th></tr></thead>
+            <tbody>
+                {% for b in accuracy %}
+                <tr>
+                    <td class="when">{{ b.day.strftime('%Y-%m-%d') }}</td>
+                    <td><ul class="groups">{% for text in b.groups %}<li>{{ text }}{% if b.names[loop.index0] %} <span class="label">({{ b.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul></td>
+                    <td>
+                        {% if b.top %}
+                        Hub {{ b.top.hub }} <span class="{{ 'right' if b.top.hub_right else 'wrong' }}">{{ 'right' if b.top.hub_right else 'wrong' }}</span> <span class="label">({{ b.top.hub_label }})</span>
+                        <ul class="groups">{% for g in b.top.groups %}<li><span class="{{ 'right' if g.right else 'wrong' }}">{{ g.text }}</span> <span class="label">({{ g.label }})</span></li>{% endfor %}</ul>
+                        {% else %}<span class="status-waiting">not kept</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% elif not accuracy_error %}
+        <p>No answered boards yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Back from Approve on the board entry page (templates/four_by_three.html): its
+// draft goes only once the approval worked, so a failed one can be retried.
+try {
+    if (sessionStorage.getItem('fourByThreeApprovePending_v1')) {
+        sessionStorage.removeItem('fourByThreeApprovePending_v1');
+        if (new URLSearchParams(location.search).has('success')) localStorage.removeItem('fourByThreeApproveState_v1');
+    }
+} catch (_) {}
+</script>
+
+{% endblock %}
