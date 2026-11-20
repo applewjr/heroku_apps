@@ -316,7 +316,9 @@ class _Pairs:
                 continue
             self.extra_succ[a][b] = max(w, self.extra_succ[a].get(b, 0.0))
             self.extra_pred[b][a] = max(w, self.extra_pred[b].get(a, 0.0))
-            self.extra_words.update(x for x in (a, b) if x < self.n)
+            # A box takes one word: a two-word unit in a pair (ICE CREAM, a
+            # tile's) never becomes an answer.
+            self.extra_words.update(x for x in (a, b) if x < self.n and ' ' not in data.word(x))
         self._succ = {}
         self._pred = {}
 
@@ -351,8 +353,8 @@ class _Pairs:
         return self.data.id(parts[-1] if first else parts[0]) if len(parts) > 1 else -1
 
     def may_answer(self, x):
-        """Can word x fill a box? A common single word, or one in a pair
-        James added (his answers can be rarer words). Never a tile."""
+        """Can word x fill a box? A common single word, or a single word in a
+        pair James added (his answers can be rarer words). Never a tile."""
         return 0 <= x < self.n and (self.data.can_answer(x) or x in self.extra_words)
 
     def succ(self, i):
@@ -884,7 +886,9 @@ def _report(data, board, pairs, given_arcs, box_arcs, domain, local, tables,
         known_arcs = sum(1 for a in arcs if a['known'])
         if c in lock_ids:
             conf = 'locked'
-        elif gap >= SURE_GAP and known_arcs >= 2:
+        # A search the time limit cut short may not have met the best rival,
+        # so its gap can't make a box sure.
+        elif gap >= SURE_GAP and known_arcs >= 2 and not partial:
             conf = 'sure'
         elif gap >= LIKELY_GAP and known_arcs >= 1:
             conf = 'likely'

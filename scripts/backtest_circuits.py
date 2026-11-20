@@ -326,6 +326,9 @@ KINDS = (('exact', "the board's own arrows"),
 
 def report(results, asked):
     results = [r for r in results if r]
+    if not results:
+        print(f'0 of {asked} boards filled: nothing to report (ask for more with --boards)')
+        return
     print(f'{len(results)} of {asked} boards filled ({sum(r["ladder"] for r in results)} ladders, '
           f'{sum(1 for r in results if r["extras"])} with arrows the page would add, '
           f'{sum(r["extras"] for r in results)} extra arrows in all)')
@@ -370,6 +373,11 @@ def main():
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--data', default=DATA_FILE)
     args = ap.parse_args()
+    # A bad path would otherwise kill every worker as it starts.
+    try:
+        cz.Data.from_file(args.data)
+    except (OSError, KeyError, ValueError) as e:
+        sys.exit(f'cannot read the solver data {args.data}: {e}')
     started = time.time()
     seeds = [args.seed * 1_000_003 + i for i in range(args.boards)]
     with multiprocessing.Pool(args.workers, initializer=_init, initargs=(args.data,)) as pool:

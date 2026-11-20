@@ -228,7 +228,7 @@ a.tab-button { color: inherit; text-decoration: none; }
         <div class="tab-head">
             <h2>Accuracy</h2>
             <details class="admin-help"><summary>What these numbers are</summary>
-                <p class="crowd-note">Every approved board with saved answers from the last {{ accuracy_days }} days. Data alone is today's solver on the shipped data, without your added pairs (they come from these very boards, so they'd flatter it); its labels show how far each one can be trusted. Shown is what the solver showed players when they logged the board.</p>
+                <p class="crowd-note">Every approved board with saved answers from the last {{ accuracy_days }} days. Data alone is today's solver on the shipped data, without your added pairs (they come from these very boards, so they'd flatter it); its labels show how far each one can be trusted. When logged is the solver's own pick for each box when a player logged the board: before their kept words, Bolt letters or your answers.</p>
             </details>
         </div>
         {% if accuracy_error %}
@@ -240,14 +240,14 @@ a.tab-button { color: inherit; text-decoration: none; }
             {% for label in ('sure', 'likely', 'guess', 'none') %}{% if label in totals.labels %}
             <span>{{ label|capitalize }}: {{ totals.labels[label][0] }} / {{ totals.labels[label][1] }}</span>
             {% endif %}{% endfor %}
-            {% if totals.shown[1] %}<span><strong>Shown:</strong> {{ totals.shown[0] }} / {{ totals.shown[1] }}</span>{% endif %}
+            {% if totals.shown[1] %}<span><strong>When logged:</strong> {{ totals.shown[0] }} / {{ totals.shown[1] }}</span>{% endif %}
         </div>
         {% endif %}
         {% if accuracy %}
         <div class="table-wrap">
         <table class="words-table">
             <thead>
-                <tr><th>Day</th><th>Sites</th><th>Board</th><th>Data alone</th><th>Misses</th><th>Shown</th></tr>
+                <tr><th>Day</th><th>Sites</th><th>Board</th><th>Data alone</th><th>Misses</th><th>When logged</th></tr>
             </thead>
             <tbody>
                 {% for b in accuracy %}
@@ -274,7 +274,7 @@ a.tab-button { color: inherit; text-decoration: none; }
         <div class="tab-head">
             <h2>Added Pairs</h2>
             <details class="admin-help"><summary>About added pairs</summary>
-                <p class="crowd-note">Compounds you taught the solver: the first word written first (SNOW + BALL). The solver counts each as sure, and a word in one can be an answer even if it's rarer than the solver would guess on its own. Both sides must be words the data knows. Remove takes one back.</p>
+                <p class="crowd-note">Compounds you taught the solver: the first word written first (SNOW + BALL). The solver counts each as sure, and a single word in one can be an answer even if it's rarer than the solver would guess on its own. One side must be a word the data knows; the other can be a tile's whole text even if the data doesn't know it (SHOW AND), and the solver then knows that tile by it. Remove takes one back.</p>
             </details>
         </div>
         {% if pairs_error %}
@@ -297,8 +297,9 @@ a.tab-button { color: inherit; text-decoration: none; }
                     <td><strong>{{ first|upper }} + {{ second|upper }}</strong></td>
                     <td class="when">{{ added_at.strftime('%Y-%m-%d %H:%M') if added_at else '' }}</td>
                     <td>
+                        {# tojson: a tile's text can hold an apostrophe (ROCK 'N' ROLL). #}
                         <form method="POST" action="/circuits_admin/remove_pair" class="remove-form"
-                              onsubmit="return confirm('Remove {{ first|upper }} + {{ second|upper }}?')">
+                              onsubmit='return confirm({{ ("Remove " ~ first|upper ~ " + " ~ second|upper ~ "?")|tojson }})'>
                             <input type="hidden" name="first" value="{{ first }}">
                             <input type="hidden" name="second" value="{{ second }}">
                             {{ keep_view() }}
@@ -318,13 +319,26 @@ a.tab-button { color: inherit; text-decoration: none; }
 </div>
 
 <script>
-// Puzzmo's Circuits URL carries the date in Puzzmo's calendar (America/Chicago).
+// Puzzmo's Circuits URL carries the date in Puzzmo's calendar (America/Chicago),
+// as YYYY-MM-DD built from its parts (a locale's own date pattern can change).
 document.querySelectorAll('.puzzmo-circuits-link').forEach(function (a) {
     try {
-        var day = new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
-        a.href = 'https://www.puzzmo.com/puzzle/' + day + '/circuits';
+        var p = {};
+        new Intl.DateTimeFormat('en-US', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit'})
+            .formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; });
+        if (/^\d{4}$/.test(p.year) && /^\d{2}$/.test(p.month) && /^\d{2}$/.test(p.day)) {
+            a.href = 'https://www.puzzmo.com/puzzle/' + p.year + '-' + p.month + '-' + p.day + '/circuits';
+        }
     } catch (_) {}
 });
+// Back from Approve on the board entry page (templates/circuits.html): its
+// draft goes only once the approval worked, so a failed one can be retried.
+try {
+    if (sessionStorage.getItem('circuitsApprovePending_v1')) {
+        sessionStorage.removeItem('circuitsApprovePending_v1');
+        if (new URLSearchParams(location.search).has('success')) localStorage.removeItem('circuitsApproveState_v1');
+    }
+} catch (_) {}
 </script>
 
 {% endblock %}

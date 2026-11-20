@@ -51,10 +51,15 @@ class MemoryBoards:
     def approve(self, day, site, key, cells, arrows, answers=None, shape='5x3'):
         import routes.circuits as rc
         voter = f'admin:{site}'
+        # One board a site a day: this takes the place of its approval of any other.
+        replaced = [k for k in self.rows if k[1] == voter and k[2] == day and k[0] != key]
+        for k in replaced:
+            del self.rows[k]
         old = self.rows.get((key, voter, day))
         kept = answers if answers is not None else (old[rc.ANSWERS] if old else None)
         self.rows[(key, voter, day)] = [key, cells, rc._arrows_text(arrows), site, kept, None, None,
                                         'admin', voter, day, self.tick(), None, shape]
+        return len(replaced)
 
     def save_answers(self, key, answers):
         hit = [row for row in self.rows.values() if row[0] == key and row[7] == 'admin']
@@ -506,8 +511,78 @@ def test_the_accuracy_tab_scores_the_data_alone(client, boards, monkeypatch):
     html = client.get('/circuits_admin?tab=accuracy', headers=auth).get_data(as_text=True)
     assert 'Data alone:</strong> 2 / 3 boxes right' in html
     assert 'box 2: SHOW (said GAME' in html
-    # What player 1 was shown when they logged it: BALL GAME PLAN.
-    assert '<strong>Shown:</strong> 2 / 3' in html
+    # The solver's own picks when player 1 logged it: BALL GAME PLAN.
+    assert '<strong>When logged:</strong> 2 / 3' in html
+
+
+def test_the_accuracy_tab_counts_only_approvals_in_its_window(client, boards, monkeypatch):
+    import routes.circuits as rc
+    auth = _admin_headers(monkeypatch)
+    # Answered long ago, then logged again today (an archive replay, say).
+    _approve_typed(client, auth, answers=ANSWERS, day=DAY - timedelta(days=rc.ACCURACY_DAYS + 30))
+    _log(client, 1)
+    html = client.get('/circuits_admin?tab=accuracy', headers=auth).get_data(as_text=True)
+    assert 'No approved boards with answers yet.' in html
+
+
+def test_a_site_has_one_approved_board_a_day(client, boards, monkeypatch):
+    auth = _admin_headers(monkeypatch)
+    _log(client, 1)
+    _approve_typed(client, auth, answers=ANSWERS)
+    _approve_typed(client, auth, site='yahoo')
+    # A corrected board for Puzzmo (a tile typo fixed) takes the first one's place.
+    fixed = ['FOOT'] + CELLS[1:]
+    resp = _approve_typed(client, auth, cells=fixed)
+    assert 'in+place+of+your+earlier+Puzzmo+board' in resp.headers['Location']
+    todays = _todays(client)
+    assert [(b['cells'][0], b['sites']) for b in todays] == [('SNOW', ['Yahoo']), ('FOOT', ['Puzzmo'])]
+    # Yahoo's approval and the player's board stay; approving again names no replacement.
+    assert len(boards.mine()) == 1
+    resp = _approve_typed(client, auth, cells=fixed)
+    assert 'in+place+of' not in resp.headers['Location']
+
+
+def test_a_loaded_board_with_kept_words_cannot_vote_for_itself(client, boards):
+    _log(client, 1)
+    _log(client, 2)
+    assert len(_todays(client)) == 1
+    # Player 3 loads the offered board and keeps a word: words only...
+    _log(client, 3, source='loaded', entered={'1': 'ball'})
+    # ...then takes an arrow away (every tile still on one, so the board is
+    # finished). An edit that only lost arrows adds no vote.
+    _log(client, 3, arrows=[a for a in ARROWS if a != [1, 4]], source='edited', entered={'1': 'ball'})
+    assert sorted(r[7] for r in boards.mine()) == ['loaded', 'typed', 'typed']
+
+
+def test_an_add_or_remove_during_a_read_is_never_lost(monkeypatch, tiny):
+    import routes.circuits as rc
+    reads = []
+
+    def pairs_read():
+        reads.append(1)
+        if len(reads) == 1:
+            rc._forget_extra()  # James removes a pair while this read is under way
+        return [('snow', 'room', None)]
+
+    monkeypatch.setattr(rc, 'added_pairs', pairs_read)
+    rc.get_extra(tiny)
+    rc.get_extra(tiny)
+    assert len(reads) == 2      # the first read predates the change: not kept
+    rc.get_extra(tiny)
+    assert len(reads) == 2      # the second is
+    # Today's boards and the answers follow the same rule.
+    board_reads = []
+
+    def boards_read(first, last):
+        board_reads.append(1)
+        if len(board_reads) == 1:
+            rc._forget_boards()
+        return []
+
+    monkeypatch.setattr(rc, 'rows_logged_between', boards_read)
+    for _ in range(3):
+        rc._boards_for(DAY)
+    assert len(board_reads) == 2
 
 
 def test_the_board_entry_page_solves_but_never_logs(client, boards, monkeypatch):
@@ -542,6 +617,18 @@ def test_the_writes_say_what_they_mean(monkeypatch):
     sql, params = db.statements('INSERT INTO circuits_boards')[-1]
     assert 'COALESCE(new.answers, circuits_boards.answers)' in sql and params[1] == 'admin:yahoo'
     assert params[3] == '4x4' and sql.count('%s') == len(params)
+    # One board a site a day: its other approvals that day go, in the same
+    # transaction, and only its own (voter 'admin:yahoo', this day).
+    steps = [sql.split(' ')[0] for sql, _ in db.executed[-3:]]
+    assert steps == ['START', 'DELETE', 'INSERT']
+    assert db.executed[-2][1] == ('admin:yahoo', DAY, _key())
+    # A failed write takes the deletion back with it.
+    failing = _ScriptedDB(fail='INSERT INTO circuits_boards')
+    monkeypatch.setattr(rc, 'db_cursor', failing)
+    with pytest.raises(RuntimeError):
+        rc.store_approval(DAY, 'yahoo', _key(), '|'.join(CELLS), [(0, 1)])
+    assert failing.executed[-1][0] == 'ROLLBACK' and failing.commits == 0
+    monkeypatch.setattr(rc, 'db_cursor', db)
     assert rc.remove_approval(_key(), 'yahoo') == 1
     assert db.statements('DELETE FROM circuits_boards WHERE board_key = %s AND voter_hash = %s')
     rc.store_pair('snow', 'room')

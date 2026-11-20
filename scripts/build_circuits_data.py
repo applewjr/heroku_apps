@@ -13,8 +13,8 @@ written first (SNOWBALL, FIRE STATION). They come from:
                        WordNet, Wikidata), weighted by the kinds that list them
     Wikipedia text     how often two words sit side by side across the
                        English Wikipedia (CC BY-SA 4.0), kept when they go
-                       together far more than chance (PMI). This finds the
-                       everyday phrases no list carries.
+                       together far more than chance (by G2, a log-likelihood
+                       score). This finds phrases no list carries.
     Wikipedia titles   two-word titles and redirects. They only confirm a pair
                        another source has: on their own they are mostly people,
                        films and places (about 3 million pairs).
@@ -24,8 +24,8 @@ phrase_words.tsv.gz (wordfreq, CC BY-SA 4.0), phrase_bank.tsv.gz,
 phrase_blocklist.txt, and chainle_data.npz (Numberbatch vectors, to check that
 a closed compound has something to do with its parts). Downloads, cached in
 the system temp folder (circuits_data_cache): Wikipedia's title list (110 MB)
-and its article dump in 73 parts (27 GB), fetched two at a time and counted
-as each part lands. See datasets/CIRCUITS_DATA.md.
+and its article dump in some 70 parts (27 GB), fetched two at a time and
+counted as each part lands. See datasets/CIRCUITS_DATA.md.
 """
 
 import argparse
@@ -218,13 +218,16 @@ def fetch(url, path, size=None):
     return path
 
 
-def dump_parts(cache):
-    """[(name, size)] of the article dump's parts, from the cached listing.
-    The latest/ folder also keeps the last part of earlier dumps (same first
-    page, fewer pages) and dead links a few bytes long. Counting both copies
-    would count those articles twice, so only the longest copy is kept."""
+def dump_parts(cache, fetch_listing=True):
+    """[(name, size)] of the article dump's parts, from the cached listing
+    (fetched first if it isn't cached and fetch_listing allows). The latest/
+    folder also keeps the last part of earlier dumps (same first page, fewer
+    pages) and dead links a few bytes long. Counting both copies would count
+    those articles twice, so only the longest copy is kept."""
     os.makedirs(os.path.join(cache, 'wiki'), exist_ok=True)
     listing = os.path.join(cache, 'wiki', 'files.txt')
+    if not os.path.exists(listing) and not fetch_listing:
+        sys.exit(f'no cached dump listing at {listing}: run --count without --no-download first')
     if not os.path.exists(listing):
         req = urllib.request.Request(DUMPS, headers={'User-Agent': UA})
         page = urllib.request.urlopen(req, timeout=60).read().decode('utf-8', 'replace')
@@ -383,23 +386,38 @@ def count_part(job):
     return os.path.basename(src), n_articles, len(codes)
 
 
+def count_signature(known, zipf):
+    """(signature, keep, answer) for counting: which known words are counted
+    (keep), which could be answers, and a short hash of all of it that names
+    the count files, so counts made for another vocabulary are never used."""
+    keep = np.array([w not in COUNT_SKIP for w in known])
+    ans = np.array([zipf[w] >= COUNT_ANSWER_ZIPF and w not in COUNT_SKIP for w in known])
+    sig = hashlib.sha1(('\n'.join(known) + keep.tobytes().hex() + ans.tobytes().hex()).encode()).hexdigest()[:10]
+    return sig, keep, ans
+
+
 def count_corpus(cache, workers, download=True):
     """Count word pairs in every part of the article dump, part by part as
-    downloads finish (two at a time), then merge them into wiki_pairs.npz."""
+    downloads finish (two at a time), then merge them into wiki_pairs.npz.
+    Without download, only parts already on disk are counted, at once."""
     known, zipf, answer, _ = vocabulary()
     folder = os.path.join(cache, 'wiki')
     counts_dir = os.path.join(cache, 'wiki_counts')
     os.makedirs(counts_dir, exist_ok=True)
-    keep = np.array([w not in COUNT_SKIP for w in known])
-    ans = np.array([zipf[w] >= COUNT_ANSWER_ZIPF and w not in COUNT_SKIP for w in known])
-    sig = hashlib.sha1(('\n'.join(known) + keep.tobytes().hex() + ans.tobytes().hex()).encode()).hexdigest()[:10]
+    sig, keep, ans = count_signature(known, zipf)
     vocab_path = os.path.join(counts_dir, f'vocab_{sig}.npz')
     if not os.path.exists(vocab_path):
         np.savez(vocab_path, words=np.array(known), keep=keep, answer=ans)
-    parts = dump_parts(cache)
+    parts = dump_parts(cache, fetch_listing=download)
     out_of = lambda name: os.path.join(counts_dir, f'{name}.{sig}.npz')  # noqa: E731
     todo = [(n, s) for n, s in parts if not os.path.exists(out_of(n))]
     log(f'{len(parts)} dump parts, {len(todo)} still to count (vocabulary {sig}, {len(known)} words)')
+    if not download:
+        on_hand = [(n, s) for n, s in todo
+                   if os.path.exists(os.path.join(folder, n)) and os.path.getsize(os.path.join(folder, n)) == s]
+        if len(on_hand) < len(todo):
+            log(f'  {len(todo) - len(on_hand)} of them not downloaded: counting the {len(on_hand)} on disk')
+        todo = on_hand
 
     downloading, failed = set(), set()
     lock = threading.Lock()
@@ -574,11 +592,10 @@ def bank_phrases(known, answer):
                 three.append((ws, weight(int(mask))))
     units = {}
     for (x, y, z), w in three:
-        if len(x) + len(y) + 1 > circuits.MAX_CELL_LEN or len(y) + len(z) + 1 > circuits.MAX_CELL_LEN:
-            continue
-        if (x, y) in two and z in answer:
+        # Each split stands on its own: a two-word unit must fit on a tile.
+        if (x, y) in two and z in answer and len(x) + len(y) + 1 <= circuits.MAX_CELL_LEN:
             units[(f'{x} {y}', z)] = max(w, units.get((f'{x} {y}', z), 0.0))
-        if (y, z) in two and x in answer:
+        if (y, z) in two and x in answer and len(y) + len(z) + 1 <= circuits.MAX_CELL_LEN:
             units[(x, f'{y} {z}')] = max(w, units.get((x, f'{y} {z}'), 0.0))
     return two, units
 
@@ -612,18 +629,18 @@ def corpus_weight(g2):
     return min(2.0, max(0.6, 0.4 * math.log10(g2) - 0.19))
 
 
-def corpus_pairs(cache, known, answer, listed, budget):
-    """{(a, b): (weight, count)} from the Wikipedia counts. Pairs the lists
-    already have are all kept (they add a source); new ones are kept best
-    first, by G2, until `budget` new pairs are in."""
+def corpus_pairs(cache, known, answer, listed, budget, sig):
+    """{(a, b): (weight, count)} from the Wikipedia counts made for this
+    vocabulary (`sig`, count_signature). Pairs the lists already have are all
+    kept (they add a source); new ones are kept best first, by G2, until
+    `budget` new pairs are in."""
     folder = os.path.join(cache, 'wiki_counts')
-    found = sorted(f for f in os.listdir(folder) if f.startswith('wiki_pairs.')) if os.path.isdir(folder) else []
-    if not found:
-        log('no Wikipedia counts yet (run --count): building without corpus pairs')
-        return {}
-    with np.load(os.path.join(folder, found[-1])) as z:
+    path = os.path.join(folder, f'wiki_pairs.{sig}.npz')
+    if not os.path.exists(path):
+        sys.exit(f'no Wikipedia counts for this vocabulary ({path}): run --count first')
+    with np.load(path) as z:
         codes, counts, uni = z['codes'], z['counts'].astype(np.float64), z['uni'].astype(np.float64)
-    words = np.load(os.path.join(folder, 'vocab_' + found[-1].split('.')[1] + '.npz'))['words'].tolist()
+    words = np.load(os.path.join(folder, f'vocab_{sig}.npz'))['words'].tolist()
     size = len(words)
     a = (codes // size).astype(np.int64)
     b = (codes % size).astype(np.int64)
@@ -706,7 +723,7 @@ def build(cache, report_only=False, force=False, out=None):
     log(f'phrase bank: {len(bank):,} two-word pairs, {len(units):,} with a two-word unit')
     listed = set(closed) | set(bank)
     budget = int(MAX_PAIRS * 0.95) - len(listed | set(units))
-    corpus = corpus_pairs(cache, known, answer, listed, budget)
+    corpus = corpus_pairs(cache, known, answer, listed, budget, count_signature(known_list, zipf)[0])
     log('titles...')
     t2, t3 = title_pairs(cache, known)
     log(f'titles: {len(t2):,} two-word, {len(t3):,} bigrams of three-word titles (confirming only)')
@@ -740,7 +757,16 @@ def build(cache, report_only=False, force=False, out=None):
     if (failed or over) and not force:
         sys.exit(f'nothing written: canaries {failed or "ok"}, budget {over or "ok"}')
     path = out or os.path.join(DATA, 'circuits_data.npz')
-    np.savez_compressed(path, **arrays)
+    if not path.endswith('.npz'):
+        path += '.npz'  # numpy would add it anyway
+    # Written beside it first, then swapped in: a failed write leaves the old file.
+    tmp = path[:-len('.npz')] + '.tmp.npz'
+    try:
+        np.savez_compressed(tmp, **arrays)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
     log(f'wrote {path}: {os.path.getsize(path) / 1e6:.1f} MB on disk, {nbytes / 2 ** 20:.1f} MB loaded')
     return data
 

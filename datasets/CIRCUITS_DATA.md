@@ -38,7 +38,8 @@ that week (7.26 million articles). It holds 1,313,588 directed pairs over
 | `phrase_blocklist.txt` (see [`PHRASE_BANK.md`](PHRASE_BANK.md)), from [LDNOOBW](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Filter: listed words are left out |
 
 Every source allows commercial use, so the page can carry ads. No puzzle,
-answer or word list from Circuits itself is used anywhere.
+answer or word list from Circuits itself is in this file. Pairs added by hand
+on the admin page from a day's real answers live in the database, not here.
 
 ### Licence of the file here
 
@@ -104,6 +105,9 @@ python scripts/build_circuits_data.py --report   # sizes, canaries and sample ro
 python scripts/build_circuits_data.py            # write datasets/circuits_data.npz
 python scripts/backtest_circuits.py              # the solver on made-up boards
 ```
+
+The build reads Wikipedia's `latest/` folder, so a rebuild uses whatever dump
+is current then and won't reproduce this file exactly.
 
 Downloads are cached in the system temp folder (`circuits_data_cache`):
 Wikipedia's title list (110 MB) and its article dump in 71 parts (27 GB). The

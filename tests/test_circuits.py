@@ -186,6 +186,8 @@ def test_the_time_budget_returns_what_it_has(data, monkeypatch):
     r = cz.solve(data, board(rows, [(0, 1), (1, 2), (1, 4), (4, 7), (6, 7)]), budget_s=0)
     assert r['partial']
     assert len(r['boxes']) == 3
+    # A search cut short may not have met the best rival: nothing is sure.
+    assert 'sure' not in {b['confidence'] for b in r['boxes']}
 
 
 def test_extra_pairs_join_the_data(data):
@@ -267,6 +269,16 @@ def test_an_added_pair_can_name_a_whole_tile_the_data_lacks(data):
     # What an added pair calls a tile: the whole tile, never one of its words.
     assert cz.tile_word(data, 'SHOW  AND') == 'show and' and cz.tile_word(data, 'ICE CREAM') == 'ice cream'
     assert cz.tile_word(data, 'HOT DOG') == 'hot dog' and cz.tile_word(data, 'SNOW') == 'snow'
+
+
+def test_a_two_word_unit_in_an_added_pair_never_becomes_an_answer(data):
+    # [?] TRUCK: FIRE TRUCK is known, and so is the unit ICE CREAM (+ TRUCK).
+    # An added ICE CREAM + TRUCK (say from an ICE CREAM tile) outweighs FIRE,
+    # but a box takes one word, so the box stays FIRE.
+    b = board(blank_rows([B, 'TRUCK', '']), [(0, 1)])
+    extra = {(data.id('ice cream'), data.id('truck')): 3.0}
+    assert words(cz.solve(data, b, extra=extra)) == ['FIRE']
+    assert not cz.lookup(data, extra).may_answer(data.id('ice cream'))
 
 
 def test_a_word_in_an_added_pair_may_be_an_answer():
@@ -443,6 +455,8 @@ def test_a_four_by_four_board_through_the_route(client, tiny):
     {'cells': ['SN0W', B] + [''] * 13, 'arrows': [[0, 1]]},       # not letters
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'0': 'ball'}},   # not a box
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'1': 'two words'}},
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'¹': 'ball'}},   # a digit int() refuses
+    {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'١': 'ball'}},   # not an ASCII digit
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'1': 's1'}},     # letters only
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'0': 's'}},      # a box's
     {'cells': ['SNOW', B] + [''] * 34, 'arrows': [[0, 1]], 'rows': 6, 'cols': 6},      # not a shape the page offers

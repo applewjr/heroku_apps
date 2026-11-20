@@ -631,7 +631,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
 
 <section id="cc-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
   <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
-  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Puzzmo. Its suggestions come from the public sources below, never from Circuits' puzzles or answers.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Puzzmo. Its word data comes from the public sources below. Boxes marked Checked show a day's real answers, entered by hand, and when those answers need a word pair the sources lack, the pair is added too.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word pairs from text.</strong> How often words sit side by side in <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikipedia</a>'s articles, and its article titles, by Wikipedia contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Compound words and phrases.</strong> Compound words from the public-domain ENABLE word list. Two-word phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, from <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a> (WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>), and from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>).</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>.</p>
@@ -689,7 +689,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // however many solves follow (extensions.log_solve).
     let firstSolve = true;
     let sharedBoards = [];
-    let approveWords = {};           // approve page: box cell -> the answer typed there
+    let approveWords = {};           // approve page: box cell -> the answer typed there ('' when cleared)
+    let savedAnswers = null;         // approve page: box cell -> the answer saved for the preloaded board
 
     const boardEl = document.getElementById('cc-board');
     const editInput = document.getElementById('cc-edit');
@@ -726,15 +727,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const sizeClass = t => (t.length <= 6 ? 'fs-1' : t.length <= 9 ? 'fs-2' : t.length <= 13 ? 'fs-3' : 'fs-4');
     const badTile = () => cells.findIndex(c => c && c !== BOX && !TILE.test(c));
 
-    // Puzzmo's day: the date in America/Chicago, for every player.
+    // Puzzmo's day: the date in America/Chicago, for every player, as
+    // YYYY-MM-DD built from its parts (a locale's own date pattern can change).
     function gameDay() {
         try {
-            return new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Chicago', year: 'numeric',
-                                                     month: '2-digit', day: '2-digit'}).format(new Date());
-        } catch (_) {
-            const d = new Date();
-            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-        }
+            const p = {};
+            new Intl.DateTimeFormat('en-US', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit',
+                                              day: '2-digit'}).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+            if (/^\d{4}$/.test(p.year) && /^\d{2}$/.test(p.month) && /^\d{2}$/.test(p.day)) {
+                return p.year + '-' + p.month + '-' + p.day;
+            }
+        } catch (_) {}
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
     /* ---------- arrows ---------- */
@@ -828,6 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         starts = moveKeys(starts);
         reveals = moveKeys(reveals);
         approveWords = moveKeys(approveWords);
+        savedAnswers = savedAnswers ? moveKeys(savedAnswers) : null;
         selected = selected >= 0 ? move(selected) : -1;
         ROWS = rows; COLS = cols; N = rows * cols;
         cells = next;
@@ -983,7 +989,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (i < 0 || cells[i] === value) return;
         const wasBox = cells[i] === BOX;
         cells[i] = value;
-        if (wasBox || value === BOX) { delete kept[i]; delete starts[i]; delete reveals[i]; }
+        if (wasBox || value === BOX) {
+            delete kept[i]; delete starts[i]; delete reveals[i];
+            delete approveWords[i];
+            if (savedAnswers) delete savedAnswers[i];
+        }
         if (boardSource === 'shared') boardSource = 'edited';
         autoArrows();
         afterEdit();
@@ -1123,7 +1133,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(body)
             });
             const data = await resp.json();
-            if (seq !== fetchSeq) return;
+            // Only a reply for the board as it is now: an edit since then has
+            // a solve of its own on the way, and this one's shared arrows
+            // would belong to the old cells.
+            if (seq !== fetchSeq || sig !== boardSig()) return;
             if (!resp.ok) {
                 renderHint(data.error || 'Something went wrong - try again.', true);
                 return;
@@ -1284,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const act = btn.dataset.act;
         if (act === 'letter' || act === 'word') {
             if (!b || !b.word) return;
-            reveals[cell] = act === 'word' ? b.word.length : Math.min(b.word.length, (reveals[cell] || 0) + 1);
+            reveals[cell] = act === 'word' ? b.word.length : Math.min(b.word.length, shownLetters(b) + 1);
             persist();
             renderBoard();
             renderResults();
@@ -1518,7 +1531,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const approveAnswers = document.getElementById('cc-approve-answers');
     const approveStatus = document.getElementById('cc-approve-status');
     const PRELOAD = {{ preload | tojson }};
-    let savedAnswers = null;   // the preloaded board's answers, per box in order
+    // Set when Approve is pressed; the admin page drops the draft once the
+    // approval worked (templates/circuits_admin.html), and keeps it if not.
+    const APPROVE_PENDING = 'circuitsApprovePending_v1';
 
     function renderApprove() {
         const list = boxes();
@@ -1526,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const b = current(cell);
             const typed = approveWords[cell];
             const value = typed !== undefined ? typed
-                : (savedAnswers && savedAnswers[k]) || (b && b.word) || '';
+                : (savedAnswers && savedAnswers[cell]) || (b && b.word) || '';
             return '<label for="cc-ans-' + cell + '">Box ' + (k + 1) + '</label>' +
                 '<input type="text" class="cc-approve-word" id="cc-ans-' + cell + '" data-cell="' + cell +
                 '" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(value) + '">';
@@ -1562,8 +1577,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cc-approve-shape').value = ROWS + 'x' + COLS;
         document.getElementById('cc-approve-arrows').value = arrows.map(([a, b]) => pairKey(a, b)).join(',');
         document.getElementById('cc-approve-answers-json').value = JSON.stringify(answers);
-        // Approved, so the next board starts empty (the Yahoo one, say).
-        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        // The draft stays until the approval works: the admin page drops it
+        // then, so the next board starts empty (the Yahoo one, say).
+        persist();
+        try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
     });
 
     // A board clicked on the Today's Boards tab (routes/circuits.py
@@ -1574,7 +1591,16 @@ document.addEventListener('DOMContentLoaded', () => {
         setShape(PRELOAD.rows, PRELOAD.cols);
         cells = PRELOAD.cells.map(c => (typeof c === 'string' ? c : ''));
         setArrows(PRELOAD.arrows);
-        savedAnswers = Array.isArray(PRELOAD.answers) ? PRELOAD.answers : null;
+        // The saved answers come a word per box in reading order: each goes
+        // with its box's cell, so editing boxes never moves it to another.
+        savedAnswers = null;
+        if (Array.isArray(PRELOAD.answers)) {
+            savedAnswers = {};
+            boxes().forEach((cell, k) => {
+                const w = PRELOAD.answers[k];
+                if (typeof w === 'string' && WORD.test(w)) savedAnswers[cell] = w.toUpperCase();
+            });
+        }
         boardSource = 'shared';
         selected = -1;
         afterEdit();
@@ -1596,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 rows: ROWS, cols: COLS, cells, arrows, cut: [...cut], kept, starts, reveals, boardSource, loggedSig, arrowsTouched,
-                day: gameDay(), savedAt: Date.now()
+                approveWords, savedAnswers, day: gameDay(), savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1630,6 +1656,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (s.reveals && typeof s.reveals === 'object') {
             Object.entries(s.reveals).forEach(([k, v]) => { if (isBox(Number(k)) && Number.isInteger(v) && v > 0 && v <= 24) reveals[Number(k)] = v; });
         }
+        // A typed answer may be '' on purpose (cleared): it stays ''.
+        approveWords = {};
+        if (s.approveWords && typeof s.approveWords === 'object') {
+            Object.entries(s.approveWords).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && /^[A-Z]{0,24}$/.test(v)) approveWords[Number(k)] = v; });
+        }
+        savedAnswers = null;
+        if (s.savedAnswers && typeof s.savedAnswers === 'object') {
+            savedAnswers = {};
+            Object.entries(s.savedAnswers).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && WORD.test(v)) savedAnswers[Number(k)] = v.toUpperCase(); });
+        }
         boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
         loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 4000) : '';
         arrowsTouched = s.arrowsTouched === true;
@@ -1641,7 +1677,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cells = Array(N).fill('');
         arrows = []; cut = new Set(); kept = {}; starts = {}; reveals = {};
         boardSource = 'typed'; loggedSig = ''; arrowsTouched = false;
-        last = null; lastSig = ''; approveWords = {};
+        last = null; lastSig = ''; approveWords = {}; savedAnswers = null;
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         selectCell(0, true);
         afterEdit();

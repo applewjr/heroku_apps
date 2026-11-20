@@ -63,7 +63,7 @@ def no_circuits_db(monkeypatch):
     monkeypatch.setattr(circuits, "db_cursor", down)
     monkeypatch.setattr(circuits, "_boards_cache", {})
     monkeypatch.setattr(circuits, "_answers", {"value": {}, "expires": 0.0})
-    monkeypatch.setattr(circuits, "_extra", {"value": None, "expires": 0.0})
+    monkeypatch.setattr(circuits, "_extra", {"value": None, "expires": 0.0, "gen": 0})
     monkeypatch.setattr(circuits, "_verdicts", {})
 
 

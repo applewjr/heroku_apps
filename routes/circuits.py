@@ -54,10 +54,12 @@ bp = Blueprint('circuits', __name__)
 PAGE = 'circuits.html'
 # A box's word, as the page sends a kept one or the admin an answer.
 _WORD = re.compile(r'[A-Za-z]{1,%d}' % cz.MAX_CELL_LEN)
-# An added pair's side: a word or two-word unit, as the data spells them.
 # One side of an added pair: a word, or a tile's whole text (as cz.clean_cell
 # allows, in lower case).
 _PAIR_SIDE = re.compile(r"[a-z](?:[a-z '\-]{0,%d}[a-z])?" % (cz.MAX_CELL_LEN - 2))
+# A box's cell as a JSON object's key: plain ASCII digits (str.isdigit would
+# also pass '²', which int() then refuses).
+_BOX_KEY = re.compile(r'[0-9]{1,3}')
 
 # Puzzmo's calendar (see the module docstring).
 GAME_TZ = pytz.timezone('America/Chicago')
@@ -152,11 +154,16 @@ ADDED_WEIGHT = cz.CAP
 EXTRA_REFRESH_SECONDS = 12 * 3600
 # How long a failed read waits before the next try.
 READ_RETRY_SECONDS = 300
-_extra = {'value': None, 'expires': 0.0}
+_extra = {'value': None, 'expires': 0.0, 'gen': 0}
+_extra_lock = threading.Lock()
 
 
 def _forget_extra():
-    _extra['expires'] = 0.0
+    """After Add or Remove: the next solve reads the pairs again. A read
+    already under way may predate the change, so it isn't kept (gen)."""
+    with _extra_lock:
+        _extra['gen'] += 1
+        _extra['expires'] = 0.0
 
 
 def added_pairs():
@@ -172,21 +179,28 @@ def get_extra(data):
     now = time.monotonic()
     if _extra['value'] is not None and now < _extra['expires']:
         return _extra['value']
+    gen = _extra['gen']
     try:
         rows = added_pairs()
     except Exception as e:
         alerts.alert_throttled('circuits_pairs_read_failed', exc=type(e).__name__, msg=e)
-        if _extra['value'] is None:
-            _extra['value'] = {}
-        _extra['expires'] = now + READ_RETRY_SECONDS
-        return _extra['value']
+        with _extra_lock:
+            if _extra['value'] is None:
+                _extra['value'] = {}
+            if _extra['gen'] == gen:
+                _extra['expires'] = now + READ_RETRY_SECONDS
+            return _extra['value']
     value = {}
     for first, second, _when in rows:
         a, b = data.id(first), data.id(second)
         if a >= 0 or b >= 0:
             value[(a if a >= 0 else first, b if b >= 0 else second)] = ADDED_WEIGHT
-    _extra['value'] = value
-    _extra['expires'] = now + EXTRA_REFRESH_SECONDS
+    with _extra_lock:
+        # An Add or Remove while this read ran: this solve uses it, but it
+        # isn't kept, so the next one reads again.
+        if _extra['gen'] == gen:
+            _extra['value'] = value
+            _extra['expires'] = now + EXTRA_REFRESH_SECONDS
     return value
 
 
@@ -319,20 +333,42 @@ def store_board(day, voter, prefix, key, cells, arrows, source, entered, top, ve
 
 
 def store_approval(day, site, key, cells, arrows, answers=None, shape='5x3'):
-    """Approve this board for `site` on `day`, replacing that site's approval
-    of it that day; answers, if given, go in too (else the ones it had stay).
-    Raises, unlike store_board: the admin page says whether it worked."""
+    """Approve this board for `site` on `day`. A site has one board a day, so
+    this takes the place of that site's approval of any other board that day
+    (players' rows and other sites' approvals stay), and of its approval of
+    this board that day; answers, if given, go in too (else the ones it had
+    stay). Both writes happen or neither. Returns how many other boards'
+    approvals it replaced. Raises, unlike store_board: the admin page says
+    whether it worked."""
     now = pst_now_str()
+    voter = f'{APPROVAL}:{site}'
     with db_cursor() as (conn, cursor):
-        cursor.execute(
-            """INSERT INTO circuits_boards (played_on, voter_hash, board_key, shape, cells, arrows,
-                   site, answers, source, created_at, updated_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
-               ON DUPLICATE KEY UPDATE arrows = new.arrows,
-                   answers = COALESCE(new.answers, circuits_boards.answers), updated_at = new.updated_at""",
-            (day, f'{APPROVAL}:{site}', key, shape, cells, _arrows_text(arrows), site, answers,
-             APPROVAL, now, now))
-        conn.commit()
+        # The Heroku pool runs with autocommit on (config.py), so the two
+        # writes need a transaction of their own to be one change.
+        cursor.execute("START TRANSACTION")
+        try:
+            cursor.execute("DELETE FROM circuits_boards WHERE voter_hash = %s AND played_on = %s AND board_key <> %s",
+                           (voter, day, key))
+            replaced = cursor.rowcount
+            _insert_approval(cursor, day, voter, site, key, cells, arrows, answers, shape, now)
+            conn.commit()
+        except Exception:
+            try:
+                cursor.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+    return replaced
+
+
+def _insert_approval(cursor, day, voter, site, key, cells, arrows, answers, shape, now):
+    cursor.execute(
+        """INSERT INTO circuits_boards (played_on, voter_hash, board_key, shape, cells, arrows,
+               site, answers, source, created_at, updated_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
+           ON DUPLICATE KEY UPDATE arrows = new.arrows,
+               answers = COALESCE(new.answers, circuits_boards.answers), updated_at = new.updated_at""",
+        (day, voter, key, shape, cells, _arrows_text(arrows), site, answers, APPROVAL, now, now))
 
 
 def save_answers(key, answers):
@@ -515,12 +551,18 @@ _boards_cache = {}
 # The answers James entered, {board_key: [word per box]}, as _answers_by_key
 # last read them.
 _answers = {'value': {}, 'expires': 0.0}
+# Bumped by every admin change: a read that started before one is used by
+# its own request but not kept, since it may predate the change.
+_boards_gen = {'n': 0}
+_boards_lock = threading.Lock()
 
 
 def _forget_boards():
     """After an admin change: the next request reads the boards again."""
-    _boards_cache.clear()
-    _answers['expires'] = 0.0
+    with _boards_lock:
+        _boards_gen['n'] += 1
+        _boards_cache.clear()
+        _answers['expires'] = 0.0
 
 
 def _boards_for(day):
@@ -535,15 +577,19 @@ def _boards_for(day):
         return entry[1]
     if entry is not None:
         _boards_cache[day] = (now + 15, entry[1])
+    gen = _boards_gen['n']
     try:
         boards = todays_boards(rows_logged_between(day, day), day)[0]
-        _boards_cache[day] = (time.monotonic() + BOARDS_CACHE_SECONDS, boards)
+        expires = time.monotonic() + BOARDS_CACHE_SECONDS
     except Exception as e:
         alerts.alert_throttled('circuits_board_read_failed', exc=type(e).__name__, msg=e)
         boards = entry[1] if entry is not None else []
-        _boards_cache[day] = (time.monotonic() + READ_RETRY_SECONDS, boards)
-    for old in [d for d in list(_boards_cache) if abs((d - day).days) > 2]:
-        _boards_cache.pop(old, None)
+        expires = time.monotonic() + READ_RETRY_SECONDS
+    with _boards_lock:
+        if _boards_gen['n'] == gen:
+            _boards_cache[day] = (expires, boards)
+        for old in [d for d in list(_boards_cache) if abs((d - day).days) > 2]:
+            _boards_cache.pop(old, None)
     return boards
 
 
@@ -555,18 +601,23 @@ def _answers_by_key():
     if now < _answers['expires']:
         return _answers['value']
     _answers['expires'] = now + 15
+    gen = _boards_gen['n']
     try:
         rows = _fetch("SELECT board_key, answers, updated_at FROM circuits_boards "
                       "WHERE source = %s AND answers IS NOT NULL", (APPROVAL,))
     except Exception as e:
         alerts.alert_throttled('circuits_board_read_failed', exc=type(e).__name__, msg=e)
-        _answers['expires'] = time.monotonic() + READ_RETRY_SECONDS
+        with _boards_lock:
+            if _boards_gen['n'] == gen:
+                _answers['expires'] = time.monotonic() + READ_RETRY_SECONDS
         return _answers['value']
     value = {}
     for key, text, _when in sorted(rows, key=lambda row: row[2]):
         value[key] = _split(text)
-    _answers['value'] = value
-    _answers['expires'] = time.monotonic() + BOARDS_CACHE_SECONDS
+    with _boards_lock:
+        if _boards_gen['n'] == gen:
+            _answers['value'] = value
+            _answers['expires'] = time.monotonic() + BOARDS_CACHE_SECONDS
     return value
 
 
@@ -593,7 +644,7 @@ def _words_by_box(raw, board, field):
         raise ValidationError(f'{field} must map boxes to words')
     out = {}
     for k, v in raw.items():
-        cell = int(k) if isinstance(k, str) and k.isdigit() else None
+        cell = int(k) if isinstance(k, str) and _BOX_KEY.fullmatch(k) else None
         if cell not in board.boxes or not isinstance(v, str) or not _WORD.fullmatch(v.strip()):
             raise ValidationError(f'{field}: one word of letters for a box')
         out[cell] = v.strip().upper()
@@ -664,10 +715,13 @@ def _arrows_to_log(arrows, rows, voter, day, source):
     has why). The player's own earlier board of these cells that day keeps
     every arrow it had; a board loaded from today's boards (source
     'edited') that only lost arrows isn't logged, and one that gained some
-    is logged as the arrows served for it plus those."""
+    is logged as the arrows served for it plus those. A row that only keeps
+    the words of a loaded board (source 'loaded') isn't a board of theirs:
+    their edit is judged as any edit of an offered board, or a loaded board
+    could vote for itself."""
     drawn = set(arrows)
     mine = [row for row in rows
-            if row[VOTER] == voter and row[PLAYED_ON] == day and row[SOURCE] != APPROVAL]
+            if row[VOTER] == voter and row[PLAYED_ON] == day and row[SOURCE] not in (APPROVAL, 'loaded')]
     if mine:
         return tuple(sorted(drawn | set(_parse_arrows(mine[0][ARROWS]))))
     if source == 'edited' and rows:
@@ -680,8 +734,10 @@ def _arrows_to_log(arrows, rows, voter, day, source):
 
 
 def _solver_top(board):
-    """The solver's picks for a board, '|'-joined per box, as players saw
-    them: for the Accuracy tab. None if it can't solve now."""
+    """The solver's own picks for a board as it's logged, '|'-joined per
+    box: before the player's kept words, Bolt letters or James's answers, so
+    the Accuracy tab's When logged column measures the solver alone. None if
+    it can't solve now."""
     solver = get_data()
     if solver is None:
         return None
@@ -943,12 +999,14 @@ def _accuracy(solver):
     """(boards, totals, error) for the Accuracy tab: every approved board with
     answers from the last ACCURACY_DAYS, newest first. Each board: its day,
     sites and picture; 'alone' (right, total) for the data alone now, with
-    its misses, and 'shown' (right, total) for the picks players saw when
-    they logged it (the latest player row that has picks). totals add these
-    up, and count right / total per confidence label (the data alone)."""
+    its misses, and 'shown' (right, total) for the solver's own picks when it
+    was logged (_solver_top; the latest player row that has picks). Only
+    approvals for days in the window count. totals add these up, and count
+    right / total per confidence label (the data alone)."""
     today = _game_today()
+    first = today - timedelta(days=ACCURACY_DAYS)
     try:
-        rows = rows_logged_between(today - timedelta(days=ACCURACY_DAYS), today)
+        rows = rows_logged_between(first, today)
     except Exception as e:
         print(f"Error loading circuits accuracy: {e}")
         return [], None, f'{type(e).__name__}: {e}'
@@ -958,7 +1016,8 @@ def _accuracy(solver):
     boards = []
     totals = {'alone': [0, 0], 'shown': [0, 0], 'labels': {}}
     for key, group in by_key.items():
-        approvals = [r for r in group if r[SOURCE] == APPROVAL and r[ANSWERS] is not None]
+        approvals = [r for r in group if r[SOURCE] == APPROVAL and r[ANSWERS] is not None
+                     and first <= r[PLAYED_ON] <= today]
         if not approvals:
             continue
         approval = max(approvals, key=lambda r: r[UPDATED])
@@ -1129,13 +1188,18 @@ def circuits_approve_board():
         arrows = _parse_arrows(newest[ARROWS])
         if not _complete(_split(newest[CELLS]), arrows):
             return _back(error="The latest board isn't finished: every tile needs an arrow")
-        store_approval(day, site, key, newest[CELLS], arrows, shape=cz.shape_name(*_shape(newest)))
+        replaced = store_approval(day, site, key, newest[CELLS], arrows, shape=cz.shape_name(*_shape(newest)))
     except Exception as e:
         print(f"Error approving circuits board: {e}")
         return _back(error='Database error')
     _forget_boards()
     return _back(success=f"Approved for {SITE_NAMES[site]}: the board from "
-                         f"{newest[UPDATED]:%m-%d %H:%M} is served now. Enter its answers below.")
+                         f"{newest[UPDATED]:%m-%d %H:%M} is served now{_in_place(replaced, site)}. "
+                         "Enter its answers below.")
+
+
+def _in_place(replaced, site):
+    return f", in place of your earlier {SITE_NAMES[site]} board that day" if replaced else ""
 
 
 @bp.route(ADMIN + '/approve_typed_board', methods=['POST'])
@@ -1167,13 +1231,14 @@ def circuits_approve_typed_board():
         return _back(error='Each answer is one word of letters')
     key = key_of(board)
     try:
-        store_approval(day, site, key, '|'.join(board.cells), board.arrows, answer_text,
-                       shape=cz.shape_name(board.rows, board.cols))
+        replaced = store_approval(day, site, key, '|'.join(board.cells), board.arrows, answer_text,
+                                  shape=cz.shape_name(board.rows, board.cols))
     except Exception as e:
         print(f"Error approving typed circuits board: {e}")
         return _back(error='Database error')
     _forget_boards()
-    return _back(success=f"Approved your board for {SITE_NAMES[site]} on {day:%m-%d}: it's served now")
+    return _back(success=f"Approved your board for {SITE_NAMES[site]} on {day:%m-%d}: "
+                         f"it's served now{_in_place(replaced, site)}")
 
 
 @bp.route(ADMIN + '/save_answers', methods=['POST'])
