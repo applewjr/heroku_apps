@@ -448,6 +448,45 @@ def test_long_names_are_cut_and_odd_ones_dropped(client, boards, monkeypatch):
     assert json.loads(row[8])['names'] == ['x' * rt.NAME_MAX, '', '', 'spaced out']
 
 
+def test_the_longest_answer_fits_its_column_and_reads_back(client, boards, monkeypatch):
+    import re
+
+    import routes.four_by_three as rt
+    from functions import four_by_three as fbt
+    path = os.path.join(os.path.dirname(__file__), os.pardir, 'mysql_tables', 'four_by_three_boards.sql')
+    with open(path, encoding='utf-8') as fh:
+        size = int(re.search(r'^\s*answers\s+VARCHAR\((\d+)\)', fh.read(), re.M).group(1))
+    # Nine 40-letter words and four names at the most a name can be, of
+    # characters JSON writes as 12 each (an emoji).
+    tiles = [c * fbt.MAX_TILE_LEN for c in 'ABCDEFGHI']
+    names = ['\U0001F600' * rt.NAME_MAX] * fbt.GROUPS
+    answer = {'hub': tiles[0], 'pairs': [tiles[1:3], tiles[3:5], tiles[5:7], tiles[7:9]], 'names': names}
+    assert 'success=' in _approve(client, _admin_headers(monkeypatch), tiles=tiles, answer=answer).headers['Location']
+    [row] = [r for r in boards.rows.values() if r[2] == 'admin']
+    assert len(row[8]) <= size
+    assert rt.parse_answer(row[8])['names'] == names
+    assert {g['theme'] for g in _solve(client, tiles=tiles)['groups']} == {names[0]}
+
+
+@pytest.mark.parametrize('damaged', [
+    {'hub': ['BAT'], 'pairs': BAT_ANSWER['pairs']},
+    {'hub': 'BAT', 'pairs': [[['CLUB'], 'RACKET']] + BAT_ANSWER['pairs'][1:]},
+    {'hub': 7, 'pairs': BAT_ANSWER['pairs']},
+])
+def test_a_damaged_answer_is_no_answer_and_players_marks_still_count(client, boards, monkeypatch, damaged):
+    import routes.four_by_three as rt
+    auth = _admin_headers(monkeypatch)
+    _approve(client, auth)
+    boards.rows[(_key(), 'admin', DAY)][8] = json.dumps(damaged)
+    assert rt.parse_answer(json.dumps(damaged)) is None
+    for n in (1, 2, 3):
+        _mark(client, n, [RIGHT])
+    result = _solve(client)
+    assert result['checked'] is False and _label(result, 'OWL') == 'players'
+    for tab in ('boards', 'accuracy'):
+        assert client.get(f'/4x3_admin?tab={tab}', headers=auth).status_code == 200
+
+
 def test_undo_and_remove(client, boards, monkeypatch):
     auth = _admin_headers(monkeypatch)
     _log(client, 1)
@@ -488,6 +527,29 @@ def test_the_accuracy_tab_scores_the_first_pass_before_each_answer(client, board
     assert '<td>hub_cos</td>' in html
 
 
+def test_only_a_boards_first_answer_keeps_a_first_pass(client, boards, monkeypatch):
+    import routes.four_by_three as rt
+    auth = _admin_headers(monkeypatch)
+    old = DAY - timedelta(days=rt.ACCURACY_DAYS + 10)
+    _approve(client, auth, day=old)
+    # A first pass that stands out, to see which one the tab scores.
+    standout = [['BAT', 'CLUB', 'guess'], ['RACKET', 'MOTH', 'guess'], ['BLINK', 'WINK', 'guess'],
+                ['SUPER', 'SPIDER', 'guess']]
+    boards.rows[(_key(), 'admin', old)][9] = json.dumps({'hub': 'OWL', 'hub_label': 'guess', 'groups': standout})
+    # Answered again for a later date: the solver may be tuned on it by
+    # then, so that approval keeps no first pass of its own.
+    _approve(client, auth, day=DAY)
+    assert boards.rows[(_key(), 'admin', DAY)][9] is None
+    # Listed by its latest date, and scored on its first answer's first pass,
+    # however old that is.
+    html = client.get('/4x3_admin?tab=accuracy', headers=auth).get_data(as_text=True)
+    assert 'Hub OWL <span class="wrong">wrong</span>' in html
+    # Without that first answer, there is nothing fair to score.
+    client.post('/4x3_admin/remove_board', headers=auth, data={'key': _key(), 'played_on': old.isoformat()})
+    html = client.get('/4x3_admin?tab=accuracy', headers=auth).get_data(as_text=True)
+    assert 'not kept' in html and 'Hub:</strong>' not in html
+
+
 def test_the_board_entry_page_opens_a_board_and_never_logs_or_marks(client, boards, monkeypatch):
     auth = _admin_headers(monkeypatch)
     _log(client, 1, tiles=list(reversed(BOARD)))
@@ -510,6 +572,16 @@ def test_the_board_entry_page_opens_a_board_and_never_logs_or_marks(client, boar
     assert 'Not a board' in client.get('/4x3_admin/board?key=nope', headers=auth).get_data(as_text=True)
     missing = client.get(f"/4x3_admin/board?key={'0' * 40}", headers=auth).get_data(as_text=True)
     assert 'No board has that key' in missing
+
+
+def test_the_editor_opens_the_answer_players_get_and_when_it_was_saved(client, boards, monkeypatch):
+    auth = _admin_headers(monkeypatch)
+    _approve(client, auth)                                              # saved 11-20 06:01
+    later = dict(BAT_ANSWER, names=['Gear', 'Flyers', 'Eyes', 'Heroes'])
+    _approve(client, auth, answer=later, day=DAY + timedelta(days=1))   # saved 11-20 06:02
+    html = client.get(f'/4x3_admin/board?key={_key()}&day={DAY.isoformat()}', headers=auth).get_data(as_text=True)
+    preload = json.loads(html.split('const PRELOAD = ', 1)[1].split(';\n', 1)[0])
+    assert preload['names'] == later['names'] and preload['note'] == 'your answer from 11-20 06:02'
 
 
 # --- tuning ---------------------------------------------------------------------------
@@ -580,10 +652,16 @@ def test_a_failed_tuning_read_keeps_the_defaults_and_alerts(stale_tuning, capsys
 
 def test_an_answer_that_does_not_fit_its_board_is_no_example(boards, stale_tuning):
     import routes.four_by_three as rt
-    _answer_boards(boards, rt.MIN_TUNING_BOARDS)
-    row = next(r for r in boards.rows.values() if r[2] == 'admin')
-    row[8] = json.dumps({'hub': 'NOPE', 'pairs': [], 'names': []})
-    assert rt.current_weights()[1] == rt.MIN_TUNING_BOARDS - 1
+    from functions import four_by_three as fbt
+    _answer_boards(boards, rt.MIN_TUNING_BOARDS + 1)
+    approvals = iter([r for r in boards.rows.values() if r[2] == 'admin'])
+    next(approvals)[8] = json.dumps({'hub': 'NOPE', 'pairs': [], 'names': []})
+    # Tuned on the others, and the count is of the answers it was fit on.
+    weights, n = rt.current_weights()
+    assert n == rt.MIN_TUNING_BOARDS and weights != fbt.DEFAULT_WEIGHTS
+    next(approvals)[8] = json.dumps({'hub': 'NOPE', 'pairs': [], 'names': []})
+    rt._forget_tuning()
+    assert rt.current_weights() == (fbt.DEFAULT_WEIGHTS, rt.MIN_TUNING_BOARDS - 1)
 
 
 # --- the SQL itself ---------------------------------------------------------------------

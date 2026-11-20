@@ -115,27 +115,44 @@ def report(name, stats, n):
     print(f"    ms per board: p50 {ms[len(ms) // 2]:.1f}  p95 {ms[int(0.95 * (len(ms) - 1))]:.1f}  max {ms[-1]:.1f}")
 
 
+def numbers(text):
+    """An argparse type: comma-separated numbers, each finite."""
+    try:
+        values = [float(x) for x in text.split(',')]
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'{text!r} is not a list of numbers')
+    if not all(math.isfinite(v) for v in values):
+        raise argparse.ArgumentTypeError(f'{text!r}: each must be a finite number')
+    return values
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--boards', default=DEFAULT_BOARDS)
     ap.add_argument('--seed', type=int, default=7)
-    ap.add_argument('--scale', default='1', help='factors for the default weights, comma-separated')
+    ap.add_argument('--scale', type=numbers, default='1', help='factors for the default weights, comma-separated')
     ap.add_argument('--split', action='store_true', help='tune on half, score the other half')
-    ap.add_argument('--strength', default=str(fbt.PRIOR_STRENGTH), help='prior strengths for --split')
+    ap.add_argument('--strength', type=numbers, default=str(fbt.PRIOR_STRENGTH), help='prior strengths for --split')
     args = ap.parse_args()
+
+    boards = read_boards(args.boards)
+    need = 2 if args.split else 1
+    if len(boards) < need:
+        ap.error(f"{args.boards} has {len(boards)} board{'' if len(boards) == 1 else 's'}: "
+                 f"{'--split needs' if args.split else 'a run needs'} at least {need} "
+                 "(a line each: the hub, then four pairs as a,b, tab-separated)")
 
     start = time.perf_counter()
     words = ch.Data.from_file(os.path.join(ROOT, 'datasets', 'chainle_data.npz'))
     pairs = cz.Data.from_file(os.path.join(ROOT, 'datasets', 'circuits_data.npz'))
     print(f'data loaded in {time.perf_counter() - start:.1f}s')
 
-    boards = read_boards(args.boards)
     board_list = prepared(boards, words, pairs, args.seed)
     unknown = sorted({t for b in board_list for t, k in zip(b['tiles'], b['signals'].known) if not k})
     print(f"{len(board_list)} boards from {os.path.basename(args.boards)}; words the data lacks: "
           f"{', '.join(unknown) or 'none'}")
 
-    for factor in (float(x) for x in args.scale.split(',')):
+    for factor in args.scale:
         weights = np.asarray(fbt.DEFAULT_WEIGHTS) * factor
         report(f'defaults x {factor:g}', score(board_list, weights), len(board_list))
 
@@ -147,7 +164,7 @@ def main():
         train, test = order[:half], order[half:]
         examples = [(b['signals'].answer_features(), b['right']) for b in train]
         report(f'held-out half ({len(test)}), defaults', score(test, fbt.DEFAULT_WEIGHTS), len(test))
-        for strength in (float(x) for x in args.strength.split(',')):
+        for strength in args.strength:
             t0 = time.perf_counter()
             tuned = fbt.fit(examples, strength=strength)
             fit_ms = 1000 * (time.perf_counter() - t0)

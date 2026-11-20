@@ -142,12 +142,13 @@ def _tune():
         example = _example(row, words, pairs)
         if example is not None:
             examples.append(example)
-    if len(examples) < MIN_TUNING_BOARDS:
-        return fbt.DEFAULT_WEIGHTS, len(examples)
+    n = len(examples)
+    if n < MIN_TUNING_BOARDS:
+        return fbt.DEFAULT_WEIGHTS, n
     weights = tuple(float(w) for w in fbt.fit(examples))
     del examples
     release_memory()
-    return weights, len(seen)
+    return weights, n
 
 
 def current_weights():
@@ -232,7 +233,8 @@ def _marks_from(data, board):
     on_board = set(board)
     out = []
     for mark in raw:
-        if not isinstance(mark, dict) or mark.get('verdict') not in _VERDICT_CODES:
+        if (not isinstance(mark, dict) or not isinstance(mark.get('verdict'), str)
+                or mark['verdict'] not in _VERDICT_CODES):
             raise ValidationError('each mark needs tiles and a verdict')
         tiles = mark.get('tiles')
         if not isinstance(tiles, list):
@@ -677,7 +679,8 @@ def parse_answer(text):
         names = [str(n or '') for n in answer.get('names') or [''] * fbt.GROUPS][:fbt.GROUPS]
     except (ValueError, TypeError, KeyError):
         return None
-    if len(pairs) != fbt.GROUPS or any(len(p) != 2 for p in pairs):
+    if (not isinstance(hub, str) or len(pairs) != fbt.GROUPS
+            or any(len(p) != 2 or not all(isinstance(w, str) for w in p) for p in pairs)):
         return None
     names += [''] * (fbt.GROUPS - len(names))
     return {'hub': hub, 'pairs': pairs, 'names': names,
@@ -731,12 +734,15 @@ _answers_cache = {}
 
 def answers_for(key):
     """crowd_answers for one board, from the memo while fresh; never raises
-    (a failed read is an empty answer, retried after READ_RETRY_SECONDS)."""
-    now = time.monotonic()
-    entry = _answers_cache.get(key)
-    if entry is not None and now < entry[0]:
-        return entry[1]
-    gen = _boards_gen['n']
+    (a failed read is an empty answer, retried after READ_RETRY_SECONDS).
+    The entry and the generation are read together, as in _boards_for, so
+    an entry an admin change has cleared can't come back as the fallback."""
+    with _boards_lock:
+        now = time.monotonic()
+        entry = _answers_cache.get(key)
+        if entry is not None and now < entry[0]:
+            return entry[1]
+        gen = _boards_gen['n']
     try:
         value = crowd_answers(rows_with_key(key))
         expires = time.monotonic() + ANSWERS_CACHE_SECONDS
@@ -861,8 +867,11 @@ def _admin_days():
 
 
 def _accuracy():
-    """(boards, totals, error): each approved answer of the last ACCURACY_DAYS
-    against the solver's first pass from just before it was approved."""
+    """(boards, totals, error): each board answered for a date in the last
+    ACCURACY_DAYS, against the solver's first pass from just before James
+    first answered it. Only that approval keeps one, whatever its date
+    (four_by_three_approve_typed_board), so it's looked for among all of the
+    board's approvals."""
     since = _pacific_today() - timedelta(days=ACCURACY_DAYS)
     try:
         rows = approved_rows(1000)
@@ -871,17 +880,19 @@ def _accuracy():
         return [], None, f'{type(e).__name__}: {e}'
     by_key = defaultdict(list)
     for row in rows:
-        if row[PLAYED_ON] >= since:
-            by_key[row[KEY]].append(row)
+        by_key[row[KEY]].append(row)
     boards = []
     totals = {'hub': [0, 0], 'groups': [0, 0], 'labels': {}}
     for key, key_rows in by_key.items():
+        day = max(row[PLAYED_ON] for row in key_rows)
+        if day < since:
+            continue
         latest = max(key_rows, key=lambda row: row[UPDATED])
         answer = parse_answer(latest[ANSWERS])
         firsts = [row for row in key_rows if row[TOP]]
         if answer is None:
             continue
-        entry = {'day': max(row[PLAYED_ON] for row in key_rows), 'hub': answer['hub'],
+        entry = {'day': day, 'hub': answer['hub'],
                  'groups': [' + '.join((answer['hub'],) + p) for p in answer['pairs']],
                  'names': answer['names'], 'top': None}
         if firsts:
@@ -939,9 +950,10 @@ def editor_board(key, day=None):
     """What /4x3_admin/board opens with when James clicks a board on the
     Boards tab, or None if no row has this key: {'tiles', 'hub', 'pairs',
     'names', 'note'}. The tiles as he approved them, else as the latest
-    player typed them; the answer his, else the groups players confirmed
-    filled out by the solver, else the solver's. From `day`'s rows when it
-    has any."""
+    player typed them; the answer his newest, from any date (the one
+    players get), else the groups players confirmed filled out by the
+    solver, else the solver's. The tiles from `day`'s rows when it has
+    any."""
     every = rows_with_key(key)
     rows = every
     if day is not None:
@@ -957,8 +969,10 @@ def editor_board(key, day=None):
     known = crowd_answers(every)
     answer = known['checked']
     if answer is not None and set(answer['groups'][0]) <= set(tiles):
+        # When that answer was saved, which may be another date's approval.
+        saved = max(row[UPDATED] for row in every if row[SOURCE] == APPROVAL and row[ANSWERS])
         return {'tiles': list(tiles), 'hub': answer['hub'], 'pairs': [list(p) for p in answer['pairs']],
-                'names': answer['names'], 'note': f"your answer from {newest[UPDATED]:%m-%d %H:%M}"}
+                'names': answer['names'], 'note': f"your answer from {saved:%m-%d %H:%M}"}
     preload = {'tiles': list(tiles), 'hub': '', 'pairs': [], 'names': [''] * fbt.GROUPS,
                'note': f"the board from {newest[UPDATED]:%m-%d %H:%M}"}
     words = get_words()
@@ -1031,14 +1045,26 @@ def _answer_from_form(tiles):
     return json.dumps({'hub': hub, 'pairs': [list(p) for p in pairs], 'names': names}), None
 
 
+def _answered_before(key):
+    """Whether James has answered this board before, for any date: the
+    solver may be tuned on that answer, so a first pass now would be no
+    fair test. True if the rows can't be read (better none than an unfair
+    one)."""
+    try:
+        return any(row[SOURCE] == APPROVAL and row[ANSWERS] for row in rows_with_key(key))
+    except Exception as e:
+        print(f"Error reading a 4x3 board's approvals: {e}")
+        return True
+
+
 @bp.route(ADMIN + '/approve_typed_board', methods=['POST'])
 @auth.login_required
 def four_by_three_approve_typed_board():
     """Serve a board James entered on /4x3_admin/board, for players whose
     date is `played_on`, with his answer if he gave one. `tiles` is the nine
     words as a JSON list; `hub`, `pairs` (JSON) and `names` (JSON) the
-    answer. Before it's stored, the solver's own first pass on the board is
-    kept with it, for the Accuracy tab."""
+    answer. With his first answer to a board, the solver's own first pass on
+    it is kept, for the Accuracy tab; approvals after that keep none."""
     day = parse_iso_day(request.form.get('played_on', ''))
     try:
         tiles = fbt.parse_board(json.loads(request.form.get('tiles', '')))
@@ -1049,14 +1075,15 @@ def four_by_three_approve_typed_board():
     answer, error = _answer_from_form(tiles)
     if error:
         return _back(error=error)
+    key = fbt.board_key(tiles)
     top, version = None, None
     words = get_words()
-    if answer is not None and words is not None:
+    if answer is not None and words is not None and not _answered_before(key):
         weights, _n = current_weights()
         top = json.dumps(_first_pass(tiles, words, weights), separators=(',', ':'))
         version = solver_version(weights)
     try:
-        replaced = store_approval(day, fbt.board_key(tiles), words_text(tiles), answer, top, version)
+        replaced = store_approval(day, key, words_text(tiles), answer, top, version)
     except Exception as e:
         print(f"Error approving 4x3 board: {e}")
         return _back(error='Database error')

@@ -340,6 +340,39 @@ def test_fit_stays_near_the_prior_with_few_answers_and_never_goes_negative():
     assert objective(fitted) <= objective(prior)
 
 
+def _correlated(true_w, n, seed, corr=0.7):
+    """Like _synthetic, with a part all the features share, so the weights
+    pull on each other: a Newton step cut off at 0 can then miss the best
+    weights."""
+    rng = np.random.default_rng(seed)
+    examples = []
+    for _ in range(n):
+        shared = rng.normal(size=(fbt.ANSWERS, 1))
+        feats = corr * shared + (1 - corr) * rng.normal(size=(fbt.ANSWERS, fbt.NF))
+        s = feats @ true_w
+        p = np.exp(s - s.max())
+        p /= p.sum()
+        examples.append((feats, int(rng.choice(fbt.ANSWERS, p=p))))
+    return examples
+
+
+def test_fit_reaches_the_best_weights_when_some_are_held_at_zero():
+    # Answers that want some weights below 0. The best weights at 0 or above
+    # hold those at 0 (where the objective rises as they grow) and leave the
+    # objective flat along every other one.
+    prior, strength = np.asarray(fbt.DEFAULT_WEIGHTS), 0.5
+    examples = _correlated(np.array([4.0, -3.0, 2.0, -2.0, 1.0, 0.5, 3.0]), 20, seed=3)
+    w = fbt.fit(examples, prior=prior, strength=strength)
+    grad = strength * (w - prior)
+    for feats, right in examples:
+        s = feats @ w
+        p = np.exp(s - s.max())
+        grad += (p / p.sum()) @ feats - feats[right]
+    held = w == 0
+    assert held.any() and not held.all()
+    assert np.abs(grad[~held]).max() < 1e-4 and grad[held].min() > -1e-4
+
+
 def test_weights_code_tells_weights_apart():
     assert fbt.weights_code(fbt.DEFAULT_WEIGHTS) == fbt.weights_code(list(fbt.DEFAULT_WEIGHTS))
     assert fbt.weights_code(fbt.DEFAULT_WEIGHTS) != fbt.weights_code(np.asarray(fbt.DEFAULT_WEIGHTS) * 1.01)
@@ -425,6 +458,8 @@ def test_a_solve_through_the_route(client):
     {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL', 'NOPE'], 'verdict': 'right'}]},
     {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL', 'OWL'], 'verdict': 'right'}]},
     {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL', 'MOTH'], 'verdict': 'maybe'}]},
+    {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL', 'MOTH'], 'verdict': ['right']}]},
+    {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL', 'MOTH'], 'verdict': {'right': 1}}]},
     {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT', 'OWL'], 'verdict': 'hub'}]},
     {'tiles': PAGE_BOARD, 'marks': [{'tiles': ['BAT'], 'verdict': 'hub'}] * 13},
     {'action': 'nope'},

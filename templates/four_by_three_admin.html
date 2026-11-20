@@ -98,7 +98,7 @@ a.tab-button { color: inherit; text-decoration: none; }
                     <th>Status</th>
                     <th>First seen / last update</th>
                     <th>Your answer</th>
-                    <th>Solver's first pass</th>
+                    <th>Current solver prediction</th>
                     <th>Players' marks</th>
                     <th>Action</th>
                 </tr>
@@ -171,7 +171,7 @@ a.tab-button { color: inherit; text-decoration: none; }
         <div class="tab-head">
             <h2>Accuracy</h2>
             <details class="admin-help"><summary>What these numbers are</summary>
-                <p class="crowd-note">Every board you answered in the last {{ accuracy_days }} days, against the solver's own first pass on it from the moment just before you approved it (no marks, nothing confirmed). The weights it ran with were fit on your earlier answers only, so each line is a fair test. The totals per label show whether "sure" really means sure.</p>
+                <p class="crowd-note">Every board you answered in the last {{ accuracy_days }} days, against the solver's own first pass on it from the moment just before you first answered it (no marks, nothing confirmed). The weights it ran with were fit on your earlier answers only, so each line is a fair test. The totals per label show whether "sure" really means sure.</p>
                 <p class="crowd-note">The weights: from {{ min_tuning }} answers on, the solver refits them after each approval or Undo to make your answers most likely, pulled toward the defaults so a few boards can only nudge them. They can re-balance the signals the solver has; a kind of link it can't see (trivia, wordplay) stays a guess until its data grows.</p>
             </details>
         </div>

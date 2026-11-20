@@ -505,6 +505,20 @@ def _objective(w, examples, prior, strength):
     return total
 
 
+def _downhill(w, step, f, examples, prior, strength):
+    """(weights, objective): w - size * step, kept at 0 or above, for the
+    largest size of 1, 1/2, 1/4... that lowers the objective below f, or
+    (None, f) if none down to 1e-4 does."""
+    size = 1.0
+    while size > 1e-4:
+        candidate = np.maximum(w - size * step, 0.0)
+        fc = _objective(candidate, examples, prior, strength)
+        if fc < f - 1e-12:
+            return candidate, fc
+        size *= 0.5
+    return None, f
+
+
 def fit(examples, prior=DEFAULT_WEIGHTS, strength=PRIOR_STRENGTH, steps=FIT_STEPS):
     """The weights that make the right answers most likely, pulled toward
     `prior` (a conditional logit with an L2 pull, solved by Newton steps;
@@ -527,16 +541,21 @@ def fit(examples, prior=DEFAULT_WEIGHTS, strength=PRIOR_STRENGTH, steps=FIT_STEP
             grad += mean - feats[right]
             centered = feats - mean
             hess += (centered * p[:, None]).T @ centered
-        step = np.linalg.solve(hess, grad)
-        size = 1.0
-        while size > 1e-4:
-            candidate = np.maximum(w - size * step, 0.0)
-            fc = _objective(candidate, examples, prior, strength)
-            if fc < f - 1e-12:
+        # A weight at 0 that the slope pushes lower stays there, and the
+        # Newton step is for the others: a full one, cut off at 0, can fail
+        # to go downhill at all while the weights pull on each other.
+        free = ~((w <= 0.0) & (grad > 0.0))
+        candidate, fc = None, f
+        if free.any():
+            step = np.zeros(NF)
+            step[free] = np.linalg.solve(hess[np.ix_(free, free)], grad[free])
+            candidate, fc = _downhill(w, step, f, examples, prior, strength)
+        if candidate is None:
+            # Then a plain slope step (scaled by the Hessian's diagonal); only
+            # if that can't go downhill either are these the best weights.
+            candidate, fc = _downhill(w, grad / np.diag(hess), f, examples, prior, strength)
+            if candidate is None:
                 break
-            size *= 0.5
-        else:
-            break
         done = f - fc < 1e-9
         w, f = candidate, fc
         if done:

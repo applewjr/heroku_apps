@@ -645,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = e.target.closest('.fbt-input');
         if (!input) return;
         const i = Number(input.dataset.i);
+        const before = keyOf(words());
         const parts = input.value.split(/[,\t\n;|]+/);
         tiles[i] = clean(parts[0]);
         let j = i;
@@ -656,6 +657,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // it can't hold, or a pasted list): lower case shows in capitals
         // anyway, and resetting the box would move the caret.
         if (parts.length > 1 || parts[0].toUpperCase() !== tiles[i]) input.value = tiles[i];
+        // Other words make another board, so Help hides its hub again. (A
+        // group's hints go with its own three words; marks never reset it.)
+        if (keyOf(words()) !== before) hubReveal = 0;
         afterEdit();
         if (parts.length > 1) focusBox(Math.min(j + 1, TILES - 1));
     });
@@ -1140,13 +1144,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isBoard = b => b && Array.isArray(b.tiles) && b.tiles.length === TILES && b.tiles.every(isTile);
 
+    // Only the newest request's reply counts, and only while it's still the
+    // date it asked about where the player is: one that comes back after
+    // their midnight asks again, for the new day.
+    let sharedSeq = 0;
     function fetchShared() {
         if (!BOARDS_ON) return;
-        sharedFetchedOn = localDay();
-        postJSON({action: 'todays_boards', played_on: sharedFetchedOn})
+        const seq = ++sharedSeq, day = localDay();
+        postJSON({action: 'todays_boards', played_on: day})
             .then(data => {
+                if (seq !== sharedSeq) return;
+                if (day !== localDay()) { fetchShared(); return; }
+                sharedFetchedOn = day;
                 sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
-                sharedDay = data && typeof data.day === 'string' ? data.day : sharedFetchedOn;
+                sharedDay = data && typeof data.day === 'string' ? data.day : day;
                 renderShared();
             })
             .catch(() => {});
@@ -1246,13 +1257,22 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) {}
     }
 
-    let marksPending = '';
+    // One marks request at a time: each one replaces the player's marks on
+    // the server, so they must get there in the order made. A change made
+    // while one is on its way goes when it's back, and marksSig is always
+    // what the server last kept.
+    let marksPending = '', marksAgain = false;
     function sendMarks() {
         try {
             if (!LOG_BOARDS || !ready()) return;
             const live = liveMarks();
             const sig = (boardDay || localDay()) + '|' + JSON.stringify([words().slice().sort(), live]);
-            if (sig === marksSig || sig === marksPending) return;
+            if (marksPending) {
+                if (sig !== marksPending) marksAgain = true;
+                return;
+            }
+            if (sig === marksSig) return;
+            // No marks, and none kept on the server: nothing to take back.
             if (!live.length && !marksSig) return;
             marksPending = sig;
             fetch(POST_URL, {
@@ -1265,7 +1285,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     marksSig = sig;
                     persist();
                 }
-            }).catch(() => {}).finally(() => { if (marksPending === sig) marksPending = ''; });
+            }).catch(() => {}).finally(() => {
+                marksPending = '';
+                if (marksAgain) { marksAgain = false; sendMarks(); }
+            });
         } catch (_) {}
     }
 
