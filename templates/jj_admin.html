@@ -92,9 +92,15 @@
         {{ card('/blossom_admin', 'Blossom Admin', "Today's board, word reports, removed and added words, recent Blossom feedback") }}
         {{ card('/smush_admin', 'Smush Admin', "Today's board, word reports, removed and added words") }}
         {{ card('/ribbit_admin', 'Ribbit Admin', 'Shared boards, word reports, removed and added words') }}
-        {{ card('/ribbit_admin/board', 'Ribbit Board Entry', "Enter your game's board on Ribbit's own board, then approve it") }}
         {{ card('/guess_the_phrase_admin', 'Guess The Phrase Admin', 'Added phrases, removed phrases, phrase status') }}
         {{ card('/chainle_admin', 'Chainle Admin', "Word reports, today's rounds to approve, removed and allowed words, the round log and how the solver rates each round") }}
+        {{ card('/circuits_admin', 'Circuits Admin', "Today's boards to approve per site, their answers, the solver's accuracy and the pairs you added") }}
+    </div>
+
+    <div class="section-label">Board entry</div>
+    <div class="card-grid">
+        {{ card('/ribbit_admin/board', 'Ribbit Board Entry', "Enter your game's board on Ribbit's own board, then approve it") }}
+        {{ card('/circuits_admin/board', 'Circuits Board Entry', "Enter your game's board on Circuits' own editor, with its answers, then approve it") }}
     </div>
 
     <div class="section-label">Solver tools</div>

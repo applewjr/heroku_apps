@@ -46,6 +46,28 @@ def no_board_reads(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_circuits_db(monkeypatch):
+    """Keep /circuits off the database, for every test.
+
+    Its solves read James's added pairs and answers, and today's boards come
+    from circuits_boards: ``secret_pass.py`` points at the production JawsDB.
+    Every cursor in routes/circuits.py fails here, as in an outage (the page
+    fails safe), and its memos start empty. tests/test_circuits_boards.py
+    puts tables of its own in place of these.
+    """
+    import routes.circuits as circuits
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(circuits, "db_cursor", down)
+    monkeypatch.setattr(circuits, "_boards_cache", {})
+    monkeypatch.setattr(circuits, "_answers", {"value": {}, "expires": 0.0})
+    monkeypatch.setattr(circuits, "_extra", {"value": None, "expires": 0.0, "gen": 0})
+    monkeypatch.setattr(circuits, "_verdicts", {})
+
+
+@pytest.fixture(autouse=True)
 def no_ice_builds(monkeypatch):
     """Never really build an ICE COLD table in a test, for every test.
 

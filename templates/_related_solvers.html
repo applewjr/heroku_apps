@@ -18,7 +18,8 @@
    line of plain links under the cards, and every solver page still links to
    all the others.
 
-   is_new (helpers.NEW_UNTIL) tags a solver NEW until a set day. Wordle, the
+   is_new (helpers.NEW_UNTIL) tags a solver NEW until a set day, and is_beta
+   (helpers.BETA_PAGES) tags one Beta until James takes it off. Wordle, the
    first solver, wears a grey OLD for good (James's joke). A card's tag sits
    on its corner, so it never changes the card's size. Styles: .jj-more* in
    base.html. #}
@@ -27,7 +28,8 @@
                 ('/chainle', '🔗', 'Chainle', "Answers and hints for today's rounds"),
                 ('/ribbit', '🐸', 'Ribbit', "Every word on today's board"),
                 ('/wordiply', '🧩', 'Wordiply', "Longest words for today's letters"),
-                ('/guess_the_phrase', '🎡', 'Guess The Phrase', 'Spoiler-free letter hints')] %}
+                ('/guess_the_phrase', '🎡', 'Guess The Phrase', 'Spoiler-free letter hints'),
+                ('/circuits', '⚡', 'Circuits', "Hints and answers for today's board")] %}
 {% set guess_helpers = [('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle')] %}
 <section class="jj-more" aria-labelledby="jj-more-title">
     <h2 class="jj-more-title" id="jj-more-title">More daily puzzle solvers</h2>
@@ -36,7 +38,7 @@
         <a class="jj-more-tile" href="{{ path }}">
             <span class="jj-more-name"><span class="jj-more-icon" aria-hidden="true">{{ icon }}</span>{{ name }}</span>
             <span class="jj-more-hook">{{ hook }}</span>
-            {%- if is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% endif %}
+            {%- if is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% elif is_beta(path) %}<span class="jj-more-tag jj-more-beta">Beta</span>{% endif %}
         </a>
         {% endfor %}
     </div>

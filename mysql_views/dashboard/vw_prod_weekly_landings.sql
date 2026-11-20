@@ -15,15 +15,17 @@ SELECT
 ,SUM(page_name = 'wordiply.html') AS wordiply
 ,SUM(page_name = 'antiwordle_revamp.html') AS antiwordle
 ,SUM(page_name = 'quordle.html') AS quordle
+,SUM(page_name = 'circuits.html') AS circuits
 ,COUNT(*) AS total
 FROM app_visits
 WHERE submit_time >= DATE(pst_now()) - INTERVAL WEEKDAY(pst_now()) DAY - INTERVAL 7 WEEK
     AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
-                      'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html')
+                      'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
+                      'circuits.html')
     AND user_agent <> 'jj-healthcheck'
     AND referrer NOT LIKE '%127.0.0.1:5000%'
     AND referrer NOT LIKE '%apple-apps-staging%'
-    AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
+    AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor|lighthouse')
 GROUP BY YEARWEEK(submit_time, 3)
 ORDER BY week_of DESC
 ;

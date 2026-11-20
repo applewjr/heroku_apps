@@ -21,11 +21,12 @@ WITH visits AS (
     FROM app_visits
     WHERE submit_time >= pst_now() - INTERVAL 14 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
-                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html')
+                          'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
+                          'circuits.html')
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
         AND referrer NOT LIKE '%apple-apps-staging%'
-        AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor')
+        AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor|lighthouse')
     )
 SELECT
  REPLACE(REPLACE(REPLACE(page_name, 'guess_the_phrase', 'gtp'), '_revamp', ''), '.html', '') AS page

@@ -89,6 +89,20 @@
         letter-spacing: 0.05em;
         vertical-align: 2px;
     }
+    /* Shown while is_beta() holds (helpers.BETA_PAGES): outlined, never NEW. */
+    .beta-tag {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background-color: #eef4f4;
+        border: 1px solid #4f9a97;
+        color: #02484d;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        vertical-align: 2px;
+    }
     /* Wordle, the first solver, is OLD for good (James's joke). */
     .old-tag {
         display: inline-block;
@@ -174,6 +188,10 @@
         <a href="/chainle" class="app-card">
             <div class="app-card-title">Chainle Solver{% if is_new('/chainle') %}<span class="new-tag">NEW</span>{% endif %}</div>
             <div class="app-card-desc">Find the word that links your clues, with a hint before the answer</div>
+        </a>
+        <a href="/circuits" class="app-card">
+            <div class="app-card-title">Circuits Solver{% if is_beta('/circuits') %}<span class="beta-tag">Beta</span>{% endif %}</div>
+            <div class="app-card-desc">Hints or answers for each box of the compound-word puzzle</div>
         </a>
         <a href="/wordiply" class="app-card">
             <div class="app-card-title">Wordiply Solver</div>

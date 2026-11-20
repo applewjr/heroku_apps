@@ -1,0 +1,1750 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if approve %}Approve your Circuits board{% else %}Circuits Answers & Hints - Solver for Today's Puzzmo Circuits{% endif %}{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Stuck on Puzzmo's Circuits? Enter today's board and get help that fits each box: hints first, letter by letter, or every answer at once.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/circuits">
+<meta name="keywords" content="circuits answers, circuits puzzmo, circuits hints, puzzmo circuits today, circuits solver, circuits word game, compound word puzzle">
+<meta property="og:title" content="Circuits Answers & Hints - Solver for Today's Puzzmo Circuits">
+<meta property="og:description" content="Type Puzzmo's Circuits board and get spoiler-free hints for each box, one letter at a time, or every answer at once, with how sure the solver is.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/circuits">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+{% if not approve %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is Circuits?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Circuits is Puzzmo's daily word puzzle. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this solver help without spoiling the puzzle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type the board in, then pick Help or Solve. Help shows each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Solve shows every box's answer at once, with how sure the solver is about each. The page remembers which one you like."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I enter the board?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
+      }
+    },{% if boards_on %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type the board in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its tiles and arrows fill in for you. Puzzmo and Yahoo Games each have their own Circuits board, so some days more than one is offered; tap the one that matches your game, and check it before you trust the answers."
+      }
+    },{% endif %}
+    {
+      "@type": "Question",
+      "name": "How does it find the words?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It knows over a million compound words and two-word phrases, from dictionaries and from how often words sit side by side in Wikipedia. It fills every box at once, so each word has to join the tiles and boxes on all of its arrows, and the boxes check each other."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How accurate is it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Most boxes, not all. Every box gets a label: Sure, Likely or Guess. A Guess usually means a compound the solver doesn't know, so look at its other fits. Solve the boxes you're sure of first and tap Keep on each, and the solver works the rest out again around them. Boxes marked Checked come from the real game."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work for older puzzles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The solver only needs the board you type, so it works for today's puzzle, for past ones and for practice boards alike."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its word data comes from public sources, listed under Data sources and licences below."
+      }
+    }
+  ]
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- intro ---------- */
+.cc-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.cc-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
+.cc-notice {
+    max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
+    background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
+}
+.cc-h1 { text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2; }
+.cc-h1 .jj-beta-tag { font-size: 0.4em; vertical-align: 0.6em; }
+
+/* ---------- mode pills (Chainle's round types) ---------- */
+.cc-modes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px auto 0; padding: 0 12px; }
+.cc-modes[hidden] { display: none; }
+.cc-modes-label { font-size: 13px; color: #6b7280; margin-right: 2px; }
+.cc-shapes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 12px auto 0; padding: 0 12px; }
+.cc-shape svg { display: block; flex-shrink: 0; }
+.cc-shape { display: inline-flex; align-items: center; gap: 6px; }
+.cc-mode {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 999px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 7px 16px;
+    min-height: 40px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.cc-mode.active { background-color: #02484d; border-color: #02484d; color: #fff; }
+
+/* ---------- today's boards ---------- */
+.cc-shared {
+    box-sizing: border-box;
+    width: min(92vw, 440px);
+    margin: 12px auto 0;
+    padding: 12px 14px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+    text-align: center;
+}
+.cc-shared[hidden] { display: none; }
+.cc-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; margin: 0 0 10px; }
+.cc-shared-text[hidden] { display: none; }
+.cc-shared-picks { display: flex; flex-direction: column; gap: 10px; }
+.cc-shared-pick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 14px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background-color: #fff;
+    border: 2px solid #02484d;
+    border-radius: 10px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.cc-shared-pick:hover, .cc-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+/* --cols is set per board by the script; 4 wide boards get narrower squares. */
+.cc-mini { --mini: 62px; display: grid; grid-template-columns: repeat(var(--cols, 3), var(--mini)); grid-auto-rows: 22px; gap: 3px; }
+.cc-mini.c4 { --mini: 52px; }
+.cc-mini span {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; font-size: 8.5px; font-weight: 700; line-height: 1;
+    overflow: hidden; white-space: nowrap; padding: 0 2px;
+}
+.cc-mini .t { background-color: #02484d; color: #fff; }
+.cc-mini .b { background-color: #fff; border: 1.5px solid #02484d; color: #02484d; font-size: 10px; }
+.cc-shared-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cc-shared-btn {
+    background-color: #02484d; border-radius: 8px; color: #fff; font-size: 15px; font-weight: 600;
+    padding: 10px 14px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center;
+}
+.cc-shared-site { font-size: 12px; font-weight: 600; color: #6b7280; }
+
+/* ---------- the board ---------- */
+/* Cells in odd tracks, the gaps between them (the arrows) in even ones; the
+   script lays the tracks out for the board's shape (buildGrid). A 4 wide
+   board gets narrower gaps, smaller arrows and a little more width. */
+.cc-board {
+    --gap-x: 30px;
+    display: grid;
+    width: min(92vw, 420px);
+    box-sizing: border-box;
+    margin: 14px auto 0;
+    padding: 10px;
+    background-color: #f4f8f8;
+    border: 2px solid #cfe0e0;
+    border-radius: 14px;
+}
+.cc-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 4px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.cc-cell.blank { background-color: transparent; border: 2px dashed #cfe0e0; }
+.cc-cell.tile { background-color: #02484d; border: 2px solid #02484d; color: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); }
+.cc-cell.box { background-color: #fff; border: 2px solid #02484d; color: #02484d; padding-top: 15px; }
+/* A cell's text never breaks inside a word: fitCells shrinks it until its
+   longest word fits on a line. */
+.cc-cell .fit { display: block; width: 100%; min-width: 0; overflow-wrap: normal; word-break: normal; }
+.cc-cell .fit.one { white-space: nowrap; }
+.cc-cell .fit.split { white-space: normal; hyphens: manual; }
+.cc-cell.box.kept { border-color: #e0a800; background-color: #fffbe6; }
+.cc-cell.selected { box-shadow: 0 0 0 3px #ffd700; }
+.cc-cell:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+.cc-num {
+    position: absolute; top: 3px; left: 5px;
+    font-size: 11px; font-weight: 700; color: #4f9a97;
+}
+.cc-box-word { letter-spacing: 1px; }
+.cc-box-word.mask { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 2px; color: #4f9a97; }
+.cc-box-word.guess { color: #8a6d00; }
+.cc-box-word.none { color: #9ca3af; font-weight: 600; }
+.cc-cell .fs-1 { font-size: 16px; }
+.cc-cell .fs-2 { font-size: 14px; }
+.cc-cell .fs-3 { font-size: 12px; }
+.cc-cell .fs-4 { font-size: 10.5px; }
+/* An arrow is a round button in the gap between two squares: filled when
+   it's on, dashed when it could be added. The whole gap takes the tap; the
+   circle inside ignores the pointer so a tap anywhere there lands on the
+   button. */
+.cc-gap {
+    position: relative;   /* above the squares (they're positioned too), so a tap always reaches it */
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.cc-gap .cc-arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%;
+    font-size: 15px; font-weight: 700; line-height: 1; pointer-events: none;
+}
+.cc-gap.on .cc-arrow { background-color: #02484d; color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+.cc-gap.off .cc-arrow { border: 2px dashed #9cc3c1; color: #9cc3c1; background-color: #fff; }
+.cc-gap.off:hover .cc-arrow { border-color: #4f9a97; color: #4f9a97; }
+/* An arrow the solver can't make a compound across, from a square next to
+   two boxes: the one most likely not to be in the game. */
+.cc-gap.on.doubt .cc-arrow { background-color: #fff7d6; color: #8a6d00; border: 2px solid #e0a800; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); }
+.cc-gap.none { cursor: default; }
+.cc-board.c4 { --gap-x: 22px; width: min(94vw, 480px); }
+.cc-board.c4 .cc-cell { padding: 3px; }
+.cc-board.c4 .cc-cell.box { padding-top: 15px; }
+.cc-board.c4 .cc-arrow { width: 20px; height: 20px; font-size: 13px; }
+.cc-board.c4 .cc-box-word { letter-spacing: 0.3px; }
+.cc-board.c4 .cc-box-word.mask { letter-spacing: 1px; }
+.cc-gap:focus-visible { outline: 2px solid #ffd700; outline-offset: -2px; border-radius: 6px; }
+
+/* ---------- the editor ---------- */
+.cc-editor {
+    box-sizing: border-box;
+    width: min(92vw, 420px);
+    margin: 10px auto 0;
+    text-align: left;
+}
+.cc-editor[hidden] { display: none; }
+.cc-edit-row { display: flex; align-items: center; gap: 8px; }
+.cc-edit-label { font-size: 13px; font-weight: 700; color: #02484d; white-space: nowrap; }
+/* Two classes, to beat base.html's input[type=text] padding. */
+.cc-editor .cc-edit {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    min-height: 44px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 2px solid #02484d;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #1f2937;
+    font-family: inherit;
+    font-size: 17px;   /* 16px+ keeps iOS from zooming on focus */
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.cc-editor .cc-edit::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; font-size: 14px; }
+.cc-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cc-btn {
+    background-color: #fff;
+    border: 1px solid #cdd8d7;
+    border-radius: 8px;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 14px;
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s ease;
+}
+.cc-btn:hover { background-color: #eef4f4; }
+.cc-btn.primary { background-color: #02484d; border-color: #02484d; color: #fff; }
+.cc-btn.primary:hover { background-color: #03595f; }
+.cc-btn:disabled, .cc-btn:disabled:hover { background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+.cc-tools .cc-btn { flex: 1 1 0; padding: 8px 10px; }
+.cc-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 440px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
+.cc-hint.warn { color: #a55; }
+
+/* ---------- results ---------- */
+.cc-results { max-width: 600px; margin: 6px auto 0; }
+.cc-results[hidden] { display: none; }
+.cc-results.stale { opacity: 0.55; }
+.cc-note { font-size: 13px; color: #374151; margin: 8px 12px 0; line-height: 1.5; }
+.cc-note.warn { color: #a55; }
+.cc-card {
+    margin: 10px 12px;
+    padding: 12px 14px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    text-align: left;
+}
+.cc-card.start { border-color: #f0d97a; background-color: #fffdf3; }
+.cc-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cc-card-title { font-size: 15px; font-weight: 700; color: #02484d; }
+.cc-len { font-size: 13px; color: #6b7280; }
+.cc-chip { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 999px; }
+.cc-chip.sure, .cc-chip.checked { background-color: #02484d; color: #fff; }
+.cc-chip.likely { background-color: #eef4f4; color: #02484d; border: 1px solid #4f9a97; }
+.cc-chip.guess { background-color: #fff; color: #8a6d00; border: 1px dashed #e0a800; }
+.cc-chip.none { background-color: #fbf0f0; color: #a55; }
+.cc-chip.locked { background-color: #ffd700; color: #02484d; }
+.cc-start { font-size: 11px; font-weight: 700; color: #8a6d00; }
+.cc-answer {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px; font-weight: 700; letter-spacing: 2px; color: #02484d;
+}
+button.cc-answer { background: none; border: none; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cc-answer.guess { color: #8a6d00; }
+.cc-clues { margin: 8px 0 0; padding: 0; list-style: none; }
+.cc-clue { font-size: 14px; color: #374151; margin: 4px 0; overflow-wrap: anywhere; }
+.cc-clue .w { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; letter-spacing: 1px; color: #02484d; }
+.cc-clue .k { font-size: 12px; margin-left: 4px; }
+.cc-clue .k.yes { color: #218838; }
+.cc-clue .k.no { color: #9ca3af; }
+.cc-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: #374151; margin: 8px 0 0; line-height: 1.5; }
+.cc-alts-label { width: 100%; }
+.cc-card .cc-alt {
+    display: inline-flex; align-items: center; gap: 5px; min-height: 34px; margin: 0; padding: 4px 11px;
+    border: 1px solid #cdd8d7; border-radius: 999px; background-color: #fff; color: #02484d;
+    font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.cc-card .cc-alt:hover { background-color: #eef4f4; }
+.cc-alt-fit { font-weight: 400; letter-spacing: 0; font-size: 12px; color: #6b7280; }
+.cc-card .cc-starts {
+    display: block; margin: 6px 0 0; padding: 6px 0; border: none; background: none; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: #02484d; text-decoration: underline;
+    text-underline-offset: 2px; -webkit-tap-highlight-color: transparent;
+}
+.cc-card .cc-starts[hidden] { display: none; }
+.cc-alts b { letter-spacing: 1px; }
+.cc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* "Keep" plus a long word can outgrow a small phone's card: the button then
+   wraps under the input, on the right, instead of squeezing the input. */
+.cc-keep { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cc-card .cc-keep-input {
+    flex: 1 1 120px; min-width: 0; box-sizing: border-box; min-height: 40px; margin: 0;
+    padding: 6px 10px; border: 1px solid #cdd8d7; border-radius: 8px; background-color: #fff;
+    color: #1f2937; font-family: inherit; font-size: 16px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+}
+.cc-card .cc-keep-input::placeholder { letter-spacing: 0; text-transform: none; font-weight: 400; color: #9ca3af; font-size: 14px; }
+.cc-keep .cc-btn { min-height: 40px; flex-shrink: 0; margin-left: auto; }
+.cc-kept { font-size: 13px; color: #374151; margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+{% if approve %}
+/* ---------- James's board entry ---------- */
+.cc-dev-note {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 8px auto 0;
+    padding: 8px 12px; font-size: 13px; line-height: 1.4; color: #02484d;
+    background-color: #eef4f4; border: 1px dashed #4f9a97; border-radius: 8px;
+}
+.cc-load-error { color: #a55; background-color: #fbf0f0; border: 1px solid #ecd3d3; }
+.cc-approve {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 14px auto 0;
+    padding: 12px; background-color: #eef4f4; border: 1px solid #4f9a97; border-radius: 8px; text-align: left;
+}
+.cc-approve label { font-size: 14px; font-weight: 600; color: #02484d; }
+.cc-approve input[type=date] { font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #cdd8d7; border-radius: 6px; }
+.cc-approve-answers { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; margin: 10px 0; }
+.cc-approve .cc-approve-word {
+    min-width: 0; box-sizing: border-box; margin: 0; padding: 6px 8px; border: 1px solid #cdd8d7;
+    border-radius: 6px; font-family: inherit; font-size: 16px; font-weight: 700; text-transform: uppercase;
+}
+.cc-approve-sites { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-approve-status { margin: 8px 0 0; font-size: 13px; color: #6b7280; }
+{% endif %}
+
+/* ---------- shared bits ---------- */
+.cc-play-row { margin: 20px 0; text-align: center; min-height: 51px; }
+.cc-clear-btn {
+    background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+    border-radius: 8px; display: inline-block; margin: 4px; font-family: inherit; font-size: 14px;
+    white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
+}
+.cc-clear-btn:hover { background-color: #e9ecef; }
+.instructions {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    font-size: 14px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    line-height: 1.6;
+}
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+.cc-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001;
+    font-size: 14px;
+    max-width: 90vw;
+    text-align: center;
+}
+.cc-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .cc-board { padding: 8px; }
+    .cc-card { margin: 10px 8px; padding: 12px; }
+    .cc-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+    .cc-mini { --mini: 54px; }
+    .cc-mini.c4 { --mini: 44px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<center>
+<br>
+<h1 class="cc-h1">{% if approve %}Approve your game's board{% else %}Circuits Answers &amp; Hints{% if is_beta('/circuits') %} <span class="jj-beta-tag">Beta</span>{% endif %}{% endif %}</h1>
+{% if approve %}
+<p class="cc-dev-note">Enter your game's board: type it, check the arrows, and fix any answer below the board. Approve for Puzzmo or Yahoo serves it as you see it to every player on the date you pick, first of the day's boards, with your answers as checked. Nothing here counts as a player. <a href="/circuits_admin?tab=boards">Back to Circuits admin</a></p>
+{% if load_error %}<p class="cc-dev-note cc-load-error" role="alert">{{ load_error }}.</p>{% endif %}
+{% endif %}
+{% if data_ok %}
+<p class="cc-sub" id="cc-data-ok">Help with every box of Puzzmo's Circuits: hints first, or every answer at once.</p>
+{% else %}
+<div class="cc-notice" role="alert">The solver is unavailable right now. Please try again in a few minutes.</div>
+{% endif %}
+<p class="cc-unofficial">Unofficial helper. Not affiliated with or endorsed by Puzzmo.</p>
+
+{# Hidden, not left out, on the approve page: the script below wires it. #}
+<div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Type the board.</strong> Pick the board size that matches your game, 5 by 3 or 4 by 4.
+        Tap a square and type the word on that tile, then press
+        Enter to go on to the next empty square (Tab goes to the very next one). For an empty box, tap <strong>Box</strong> (or type ?); for a
+        square with nothing in it, tap <strong>Blank</strong>.{% if boards_on %} Once other players
+        have entered today's board, you can skip this: tap it above the board and it fills in for you.{% endif %}
+        <br><br>
+        <strong>2. Check the arrows.</strong> The page draws an arrow from each box to every square next
+        to it, and your game may have fewer: a square next to two boxes often links to just one. Tap an
+        arrow your game doesn't show to remove it, or a dashed one to add it. After a solve, an arrow
+        ringed in gold is one the solver can't make a compound across, so check that one first.
+        <br><br>
+        <strong>3. Help or Solve.</strong> <strong>Help</strong> shows each box's length and the
+        compounds it makes, with the word hidden: <strong>Show a letter</strong> uncovers one letter at
+        a time, <strong>Show word</strong> the whole word. <strong>Solve</strong> shows every answer at
+        once. Each box says how sure the solver is: Sure, Likely or Guess.
+        <br><br>
+        <strong>4. Keep what you've got.</strong> When the game accepts a word, tap <strong>Keep</strong>
+        on its box's card, or tap it among the box's other fits. If the card isn't showing that word,
+        type it in first. The solver works the other boxes out again around it. Used a Bolt? Type the
+        letter it showed into that box's card and tap <strong>it starts with</strong>. Tap a revealed
+        word to copy it.
+    </div>
+</div>
+
+<div class="cc-modes" id="cc-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
+    <span class="cc-modes-label">Show me:</span>
+    <button type="button" class="cc-mode" data-mode="help">Help</button>
+    <button type="button" class="cc-mode" data-mode="solve">Solve</button>
+</div>
+
+{% if boards_on %}
+<div class="cc-shared" id="cc-shared" hidden>
+    <p class="cc-shared-text" id="cc-shared-one">Other players already entered today's board for you. Tap it to load it.</p>
+    <p class="cc-shared-text" id="cc-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
+    <div class="cc-shared-picks" id="cc-shared-picks"></div>
+</div>
+{% endif %}
+
+{# Each shape a board comes in, as a pill with a small picture of it. #}
+<div class="cc-shapes" id="cc-shapes" role="group" aria-label="Board size">
+    <span class="cc-modes-label">Board size:</span>
+    {% for r, c in shapes %}
+    <button type="button" class="cc-mode cc-shape" data-rows="{{ r }}" data-cols="{{ c }}" aria-pressed="false" aria-label="{{ r }} rows by {{ c }} columns"><svg width="{{ c * 4 - 1 }}" height="{{ r * 4 - 1 }}" viewBox="0 0 {{ c * 4 - 1 }} {{ r * 4 - 1 }}" aria-hidden="true">{% for y in range(r) %}{% for x in range(c) %}<rect x="{{ x * 4 }}" y="{{ y * 4 }}" width="3" height="3" rx="0.5" fill="currentColor"/>{% endfor %}{% endfor %}</svg>{{ r }} &times; {{ c }}</button>
+    {% endfor %}
+</div>
+
+<div class="cc-board" id="cc-board" role="group" aria-label="Board"></div>
+
+<div class="cc-editor" id="cc-editor">
+    <div class="cc-edit-row">
+        <label class="cc-edit-label" for="cc-edit" id="cc-edit-label">Square 1</label>
+        <input type="text" id="cc-edit" class="cc-edit" maxlength="{{ max_cell }}" autocomplete="off"
+               autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next"
+               placeholder="Type the tile, or tap Box">
+    </div>
+    <div class="cc-tools" role="group" aria-label="Square tools">
+        <button type="button" class="cc-btn" id="cc-make-box">Box</button>
+        <button type="button" class="cc-btn" id="cc-make-blank">Blank</button>
+        <button type="button" class="cc-btn primary" id="cc-next">Next</button>
+    </div>
+</div>
+<p class="cc-hint" id="cc-hint" aria-live="polite"></p>
+
+{% if approve %}
+{# The board as it stands goes in cells, arrows and answers when an Approve
+   button is pressed (see the approve section of the script);
+   routes/circuits.py checks it all again. #}
+<form method="POST" action="/circuits_admin/approve_typed_board" class="cc-approve" id="cc-approve">
+    <label>Date <input type="date" name="played_on" id="cc-approve-date" value="{{ approve_day.strftime('%Y-%m-%d') }}" required></label>
+    <div class="cc-approve-answers" id="cc-approve-answers"></div>
+    <input type="hidden" name="cells" id="cc-approve-cells">
+    <input type="hidden" name="shape" id="cc-approve-shape">
+    <input type="hidden" name="arrows" id="cc-approve-arrows">
+    <input type="hidden" name="answers" id="cc-approve-answers-json">
+    <input type="hidden" name="tab" value="boards">
+    <div class="cc-approve-sites">
+        {% for site, name in sites.items() %}
+        <button type="submit" name="site" value="{{ site }}" class="cc-btn primary cc-approve-btn" disabled>Approve for {{ name }}</button>
+        {% endfor %}
+    </div>
+    <p class="cc-approve-status" id="cc-approve-status" aria-live="polite"></p>
+</form>
+{% endif %}
+
+<div class="cc-results" id="cc-results" aria-live="polite" hidden></div>
+
+<br>
+<div class="cc-play-row">
+    {% if not approve %}
+    <a href="https://www.puzzmo.com/play/circuits" class="action-btn puzzmo-circuits-link" target="_blank" rel="noopener noreferrer">&#9889; Play Circuits</a>
+    <a href="/feedback" class="action-btn">&#128172; Give Feedback</a>
+    {% endif %}
+    <button type="button" class="cc-clear-btn" id="cc-clear">&#128260; Clear board</button>
+</div>
+
+{% if not approve %}
+{% with current='/circuits' %}{% include '_related_solvers.html' %}{% endwith %}
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Circuits?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Circuits is Puzzmo's daily word puzzle. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the board in, then pick Help or Solve. Help shows each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Solve shows every box's answer at once, with how sure the solver is about each. The page remembers which one you like.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
+    </div>
+    {% if boards_on %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its tiles and arrows fill in for you. Puzzmo and Yahoo Games each have their own Circuits board, so some days more than one is offered; tap the one that matches your game, and check it before you trust the answers.</p>
+    </div>
+    {% endif %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does it find the words?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It knows over a million compound words and two-word phrases, from dictionaries and from how often words sit side by side in Wikipedia. It fills every box at once, so each word has to join the tiles and boxes on all of its arrows, and the boxes check each other.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How accurate is it?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Most boxes, not all. Every box gets a label: Sure, Likely or Guess. A Guess usually means a compound the solver doesn't know, so look at its other fits. Solve the boxes you're sure of first and tap Keep on each, and the solver works the rest out again around them. Boxes marked Checked come from the real game.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. The solver only needs the board you type, so it works for today's puzzle, for past ones and for practice boards alike.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its word data comes from public sources, listed under <a href="#cc-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below.</p>
+    </div>
+  </div>
+</section>
+
+<section id="cc-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Puzzmo. Its word data comes from the public sources below. Boxes marked Checked show a day's real answers, entered by hand, and when those answers need a word pair the sources lack, the pair is added too.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word pairs from text.</strong> How often words sit side by side in <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikipedia</a>'s articles, and its article titles, by Wikipedia contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Compound words and phrases.</strong> Compound words from the public-domain ENABLE word list. Two-word phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, from <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a> (WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>), and from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Checking compound words.</strong> While the data was built, semantic vectors from <a href="https://github.com/commonsense/conceptnet-numberbatch" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">ConceptNet Numberbatch</a> 19.08, by Luminoso Technologies, Inc., used under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, helped tell real compound words from accidental splits.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Filtering.</strong> Offensive words are kept off this page with the <a href="https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">List of Dirty, Naughty, Obscene, and Otherwise Bad Words</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY 4.0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">The word data built from these sources is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+</section>
+{% endif %}
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // The board's shape: one of SHAPES, [rows, cols]. The grid is rebuilt
+    // when it changes (setShape).
+    const SHAPES = {{ shapes | tojson }};
+    let ROWS = {{ rows }}, COLS = {{ cols }}, N = ROWS * COLS;
+    const SHAPE_KEY = 'circuitsShape_v1';   // the size this player last picked, for a new board
+    const isShape = (r, c) => SHAPES.some(s => s[0] === r && s[1] === c);
+    const BOX = {{ box | tojson }};
+    const MAX_CELL = {{ max_cell }};
+    // Where this copy posts, and whether it offers today's boards.
+    const POST_URL = {{ post_url | tojson }};
+    const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
+    const APPROVE = {{ 'true' if approve else 'false' }};
+    {# James's board entry keeps a board of its own, so it never touches his
+       game on the public page, and it never logs one. Jinja comments here
+       keep that page's address out of the public page. #}
+    const STORAGE_KEY = {{ ('circuitsApproveState_v1' if approve else 'circuitsSolverState_v1') | tojson }};
+    const LOG_BOARDS = !APPROVE;
+    const MODE_KEY = 'circuitsMode_v1';
+    // A finished board the player has looked at this long, untouched, counts
+    // as used and is logged (once per version).
+    const LOG_AFTER_MS = 4000;
+    const TILE = /^[A-Z](?:[A-Z '\-]{0,22}[A-Z])?$/;
+    const WORD = /^[A-Za-z]{1,24}$/;
+
+    /* ---------- state ---------- */
+    let cells = Array(N).fill('');   // '' blank, BOX, or the tile's word
+    let arrows = [];                 // [tail, head] pairs, pointing right or down
+    let cut = new Set();             // 'a-b' arrows the player took away (never put back by themselves)
+    let kept = {};                   // box cell -> a word the player has
+    let starts = {};                 // box cell -> letters its word starts with (a Bolt in the game)
+    let reveals = {};                // box cell -> letters shown in Help
+    let selected = 0;                // the square the editor is on, or -1
+    let boardSource = 'typed';       // 'typed' | 'shared' (today's board, untouched) | 'edited' (shared, then changed)
+    let loggedSig = '';              // the board as last logged
+    let arrowsTouched = false;       // the player set an arrow by hand
+    let mode = 'help';
+    let last = null, lastSig = '';   // the solver's reply, and the board it answers
+    let fetchTimer = null, fetchSeq = 0, logTimer = null;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
+    let sharedBoards = [];
+    let approveWords = {};           // approve page: box cell -> the answer typed there ('' when cleared)
+    let savedAnswers = null;         // approve page: box cell -> the answer saved for the preloaded board
+
+    const boardEl = document.getElementById('cc-board');
+    const editInput = document.getElementById('cc-edit');
+    const editLabel = document.getElementById('cc-edit-label');
+    const hintEl = document.getElementById('cc-hint');
+    const resultsEl = document.getElementById('cc-results');
+    const modesEl = document.getElementById('cc-modes');
+    const sharedEl = document.getElementById('cc-shared');
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const rc = i => [Math.floor(i / COLS), i % COLS];
+    const pairKey = (a, b) => a + '-' + b;
+    const isBox = i => cells[i] === BOX;
+    const filled = i => cells[i] !== '';
+    // An arrow joins two squares with something in them, and touches a box.
+    const allowed = (a, b) => filled(a) && filled(b) && (isBox(a) || isBox(b));
+    let PAIRS = [];
+    function buildPairs() {
+        PAIRS = [];
+        for (let i = 0; i < N; i++) {
+            const [r, c] = rc(i);
+            if (c < COLS - 1) PAIRS.push([i, i + 1]);
+            if (r < ROWS - 1) PAIRS.push([i, i + COLS]);
+        }
+    }
+    buildPairs();
+    const isPair = (a, b) => PAIRS.some(p => p[0] === a && p[1] === b);
+    const hasArrow = (a, b) => arrows.some(p => p[0] === a && p[1] === b);
+    const boxes = () => cells.reduce((out, c, i) => (c === BOX ? out.concat(i) : out), []);
+    const sortArrows = list => list.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    // What a solve answers, and what a log sends (first letters aren't logged).
+    const boardSig = () => JSON.stringify([ROWS, COLS, cells, arrows, kept, starts]);
+    const logSig = () => JSON.stringify([ROWS, COLS, cells, arrows, kept]);
+    const sizeClass = t => (t.length <= 6 ? 'fs-1' : t.length <= 9 ? 'fs-2' : t.length <= 13 ? 'fs-3' : 'fs-4');
+    const badTile = () => cells.findIndex(c => c && c !== BOX && !TILE.test(c));
+
+    // Puzzmo's day: the date in America/Chicago, for every player, as
+    // YYYY-MM-DD built from its parts (a locale's own date pattern can change).
+    function gameDay() {
+        try {
+            const p = {};
+            new Intl.DateTimeFormat('en-US', {timeZone: 'America/Chicago', year: 'numeric', month: '2-digit',
+                                              day: '2-digit'}).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+            if (/^\d{4}$/.test(p.year) && /^\d{2}$/.test(p.month) && /^\d{2}$/.test(p.day)) {
+                return p.year + '-' + p.month + '-' + p.day;
+            }
+        } catch (_) {}
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    /* ---------- arrows ---------- */
+    // Every neighbour of a box gets an arrow, unless the player took that one
+    // away; arrows that can't be (a square emptied) go.
+    function autoArrows() {
+        arrows = arrows.filter(([a, b]) => allowed(a, b));
+        PAIRS.forEach(([a, b]) => {
+            if (allowed(a, b) && !hasArrow(a, b) && !cut.has(pairKey(a, b))) arrows.push([a, b]);
+        });
+        sortArrows(arrows);
+    }
+
+    function complete() {
+        if (!cells.includes(BOX)) return false;
+        const touched = new Set();
+        arrows.forEach(([a, b]) => { touched.add(a); touched.add(b); });
+        return cells.every((c, i) => !c || touched.has(i));
+    }
+
+    const solvable = () => arrows.length > 0 && badTile() < 0;
+
+    // Arrows from the server (today's boards), kept only if this grid can draw them.
+    const cleanArrows = list => sortArrows((Array.isArray(list) ? list : [])
+        .filter(p => Array.isArray(p) && Number.isInteger(p[0]) && Number.isInteger(p[1]) && isPair(p[0], p[1]))
+        .map(p => [p[0], p[1]]));
+
+    // Loaded arrows are the board's: any other arrow the grid could draw is cut.
+    function setArrows(list) {
+        arrows = cleanArrows(list).filter(([a, b]) => allowed(a, b));
+        cut = new Set(PAIRS.filter(([a, b]) => allowed(a, b) && !hasArrow(a, b)).map(([a, b]) => pairKey(a, b)));
+    }
+
+    /* ---------- the board ---------- */
+    let cellEls = [], gapEls = {};
+    function buildGrid() {
+        cellEls = [];
+        gapEls = {};
+        boardEl.replaceChildren();
+        boardEl.classList.toggle('c4', COLS >= 4);
+        boardEl.style.gridTemplateColumns = Array(COLS).fill('minmax(0, 1fr)').join(' var(--gap-x) ');
+        boardEl.style.gridTemplateRows = Array(ROWS).fill('minmax(54px, auto)').join(' 26px ');
+        for (let i = 0; i < N; i++) {
+            const [r, c] = rc(i);
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'cc-cell blank';
+            el.dataset.i = String(i);
+            el.style.gridRow = String(2 * r + 1);
+            el.style.gridColumn = String(2 * c + 1);
+            boardEl.appendChild(el);
+            cellEls.push(el);
+        }
+        PAIRS.forEach(([a, b]) => {
+            const [r, c] = rc(a);
+            const right = b === a + 1;
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'cc-gap none';
+            el.dataset.a = String(a);
+            el.dataset.b = String(b);
+            el.style.gridRow = String(right ? 2 * r + 1 : 2 * r + 2);
+            el.style.gridColumn = String(right ? 2 * c + 2 : 2 * c + 1);
+            boardEl.appendChild(el);
+            gapEls[pairKey(a, b)] = el;
+        });
+        renderShapes();
+    }
+
+    // The board in another shape. A square keeps its row and column where the
+    // new grid has room, with its arrows and words; the rest go.
+    const shapesEl = document.getElementById('cc-shapes');
+    function setShape(rows, cols) {
+        if (!isShape(rows, cols) || (rows === ROWS && cols === COLS)) return;
+        const oldCols = COLS;
+        const move = i => {
+            const r = Math.floor(i / oldCols), c = i % oldCols;
+            return r < rows && c < cols ? r * cols + c : -1;
+        };
+        const next = Array(rows * cols).fill('');
+        cells.forEach((v, i) => { const j = move(i); if (j >= 0) next[j] = v; });
+        const movePairs = list => list.map(([a, b]) => [move(a), move(b)]).filter(([a, b]) => a >= 0 && b >= 0);
+        arrows = movePairs(arrows);
+        cut = new Set(movePairs([...cut].map(k => k.split('-').map(Number))).map(([a, b]) => pairKey(a, b)));
+        const moveKeys = obj => {
+            const out = {};
+            Object.entries(obj).forEach(([k, v]) => { const j = move(Number(k)); if (j >= 0) out[j] = v; });
+            return out;
+        };
+        kept = moveKeys(kept);
+        starts = moveKeys(starts);
+        reveals = moveKeys(reveals);
+        approveWords = moveKeys(approveWords);
+        savedAnswers = savedAnswers ? moveKeys(savedAnswers) : null;
+        selected = selected >= 0 ? move(selected) : -1;
+        ROWS = rows; COLS = cols; N = rows * cols;
+        cells = next;
+        last = null; lastSig = '';
+        buildPairs();
+        buildGrid();
+    }
+
+    function renderShapes() {
+        if (!shapesEl) return;
+        shapesEl.querySelectorAll('.cc-shape').forEach(btn => {
+            const on = Number(btn.dataset.rows) === ROWS && Number(btn.dataset.cols) === COLS;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+    }
+
+    shapesEl.addEventListener('click', e => {
+        const btn = e.target.closest('.cc-shape');
+        if (!btn) return;
+        const rows = Number(btn.dataset.rows), cols = Number(btn.dataset.cols);
+        if (rows === ROWS && cols === COLS) return;
+        const lost = cells.some((v, i) => v && (Math.floor(i / COLS) >= rows || i % COLS >= cols));
+        if (lost && !confirm('The squares outside a ' + rows + ' by ' + cols + ' board will go. Switch?')) return;
+        setShape(rows, cols);
+        try { localStorage.setItem(SHAPE_KEY, rows + 'x' + cols); } catch (_) {}
+        if (boardSource === 'shared') boardSource = 'edited';
+        if (selected >= N) selected = -1;
+        selectCell(cells.some(c => c) ? selected : 0, false);
+        afterEdit();
+    });
+    buildGrid();
+
+    // What a box shows: its word in Solve, the letters shown so far in Help
+    // (the first letters the player gave count as shown), and a kept word
+    // always.
+    function boxShows(i) {
+        if (kept[i]) return {text: kept[i], cls: ''};
+        const b = current(i);
+        if (!b || !b.word) return b ? {text: starts[i] || '?', cls: 'none'} : null;
+        if (mode === 'solve') return {text: b.word, cls: b.confidence === 'guess' ? 'guess' : ''};
+        return {text: maskOf(b), cls: 'mask'};
+    }
+
+    function shownLetters(b) {
+        const given = starts[b.cell] && b.word.startsWith(starts[b.cell]) ? starts[b.cell].length : 0;
+        return Math.min(Math.max(reveals[b.cell] || 0, given), b.word.length);
+    }
+
+    // The arrows the solver can't make a compound across, from a square next
+    // to two boxes: the likeliest not to be in the player's game. Only for the
+    // board the reply answers.
+    function doubtArrows() {
+        const out = new Set();
+        // Today's boards come with the game's own arrows: nothing to doubt.
+        if (boardSource === 'shared' || !last || !Array.isArray(last.boxes) || lastSig !== boardSig()) return out;
+        last.boxes.forEach(b => (b.arcs || []).forEach(arc => {
+            if (arc.doubtful && arc.known === false && !arc.unknown_tile) {
+                out.add(pairKey(Math.min(b.cell, arc.other), Math.max(b.cell, arc.other)));
+            }
+        }));
+        return out;
+    }
+
+    function renderBoard() {
+        const nums = {};
+        boxes().forEach((i, k) => { nums[i] = k + 1; });
+        cellEls.forEach((el, i) => {
+            const c = cells[i];
+            const kind = c === BOX ? 'box' : c ? 'tile' : 'blank';
+            el.className = 'cc-cell ' + kind + (c === BOX && kept[i] ? ' kept' : '') + (i === selected ? ' selected' : '');
+            if (c === BOX) {
+                const s = boxShows(i);
+                el.innerHTML = '<span class="cc-num">' + nums[i] + '</span>' +
+                    (s ? '<span class="fit one cc-box-word ' + s.cls + ' ' + sizeClass(s.text) + '">' + esc(s.text) + '</span>' : '');
+                el.setAttribute('aria-label', 'Square ' + (i + 1) + ': box ' + nums[i]);
+            } else if (c) {
+                el.innerHTML = '<span class="fit' + (c.includes(' ') ? '' : ' one') + ' ' + sizeClass(c) + '">' + esc(c) + '</span>';
+                el.setAttribute('aria-label', 'Square ' + (i + 1) + ': ' + c);
+            } else {
+                el.innerHTML = '';
+                el.setAttribute('aria-label', 'Square ' + (i + 1) + ': blank');
+            }
+        });
+        const doubt = doubtArrows();
+        PAIRS.forEach(([a, b]) => {
+            const el = gapEls[pairKey(a, b)];
+            const on = hasArrow(a, b), can = allowed(a, b);
+            const right = b === a + 1;
+            el.className = 'cc-gap ' + (on ? 'on' : can ? 'off' : 'none') + (on && doubt.has(pairKey(a, b)) ? ' doubt' : '');
+            el.disabled = !can;
+            el.innerHTML = can ? '<span class="cc-arrow" aria-hidden="true">' + (right ? '→' : '↓') + '</span>' : '';
+            el.setAttribute('aria-label', 'Arrow ' + (right ? 'right' : 'down') + ' from square ' + (a + 1) + ': ' +
+                (on ? 'on, tap to remove' : 'off, tap to add'));
+            el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        fitCells();
+        renderApprove();
+    }
+
+    // Each cell's text at its size class, shrunk half a pixel at a time
+    // until its longest word fits on a line (never below 8px).
+    // If even 8px is too wide (a long word in a narrow square, as on a 4 wide
+    // board on a phone), the long words split in two, at a hyphen (a mask
+    // breaks without one), and are fitted again: two lines read better than
+    // one squeezed past legible.
+    function fitCells() {
+        boardEl.querySelectorAll('.fit').forEach(span => {
+            if (span.dataset.text !== undefined) {
+                span.textContent = span.dataset.text;
+                delete span.dataset.text;
+            }
+            span.classList.remove('split');
+            shrinkToFit(span);
+            if (span.scrollWidth <= span.clientWidth + 0.5) return;
+            const mark = span.classList.contains('mask') ? '​' : '­';
+            span.dataset.text = span.textContent;
+            span.textContent = span.textContent.split(' ').map(w => {
+                const half = Math.ceil(w.length / 2);
+                return w.length >= 6 ? w.slice(0, half) + mark + w.slice(half) : w;
+            }).join(' ');
+            span.classList.add('split');
+            shrinkToFit(span);
+        });
+    }
+
+    function shrinkToFit(span) {
+        span.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(span).fontSize);
+        while (span.scrollWidth > span.clientWidth + 0.5 && size > 8) {
+            size -= 0.5;
+            span.style.fontSize = size + 'px';
+        }
+    }
+
+    /* ---------- editing ---------- */
+    function selectCell(i, focus) {
+        selected = i;
+        if (i >= 0) {
+            editInput.value = cells[i] === BOX ? '' : cells[i];
+            editLabel.textContent = 'Square ' + (i + 1);
+            editInput.placeholder = cells[i] === BOX ? 'Box: type a word to make it a tile' : 'Type the tile, or tap Box';
+            if (focus) editInput.focus({preventScroll: true});
+        } else {
+            editInput.value = '';
+            editLabel.textContent = 'Square';
+            editInput.placeholder = 'Tap a square to change it';
+        }
+        renderBoard();
+    }
+
+    function setCell(i, value) {
+        if (i < 0 || cells[i] === value) return;
+        const wasBox = cells[i] === BOX;
+        cells[i] = value;
+        if (wasBox || value === BOX) {
+            delete kept[i]; delete starts[i]; delete reveals[i];
+            delete approveWords[i];
+            if (savedAnswers) delete savedAnswers[i];
+        }
+        if (boardSource === 'shared') boardSource = 'edited';
+        autoArrows();
+        afterEdit();
+    }
+
+    // On to the next empty square (Enter, Next, Box, Blank), past the ones
+    // already filled; with none left after this one, the editor closes. Tab
+    // goes to the very next square instead (the keydown handler below).
+    function advance() {
+        let next = -1;
+        for (let i = selected + 1; selected >= 0 && i < N; i++) {
+            if (!cells[i]) { next = i; break; }
+        }
+        if (next >= 0) selectCell(next, true);
+        else { selectCell(-1); editInput.blur(); }
+    }
+
+    editInput.addEventListener('input', () => {
+        if (selected < 0) return;
+        const raw = editInput.value.toUpperCase();
+        if (raw.includes('?')) {
+            editInput.value = '';
+            setCell(selected, BOX);
+            advance();
+            return;
+        }
+        const clean = raw.replace(/[^A-Z '\-]/g, '').replace(/\s+/g, ' ').replace(/^ /, '').slice(0, MAX_CELL);
+        if (clean !== editInput.value) editInput.value = clean;
+        setCell(selected, clean.trim());
+    });
+    editInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); advance(); return; }
+        // Tab moves to the next square as Enter does, Shift+Tab to the one
+        // before. Past the last square (or before the first) it leaves the
+        // board as usual, so the keyboard is never stuck here.
+        if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey && selected >= 0) {
+            const next = selected + (e.shiftKey ? -1 : 1);
+            if (next >= 0 && next < N) {
+                e.preventDefault();
+                selectCell(next, true);
+            }
+        }
+    });
+    // The buttons keep the keyboard up: they never take the focus.
+    ['cc-make-box', 'cc-make-blank', 'cc-next'].forEach(id => {
+        document.getElementById(id).addEventListener('pointerdown', e => e.preventDefault());
+    });
+    document.getElementById('cc-make-box').addEventListener('click', () => {
+        if (selected < 0) return;
+        editInput.value = '';
+        setCell(selected, BOX);
+        advance();
+    });
+    document.getElementById('cc-make-blank').addEventListener('click', () => {
+        if (selected < 0) return;
+        editInput.value = '';
+        setCell(selected, '');
+        advance();
+    });
+    document.getElementById('cc-next').addEventListener('click', advance);
+
+    boardEl.addEventListener('click', e => {
+        const gap = e.target.closest('.cc-gap');
+        if (gap) { toggleArrow(Number(gap.dataset.a), Number(gap.dataset.b)); return; }
+        const cell = e.target.closest('.cc-cell');
+        if (cell) selectCell(Number(cell.dataset.i), true);
+    });
+
+    function toggleArrow(a, b) {
+        if (!allowed(a, b)) return;
+        if (hasArrow(a, b)) {
+            arrows = arrows.filter(p => !(p[0] === a && p[1] === b));
+            cut.add(pairKey(a, b));
+        } else {
+            arrows.push([a, b]);
+            sortArrows(arrows);
+            cut.delete(pairKey(a, b));
+        }
+        arrowsTouched = true;
+        if (boardSource === 'shared') boardSource = 'edited';
+        afterEdit();
+    }
+
+    function afterEdit() {
+        renderBoard();
+        renderHint();
+        renderResults();
+        renderShared();
+        persist();
+        schedule(350);
+    }
+
+    function renderHint(text, warn) {
+        if (text === undefined) {
+            const bad = badTile();
+            if (bad >= 0) {
+                text = 'Square ' + (bad + 1) + ': a tile starts and ends with a letter.';
+                warn = true;
+            } else if (!cells.some(c => c)) {
+                text = 'Tap a square and type its tile. Box makes an empty box; Blank, a square with nothing in it.';
+            } else if (!cells.includes(BOX)) {
+                text = 'Mark the empty boxes too: tap one, then Box.';
+            } else if (!complete()) {
+                text = 'Every tile needs an arrow to a box. Tap a faint arrow to add one.';
+            } else {
+                const n = doubtArrows().size;
+                text = n === 1 ? "The solver can't make a compound across the arrow ringed in gold. If your game doesn't show it, tap it to remove it."
+                    : n ? "The solver can't make a compound across the " + n + " arrows ringed in gold. If your game doesn't show them, tap them to remove them."
+                    : 'Check the arrows against your game: tap one to remove it, or a dashed one to add it.';
+            }
+        }
+        hintEl.textContent = text;
+        hintEl.classList.toggle('warn', Boolean(warn));
+    }
+
+    /* ---------- solving ---------- */
+    function schedule(delay) {
+        clearTimeout(fetchTimer);
+        clearTimeout(logTimer);
+        if (!solvable()) {
+            last = null;
+            renderResults();
+            return;
+        }
+        fetchTimer = setTimeout(solve, delay);
+    }
+
+    async function solve() {
+        const seq = ++fetchSeq;
+        const sig = boardSig();
+        const body = {rows: ROWS, cols: COLS, cells, arrows, locked: kept, starts, first_solve: firstSolve};
+        firstSolve = false;
+        try {
+            const resp = await fetch(POST_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            // Only a reply for the board as it is now: an edit since then has
+            // a solve of its own on the way, and this one's shared arrows
+            // would belong to the old cells.
+            if (seq !== fetchSeq || sig !== boardSig()) return;
+            if (!resp.ok) {
+                renderHint(data.error || 'Something went wrong - try again.', true);
+                return;
+            }
+            // Other players drew this board's arrows: use theirs, unless the
+            // player has set arrows by hand.
+            if (Array.isArray(data.known_arrows) && !arrowsTouched && boardSource === 'typed') {
+                setArrows(data.known_arrows);
+                boardSource = 'shared';
+                toast("Other players drew this board's arrows for you - check they match your game.");
+                afterEdit();
+                return;
+            }
+            last = data;
+            lastSig = sig;
+            renderBoard();
+            renderResults();
+            if (doubtArrows().size) renderHint();
+            gaOnce(mode === 'help' ? 'circuits_help' : 'circuits_solve');
+            logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
+        } catch (_) {
+            if (seq === fetchSeq) toast('Could not reach the solver - check your connection', true);
+        }
+    }
+
+    // The solver's box for a cell, if the reply is for this board's boxes.
+    function current(i) {
+        if (!last || !Array.isArray(last.boxes)) return null;
+        return last.boxes.find(b => b.cell === i && isBox(i)) || null;
+    }
+
+    const LABEL = {sure: 'Sure', likely: 'Likely', guess: 'Guess', none: 'No fit', locked: 'Yours', checked: 'Checked'};
+
+    // One side of an arrow, as a clue line shows it.
+    function sideText(arc, b) {
+        if (arc.given !== undefined) return '<span>' + esc(arc.given) + '</span>';
+        const other = arc.other;
+        const ob = current(other);
+        const known = ob && ob.word && (mode === 'solve' || shownLetters(ob) >= ob.word.length);
+        const word = kept[other] || (known ? ob.word : '');
+        return word ? '<span class="w">' + esc(word) + '</span>' : '<span>box ' + esc(arc.box) + '</span>';
+    }
+
+    function maskOf(b) {
+        const shown = shownLetters(b);
+        return b.word.slice(0, shown) + '_'.repeat(b.word.length - shown);
+    }
+
+    function clueLines(b, mine) {
+        return '<ul class="cc-clues">' + b.arcs.map(arc => {
+            const me = '<span class="w">' + esc(mine) + '</span>';
+            const other = sideText(arc, b);
+            const line = arc.first ? me + ' + ' + other : other + ' + ' + me;
+            let mark = '';
+            if (mode === 'solve' || b.locked) {
+                if (arc.unknown_tile) mark = '<span class="k no">tile not known</span>';
+                else if (arc.known === true) mark = '<span class="k yes" title="A compound the solver knows">&#10003;</span>';
+                else if (arc.known === false) mark = '<span class="k no" title="A compound the solver doesn\'t know">?</span>';
+            }
+            return '<li class="cc-clue">' + line + mark + '</li>';
+        }).join('') + '</ul>';
+    }
+
+    function keepRow(b) {
+        if (kept[b.cell]) {
+            return '<div class="cc-kept">You have it. <button type="button" class="cc-btn" data-act="unkeep" data-cell="' + b.cell + '">Undo</button></div>';
+        }
+        // A card showing its word keeps it in one tap, and the button names the
+        // word. Typing a different one turns it back into a plain Keep (the
+        // input listener below). A hidden Help word still has to be typed: a
+        // button naming it would give it away.
+        const shown = Boolean(b.word) && (mode === 'solve' || shownLetters(b) >= b.word.length);
+        const hint = shown ? 'Or type yours' : 'Have it? Type it here';
+        // First letters from a Bolt: typed into the same box, then "It starts
+        // with", which shows once something is typed.
+        const first = starts[b.cell]
+            ? '<div class="cc-kept">Starts with ' + esc(starts[b.cell]) + '. <button type="button" class="cc-btn" data-act="unstart" data-cell="' + b.cell + '">Undo</button></div>'
+            : '';
+        return first + '<div class="cc-keep"><input type="text" class="cc-keep-input" maxlength="24" autocomplete="off" ' +
+            'autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Your word for box ' + b.n +
+            ', or its first letters" placeholder="' + esc(hint) + '" data-cell="' + b.cell + '">' +
+            '<button type="button" class="cc-btn" data-act="keep" data-cell="' + b.cell + '"' +
+            (shown ? ' data-word="' + esc(b.word) + '">Keep ' + esc(b.word) : '>Keep') + '</button></div>' +
+            '<button type="button" class="cc-starts" data-act="start" data-cell="' + b.cell + '" hidden></button>';
+    }
+
+    function boxCard(b, n, start) {
+        const conf = kept[b.cell] ? 'locked' : b.confidence;
+        let head = '<span class="cc-card-title">Box ' + n + '</span>';
+        let body = '';
+        if (!b.word) {
+            head += '<span class="cc-chip none">' + LABEL.none + '</span>';
+            body = starts[b.cell] && !kept[b.cell]
+                ? '<p class="cc-note">No word the solver knows starts with ' + esc(starts[b.cell]) + ' and fits here. Check the letters, the tiles and the arrows.</p>'
+                : '<p class="cc-note">Nothing in the solver\'s words fits every arrow here. Check the tiles and arrows, or keep the words you have around it.</p>';
+            return '<div class="cc-card">' + '<div class="cc-card-head">' + head + '</div>' + body + keepRow(b) + '</div>';
+        }
+        head += '<span class="cc-len">' + b.letters + ' letters</span><span class="cc-chip ' + conf + '">' + LABEL[conf] + '</span>';
+        if (start && mode === 'help') head += '<span class="cc-start">Start here</span>';
+        const shownAll = shownLetters(b) >= b.word.length;
+        if (mode === 'solve' || kept[b.cell] || shownAll) {
+            const word = kept[b.cell] || b.word;
+            head += '<button type="button" class="cc-answer' + (conf === 'guess' ? ' guess' : '') + '" data-copy="' + esc(word) +
+                '" title="Copy">' + esc(word) + '</button>';
+            body = clueLines(b, word);
+            const alts = (b.alternatives || []).filter(a => a.word !== word);
+            if (mode === 'solve' && !kept[b.cell] && conf !== 'sure' && conf !== 'checked' && alts.length) {
+                // Each one keeps that word in a tap, like Keep.
+                body += '<div class="cc-alts"><span class="cc-alts-label">Other fits. Tap the one you have:</span>' + alts.map(a => {
+                    const known = a.fits.filter(f => f !== null);
+                    return '<button type="button" class="cc-alt" data-act="keep" data-alt="1" data-cell="' + b.cell +
+                        '" data-word="' + esc(a.word) + '" aria-label="Keep ' + esc(a.word) + '">' + esc(a.word) +
+                        ' <span class="cc-alt-fit">' + known.filter(Boolean).length + ' of ' + known.length + '</span></button>';
+                }).join('') + '</div>';
+            }
+        } else {
+            body = clueLines(b, maskOf(b)) +
+                '<div class="cc-actions"><button type="button" class="cc-btn" data-act="letter" data-cell="' + b.cell + '">Show a letter</button>' +
+                '<button type="button" class="cc-btn" data-act="word" data-cell="' + b.cell + '">Show word</button></div>';
+        }
+        return '<div class="cc-card' + (start && mode === 'help' ? ' start' : '') + '"><div class="cc-card-head">' + head + '</div>' +
+            body + keepRow(b) + '</div>';
+    }
+
+    function renderResults() {
+        if (!solvable() || !last || !Array.isArray(last.boxes)) {
+            resultsEl.hidden = true;
+            resultsEl.innerHTML = '';
+            return;
+        }
+        resultsEl.hidden = false;
+        resultsEl.classList.toggle('stale', lastSig !== boardSig());
+        const nums = {};
+        boxes().forEach((i, k) => { nums[i] = k + 1; });
+        let html = '';
+        if (Array.isArray(last.unknown) && last.unknown.length) {
+            html += '<p class="cc-note warn">The solver doesn\'t know ' + last.unknown.map(esc).join(', ') +
+                ', so arrows to ' + (last.unknown.length === 1 ? 'it' : 'them') + " don't count. Check the spelling.</p>";
+        }
+        if (last.partial) html += '<p class="cc-note">This board took a while: these are the best answers found in time.</p>';
+        if (last.checked) html += '<p class="cc-note">Boxes marked Checked come from the real game.</p>';
+        const start = last.start;
+        const cards = last.boxes.filter(b => isBox(b.cell));
+        if (mode === 'help' && start && cards.some(b => b.n === start && !kept[b.cell])) {
+            html += '<p class="cc-note">Start with box ' + start + ': it\'s the surest.</p>';
+        }
+        html += cards.map(b => boxCard(b, nums[b.cell] || b.n, b.n === start)).join('');
+        resultsEl.innerHTML = html;
+    }
+
+    resultsEl.addEventListener('click', e => {
+        const copy = e.target.closest('[data-copy]');
+        if (copy) { copyAnswer(copy.dataset.copy); return; }
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const cell = Number(btn.dataset.cell);
+        const b = current(cell);
+        const act = btn.dataset.act;
+        if (act === 'letter' || act === 'word') {
+            if (!b || !b.word) return;
+            reveals[cell] = act === 'word' ? b.word.length : Math.min(b.word.length, shownLetters(b) + 1);
+            persist();
+            renderBoard();
+            renderResults();
+            maybeLog();
+        } else if (act === 'keep') {
+            const input = resultsEl.querySelector('.cc-keep-input[data-cell="' + cell + '"]');
+            const typed = btn.dataset.alt || !input ? '' : input.value.trim();
+            const word = (typed || btn.dataset.word || '').toUpperCase();
+            if (!WORD.test(word)) { toast('Type the word you have, letters only', true); return; }
+            kept[cell] = word;
+            afterEdit();
+        } else if (act === 'start') {
+            const input = resultsEl.querySelector('.cc-keep-input[data-cell="' + cell + '"]');
+            const letters = (input ? input.value.trim() : '').toUpperCase();
+            if (!WORD.test(letters)) { toast('Type the letters the game showed, letters only', true); return; }
+            starts[cell] = letters;
+            afterEdit();
+        } else if (act === 'unstart') {
+            delete starts[cell];
+            afterEdit();
+        } else if (act === 'unkeep') {
+            delete kept[cell];
+            afterEdit();
+        }
+    });
+    // Once a word is typed, Keep keeps that word, not the one the card shows.
+    resultsEl.addEventListener('input', e => {
+        const input = e.target.closest('.cc-keep-input');
+        if (!input) return;
+        const typed = input.value.trim();
+        const btn = resultsEl.querySelector('[data-act="keep"][data-cell="' + input.dataset.cell + '"]:not([data-alt])');
+        if (btn && btn.dataset.word) btn.textContent = typed ? 'Keep' : 'Keep ' + btn.dataset.word;
+        const first = resultsEl.querySelector('[data-act="start"][data-cell="' + input.dataset.cell + '"]');
+        if (first) {
+            first.hidden = !WORD.test(typed);
+            first.textContent = 'Or: it starts with ' + typed.toUpperCase();
+        }
+    });
+    resultsEl.addEventListener('keydown', e => {
+        const input = e.target.closest('.cc-keep-input');
+        if (input && e.key === 'Enter') {
+            e.preventDefault();
+            const btn = resultsEl.querySelector('[data-act="keep"][data-cell="' + input.dataset.cell + '"]:not([data-alt])');
+            if (btn) btn.click();
+        }
+    });
+
+    async function copyAnswer(text) {
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+        } catch (_) {
+            const box = document.createElement('textarea');
+            box.value = text;
+            box.setAttribute('readonly', '');
+            box.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+            document.body.appendChild(box);
+            box.select();
+            box.setSelectionRange(0, text.length);
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            box.remove();
+        }
+        toast(ok ? 'Copied ' + text + ' - paste it into the game' : "Couldn't copy here - type " + text + ' into the game', !ok);
+        maybeLog();
+    }
+
+    /* ---------- Help or Solve ---------- */
+    function setMode(m) {
+        mode = m === 'solve' ? 'solve' : 'help';
+        if (!APPROVE) { try { localStorage.setItem(MODE_KEY, mode); } catch (_) {} }
+        modesEl.querySelectorAll('.cc-mode').forEach(btn => {
+            const on = btn.dataset.mode === mode;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        renderBoard();
+        renderResults();
+        if (last) gaOnce(mode === 'help' ? 'circuits_help' : 'circuits_solve');
+        if (mode === 'solve') maybeLog();
+    }
+    modesEl.querySelectorAll('.cc-mode').forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+
+    /* ---------- today's boards ---------- */
+    // routes/circuits.py: boards other players entered today (and any James
+    // approved), once they agree. More than one can be real on a day, so each
+    // is offered as a small grid: the player picks theirs. Players are never
+    // told how boards are chosen.
+    const sharedOne = document.getElementById('cc-shared-one');
+    const sharedMany = document.getElementById('cc-shared-many');
+    const sharedPicks = document.getElementById('cc-shared-picks');
+    const isBoard = b => b && isShape(b.rows, b.cols) && Array.isArray(b.cells) && b.cells.length === b.rows * b.cols &&
+        b.cells.every(c => typeof c === 'string' && (c === '' || c === BOX || TILE.test(c))) &&
+        b.cells.includes(BOX) && Array.isArray(b.arrows);
+
+    function postJSON(payload) {
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) throw new Error('request failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    function fetchShared() {
+        if (!BOARDS_ON) return;
+        postJSON({action: 'todays_boards'})
+            .then(data => {
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+                renderShared();
+            })
+            .catch(() => {});
+    }
+
+    function renderShared() {
+        if (!sharedEl) return;
+        const show = sharedBoards.length > 0 && !cells.some(c => c);
+        sharedEl.hidden = !show;
+        if (!show) return;
+        sharedOne.hidden = sharedBoards.length > 1;
+        sharedMany.hidden = !sharedOne.hidden;
+        sharedPicks.replaceChildren(...sharedBoards.map((b, k) => {
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'cc-shared-pick';
+            pick.dataset.pick = String(k);
+            pick.setAttribute('aria-label', 'Load the board with ' + b.cells.filter(c => c && c !== BOX).join(', '));
+            const mini = document.createElement('span');
+            mini.className = 'cc-mini c' + b.cols;
+            mini.style.setProperty('--cols', String(b.cols));
+            mini.setAttribute('aria-hidden', 'true');
+            let n = 0;
+            // Down to its last row with something in it.
+            const lastRow = Math.floor(b.cells.reduce((m, c, i) => (c ? i : m), 0) / b.cols);
+            b.cells.slice(0, (lastRow + 1) * b.cols).forEach(c => {
+                const s = document.createElement('span');
+                if (c === BOX) { s.className = 'b'; s.textContent = String(++n); }
+                else if (c) { s.className = 't'; s.textContent = c; }
+                mini.appendChild(s);
+            });
+            const side = document.createElement('span');
+            side.className = 'cc-shared-side';
+            const label = document.createElement('span');
+            label.className = 'cc-shared-btn';
+            label.textContent = 'Load this board';
+            side.appendChild(label);
+            if (Array.isArray(b.sites) && b.sites.length) {
+                const site = document.createElement('span');
+                site.className = 'cc-shared-site';
+                site.textContent = b.sites.filter(s => typeof s === 'string').join(' and ');
+                side.appendChild(site);
+            }
+            pick.append(mini, side);
+            return pick;
+        }));
+    }
+
+    if (sharedPicks) sharedPicks.addEventListener('click', e => {
+        const pick = e.target.closest('[data-pick]');
+        const b = pick && sharedBoards[Number(pick.dataset.pick)];
+        if (!b) return;
+        setShape(b.rows, b.cols);
+        cells = b.cells.slice();
+        setArrows(b.arrows);
+        kept = {};
+        starts = {};
+        reveals = {};
+        boardSource = 'shared';
+        arrowsTouched = false;
+        sharedBoards = [];
+        selected = -1;
+        editInput.value = '';
+        gaOnce('circuits_board_loaded');
+        afterEdit();
+        renderHint("Loaded today's board, entered by other players. Check it matches your game.");
+        schedule(0);
+    });
+
+    /* ---------- logging ---------- */
+    // A finished board the player uses (a reveal, a copy, a kept word, Solve,
+    // or a few seconds of looking) is logged once per version, with the words
+    // they keep. A board loaded from today's boards and left as it is never
+    // counts toward a board (routes/circuits.py), so it can't confirm itself;
+    // it's sent only to keep their words. Nothing in here may stop the page.
+    function maybeLog() {
+        try {
+            if (!LOG_BOARDS || !complete() || !last || lastSig !== boardSig()) return;
+            const source = boardSource === 'shared' ? 'loaded' : boardSource;
+            if (source === 'loaded' && !Object.keys(kept).length) return;
+            const sig = gameDay() + '|' + logSig() + '|' + source;
+            if (sig === loggedSig) return;
+            loggedSig = sig;
+            persist();
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', rows: ROWS, cols: COLS, cells, arrows, source, entered: kept})
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // Players switch to the game and back: log on the way out, and ask for
+    // today's boards again on the way back (more may be in by then).
+    let sharedAt = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') maybeLog();
+        else if (Date.now() - sharedAt > 60000 && !cells.some(c => c)) { sharedAt = Date.now(); fetchShared(); }
+    });
+
+    /* ---------- GA4 ---------- */
+    // circuits_help / circuits_solve when results first show in that mode,
+    // circuits_board_loaded the first time a today's board is loaded: each
+    // at most once per page load.
+    const gaSent = new Set();
+    function gaOnce(name) {
+        if (APPROVE || gaSent.has(name) || typeof gtag !== 'function') return;
+        gaSent.add(name);
+        if (document.readyState === 'complete') gtag('event', name);
+        else window.addEventListener('load', () => gtag('event', name));
+    }
+
+    {% if approve %}
+    /* ---------- approve ---------- */
+    // One answer box per box, filled with the solver's pick (or the answers
+    // already saved) until James types his own. Approve is ready once the
+    // board is finished: a box, and every tile on an arrow.
+    const approveForm = document.getElementById('cc-approve');
+    const approveAnswers = document.getElementById('cc-approve-answers');
+    const approveStatus = document.getElementById('cc-approve-status');
+    const PRELOAD = {{ preload | tojson }};
+    // Set when Approve is pressed; the admin page drops the draft once the
+    // approval worked (templates/circuits_admin.html), and keeps it if not.
+    const APPROVE_PENDING = 'circuitsApprovePending_v1';
+
+    function renderApprove() {
+        const list = boxes();
+        const rows = list.map((cell, k) => {
+            const b = current(cell);
+            const typed = approveWords[cell];
+            const value = typed !== undefined ? typed
+                : (savedAnswers && savedAnswers[cell]) || (b && b.word) || '';
+            return '<label for="cc-ans-' + cell + '">Box ' + (k + 1) + '</label>' +
+                '<input type="text" class="cc-approve-word" id="cc-ans-' + cell + '" data-cell="' + cell +
+                '" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(value) + '">';
+        });
+        const focused = document.activeElement && document.activeElement.classList.contains('cc-approve-word')
+            ? document.activeElement.dataset.cell : null;
+        approveAnswers.innerHTML = rows.join('');
+        if (focused !== null) {
+            const again = approveAnswers.querySelector('[data-cell="' + focused + '"]');
+            if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+        }
+        const ready = complete() && badTile() < 0;
+        approveStatus.textContent = !cells.includes(BOX) ? 'Mark the boxes first.'
+            : !ready ? 'Every tile needs an arrow to a box.' : 'Ready: ' + arrows.length + ' arrows, ' + list.length + ' boxes.';
+        approveForm.querySelectorAll('.cc-approve-btn').forEach(btn => { btn.disabled = !ready; });
+    }
+    approveAnswers.addEventListener('input', e => {
+        const input = e.target.closest('.cc-approve-word');
+        if (!input) return;
+        const clean = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 24);
+        if (clean !== input.value) input.value = clean;
+        approveWords[Number(input.dataset.cell)] = clean;
+    });
+    approveForm.addEventListener('submit', e => {
+        const site = e.submitter ? e.submitter.textContent.replace('Approve for ', '') : 'this site';
+        const day = document.getElementById('cc-approve-date').value;
+        if (!complete() || !confirm('Serve this board for ' + site + ' on ' + day + '?')) {
+            e.preventDefault();
+            return;
+        }
+        const answers = boxes().map(cell => (approveAnswers.querySelector('[data-cell="' + cell + '"]') || {}).value || '');
+        document.getElementById('cc-approve-cells').value = JSON.stringify(cells);
+        document.getElementById('cc-approve-shape').value = ROWS + 'x' + COLS;
+        document.getElementById('cc-approve-arrows').value = arrows.map(([a, b]) => pairKey(a, b)).join(',');
+        document.getElementById('cc-approve-answers-json').value = JSON.stringify(answers);
+        // The draft stays until the approval works: the admin page drops it
+        // then, so the next board starts empty (the Yahoo one, say).
+        persist();
+        try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
+    });
+
+    // A board clicked on the Today's Boards tab (routes/circuits.py
+    // editor_board): it replaces the draft, to check, fix and approve.
+    function preloaded() {
+        if (!PRELOAD || !isShape(PRELOAD.rows, PRELOAD.cols) || !Array.isArray(PRELOAD.cells)
+            || PRELOAD.cells.length !== PRELOAD.rows * PRELOAD.cols) return false;
+        setShape(PRELOAD.rows, PRELOAD.cols);
+        cells = PRELOAD.cells.map(c => (typeof c === 'string' ? c : ''));
+        setArrows(PRELOAD.arrows);
+        // The saved answers come a word per box in reading order: each goes
+        // with its box's cell, so editing boxes never moves it to another.
+        savedAnswers = null;
+        if (Array.isArray(PRELOAD.answers)) {
+            savedAnswers = {};
+            boxes().forEach((cell, k) => {
+                const w = PRELOAD.answers[k];
+                if (typeof w === 'string' && WORD.test(w)) savedAnswers[cell] = w.toUpperCase();
+            });
+        }
+        boardSource = 'shared';
+        selected = -1;
+        afterEdit();
+        renderHint('Loaded from Today\'s Boards: ' + PRELOAD.note + '. Check it against your game, then approve it.');
+        try {
+            const url = new URL(location.href);
+            url.searchParams.delete('key');
+            history.replaceState(null, '', url.pathname + url.search);
+        } catch (_) {}
+        return true;
+    }
+    {% else %}
+    function renderApprove() {}
+    function preloaded() { return false; }
+    {% endif %}
+
+    /* ---------- saving ---------- */
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                rows: ROWS, cols: COLS, cells, arrows, cut: [...cut], kept, starts, reveals, boardSource, loggedSig, arrowsTouched,
+                approveWords, savedAnswers, day: gameDay(), savedAt: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    // A board saved on an earlier Puzzmo day is a finished puzzle: start fresh.
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.cells)) return false;
+        const shape = isShape(s.rows, s.cols) ? [s.rows, s.cols] : [SHAPES[0][0], SHAPES[0][1]];
+        if (s.cells.length !== shape[0] * shape[1]) return false;
+        if (s.day !== gameDay()) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.cells.some(c => c)) toast("Cleared yesterday's board - enter today's");
+            return false;
+        }
+        // Anything stored is checked before use: a bad value would stick.
+        setShape(shape[0], shape[1]);
+        cells = s.cells.map(c => (typeof c === 'string' && c.length <= MAX_CELL && /^[A-Z '\-?]*$/.test(c) ? c : ''));
+        arrows = cleanArrows(s.arrows).filter(([a, b]) => allowed(a, b));
+        cut = new Set((Array.isArray(s.cut) ? s.cut : []).filter(k => typeof k === 'string' && /^\d{1,2}-\d{1,2}$/.test(k)));
+        kept = {};
+        if (s.kept && typeof s.kept === 'object') {
+            Object.entries(s.kept).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && WORD.test(v)) kept[Number(k)] = v.toUpperCase(); });
+        }
+        starts = {};
+        if (s.starts && typeof s.starts === 'object') {
+            Object.entries(s.starts).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && WORD.test(v)) starts[Number(k)] = v.toUpperCase(); });
+        }
+        reveals = {};
+        if (s.reveals && typeof s.reveals === 'object') {
+            Object.entries(s.reveals).forEach(([k, v]) => { if (isBox(Number(k)) && Number.isInteger(v) && v > 0 && v <= 24) reveals[Number(k)] = v; });
+        }
+        // A typed answer may be '' on purpose (cleared): it stays ''.
+        approveWords = {};
+        if (s.approveWords && typeof s.approveWords === 'object') {
+            Object.entries(s.approveWords).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && /^[A-Z]{0,24}$/.test(v)) approveWords[Number(k)] = v; });
+        }
+        savedAnswers = null;
+        if (s.savedAnswers && typeof s.savedAnswers === 'object') {
+            savedAnswers = {};
+            Object.entries(s.savedAnswers).forEach(([k, v]) => { if (isBox(Number(k)) && typeof v === 'string' && WORD.test(v)) savedAnswers[Number(k)] = v.toUpperCase(); });
+        }
+        boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 4000) : '';
+        arrowsTouched = s.arrowsTouched === true;
+        return true;
+    }
+
+    function clearBoard(ask) {
+        if (ask && cells.some(c => c) && !confirm('Clear the whole board and start over?')) return;
+        cells = Array(N).fill('');
+        arrows = []; cut = new Set(); kept = {}; starts = {}; reveals = {};
+        boardSource = 'typed'; loggedSig = ''; arrowsTouched = false;
+        last = null; lastSig = ''; approveWords = {}; savedAnswers = null;
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        selectCell(0, true);
+        afterEdit();
+        fetchShared();
+    }
+    document.getElementById('cc-clear').addEventListener('click', () => clearBoard(true));
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'cc-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('circuitsInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('circuitsInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- the Play link ---------- */
+    // Today's puzzle in Puzzmo's own calendar, as /ribbit dates its link.
+    document.querySelectorAll('.puzzmo-circuits-link').forEach(a => {
+        a.href = 'https://www.puzzmo.com/puzzle/' + gameDay() + '/circuits';
+    });
+
+    /* ---------- boot ---------- */
+    if (APPROVE) {
+        mode = 'solve';
+    } else {
+        try { const m = localStorage.getItem(MODE_KEY); if (m === 'solve' || m === 'help') mode = m; } catch (_) {}
+    }
+    setMode(mode);
+    // Cell text is fitted to the cells: again once the web font is in, and
+    // when the page changes width.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitCells).catch(() => {});
+    window.addEventListener('resize', fitCells);
+    try {
+        const m = /^(\d)x(\d)$/.exec(localStorage.getItem(SHAPE_KEY) || '');
+        if (m) setShape(Number(m[1]), Number(m[2]));
+    } catch (_) {}
+    if (!preloaded()) {
+        restore();
+        // An empty board starts on square 1 (with the keyboard up where there's
+        // a mouse); a board brought back starts with none selected.
+        const empty = !cells.some(c => c);
+        selectCell(empty ? 0 : -1, empty && window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+        afterEdit();
+        schedule(0);
+    }
+    if (!cells.some(c => c)) { sharedAt = Date.now(); fetchShared(); }
+});
+</script>
+
+{% endblock %}

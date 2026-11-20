@@ -511,6 +511,20 @@ li { margin-bottom: 10px; }
 }
 .jj-more-tile .jj-more-tag { position: absolute; top: -8px; right: 10px; }
 .jj-more-new { background: #ffd700; color: #02484d; }
+/* Beta (helpers.BETA_PAGES): on the solver links, the menu and a page's own
+   heading, until James takes it off. Outlined, so it never reads as NEW. */
+.jj-more-beta, .jj-beta-tag { background: #eef4f4; color: #02484d; border: 1px solid #4f9a97; }
+.jj-beta-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+    vertical-align: 2px;
+}
+.jj-overlay-link .jj-beta-tag { margin-left: 6px; }
 .jj-more-old { background: #6b7280; color: #fff; }
 .jj-more-also {
     margin: 12px 0 0;
@@ -588,6 +602,7 @@ li { margin-bottom: 10px; }
           <a class="jj-overlay-link" href="/ribbit">Ribbit Solver</a>
           <a class="jj-overlay-link" href="/guess_the_phrase">Guess The Phrase Solver</a>
           <a class="jj-overlay-link" href="/chainle">Chainle Solver</a>
+          <a class="jj-overlay-link" href="/circuits">Circuits Solver{% if is_beta('/circuits') %}<span class="jj-beta-tag">Beta</span>{% endif %}</a>
           <a class="jj-overlay-link" href="/wordiply">Wordiply Solver</a>
           <a class="jj-overlay-link" href="/fixer">Last Letter Helper</a>
         </div>
