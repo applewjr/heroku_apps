@@ -184,7 +184,7 @@ def _brute(kind, trio, solved):
         is_group = trio in groups
         open_groups = [g for g in groups if g not in solved]
         two = any(len(g & trio) == 2 for g in open_groups)
-        out.append({'group': is_group, 'no': not is_group,
+        out.append({'group': is_group, 'no': not is_group, 'missed': not is_group,
                     'one_away': not is_group and two,
                     'not_close': not is_group and not any(len(g & trio) >= 2 for g in open_groups)}[kind])
     return np.array(out)
@@ -196,7 +196,7 @@ def test_what_each_mark_allows_matches_the_rules():
         trio = frozenset(rng.sample(range(9), 3))
         solved_groups = [frozenset(rng.sample(range(9), 3)) for _ in range(rng.choice((0, 1, 2)))]
         solved = frozenset(fbt.mask_of(g) for g in solved_groups)
-        for kind in ('group', 'no', 'one_away', 'not_close'):
+        for kind in ('group', 'no', 'missed', 'one_away', 'not_close'):
             assert (fbt._fits(kind, fbt.mask_of(trio), solved) == _brute(kind, trio, set(solved_groups))).all(), kind
     for hub in range(9):
         assert (fbt._fits('hub', 1 << hub) == _brute('hub', hub, set())).all()
@@ -224,6 +224,17 @@ def test_one_away_on_a_group_with_the_hub_keeps_the_hub(words):
     signals = _signals(words)
     result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=[(_at(signals, (HUB, 'ANT', 'CAT')), 'one_away')])
     assert result['hub']['tile'] == HUB and _groups(result) == TRUTH
+
+
+def test_not_sure_which_only_says_it_missed(words):
+    signals = _signals(words)
+    # Not a group, and nothing more: the hub can still be among the three
+    # (where Not even close would rule it out).
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=[(_at(signals, (HUB, 'ANT', 'CAT')), 'missed')])
+    assert result['hub']['tile'] == HUB and _groups(result) == TRUTH and result['dropped'] == []
+    # A true group said to have missed is left out of the answer.
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=[(_at(signals, (HUB, 'ANT', 'BEE')), 'missed')])
+    assert frozenset((HUB, 'ANT', 'BEE')) not in _groups(result)
 
 
 def test_a_mark_that_contradicts_the_ones_before_is_left_out(words):

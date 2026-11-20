@@ -51,7 +51,7 @@
       "name": "What do I do after I try a guess in the game?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words."
+        "text": "Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words."
       }
     },
     {% if boards_on %}
@@ -363,7 +363,8 @@
         four groups. Each group says how sure the solver is: sure, likely or a guess.
         <br><br>
         <strong>3. Tell it what the game said.</strong> After you try a guess in 4x3, tap the same three words
-        on the board here and pick what the game said: Right, One away or Not even close. If you called the
+        on the board here and pick what the game said: Right, One away or Not even close (or Not sure which,
+        if you didn't catch it). If you called the
         hub and it was right, tap the hub alone. The solver keeps everything you mark and works out the rest
         again, and your marks help other players with the same board.
     </div>
@@ -458,7 +459,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What do I do after I try a guess in the game?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -523,7 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const LABELS = {checked: 'Checked', players: 'Confirmed by players', yours: 'You got it',
                     left: 'Left over', sure: 'Sure', likely: 'Likely', guess: 'Guess'};
     const HUB_LABELS = Object.assign({}, LABELS, {yours: 'From your marks'});
-    const SAID = {right: 'Right', one_away: 'One away', not_close: 'Not even close', hub: 'The hub, called right'};
+    const SAID = {right: 'Right', one_away: 'One away', not_close: 'Not even close', missed: 'Missed',
+                  hub: 'The hub, called right'};
+    // A miss the player didn't catch the wording of is 'missed': the solver
+    // learns only that the three aren't a group.
+    const MISSES = ['one_away', 'not_close', 'missed'];
 
     /* ---------- state ---------- */
     let tiles = Array(TILES).fill('');   // the boxes, upper case
@@ -813,7 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
             html = '<span class="fbt-markbar-q">What did 4x3 say about ' + esc(picked.join(', ')) + '?</span>' +
                 '<button type="button" class="fbt-btn primary" data-said="right">&#10003; Right</button>' +
                 '<button type="button" class="fbt-btn miss" data-said="one_away">&#10007; One away</button>' +
-                '<button type="button" class="fbt-btn miss" data-said="not_close">&#10007; Not even close</button>';
+                '<button type="button" class="fbt-btn miss" data-said="not_close">&#10007; Not even close</button>' +
+                '<button type="button" class="fbt-btn miss" data-said="missed">&#10007; Not sure which</button>';
         }
         html += '<button type="button" class="fbt-btn" data-said="clear">Clear</button>';
         markbarEl.innerHTML = html;
@@ -861,11 +867,11 @@ document.addEventListener('DOMContentLoaded', () => {
         marksEl.hidden = !live.length || !ready();
         if (marksEl.hidden) { marksEl.innerHTML = ''; return; }
         const dropped = new Set(last && lastSig === sigOf() && Array.isArray(last.dropped) ? last.dropped : []);
-        const misses = live.filter(m => m.verdict === 'one_away' || m.verdict === 'not_close').length;
+        const misses = live.filter(m => MISSES.includes(m.verdict)).length;
         let html = '<p class="fbt-marks-title">Your guesses <span class="fbt-legend">(' +
             (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; 3 end the game unless you called the hub)</span></p>';
         live.forEach((m, n) => {
-            const isMiss = m.verdict === 'one_away' || m.verdict === 'not_close';
+            const isMiss = MISSES.includes(m.verdict);
             const cls = dropped.has(n) ? 'dropped' : isMiss ? 'miss' : 'right';
             html += '<div class="fbt-mark-row"><span class="fbt-mark-words">' + esc(m.tiles.join(' + ')) + '</span>' +
                 '<span class="fbt-mark-said ' + cls + '">' + esc(SAID[m.verdict]) + (dropped.has(n) ? ', left out' : '') + '</span>' +
@@ -1069,8 +1075,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* A miss asks which one, as the game words it: "One away" and "Not even
-       close" tell the solver different things. The question opens under the
-       buttons; any re-render drops it. */
+       close" tell the solver different things, and "Not sure which" only
+       that it missed. The question opens under the buttons; any re-render
+       drops it. */
     function askMissed(btn, group) {
         const open = resultsEl.querySelector('.miss-confirm');
         if (open) open.remove();
@@ -1081,6 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<span class="miss-confirm-q">What did 4x3 say?</span>' +
             '<button type="button" class="fbt-btn miss" data-miss="one_away">One away</button>' +
             '<button type="button" class="fbt-btn miss" data-miss="not_close">Not even close</button>' +
+            '<button type="button" class="fbt-btn miss" data-miss="missed">Not sure which</button>' +
             '<button type="button" class="fbt-btn" data-miss="cancel">Cancel</button></div>');
         const strip = where.nextElementSibling;
         strip.addEventListener('click', e => {

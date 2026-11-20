@@ -207,7 +207,7 @@ def solver_version(weights):
 # this leaves room for a few undone and redone.
 MAX_MARKS = 12
 # What a mark is called in a request, and in the table (marks column).
-_VERDICT_CODES = {'right': 'r', 'one_away': 'a', 'not_close': 'n', 'hub': 'h'}
+_VERDICT_CODES = {'right': 'r', 'one_away': 'a', 'not_close': 'n', 'missed': 'm', 'hub': 'h'}
 _CODE_VERDICTS = {v: k for k, v in _VERDICT_CODES.items()}
 # A category name James types.
 NAME_MAX = 60

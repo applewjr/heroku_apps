@@ -344,6 +344,19 @@ def test_more_misses_refuse_a_group_and_a_tie_settles_nothing(client, boards):
     assert _label(tied, 'CLUB') != 'players'
 
 
+def test_not_sure_which_is_kept_and_counts_as_a_miss(client, boards):
+    import routes.four_by_three as rt
+    missed = (('BAT', 'CLUB', 'RACKET'), 'missed')
+    # The player's own: the solver leaves that group out.
+    assert {'BAT', 'CLUB', 'RACKET'} not in [set(g['tiles']) for g in _solve(client, marks=[missed])['groups']]
+    for n in (1, 2, 3):
+        _mark(client, n, [missed])
+    assert json.loads(boards.mine()[0][7]) == [['BAT|CLUB|RACKET', 'm']]
+    assert rt.mark_counts(boards.with_key(_key()))[frozenset(('BAT', 'CLUB', 'RACKET'))] == [0, 3]
+    # Enough players' misses refuse it for everyone, as One away and Not even close do.
+    assert {'BAT', 'CLUB', 'RACKET'} not in [set(g['tiles']) for g in _solve(client)['groups']]
+
+
 def test_a_players_latest_marks_are_the_ones_that_count(client, boards):
     for n in (1, 2, 3):
         _mark(client, n, [RIGHT])

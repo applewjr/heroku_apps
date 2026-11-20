@@ -84,10 +84,12 @@ THEME_MIN = 0.4
 #   right      4x3 took the three words: a group
 #   one_away   "One away!": some group not yet solved holds two of them
 #   not_close  "Not even close": no group not yet solved holds two of them
+#   missed     one of those two, the player isn't sure which (didn't see it,
+#              or doesn't remember): only that the three aren't a group
 #   hub        one word: the player called it the hub, and it was
-# 'no' (a group players say the game refused, with no more said) is the
-# route's, never a player's.
-MARK_VERDICTS = ('right', 'one_away', 'not_close', 'hub')
+# 'no' (a group players say the game refused) says what 'missed' does, and
+# is the route's, never a player's.
+MARK_VERDICTS = ('right', 'one_away', 'not_close', 'missed', 'hub')
 # Labels, in the order the page lists groups.
 LABELS = ('checked', 'players', 'yours', 'left', 'sure', 'likely', 'guess')
 
@@ -337,7 +339,7 @@ def _fits(kind, mask, solved=()):
     """Which of the 945 answers a constraint allows."""
     if kind == 'group':
         return _is_group(mask)
-    if kind == 'no':
+    if kind in ('no', 'missed'):
         return ~_is_group(mask)
     if kind == 'hub':
         return ANSWER_HUB == mask.bit_length() - 1
