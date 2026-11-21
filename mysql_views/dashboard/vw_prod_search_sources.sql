@@ -22,7 +22,7 @@ WITH visits AS (
     WHERE submit_time >= pst_now() - INTERVAL 14 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                           'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                          'circuits.html', 'typeshift.html')
+                          'circuits.html', 'typeshift.html', 'four_by_three.html')
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
         AND referrer NOT LIKE '%apple-apps-staging%'

@@ -1,0 +1,1610 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if approve %}Approve your 4x3 board{% else %}4x3 Answers & Hints - Solver for Hank Green's Daily 4x3 Puzzle{% endif %}{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Stuck on today's 4x3? Type the nine words and get hints for the hub and the four groups, or the answer, with how sure the solver is of each.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/4x3">
+<meta name="keywords" content="4x3 answers, 4x3 hints, 4x3 today, hank green 4x3, four by three puzzle, 4x3 hub, 4x3 solver">
+<meta property="og:title" content="4x3 Answers & Hints - Solver for Hank Green's Daily 4x3 Puzzle">
+<meta property="og:description" content="Type the nine words of today's 4x3 and get spoiler-free hints for the hub and the four groups, or the answer.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/4x3">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+{% if not approve %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is 4x3?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "4x3 is Hank Green's daily word puzzle. Nine words sit on a three by three grid. One of them, the hub, belongs to all four categories, and each of the other eight belongs to one, so every category is the hub and two more words. Find the three words of a category to solve it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does this solver help without spoiling the puzzle?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How sure is the solver?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Each group says how sure it is: sure, likely or a guess. Categories about what words mean are its strong side. Trivia and wordplay it often can't know, so treat a guess as a guess. Checked means the day's answer was entered by hand on this site, and confirmed by players means other players marked the group right after the game took it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do I do after I try a guess in the game?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words."
+      }
+    },
+    {% if boards_on %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type the words in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty boxes: tap it and the words fill in. Check it matches your game."
+      }
+    },
+    {% endif %}
+    {
+      "@type": "Question",
+      "name": "When does a new 4x3 puzzle come out?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "At midnight where you are. The game picks the puzzle by your device's date, so players in different time zones get each day's puzzle at their own midnight."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work for older puzzles?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The solver only needs the nine words you type, so it works for today's puzzle, for past ones and for puzzles friends share."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "About this tool",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is an unofficial helper for 4x3, provided for assistance and entertainment purposes only. It is not affiliated with or endorsed by Hank Green. It never connects to the game: its word data comes from public sources, listed under Data sources and licences below."
+      }
+    }
+  ]
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- intro ---------- */
+.fbt-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.fbt-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
+.fbt-notice {
+    max-width: 560px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px;
+    background-color: #fbf0f0; border: 1px solid #ecd3d3; color: #a55; font-size: 14px;
+}
+.fbt-h1 { text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2; }
+.fbt-h1 .jj-beta-tag { font-size: 0.4em; vertical-align: 0.6em; }
+
+/* ---------- mode pills (as on /typeshift) ---------- */
+.fbt-modes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px auto 0; padding: 0 12px; }
+.fbt-modes[hidden] { display: none; }
+.fbt-modes-label { font-size: 13px; color: #6b7280; margin-right: 2px; }
+.fbt-mode {
+    background-color: #fff; border: 1px solid #cdd8d7; border-radius: 999px; color: #02484d;
+    font-family: inherit; font-size: 14px; font-weight: 600; padding: 7px 16px; min-height: 40px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.fbt-mode.active { background-color: #02484d; border-color: #02484d; color: #fff; }
+
+/* ---------- today's boards ---------- */
+.fbt-shared {
+    box-sizing: border-box; width: min(92vw, 440px); margin: 12px auto 0; padding: 12px 14px;
+    background-color: #fffbe6; border: 1px solid #f0d97a; border-radius: 10px; text-align: center;
+}
+.fbt-shared[hidden] { display: none; }
+.fbt-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; margin: 0 0 10px; }
+.fbt-shared-text[hidden] { display: none; }
+.fbt-shared-picks { display: flex; flex-direction: column; gap: 10px; }
+.fbt-shared-pick {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px;
+    width: 100%; box-sizing: border-box; padding: 10px 12px; background-color: #fff;
+    border: 2px solid #02484d; border-radius: 10px; font-family: inherit; cursor: pointer;
+}
+.fbt-shared-pick:hover, .fbt-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+.fbt-mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; width: min(230px, 60vw); }
+.fbt-mini span {
+    display: flex; align-items: center; justify-content: center; min-height: 20px; padding: 1px 3px;
+    border-radius: 4px; background-color: #02484d; color: #fff; font-size: 10px; font-weight: 700;
+    line-height: 1.1; overflow-wrap: anywhere; text-align: center;
+}
+.fbt-shared-btn {
+    background-color: #02484d; border-radius: 8px; color: #fff; font-size: 15px; font-weight: 600;
+    padding: 10px 14px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center;
+}
+
+/* ---------- the nine boxes (the editor) ---------- */
+.fbt-editor { box-sizing: border-box; width: min(92vw, 460px); margin: 14px auto 0; }
+.fbt-editor-label { font-size: 13px; color: #374151; margin: 0 0 8px; line-height: 1.4; }
+.fbt-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* Two classes, to beat base.html's input[type=text] padding. */
+.fbt-editor .fbt-input {
+    width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; margin: 0; padding: 6px 6px;
+    border: 2px solid #02484d; border-radius: 8px; background-color: #fff; color: #1f2937;
+    font-family: inherit; font-size: 16px;   /* 16px+ keeps iOS from zooming on focus */
+    font-weight: 700; text-align: center; text-transform: uppercase;
+}
+.fbt-editor .fbt-input::placeholder { text-transform: none; font-weight: 400; color: #9ca3af; font-size: 13px; }
+.fbt-editor .fbt-input:focus { outline: none; border-color: #02484d; box-shadow: 0 0 0 3px #ffd700; }
+.fbt-editor .fbt-input.empty { border-style: dashed; border-color: #9cc3c1; background-color: #f9fbfb; }
+.fbt-editor .fbt-input.empty:focus { border-style: solid; border-color: #02484d; background-color: #fff; }
+.fbt-editor .fbt-input.twice { border-color: #e55555; }
+
+/* ---------- the board ---------- */
+.fbt-editor[hidden] { display: none; }
+.fbt-board-wrap { box-sizing: border-box; width: min(92vw, 460px); margin: 14px auto 0; }
+.fbt-board-wrap[hidden] { display: none; }
+.fbt-board-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.fbt-board-tip { flex: 1 1 auto; font-size: 13px; color: #6b7280; margin: 0; line-height: 1.4; text-align: left; }
+.fbt-edit { flex: 0 0 auto; min-height: 40px; padding: 6px 12px; font-size: 13px; }
+.fbt-edit[hidden] { display: none; }
+.fbt-board {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+    box-sizing: border-box; padding: 10px; background-color: #f4f8f8;
+    border: 2px solid #cfe0e0; border-radius: 14px;
+}
+.fbt-tile {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    min-height: 54px; box-sizing: border-box; padding: 6px 4px; margin: 0;
+    border: 2px solid #02484d; border-radius: 8px; background-color: #fff; color: #02484d;
+    font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.15; text-align: center;
+    overflow-wrap: anywhere; cursor: pointer; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.15);
+    -webkit-tap-highlight-color: transparent;
+}
+.fbt-tile.done { background-color: #02484d; color: #fff; }
+.fbt-tile.hub { background-color: #ffd700; border-color: #e0a800; color: #02484d; }
+.fbt-tile.picked { box-shadow: 0 0 0 4px #ffd700; }
+.fbt-tile.done.picked { box-shadow: 0 0 0 4px #ffd700; }
+.fbt-tile.unknown { border-style: dashed; }
+.fbt-tile:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+
+/* What the game said about the tiles picked. */
+.fbt-markbar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px;
+    margin: 10px 0 0; padding: 10px; border: 1px dashed #4f9a97; border-radius: 10px; background-color: #fff;
+}
+.fbt-markbar[hidden] { display: none; }
+.fbt-markbar-q { width: 100%; font-size: 13px; font-weight: 600; color: #374151; text-align: center; }
+.fbt-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 460px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
+.fbt-hint.warn { color: #a55; }
+
+/* The player's own guesses. */
+.fbt-marks { box-sizing: border-box; width: min(92vw, 460px); margin: 10px auto 0; text-align: left; }
+.fbt-marks[hidden] { display: none; }
+.fbt-marks-title { font-size: 13px; font-weight: 700; color: #02484d; margin: 0 0 6px; }
+.fbt-marks-title .fbt-legend { font-weight: 400; color: #6b7280; }
+.fbt-mark-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 6px;
+    padding: 6px 8px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa; font-size: 14px;
+}
+.fbt-mark-words { font-weight: 700; color: #02484d; overflow-wrap: anywhere; }
+.fbt-mark-said { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.fbt-mark-said.right { color: #fff; background-color: #02484d; }
+.fbt-mark-said.miss { color: #a55; border: 1px solid #ecd3d3; background-color: #fbf0f0; }
+.fbt-mark-said.dropped { color: #6b7280; border: 1px dashed #cdd8d7; }
+.fbt-mark-undo {
+    margin-left: auto; min-width: 40px; min-height: 34px; padding: 0 10px; border: 1px solid #cdd8d7;
+    border-radius: 8px; background-color: #fff; color: #02484d; font-family: inherit; font-size: 13px;
+    font-weight: 600; cursor: pointer;
+}
+
+/* ---------- results ---------- */
+.fbt-results { max-width: 600px; margin: 6px auto 0; text-align: left; }
+.fbt-results[hidden] { display: none; }
+.fbt-results.stale { opacity: 0.55; }
+.fbt-summary { font-size: 15px; font-weight: 600; color: #02484d; margin: 12px 12px 0; line-height: 1.5; text-align: center; }
+.fbt-note { font-size: 13px; color: #374151; margin: 8px 12px 0; line-height: 1.5; text-align: center; }
+.fbt-note.warn { color: #a55; }
+.fbt-card { margin: 12px 12px; padding: 12px 14px; border: 1px solid #f0d97a; border-radius: 8px; background-color: #fffdf3; }
+.fbt-card.known { border-color: #9cc3c1; background-color: #f4f8f8; }
+.fbt-card-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 15px; font-weight: 700; color: #02484d; margin: 0; }
+.fbt-big { font-size: 20px; font-weight: 700; color: #02484d; margin: 8px 0 0; overflow-wrap: anywhere; }
+.fbt-line { font-size: 14px; color: #374151; margin: 8px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+.fbt-line strong { color: #02484d; }
+.fbt-caution { font-size: 12px; color: #a55; margin: 6px 0 0; }
+.fbt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fbt-btn {
+    background-color: #fff; border: 1px solid #cdd8d7; border-radius: 8px; color: #02484d;
+    font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; min-height: 44px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.15s ease;
+}
+.fbt-btn:hover { background-color: #eef4f4; }
+.fbt-btn.primary { background-color: #02484d; border-color: #02484d; color: #fff; }
+.fbt-btn.primary:hover { background-color: #03595f; }
+.fbt-btn.miss { color: #a55; }
+.fbt-btn:disabled, .fbt-btn:disabled:hover { background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+.fbt-label { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.fbt-label.checked, .fbt-label.players, .fbt-label.yours { color: #fff; background-color: #02484d; }
+.fbt-label.left, .fbt-label.sure { color: #02484d; border: 1px solid #02484d; background-color: #fff; }
+.fbt-label.likely { color: #02484d; border: 1px dashed #4f9a97; background-color: #fff; }
+.fbt-label.guess { color: #a55; border: 1px dashed #e0a3a3; background-color: #fff; }
+.fbt-row {
+    margin: 0 12px 8px; padding: 10px 12px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa;
+}
+.fbt-row.known { border-color: #9cc3c1; background-color: #f4f8f8; }
+.fbt-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.fbt-row-words { font-size: 16px; font-weight: 700; color: #02484d; overflow-wrap: anywhere; }
+.fbt-row-theme { font-size: 13px; color: #374151; margin: 4px 0 0; }
+.fbt-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 13px; color: #6b7280; }
+.fbt-alt {
+    min-height: 34px; padding: 4px 10px; border: 1px dashed #4f9a97; border-radius: 999px; background-color: #fff;
+    color: #02484d; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.fbt-alt:hover { background-color: #eef4f4; }
+.fbt-section { font-size: 14px; font-weight: 700; color: #02484d; margin: 16px 12px 6px; }
+.miss-confirm {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px;
+    padding: 8px; border: 1px dashed #e55555; border-radius: 8px; background-color: #fff;
+}
+.miss-confirm-q { width: 100%; font-size: 13px; font-weight: 600; color: #374151; }
+
+{% if approve %}
+/* ---------- James's board entry ---------- */
+.fbt-dev-note {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 8px auto 0;
+    padding: 8px 12px; font-size: 13px; line-height: 1.4; color: #02484d;
+    background-color: #eef4f4; border: 1px dashed #4f9a97; border-radius: 8px;
+}
+.fbt-load-error { color: #a55; background-color: #fbf0f0; border: 1px solid #ecd3d3; }
+.fbt-approve {
+    box-sizing: border-box; width: min(92vw, 460px); margin: 14px auto 0;
+    padding: 12px; background-color: #eef4f4; border: 1px solid #4f9a97; border-radius: 8px; text-align: left;
+}
+.fbt-approve-title { font-size: 15px; font-weight: 700; color: #02484d; margin: 0 0 6px; }
+.fbt-approve label { font-size: 14px; font-weight: 600; color: #02484d; }
+.fbt-approve-switch { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 13px; font-weight: 600; color: #02484d; }
+.fbt-approve-switch input { margin-top: 3px; }
+.fbt-approve-help { font-size: 13px; color: #374151; margin: 6px 0; line-height: 1.4; }
+.fbt-approve-groups { margin: 8px 0 0; padding: 0; list-style: none; }
+.fbt-approve-group { margin: 0 0 8px; padding: 8px; border: 1px solid #cdd8d7; border-radius: 8px; background-color: #fff; }
+.fbt-approve-group-words { font-weight: 700; color: #02484d; overflow-wrap: anywhere; }
+.fbt-approve .fbt-name {
+    width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 6px 8px; min-height: 36px;
+    border: 1px solid #cdd8d7; border-radius: 6px; font-family: inherit; font-size: 16px;
+}
+.fbt-approve input[type=date] { font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #cdd8d7; border-radius: 6px; }
+.fbt-approve-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.fbt-approve-status { margin: 8px 0 0; font-size: 13px; color: #6b7280; }
+{% endif %}
+
+/* ---------- shared bits ---------- */
+.fbt-play-row { margin: 20px 0; text-align: center; min-height: 51px; }
+.fbt-clear-btn {
+    background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+    border-radius: 8px; display: inline-block; margin: 4px; font-family: inherit; font-size: 14px;
+    white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
+}
+.fbt-clear-btn:hover { background-color: #e9ecef; }
+.instructions {
+    background-color: #f8f9fa; border-radius: 8px; margin: 20px auto; max-width: 600px; font-size: 14px;
+    border: 1px solid #e9ecef; overflow: hidden; line-height: 1.6;
+}
+.instructions-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; cursor: pointer; user-select: none; }
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+.fbt-toast {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background-color: #333; color: white;
+    padding: 12px 20px; border-radius: 6px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001; font-size: 14px; max-width: 90vw; text-align: center;
+}
+.fbt-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .fbt-card { margin: 12px 8px; padding: 12px; }
+    .fbt-row { margin: 0 8px 8px; }
+    .fbt-tile { font-size: 14px; min-height: 50px; }
+    .fbt-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<center>
+<br>
+<h1 class="fbt-h1">{% if approve %}Approve your game's board{% else %}4x3 Answers &amp; Hints{% if is_beta('/4x3') %} <span class="jj-beta-tag">Beta</span>{% endif %}{% endif %}</h1>
+{% if approve %}
+<p class="fbt-dev-note">Enter your game's board and its answer, then Approve: it's served to every player whose date you pick, first of that date's boards, with your groups shown as checked. Nothing here counts as a player. <a href="/4x3_admin">Back to 4x3 admin</a></p>
+{% if load_error %}<p class="fbt-dev-note fbt-load-error" role="alert">{{ load_error }}.</p>{% endif %}
+{% endif %}
+{% if data_ok %}
+<p class="fbt-sub" id="fbt-data-ok">Help with Hank Green's daily 4x3: find the hub and the four groups, with how sure the solver is of each.</p>
+{% else %}
+<div class="fbt-notice" role="alert">The solver is unavailable right now. Please try again in a few minutes.</div>
+{% endif %}
+<p class="fbt-unofficial">Unofficial helper. Not affiliated with or endorsed by Hank Green.</p>
+
+{# Hidden, not left out, on the approve page: the script below wires it. #}
+<div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Type the nine words.</strong> One word to a box, in any order: the game shuffles them anyway.
+        Tab or Enter moves to the next box.{% if boards_on %} Once other players have entered today's board,
+        you can skip this: tap it above the boxes and the words fill in.{% endif %}
+        <br><br>
+        <strong>2. Help or Solve.</strong> <strong>Help</strong> keeps the answer hidden until you ask:
+        <strong>Narrow it down</strong> shows the likeliest hubs, and each group can show its theme (when the
+        solver knows it), one of its words, or the whole group. <strong>Solve</strong> shows the hub and all
+        four groups. Each group says how sure the solver is: sure, likely or a guess.
+        <br><br>
+        <strong>3. Tell it what the game said.</strong> After you try a guess in 4x3, tap the same three words
+        on the board here and pick what the game said: Right, One away or Not even close (or Not sure which,
+        if you didn't catch it). If you called the
+        hub and it was right, tap the hub alone. The solver keeps everything you mark and works out the rest
+        again, and your marks help other players with the same board.
+    </div>
+</div>
+
+<div class="fbt-modes" id="fbt-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
+    <span class="fbt-modes-label">Show me:</span>
+    <button type="button" class="fbt-mode" data-mode="help">Help</button>
+    <button type="button" class="fbt-mode" data-mode="solve">Solve</button>
+</div>
+
+{% if boards_on %}
+<div class="fbt-shared" id="fbt-shared" hidden>
+    <p class="fbt-shared-text" id="fbt-shared-one">Other players already entered today's board for you. Tap it to load it.</p>
+    <p class="fbt-shared-text" id="fbt-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
+    <div class="fbt-shared-picks" id="fbt-shared-picks"></div>
+</div>
+{% endif %}
+
+<div class="fbt-editor" id="fbt-editor">
+    <p class="fbt-editor-label" id="fbt-editor-label">{% if approve %}Type the nine words as your finished game shows them, or in any order.{% else %}Type the nine words, in any order. Tab or Enter goes to the next box.{% endif %}</p>
+    <div class="fbt-boxes" id="fbt-boxes" role="group" aria-labelledby="fbt-editor-label"></div>
+</div>
+
+<div class="fbt-board-wrap" id="fbt-board-wrap" hidden>
+    <div class="fbt-board-head">
+        <p class="fbt-board-tip" id="fbt-board-tip">{% if approve %}Tap the three words of a group to add it below.{% else %}Tried a guess in 4x3? Tap its three words here and say what the game said.{% endif %}</p>
+        <button type="button" class="fbt-btn fbt-edit" id="fbt-edit" hidden>Edit the words</button>
+    </div>
+    <div class="fbt-board" id="fbt-board" aria-label="Your board"></div>
+    <div class="fbt-markbar" id="fbt-markbar" role="group" aria-live="polite" hidden></div>
+</div>
+<p class="fbt-hint" id="fbt-hint" aria-live="polite"></p>
+
+<div class="fbt-marks" id="fbt-marks" hidden></div>
+
+{% if approve %}
+{# The answer and the board go in the form when Approve is pressed (see the
+   approve section of the script); routes/four_by_three.py checks it all
+   again. #}
+<div class="fbt-approve" id="fbt-approve">
+    <p class="fbt-approve-title">Your game's answer</p>
+    <label class="fbt-approve-switch"><input type="checkbox" id="fbt-finished"> <span>Typed from the finished screen: the hub is the middle word, and each group is a line of three through it.</span></label>
+    <p class="fbt-approve-help" id="fbt-approve-help">Or tap the three words of each group on the board above, then Add group.</p>
+    <div class="fbt-actions">
+        <button type="button" class="fbt-btn" id="fbt-add-group">Add group</button>
+        <button type="button" class="fbt-btn" id="fbt-solver-groups">Use the solver's groups</button>
+        <button type="button" class="fbt-btn" id="fbt-clear-groups">Clear groups</button>
+    </div>
+    <ol class="fbt-approve-groups" id="fbt-approve-groups"></ol>
+    <form method="POST" action="/4x3_admin/approve_typed_board" class="fbt-approve-form" id="fbt-approve-form">
+        <label>Date <input type="date" name="played_on" id="fbt-approve-date" value="{{ approve_day.strftime('%Y-%m-%d') }}" required></label>
+        <input type="hidden" name="tiles" id="fbt-approve-tiles">
+        <input type="hidden" name="hub" id="fbt-approve-hub">
+        <input type="hidden" name="pairs" id="fbt-approve-pairs">
+        <input type="hidden" name="names" id="fbt-approve-names">
+        <input type="hidden" name="tab" value="boards">
+        <button type="submit" class="fbt-btn primary" id="fbt-approve-btn" disabled>Approve</button>
+    </form>
+    <p class="fbt-approve-status" id="fbt-approve-status" aria-live="polite"></p>
+</div>
+{% endif %}
+
+<div class="fbt-results" id="fbt-results" aria-live="polite" hidden></div>
+
+<br>
+<div class="fbt-play-row">
+    {% if not approve %}
+    <a href="https://www.hankgreen.com/fourbythree/" class="action-btn" target="_blank" rel="noopener noreferrer">Play 4x3</a>
+    <a href="/feedback" class="action-btn">Give Feedback</a>
+    {% endif %}
+    <button type="button" class="fbt-clear-btn" id="fbt-clear">Clear board</button>
+</div>
+
+{% if not approve %}
+{% with current='/4x3' %}{% include '_related_solvers.html' %}{% endwith %}
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is 4x3?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">4x3 is Hank Green's daily word puzzle. Nine words sit on a three by three grid. One of them, the hub, belongs to all four categories, and each of the other eight belongs to one, so every category is the hub and two more words. Find the three words of a category to solve it.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How sure is the solver?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Each group says how sure it is: sure, likely or a guess. Categories about what words mean are its strong side. Trivia and wordplay it often can't know, so treat a guess as a guess. Checked means the day's answer was entered by hand on this site, and confirmed by players means other players marked the group right after the game took it.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What do I do after I try a guess in the game?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words.</p>
+    </div>
+    {% if boards_on %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the words in?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty boxes: tap it and the words fill in. Check it matches your game.</p>
+    </div>
+    {% endif %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">When does a new 4x3 puzzle come out?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">At midnight where you are. The game picks the puzzle by your device's date, so players in different time zones get each day's puzzle at their own midnight.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Does it work for older puzzles?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes. The solver only needs the nine words you type, so it works for today's puzzle, for past ones and for puzzles friends share.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for 4x3, provided for assistance and entertainment purposes only. It is not affiliated with or endorsed by Hank Green. It never connects to the game: its word data comes from public sources, listed under <a href="#fbt-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below.</p>
+    </div>
+  </div>
+</section>
+
+<section id="fbt-sources" style="max-width: 700px; margin: 20px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with or endorsed by Hank Green. Its guesses come from the public sources below, never from the game's puzzles or answers. Groups marked Checked show a day's real answer, entered by hand.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word vectors.</strong> This data contains semantic vectors from <a href="https://github.com/commonsense/conceptnet-numberbatch" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">ConceptNet Numberbatch</a> 19.08, by Luminoso Technologies, Inc. (Robyn Speer, Joshua Chin, Catherine Havasi and Joanna Lowry-Duda), used under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>. Numberbatch is built from <a href="https://conceptnet.io" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">ConceptNet</a>, which contains data from Wiktionary, WordNet and contributors to Open Mind Common Sense projects; GloVe, by Jeffrey Pennington, Richard Socher and Christopher D. Manning; word2vec, by Tomas Mikolov and Google Research; and parallel text from OpenSubtitles 2016, by Pierre Lison and J&ouml;rg Tiedemann, analyzed with fastText, by Piotr Bojanowski, Edouard Grave, Armand Joulin and Tomas Mikolov.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Synonyms and word families.</strong> <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a>: WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word pairs.</strong> How often words sit side by side in <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikipedia</a>'s articles, and its article titles, by Wikipedia contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>. Compound words from the public-domain ENABLE word list. Two-word phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, from WordNet 3.0, and from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Filtering.</strong> Offensive words are kept out of the word data with the <a href="https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">List of Dirty, Naughty, Obscene, and Otherwise Bad Words</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY 4.0</a>).</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">The word data built from these sources is shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
+</section>
+{% endif %}
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const TILES = 9, MAX_TILE = {{ max_tile }}, MAX_MARKS = {{ max_marks }}, NAME_MAX = {{ name_max }};
+    // Where this copy posts, and whether it offers today's boards.
+    const POST_URL = {{ post_url | tojson }};
+    const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
+    const APPROVE = {{ 'true' if approve else 'false' }};
+    {# James's board entry keeps a board of its own, so it never touches his
+       game on the public page, and it never logs a board or a mark. Jinja
+       comments here keep that page's address out of the public page. #}
+    const STORAGE_KEY = {{ ('fourByThreeApproveState_v1' if approve else 'fourByThreeState_v1') | tojson }};
+    const LOG_BOARDS = !APPROVE;
+    const MODE_KEY = 'fourByThreeMode_v1';
+    // A board the player has looked at this long, untouched, counts as used
+    // and is logged (once per version).
+    const LOG_AFTER_MS = 4000;
+    // A pause in typing this long solves the board again.
+    const SOLVE_AFTER_MS = 500;
+    // A saved board from an earlier day goes, unless it's this new (a game
+    // that straddles midnight), as on /smush.
+    const STALE_FLOOR_HOURS = 6;
+    // Solve names another possible hub only from this share up.
+    const NEXT_HUB_MIN = 0.03;
+    const LABELS = {checked: 'Checked', players: 'Confirmed by players', yours: 'You got it',
+                    left: 'Left over', sure: 'Sure', likely: 'Likely', guess: 'Guess'};
+    const HUB_LABELS = Object.assign({}, LABELS, {yours: 'From your marks'});
+    const SAID = {right: 'Right', one_away: 'One away', not_close: 'Not even close', missed: 'Missed',
+                  hub: 'The hub, called right'};
+    // A miss the player didn't catch the wording of is 'missed': the solver
+    // learns only that the three aren't a group.
+    const MISSES = ['one_away', 'not_close', 'missed'];
+
+    /* ---------- state ---------- */
+    let tiles = Array(TILES).fill('');   // the boxes, upper case
+    let marks = [];                      // the player's: {tiles: [...], verdict}, in the order made
+    let reveal = {};                     // a group's key -> 1 theme, 2 a word, 3 the group (Help)
+    let hubReveal = 0;                   // Help's hub card: 1 narrowed down, 2 shown
+    let picked = [];                     // board tiles tapped (words)
+    // The boxes fold away once the nine words are in (Enter in a full board,
+    // or a board loaded), so the page isn't two grids of the same words;
+    // Edit the words opens them again.
+    let editorOpen = true;
+    let boardSource = 'typed';           // 'typed' | 'shared' (a board on offer, untouched) | 'edited'
+    let boardDay = '';                   // the player's date when this board was started
+    let loggedSig = '', marksSig = '';   // the board, and the marks, as last sent
+    let mode = 'help';
+    let last = null, lastSig = '';       // the solver's reply, and what it answers
+    let solveTimer = null, solveSeq = 0, logTimer = null, marksTimer = null;
+    let solveFailed = false;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
+    let sharedBoards = [], sharedDay = '', sharedFetchedOn = '';
+
+    const editorEl = document.getElementById('fbt-editor');
+    const editBtn = document.getElementById('fbt-edit');
+    const boxesEl = document.getElementById('fbt-boxes');
+    const wrapEl = document.getElementById('fbt-board-wrap');
+    const boardEl = document.getElementById('fbt-board');
+    const markbarEl = document.getElementById('fbt-markbar');
+    const hintEl = document.getElementById('fbt-hint');
+    const marksEl = document.getElementById('fbt-marks');
+    const resultsEl = document.getElementById('fbt-results');
+    const modesEl = document.getElementById('fbt-modes');
+    const sharedEl = document.getElementById('fbt-shared');
+    const sharedOne = document.getElementById('fbt-shared-one');
+    const sharedMany = document.getElementById('fbt-shared-many');
+    const sharedPicks = document.getElementById('fbt-shared-picks');
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    // What a box may hold, as routes/four_by_three.py takes it.
+    const clean = s => String(s || '').toUpperCase().replace(/[^A-Z0-9 '&.\-]/g, '').replace(/\s+/g, ' ').replace(/^ /, '').slice(0, MAX_TILE);
+    const isTile = s => typeof s === 'string' && s.trim().length > 0 && s.length <= MAX_TILE && /^[A-Z0-9 '&.\-]+$/.test(s) && /[A-Z0-9]/.test(s);
+    const keyOf = words => words.slice().sort().join('|');
+
+    /* ---------- the player's date ---------- */
+    // The game's day turns at the player's own midnight, from the device's
+    // clock, as the game itself works it out.
+    function localDay() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    /* ---------- the board ---------- */
+    const words = () => tiles.map(t => t.trim());
+    const ready = () => words().every(isTile) && new Set(words()).size === TILES;
+    const repeats = () => {
+        const seen = {}, twice = new Set();
+        words().forEach(w => { if (w) { if (seen[w]) twice.add(w); seen[w] = true; } });
+        return twice;
+    };
+    // Marks that still name words on the board.
+    const liveMarks = () => {
+        const on = new Set(words());
+        return marks.filter(m => m.tiles.every(t => on.has(t)));
+    };
+    const sigOf = () => JSON.stringify([words(), liveMarks()]);
+
+    /* ---------- the boxes ---------- */
+    function buildBoxes() {
+        for (let i = 0; i < TILES; i++) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'fbt-input';
+            input.dataset.i = String(i);
+            // No maxlength: a pasted list of all nine words lands in box 1
+            // and is split across the boxes (clean() cuts each word).
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('autocapitalize', 'characters');
+            input.setAttribute('spellcheck', 'false');
+            input.setAttribute('enterkeyhint', 'next');
+            input.setAttribute('aria-label', 'Word ' + (i + 1));
+            boxesEl.appendChild(input);
+        }
+    }
+    const box = i => boxesEl.querySelector('.fbt-input[data-i="' + i + '"]');
+
+    function renderBoxes() {
+        const twice = repeats();
+        for (let i = 0; i < TILES; i++) {
+            const input = box(i);
+            if (clean(input.value) !== tiles[i]) input.value = tiles[i];
+            input.classList.toggle('empty', !tiles[i]);
+            input.classList.toggle('twice', !!tiles[i] && twice.has(tiles[i].trim()));
+            input.placeholder = tiles[i] ? '' : (i === 0 ? 'word' : '');
+        }
+    }
+
+    function focusBox(i) {
+        const input = box(i);
+        if (!input) return;
+        input.focus();
+        const end = input.value.length;
+        try { input.setSelectionRange(end, end); } catch (_) {}
+    }
+
+    // The next box after `i` with nothing in it, else the next box.
+    function nextBox(i) {
+        for (let k = 1; k < TILES; k++) {
+            const j = (i + k) % TILES;
+            if (!tiles[j]) return j;
+        }
+        return Math.min(i + 1, TILES - 1);
+    }
+
+    // A comma, tab or new line ends the box, and what comes after goes in
+    // the boxes after it (a pasted list of words).
+    boxesEl.addEventListener('input', e => {
+        const input = e.target.closest('.fbt-input');
+        if (!input) return;
+        const i = Number(input.dataset.i);
+        const before = keyOf(words());
+        const parts = input.value.split(/[,\t\n;|]+/);
+        tiles[i] = clean(parts[0]);
+        let j = i;
+        parts.slice(1).forEach(p => {
+            const w = clean(p).trim();
+            if (w && j + 1 < TILES) { j++; tiles[j] = w; }
+        });
+        // Only when the box shows something other than its word (a character
+        // it can't hold, or a pasted list): lower case shows in capitals
+        // anyway, and resetting the box would move the caret.
+        if (parts.length > 1 || parts[0].toUpperCase() !== tiles[i]) input.value = tiles[i];
+        // Other words make another board, so Help hides its hub again. (A
+        // group's hints go with its own three words; marks never reset it.)
+        if (keyOf(words()) !== before) hubReveal = 0;
+        afterEdit();
+        if (parts.length > 1) focusBox(Math.min(j + 1, TILES - 1));
+    });
+
+    boxesEl.addEventListener('keydown', e => {
+        const input = e.target.closest('.fbt-input');
+        if (!input) return;
+        const i = Number(input.dataset.i);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Enter on a full board is "done": the boxes fold away and the
+            // keyboard goes down.
+            if (ready()) {
+                editorOpen = false;
+                input.blur();
+                renderEditor();
+                return;
+            }
+            focusBox(nextBox(i));
+        } else if (e.key === 'Backspace' && input.value === '' && i > 0) {
+            e.preventDefault();
+            focusBox(i - 1);
+        }
+    });
+    boxesEl.addEventListener('focusout', e => {
+        const input = e.target.closest('.fbt-input');
+        if (!input) return;
+        const i = Number(input.dataset.i);
+        const trimmed = tiles[i].trim();
+        if (trimmed !== tiles[i]) { tiles[i] = trimmed; renderBoxes(); persist(); }
+    });
+
+    function renderEditor() {
+        const open = editorOpen || !ready();
+        editorEl.hidden = !open;
+        editBtn.hidden = open;
+    }
+    editBtn.addEventListener('click', () => {
+        editorOpen = true;
+        renderEditor();
+        focusBox(0);
+    });
+
+    function afterEdit() {
+        const any = words().some(w => w);
+        if (!any) {
+            boardDay = '';
+            boardSource = 'typed';
+        } else if (!boardDay) {
+            boardDay = localDay();
+        }
+        if (boardSource === 'shared') boardSource = 'edited';
+        picked = picked.filter(w => words().includes(w));
+        renderBoxes();
+        renderEditor();
+        renderBoard();
+        renderMarks();
+        renderShared();
+        renderResults();
+        renderHint();
+        renderApprove();
+        persist();
+        scheduleSolve(SOLVE_AFTER_MS);
+    }
+
+    /* ---------- drawing the board ---------- */
+    // Words in a group the player marked right, and the hub once it's
+    // known to them (marked, or shown in Help).
+    function doneWords() {
+        const out = new Set();
+        liveMarks().forEach(m => { if (m.verdict === 'right') m.tiles.forEach(t => out.add(t)); });
+        return out;
+    }
+    // In Help, an answer someone else settled (checked, or confirmed by
+    // players) stays hidden until the player asks: only what they found
+    // themselves shows on its own.
+    function knownHub() {
+        if (!last || lastSig !== sigOf()) return '';
+        const h = last.hub;
+        if (mode === 'solve' || APPROVE || hubReveal >= 2 || h.label === 'yours') return h.tile;
+        return '';
+    }
+
+    function renderBoard() {
+        const show = ready();
+        wrapEl.hidden = !show;
+        if (!show) { markbarEl.hidden = true; return; }
+        const done = doneWords();
+        const hub = knownHub();
+        const unknown = new Set();
+        if (last && lastSig === sigOf() && Array.isArray(last.known)) {
+            last.tiles.forEach((t, i) => { if (!last.known[i]) unknown.add(t); });
+        }
+        const had = boardEl.contains(document.activeElement) ? document.activeElement.dataset.word : null;
+        boardEl.replaceChildren(...words().map(w => {
+            const tile = document.createElement('button');
+            tile.type = 'button';
+            tile.className = 'fbt-tile';
+            tile.dataset.word = w;
+            tile.textContent = w;
+            const isPicked = picked.includes(w);
+            tile.classList.toggle('hub', w === hub);
+            tile.classList.toggle('done', done.has(w) && w !== hub);
+            tile.classList.toggle('picked', isPicked);
+            tile.classList.toggle('unknown', unknown.has(w));
+            tile.setAttribute('aria-pressed', isPicked ? 'true' : 'false');
+            let label = w + (isPicked ? ', picked' : '') + (w === hub ? ', the hub' : '') + (done.has(w) && w !== hub ? ', in a group you got' : '');
+            if (unknown.has(w)) {
+                label += ", a word the solver doesn't know";
+                tile.title = "The solver doesn't know this word: it can only place it by what's left";
+            }
+            tile.setAttribute('aria-label', label);
+            return tile;
+        }));
+        if (had) {
+            const again = [...boardEl.querySelectorAll('.fbt-tile')].find(t => t.dataset.word === had);
+            if (again) again.focus({preventScroll: true});
+        }
+        renderMarkbar();
+    }
+
+    boardEl.addEventListener('click', e => {
+        const tile = e.target.closest('.fbt-tile');
+        if (!tile) return;
+        pick(tile.dataset.word);
+    });
+
+    function pick(w) {
+        if (picked.includes(w)) picked = picked.filter(x => x !== w);
+        else if (picked.length < 3) picked.push(w);
+        else picked = [w];
+        renderBoard();
+    }
+
+    // The tiles picked, and what to do with them: on the public page, what
+    // the game said; on the approve page, a group to add.
+    function renderMarkbar() {
+        if (APPROVE || !picked.length) {
+            markbarEl.hidden = true;
+            markbarEl.innerHTML = '';
+            return;
+        }
+        markbarEl.hidden = false;
+        let html = '';
+        if (picked.length === 1) {
+            html = '<span class="fbt-markbar-q">Called ' + esc(picked[0]) + ' the hub in 4x3 and got it right?</span>' +
+                '<button type="button" class="fbt-btn primary" data-said="hub">Yes, ' + esc(picked[0]) + ' is the hub</button>';
+        } else if (picked.length === 2) {
+            html = '<span class="fbt-markbar-q">Tap a third word.</span>';
+        } else {
+            html = '<span class="fbt-markbar-q">What did 4x3 say about ' + esc(picked.join(', ')) + '?</span>' +
+                '<button type="button" class="fbt-btn primary" data-said="right">&#10003; Right</button>' +
+                '<button type="button" class="fbt-btn miss" data-said="one_away">&#10007; One away</button>' +
+                '<button type="button" class="fbt-btn miss" data-said="not_close">&#10007; Not even close</button>' +
+                '<button type="button" class="fbt-btn miss" data-said="missed">&#10007; Not sure which</button>';
+        }
+        html += '<button type="button" class="fbt-btn" data-said="clear">Clear</button>';
+        markbarEl.innerHTML = html;
+    }
+
+    markbarEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-said]');
+        if (!btn) return;
+        const said = btn.dataset.said;
+        if (said === 'clear') { picked = []; renderBoard(); return; }
+        addMark(picked.slice(), said);
+    });
+
+    /* ---------- marks ---------- */
+    function addMark(group, verdict) {
+        if (!group.length) return;
+        const key = keyOf(group);
+        // Saying something new about the same words replaces what was said.
+        marks = marks.filter(m => keyOf(m.tiles) !== key);
+        marks.push({tiles: group, verdict: verdict});
+        if (marks.length > MAX_MARKS) marks = marks.slice(-MAX_MARKS);
+        picked = [];
+        if (verdict === 'right' || verdict === 'hub') reveal[keyOf(group)] = 3;
+        toast(verdict === 'hub' ? group[0] + ' is the hub: noted.' : SAID[verdict] + ': noted. The solver works out the rest again.');
+        afterMarks();
+    }
+
+    function undoMark(n) {
+        marks.splice(n, 1);
+        afterMarks();
+    }
+
+    function afterMarks() {
+        renderBoard();
+        renderMarks();
+        renderResults();
+        persist();
+        scheduleSolve(0);
+        clearTimeout(marksTimer);
+        marksTimer = setTimeout(sendMarks, 1500);
+    }
+
+    function renderMarks() {
+        const live = liveMarks();
+        marksEl.hidden = !live.length || !ready();
+        if (marksEl.hidden) { marksEl.innerHTML = ''; return; }
+        const dropped = new Set(last && lastSig === sigOf() && Array.isArray(last.dropped) ? last.dropped : []);
+        const misses = live.filter(m => MISSES.includes(m.verdict)).length;
+        let html = '<p class="fbt-marks-title">Your guesses <span class="fbt-legend">(' +
+            (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; 3 end the game unless you called the hub)</span></p>';
+        live.forEach((m, n) => {
+            const isMiss = MISSES.includes(m.verdict);
+            const cls = dropped.has(n) ? 'dropped' : isMiss ? 'miss' : 'right';
+            html += '<div class="fbt-mark-row"><span class="fbt-mark-words">' + esc(m.tiles.join(' + ')) + '</span>' +
+                '<span class="fbt-mark-said ' + cls + '">' + esc(SAID[m.verdict]) + (dropped.has(n) ? ', left out' : '') + '</span>' +
+                '<button type="button" class="fbt-mark-undo" data-undo="' + marks.indexOf(m) + '" aria-label="Undo ' + esc(m.tiles.join(', ')) + '">Undo</button></div>';
+        });
+        if (dropped.size) {
+            html += '<p class="fbt-hint warn" style="margin: 0;">A mark marked "left out" doesn\'t fit your other marks, so the solver ignores it. Check it against your game.</p>';
+        }
+        marksEl.innerHTML = html;
+    }
+
+    marksEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-undo]');
+        if (!btn) return;
+        undoMark(Number(btn.dataset.undo));
+    });
+
+    /* ---------- solving ---------- */
+    function scheduleSolve(delay) {
+        clearTimeout(solveTimer);
+        if (!ready()) {
+            last = null;
+            lastSig = '';
+            renderResults();
+            return;
+        }
+        solveTimer = setTimeout(solve, delay);
+    }
+
+    async function solve() {
+        if (!ready()) return;
+        const seq = ++solveSeq;
+        const sig = sigOf();
+        const body = {tiles: words(), marks: liveMarks(), first_solve: firstSolve};
+        firstSolve = false;
+        try {
+            const resp = await fetch(POST_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            // Only a reply for the board as it is now: a change since then
+            // has a solve of its own on the way.
+            if (seq !== solveSeq || sig !== sigOf()) return;
+            if (!resp.ok) {
+                renderHint((data.error || 'Something went wrong.') + ' Tap Help or Solve to try again.', true);
+                solveFailed = true;
+                return;
+            }
+            if (solveFailed) {
+                solveFailed = false;
+                renderHint();
+            }
+            last = data;
+            lastSig = sig;
+            renderBoard();
+            renderMarks();
+            renderResults();
+            renderApprove();
+            gaOnce(mode === 'help' ? 'four_by_three_help' : 'four_by_three_solve');
+            clearTimeout(logTimer);
+            logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
+        } catch (_) {
+            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Help or Solve.', true);
+        }
+    }
+
+    /* ---------- results ---------- */
+    const pct = p => Math.round(100 * p) + '%';
+    const chip = (label, names) => '<span class="fbt-label ' + esc(label) + '">' + esc((names || LABELS)[label] || label) + '</span>';
+    const isKnown = label => ['checked', 'players', 'yours', 'left'].includes(label);
+
+    function summaryText(r) {
+        if (r.checked) return "This board's answer was checked: the groups below are the real ones.";
+        const all = r.groups.every(g => isKnown(g.label));
+        if (all) return "That's the whole answer.";
+        return "The solver's best answer, with how sure it is of each part.";
+    }
+
+    function renderResults() {
+        if (!last || APPROVE && !ready()) {
+            resultsEl.hidden = true;
+            resultsEl.innerHTML = '';
+            return;
+        }
+        const r = last;
+        resultsEl.hidden = false;
+        resultsEl.classList.toggle('stale', lastSig !== sigOf());
+        let html = '<p class="fbt-summary">' + esc(summaryText(r)) + '</p>';
+        const unknown = r.tiles.filter((t, i) => !r.known[i]);
+        if (unknown.length) {
+            html += '<p class="fbt-note">The solver doesn\'t know ' + esc(unknown.join(', ')) +
+                ', so it can only place ' + (unknown.length === 1 ? 'it' : 'them') + ' by what\'s left.</p>';
+        }
+        html += mode === 'help' ? helpHtml(r) : solveHtml(r);
+        resultsEl.innerHTML = html;
+    }
+
+    const caution = h => ['checked', 'yours', 'players'].includes(h.label) ? ''
+        : '<p class="fbt-caution">A wrong hub call ends your game in 4x3.</p>';
+
+    function helpHtml(r) {
+        const h = r.hub;
+        const hubShown = hubReveal >= 2 || h.label === 'yours';
+        let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
+            '<p class="fbt-card-title">The hub ' + chip(h.label, HUB_LABELS) + '</p>';
+        if (hubShown) {
+            html += '<p class="fbt-big">' + esc(h.tile) + '</p>' + caution(h);
+        } else {
+            // In alphabetical order, so the first isn't always the answer.
+            if (hubReveal === 1) {
+                html += '<p class="fbt-line">It\'s one of: <strong>' + esc(h.candidates.map(c => c[0]).sort().join(', ')) + '</strong></p>';
+            }
+            html += '<div class="fbt-actions">' +
+                (hubReveal < 1 && h.candidates.length > 1 ? '<button type="button" class="fbt-btn" data-act="narrow">Narrow it down</button>' : '') +
+                '<button type="button" class="fbt-btn primary" data-act="hub">Show the hub</button></div>';
+        }
+        html += '</div>';
+        r.groups.forEach((g, n) => {
+            const key = keyOf(g.tiles);
+            const level = g.label === 'yours' ? 3 : (reveal[key] || 0);
+            html += '<div class="fbt-card' + (isKnown(g.label) ? ' known' : '') + '">' +
+                '<p class="fbt-card-title">Group ' + (n + 1) + ' ' + chip(g.label) + '</p>';
+            if (level >= 3) {
+                html += '<p class="fbt-big">' + esc(g.tiles.join(' + ')) + '</p>';
+                if (g.theme) html += '<p class="fbt-line">Theme: <strong>' + esc(g.theme) + '</strong></p>';
+                html += markButtons(g);
+            } else {
+                if (level >= 1 && g.theme) html += '<p class="fbt-line">Theme: <strong>' + esc(g.theme) + '</strong></p>';
+                if (level >= 2) html += '<p class="fbt-line">One word: <strong>' + esc(g.pair[0]) + '</strong></p>';
+                html += '<div class="fbt-actions">' +
+                    (level < 1 && g.theme ? '<button type="button" class="fbt-btn" data-act="theme" data-key="' + esc(key) + '">Show the theme</button>' : '') +
+                    (level < 2 ? '<button type="button" class="fbt-btn" data-act="word" data-key="' + esc(key) + '">Show a word</button>' : '') +
+                    '<button type="button" class="fbt-btn primary" data-act="group" data-key="' + esc(key) + '">Show the group</button></div>';
+            }
+            html += '</div>';
+        });
+        return html;
+    }
+
+    // What the player can say about a group after trying it, unless it's
+    // already settled.
+    function markButtons(g) {
+        if (isKnown(g.label) && g.label !== 'left') return '';
+        const tiles = esc(JSON.stringify(g.tiles));
+        return '<div class="fbt-actions">' +
+            '<button type="button" class="fbt-btn primary" data-act="right" data-tiles="' + tiles + '">&#10003; 4x3 took it</button>' +
+            '<button type="button" class="fbt-btn miss" data-act="missed" data-tiles="' + tiles + '">&#10007; It didn\'t</button></div>';
+    }
+
+    function solveHtml(r) {
+        const h = r.hub;
+        let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
+            '<p class="fbt-card-title">The hub: ' + esc(h.tile) + ' ' + chip(h.label, HUB_LABELS) + '</p>' + caution(h);
+        const next = h.candidates.slice(1).filter(c => c[1] >= NEXT_HUB_MIN);
+        if (next.length && !['checked', 'yours', 'players'].includes(h.label)) {
+            html += '<p class="fbt-line">Next likeliest: ' + esc(next.map(c => c[0] + ' (' + pct(c[1]) + ')').join(', ')) + '</p>';
+        }
+        html += '</div><p class="fbt-section">The groups</p>';
+        r.groups.forEach(g => {
+            html += '<div class="fbt-row' + (isKnown(g.label) ? ' known' : '') + '"><div class="fbt-row-head">' +
+                '<span class="fbt-row-words">' + esc(g.tiles.join(' + ')) + '</span>' + chip(g.label) + '</div>';
+            if (g.theme) html += '<p class="fbt-row-theme">Theme: <strong>' + esc(g.theme) + '</strong></p>';
+            if (g.alternatives && g.alternatives.length) {
+                html += '<div class="fbt-alts">Or:' + g.alternatives.map(a =>
+                    '<button type="button" class="fbt-alt" data-act="pick" data-tiles="' + esc(JSON.stringify([g.tiles[0]].concat(a.pair))) + '">' +
+                    esc(a.pair.join(' + ')) + '</button>').join('') + '</div>';
+            }
+            html += markButtons(g) + '</div>';
+        });
+        return html;
+    }
+
+    resultsEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        // Results for an older board stay in view, faded, until the new
+        // ones come; their buttons wait for those.
+        if (lastSig !== sigOf()) return;
+        const act = btn.dataset.act;
+        if (act === 'narrow') { hubReveal = 1; persist(); renderResults(); return; }
+        if (act === 'hub') { hubReveal = 2; persist(); renderBoard(); renderResults(); return; }
+        if (act === 'theme' || act === 'word' || act === 'group') {
+            reveal[btn.dataset.key] = act === 'theme' ? 1 : act === 'word' ? 2 : 3;
+            persist();
+            renderResults();
+            return;
+        }
+        let group = [];
+        try { group = JSON.parse(btn.dataset.tiles || '[]'); } catch (_) {}
+        if (!Array.isArray(group) || group.length !== 3) return;
+        if (act === 'right') addMark(group, 'right');
+        else if (act === 'missed') askMissed(btn, group);
+        else if (act === 'pick') {
+            // An alternative: picked on the board, to mark once tried.
+            picked = group.filter(w => words().includes(w));
+            renderBoard();
+            wrapEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    });
+
+    /* A miss asks which one, as the game words it: "One away" and "Not even
+       close" tell the solver different things, and "Not sure which" only
+       that it missed. The question opens under the buttons; any re-render
+       drops it. */
+    function askMissed(btn, group) {
+        const open = resultsEl.querySelector('.miss-confirm');
+        if (open) open.remove();
+        const where = btn.closest('.fbt-actions');
+        if (!where) return;
+        where.insertAdjacentHTML('afterend',
+            '<div class="miss-confirm" role="group" aria-label="What did 4x3 say?">' +
+            '<span class="miss-confirm-q">What did 4x3 say?</span>' +
+            '<button type="button" class="fbt-btn miss" data-miss="one_away">One away</button>' +
+            '<button type="button" class="fbt-btn miss" data-miss="not_close">Not even close</button>' +
+            '<button type="button" class="fbt-btn miss" data-miss="missed">Not sure which</button>' +
+            '<button type="button" class="fbt-btn" data-miss="cancel">Cancel</button></div>');
+        const strip = where.nextElementSibling;
+        strip.addEventListener('click', e => {
+            e.stopPropagation();
+            const answer = e.target.closest('[data-miss]');
+            if (!answer) return;
+            strip.remove();
+            if (answer.dataset.miss !== 'cancel') addMark(group, answer.dataset.miss);
+        });
+    }
+
+    function renderHint(msg, warn) {
+        if (msg !== undefined) {
+            hintEl.textContent = msg;
+            hintEl.classList.toggle('warn', !!warn);
+            return;
+        }
+        let text = '', isWarn = false;
+        const filled = words().filter(w => w).length;
+        if (repeats().size) {
+            text = 'A word is in two boxes (marked red). Each of the nine words is different.';
+            isWarn = true;
+        } else if (filled && filled < TILES) {
+            text = (TILES - filled) + ' more word' + (TILES - filled === 1 ? '' : 's') + ' to go.';
+        }
+        hintEl.textContent = text;
+        hintEl.classList.toggle('warn', isWarn);
+    }
+
+    /* ---------- modes ---------- */
+    function setMode(m) {
+        mode = m;
+        modesEl.querySelectorAll('.fbt-mode').forEach(btn => {
+            const on = btn.dataset.mode === m;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (!APPROVE) { try { localStorage.setItem(MODE_KEY, m); } catch (_) {} }
+        renderBoard();
+        renderResults();
+        if (last && lastSig === sigOf()) gaOnce(m === 'help' ? 'four_by_three_help' : 'four_by_three_solve');
+    }
+    modesEl.addEventListener('click', e => {
+        const btn = e.target.closest('.fbt-mode');
+        if (!btn) return;
+        setMode(btn.dataset.mode);
+        if (!last || lastSig !== sigOf()) scheduleSolve(0);
+    });
+
+    /* ---------- today's boards ---------- */
+    function postJSON(payload) {
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) throw new Error('request failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    const isBoard = b => b && Array.isArray(b.tiles) && b.tiles.length === TILES && b.tiles.every(isTile);
+
+    // Only the newest request's reply counts, and only while it's still the
+    // date it asked about where the player is: one that comes back after
+    // their midnight asks again, for the new day.
+    let sharedSeq = 0;
+    function fetchShared() {
+        if (!BOARDS_ON) return;
+        const seq = ++sharedSeq, day = localDay();
+        postJSON({action: 'todays_boards', played_on: day})
+            .then(data => {
+                if (seq !== sharedSeq) return;
+                if (day !== localDay()) { fetchShared(); return; }
+                sharedFetchedOn = day;
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+                sharedDay = data && typeof data.day === 'string' ? data.day : day;
+                renderShared();
+            })
+            .catch(() => {});
+    }
+
+    function renderShared() {
+        if (!sharedEl) return;
+        const show = sharedBoards.length > 0 && !words().some(w => w);
+        sharedEl.hidden = !show;
+        if (!show) return;
+        sharedOne.hidden = sharedBoards.length > 1;
+        sharedMany.hidden = !sharedOne.hidden;
+        sharedPicks.replaceChildren(...sharedBoards.map((b, k) => {
+            const pickEl = document.createElement('button');
+            pickEl.type = 'button';
+            pickEl.className = 'fbt-shared-pick';
+            pickEl.dataset.pick = String(k);
+            pickEl.setAttribute('aria-label', 'Load the board with the words ' + b.tiles.join(', '));
+            const mini = document.createElement('span');
+            mini.className = 'fbt-mini';
+            mini.setAttribute('aria-hidden', 'true');
+            b.tiles.forEach(t => {
+                const s = document.createElement('span');
+                s.textContent = t;
+                mini.appendChild(s);
+            });
+            const label = document.createElement('span');
+            label.className = 'fbt-shared-btn';
+            label.textContent = 'Load this board';
+            pickEl.append(mini, label);
+            return pickEl;
+        }));
+    }
+
+    if (sharedPicks) sharedPicks.addEventListener('click', e => {
+        const el = e.target.closest('[data-pick]');
+        const b = el && sharedBoards[Number(el.dataset.pick)];
+        if (!b) return;
+        // The player's date has changed since this list came: ask for the
+        // new day's first.
+        if (sharedFetchedOn && sharedFetchedOn !== localDay()) {
+            sharedBoards = [];
+            renderShared();
+            fetchShared();
+            renderHint("It's a new day where you are, so there's a new 4x3. The list now shows today's boards.");
+            return;
+        }
+        loadBoard(b.tiles, 'shared', sharedDay);
+        gaOnce('four_by_three_board_loaded');
+        renderHint("Loaded today's board, entered by other players. Check it matches your game.");
+    });
+
+    function loadBoard(list, source, day) {
+        tiles = list.map(t => clean(t)).concat(Array(TILES).fill('')).slice(0, TILES);
+        marks = []; reveal = {}; hubReveal = 0; picked = [];
+        last = null; lastSig = '';
+        boardSource = source;
+        boardDay = day || localDay();
+        sharedBoards = [];
+        editorOpen = false;
+        renderBoxes();
+        renderEditor();
+        renderBoard();
+        renderMarks();
+        renderShared();
+        renderResults();
+        renderApprove();
+        persist();
+        scheduleSolve(0);
+    }
+
+    /* ---------- logging ---------- */
+    // A board the player uses (a solve, then a few seconds of looking) is
+    // logged once per version. A board loaded from today's boards and left
+    // as it is is never sent (routes/four_by_three.py), so it can't confirm
+    // itself. Marks go on their own, whatever the board's source: they're
+    // what the game said. Nothing in here may stop the page.
+    let logPending = '';
+    function maybeLog() {
+        try {
+            if (!LOG_BOARDS || !ready() || !last || lastSig !== sigOf()) return;
+            if (boardSource === 'shared') return;
+            const sig = (boardDay || localDay()) + '|' + words().join('|') + '|' + boardSource;
+            if (sig === loggedSig || sig === logPending) return;
+            logPending = sig;
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', tiles: words(), source: boardSource, played_on: boardDay || localDay()})
+            }).then(r => {
+                if (r.ok) {
+                    loggedSig = sig;
+                    persist();
+                }
+            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
+        } catch (_) {}
+    }
+
+    // One marks request at a time: each one replaces the player's marks on
+    // the server, so they must get there in the order made. A change made
+    // while one is on its way goes when it's back, and marksSig is always
+    // what the server last kept.
+    let marksPending = '', marksAgain = false;
+    function sendMarks() {
+        try {
+            if (!LOG_BOARDS || !ready()) return;
+            const live = liveMarks();
+            const sig = (boardDay || localDay()) + '|' + JSON.stringify([words().slice().sort(), live]);
+            if (marksPending) {
+                if (sig !== marksPending) marksAgain = true;
+                return;
+            }
+            if (sig === marksSig) return;
+            // No marks, and none kept on the server: nothing to take back.
+            if (!live.length && !marksSig) return;
+            marksPending = sig;
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'marks', tiles: words(), marks: live, played_on: boardDay || localDay()})
+            }).then(r => {
+                if (r.ok) {
+                    marksSig = sig;
+                    persist();
+                }
+            }).catch(() => {}).finally(() => {
+                marksPending = '';
+                if (marksAgain) { marksAgain = false; sendMarks(); }
+            });
+        } catch (_) {}
+    }
+
+    // Players switch to the game and back: log on the way out, and ask for
+    // today's boards again on the way back (more may be in by then).
+    let sharedAt = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') { maybeLog(); sendMarks(); }
+        else if (Date.now() - sharedAt > 60000 && !words().some(w => w)) { sharedAt = Date.now(); fetchShared(); }
+    });
+
+    /* ---------- GA4 ---------- */
+    // four_by_three_help / _solve when results first show in that mode, and
+    // four_by_three_board_loaded the first time a board on offer is loaded:
+    // each at most once per page load.
+    const gaSent = new Set();
+    function gaOnce(name) {
+        if (APPROVE || gaSent.has(name) || typeof gtag !== 'function') return;
+        gaSent.add(name);
+        if (document.readyState === 'complete') gtag('event', name);
+        else window.addEventListener('load', () => gtag('event', name));
+    }
+
+    {% if approve %}
+    /* ---------- approve ---------- */
+    // The answer: four groups of three that share one word, the hub, and
+    // cover all nine. Typed from the finished screen, the middle box is the
+    // hub and each group a line through it.
+    const PRELOAD = {{ preload | tojson }};
+    const APPROVE_PENDING = 'fourByThreeApprovePending_v1';
+    const LINES = [[0, 4, 8], [1, 4, 7], [3, 4, 5], [2, 4, 6]];
+    const approveForm = document.getElementById('fbt-approve-form');
+    const approveBtn = document.getElementById('fbt-approve-btn');
+    const approveStatus = document.getElementById('fbt-approve-status');
+    const groupsEl = document.getElementById('fbt-approve-groups');
+    const finishedEl = document.getElementById('fbt-finished');
+    let groups = [];      // {tiles: [3 words], name}
+    let finished = false;
+
+    function hubOf(gs) {
+        if (gs.length < 2) return '';
+        const common = gs.map(g => new Set(g.tiles)).reduce((a, b) => new Set([...a].filter(x => b.has(x))));
+        return common.size === 1 ? [...common][0] : '';
+    }
+
+    // What's wrong with the answer as it stands, or '' if it's ready.
+    function answerProblem() {
+        if (!groups.length) return '';
+        if (groups.length < 4) return 'Add all four groups, or clear them to approve the board alone.';
+        const hub = hubOf(groups);
+        if (!hub) return 'The four groups must share exactly one word, the hub.';
+        const all = new Set(groups.flatMap(g => g.tiles));
+        if (all.size !== TILES || !words().every(w => all.has(w))) return 'The groups must use every word once, besides the hub.';
+        return '';
+    }
+
+    function syncFinished() {
+        if (!finished || !ready()) return;
+        const w = words();
+        const names = groups.map(g => g.name);
+        groups = LINES.map((line, k) => ({tiles: [w[4], w[line[0]], w[line[2]]], name: names[k] || ''}));
+    }
+
+    function renderApprove() {
+        syncFinished();
+        const problem = answerProblem();
+        const ok = ready() && !problem;
+        approveBtn.disabled = !ok;
+        approveBtn.textContent = groups.length ? 'Approve board and answer' : 'Approve the board alone';
+        approveStatus.textContent = !ready() ? 'Type all nine words first.' : problem ||
+            (groups.length ? 'Ready: the hub is ' + hubOf(groups) + '.' : 'No groups yet: approving serves the board without an answer.');
+        groupsEl.replaceChildren(...groups.map((g, k) => {
+            const li = document.createElement('li');
+            li.className = 'fbt-approve-group';
+            const ws = document.createElement('span');
+            ws.className = 'fbt-approve-group-words';
+            ws.textContent = (k + 1) + '. ' + g.tiles.join(' + ');
+            const name = document.createElement('input');
+            name.type = 'text';
+            name.className = 'fbt-name';
+            name.maxLength = NAME_MAX;
+            name.placeholder = 'Category name (optional)';
+            name.value = g.name || '';
+            name.dataset.k = String(k);
+            name.setAttribute('aria-label', 'Name of group ' + (k + 1));
+            li.append(ws, name);
+            if (!finished) {
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'fbt-btn';
+                rm.dataset.remove = String(k);
+                rm.textContent = 'Remove';
+                rm.style.marginTop = '6px';
+                li.appendChild(rm);
+            }
+            return li;
+        }));
+    }
+
+    groupsEl.addEventListener('input', e => {
+        const input = e.target.closest('.fbt-name');
+        if (!input) return;
+        groups[Number(input.dataset.k)].name = input.value.slice(0, NAME_MAX);
+        persist();
+    });
+    groupsEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-remove]');
+        if (!btn) return;
+        groups.splice(Number(btn.dataset.remove), 1);
+        persist();
+        renderApprove();
+    });
+    finishedEl.addEventListener('change', () => {
+        finished = finishedEl.checked;
+        if (finished) groups = [];
+        persist();
+        renderApprove();
+    });
+    document.getElementById('fbt-add-group').addEventListener('click', () => {
+        if (finished) { approveStatus.textContent = 'Turn off "Typed from the finished screen" to pick groups yourself.'; return; }
+        if (picked.length !== 3) { approveStatus.textContent = 'Tap the three words of a group on the board first.'; return; }
+        if (groups.length >= 4) { approveStatus.textContent = 'There are four groups already: remove one first.'; return; }
+        groups.push({tiles: picked.slice(), name: ''});
+        picked = [];
+        persist();
+        renderBoard();
+        renderApprove();
+    });
+    document.getElementById('fbt-solver-groups').addEventListener('click', () => {
+        if (!last || lastSig !== sigOf()) { approveStatus.textContent = 'Wait for the solver, then try again.'; return; }
+        finished = false;
+        finishedEl.checked = false;
+        groups = last.groups.map(g => ({tiles: g.tiles.slice(), name: ''}));
+        persist();
+        renderApprove();
+    });
+    document.getElementById('fbt-clear-groups').addEventListener('click', () => {
+        groups = [];
+        finished = false;
+        finishedEl.checked = false;
+        persist();
+        renderApprove();
+    });
+
+    approveForm.addEventListener('submit', e => {
+        syncFinished();
+        const day = document.getElementById('fbt-approve-date').value;
+        if (!ready() || answerProblem() || !confirm('Serve this board' + (groups.length ? ' and answer' : '') + ' for ' + day + '?')) {
+            e.preventDefault();
+            return;
+        }
+        const hub = hubOf(groups);
+        document.getElementById('fbt-approve-tiles').value = JSON.stringify(words());
+        document.getElementById('fbt-approve-hub').value = hub;
+        document.getElementById('fbt-approve-pairs').value = JSON.stringify(groups.map(g => g.tiles.filter(t => t !== hub)));
+        document.getElementById('fbt-approve-names').value = JSON.stringify(groups.map(g => (g.name || '').trim()));
+        persist();
+        try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
+    });
+
+    // A board clicked on the Boards tab (routes/four_by_three.py
+    // editor_board): it replaces the draft, to check, fix and approve.
+    function preloaded() {
+        if (!PRELOAD || !Array.isArray(PRELOAD.tiles) || !isBoard(PRELOAD)) return false;
+        loadBoard(PRELOAD.tiles, 'shared', localDay());
+        finished = false;
+        groups = (PRELOAD.hub && Array.isArray(PRELOAD.pairs) ? PRELOAD.pairs : []).map((p, k) => ({
+            tiles: [PRELOAD.hub].concat(p), name: (PRELOAD.names || [])[k] || ''}));
+        renderApprove();
+        renderHint('Loaded from the Boards tab: ' + PRELOAD.note + '. Check it against your game, then approve it.');
+        try {
+            const url = new URL(location.href);
+            url.searchParams.delete('key');
+            history.replaceState(null, '', url.pathname + url.search);
+        } catch (_) {}
+        persist();
+        return true;
+    }
+    {% else %}
+    function renderApprove() {}
+    function preloaded() { return false; }
+    {% endif %}
+
+    /* ---------- saving ---------- */
+    function persist() {
+        try {
+            const s = {tiles, marks, reveal, hubReveal, boardSource, loggedSig, marksSig, boardDay, savedAt: Date.now()};
+            {% if approve %}s.groups = groups; s.finished = finished;{% endif %}
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+        } catch (_) {}
+    }
+
+    // A save from an earlier day is a finished puzzle (a new one comes out
+    // at the player's midnight): start fresh, unless it's a few hours old,
+    // as on /smush. James's approval draft never runs out.
+    function isStale(s) {
+        if (APPROVE) return false;
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        return new Date(s.savedAt).toDateString() !== new Date().toDateString() && ageHours > STALE_FLOOR_HOURS;
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.tiles)) return false;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.tiles.some(t => t)) toast("Cleared yesterday's board - enter today's");
+            return false;
+        }
+        // Anything stored is checked before use: a bad value would stick.
+        tiles = s.tiles.slice(0, TILES).map(t => (typeof t === 'string' ? clean(t) : ''));
+        while (tiles.length < TILES) tiles.push('');
+        marks = (Array.isArray(s.marks) ? s.marks : []).filter(m => m && Array.isArray(m.tiles) && SAID[m.verdict]
+            && m.tiles.length === (m.verdict === 'hub' ? 1 : 3) && m.tiles.every(isTile)).slice(-MAX_MARKS);
+        reveal = {};
+        if (s.reveal && typeof s.reveal === 'object') {
+            Object.entries(s.reveal).forEach(([k, v]) => { if (k.length <= 3 * MAX_TILE + 2 && [1, 2, 3].includes(v)) reveal[k] = v; });
+        }
+        hubReveal = [0, 1, 2].includes(s.hubReveal) ? s.hubReveal : 0;
+        boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 600) : '';
+        marksSig = typeof s.marksSig === 'string' ? s.marksSig.slice(0, 4000) : '';
+        boardDay = typeof s.boardDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.boardDay) ? s.boardDay : '';
+        {% if approve %}
+        finished = !!s.finished;
+        finishedEl.checked = finished;
+        groups = (Array.isArray(s.groups) ? s.groups : []).filter(g => g && Array.isArray(g.tiles) && g.tiles.length === 3
+            && g.tiles.every(isTile)).slice(0, 4).map(g => ({tiles: g.tiles, name: typeof g.name === 'string' ? g.name.slice(0, NAME_MAX) : ''}));
+        {% endif %}
+        return true;
+    }
+
+    function clearBoard(ask) {
+        if (ask && words().some(w => w) && !confirm('Clear the whole board and start over?')) return;
+        tiles = Array(TILES).fill('');
+        marks = []; reveal = {}; hubReveal = 0; picked = [];
+        boardSource = 'typed'; loggedSig = ''; marksSig = ''; boardDay = '';
+        last = null; lastSig = '';
+        editorOpen = true;
+        {% if approve %}groups = []; finished = false; finishedEl.checked = false;{% endif %}
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        renderBoxes();
+        renderEditor();
+        renderBoard();
+        renderMarks();
+        renderResults();
+        renderHint();
+        renderApprove();
+        focusBox(0);
+        fetchShared();
+    }
+    document.getElementById('fbt-clear').addEventListener('click', () => clearBoard(true));
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'fbt-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = document.getElementById('instructions-panel');
+    document.getElementById('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('fourByThreeInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('fourByThreeInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- boot ---------- */
+    buildBoxes();
+    if (APPROVE) {
+        mode = 'solve';
+    } else {
+        try { const m = localStorage.getItem(MODE_KEY); if (m === 'solve' || m === 'help') mode = m; } catch (_) {}
+    }
+    if (!preloaded()) {
+        restore();
+        // A saved full board comes back folded, like a loaded one.
+        editorOpen = !ready();
+        renderBoxes();
+        renderEditor();
+        renderBoard();
+        renderMarks();
+        if (!hintEl.textContent) renderHint();
+        renderApprove();
+        scheduleSolve(0);
+        // An empty board starts in box 1, with the keyboard up where there's
+        // a mouse.
+        if (!words().some(w => w) && window.matchMedia && window.matchMedia('(pointer: fine)').matches) focusBox(0);
+    }
+    setMode(mode);
+    if (!words().some(w => w)) { sharedAt = Date.now(); fetchShared(); }
+});
+</script>
+
+{% endblock %}

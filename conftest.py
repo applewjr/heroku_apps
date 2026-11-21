@@ -101,6 +101,30 @@ def no_typeshift_db(monkeypatch, typeshift_index):
 
 
 @pytest.fixture(autouse=True)
+def no_four_by_three_db(monkeypatch):
+    """Keep /4x3 off the database, for every test.
+
+    Today's boards, players' marks and James's answers come from
+    four_by_three_boards, and the solver's weights are fit on his answers:
+    ``secret_pass.py`` points at the production JawsDB. Every cursor in
+    routes/four_by_three.py fails here, as in an outage (the page fails
+    safe), the memos start empty, and the weights are the defaults, as if
+    already read. tests/test_four_by_three_boards.py puts tables of its own
+    in place of these.
+    """
+    import routes.four_by_three as fbt_route
+    from functions import four_by_three as fbt
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(fbt_route, "db_cursor", down)
+    monkeypatch.setattr(fbt_route, "_boards_cache", {})
+    monkeypatch.setattr(fbt_route, "_answers_cache", {})
+    monkeypatch.setattr(fbt_route, "_tuning", {"value": (fbt.DEFAULT_WEIGHTS, 0), "expires": float("inf")})
+
+
+@pytest.fixture(autouse=True)
 def no_ice_builds(monkeypatch):
     """Never really build an ICE COLD table in a test, for every test.
 

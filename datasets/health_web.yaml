@@ -78,6 +78,14 @@ typeshift:
     expect: 'id="ts-data-ok"'
     sev: warn
 
+# 4x3's page: the marker renders once Chainle's word data, which it shares,
+# has loaded.
+four_by_three:
+    path: "/4x3"
+    max_ms: 4000
+    expect: 'id="fbt-data-ok"'
+    sev: warn
+
 wordle:
     path: "/wordle"
     max_ms: 3000
