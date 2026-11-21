@@ -56,17 +56,26 @@ def release_memory():
     libc.malloc_trim(0)
 
 
-def rss_mb():
-    """This process's resident memory in MB, from /proc (Linux: the dyno), or
-    None where there's no /proc (Windows, macOS)."""
+def rss_mb(path='/proc/self/status'):
+    """This process's memory in MB as Heroku's 512 MB quota counts it, from
+    /proc (Linux: the dyno), or None where there's no /proc (Windows, macOS).
+
+    That's RssAnon, the process's own memory. VmRSS also counts the shared
+    library pages it has mapped (numpy, pandas, ...), which the quota
+    doesn't: on 2026-11-21 VmRSS read 370-388 MB while Heroku Metrics showed
+    the whole dyno at 322-375, so ICE COLD's 360 MB build gate never let a
+    second board build once the app warmed up. VmRSS only where a kernel has
+    no RssAnon line."""
+    fields = {}
     try:
-        with open('/proc/self/status') as f:
+        with open(path) as f:
             for line in f:
-                if line.startswith('VmRSS:'):
-                    return int(line.split()[1]) / 1024
+                name, _, rest = line.partition(':')
+                if name in ('RssAnon', 'VmRSS'):
+                    fields[name] = int(rest.split()[0]) / 1024
     except (OSError, ValueError, IndexError):
-        pass
-    return None
+        return None
+    return fields.get('RssAnon', fields.get('VmRSS'))
 
 
 class ValidationError(ValueError):

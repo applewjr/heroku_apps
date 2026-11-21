@@ -482,15 +482,19 @@ def test_a_recalc_keeps_the_old_table_answering_until_the_new_one_is_in():
     assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
 
 
-def test_short_of_memory_a_recalc_drops_the_old_table_first():
-    cache, jobs, _, _ = _cache(may_refresh=lambda: False)
+def test_short_of_memory_a_recalc_changes_nothing():
+    # Dropping the old table first could leave the board with no plan if the
+    # build then can't start for memory (2026-11-03). At worst, refuse.
+    room = [False]
+    cache, jobs, _, _ = _cache(may_refresh=lambda: room[0])
     pool = lambda: ice.Pool([])
     cache.get("k", None, pool)
     jobs.pop()()
-    assert cache.refresh("k", None, pool) == "building"
-    assert cache.get("k", None, pool)[:2] == (None, "building")
-    jobs.pop()()
-    assert cache.get("k", None, pool)[:2] == ("table-2", "ready")
+    assert cache.refresh("k", None, pool) == "no_room"
+    assert not jobs and not cache.describe("k")["queued"]
+    assert cache.get("k", None, pool)[:2] == ("table-1", "ready")    # still answering
+    room[0] = True
+    assert cache.refresh("k", None, pool) == "building" and len(jobs) == 1
 
 
 def test_a_recalc_of_a_board_with_no_table_builds_it():

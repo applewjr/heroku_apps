@@ -301,6 +301,9 @@ def test_the_admin_recalc_needs_the_password_and_todays_board(client, today, mon
     assert "Rebuilding" in urllib.parse.unquote_plus(resp.headers["Location"])
     resp = client.post("/smush_admin/recalc_ice", headers=headers, data={"tag": OTHER_TAG})
     assert calls == [TAG] and "isn't one of today's" in urllib.parse.unquote_plus(resp.headers["Location"])
+    monkeypatch.setattr(smush_ice, "recalc", lambda tag: "no_room")
+    resp = client.post("/smush_admin/recalc_ice", headers=headers, data={"tag": TAG})
+    assert "Nothing changed" in urllib.parse.unquote_plus(resp.headers["Location"])
 
 
 def test_the_admin_board_tab_shows_todays_ice_plans(client, today, monkeypatch):

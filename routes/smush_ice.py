@@ -74,10 +74,15 @@ TODAY_IDLE_SECONDS = 6 * 3600
 # admin's, or the backstop's). Only a loop of failures or evictions could
 # reach it.
 TODAY_BUILDS_PER_DAY = 12
-# A Recalc keeps the old table answering while the new one builds only at
-# or under this: the build's ~110 MB plus the new table's ~22 MB on top
-# stays under the dyno's 512 MB, with the master. Above it, the old table
-# goes first and the board shows "building" for the minute or two.
+# A Recalc (or its backstop) rebuilds only at or under this, so the old
+# table answers while the new one builds: the build's ~110 MB plus the new
+# table's ~22 MB on top stays under the dyno's 512 MB, with the master.
+# Above it, Recalc is refused and nothing changes. It used to drop the old
+# table first, and once the build then couldn't start for memory, the board
+# had no plan until a restart (2026-11-03).
+# All these gates read rss_mb(), the memory Heroku's quota counts (RssAnon
+# since 2026-11-21; VmRSS read 50-70 MB higher and held every build after
+# the first back once the app warmed up).
 ICE_REFRESH_MAX_RSS_MB = 330
 # A live board whose word list changed after its table was built, with no
 # Recalc this long after the change was first seen, rebuilds by itself:
@@ -418,9 +423,8 @@ def backstop(now=None):
                 built['noticed'] = now
             due = now - built['noticed'] >= ICE_REFRESH_BACKSTOP_SECONDS
         state = TODAY_TABLES.describe(tag)
-        # Only with room for both tables. Without it, refresh drops the old
-        # one first, and over ICE_BUILD_MAX_RSS_MB the new one can't start,
-        # so the board has no plan at all (2026-11-03). Still due next sweep.
+        # Only with room for both tables (refresh would say 'no_room'
+        # anyway); still due next sweep.
         if due and not (state['building'] or state['queued']) and _room_to_refresh():
             print(f"smush_ice: {tag}'s word list changed ({len(changed[0])} out, "
                   f"{len(changed[1])} in) with no Recalc; rebuilding")

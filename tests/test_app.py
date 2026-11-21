@@ -46,6 +46,27 @@ def test_release_memory_does_nothing_without_glibc(monkeypatch):
     helpers.release_memory()
 
 
+STATUS = "Name:\tgunicorn\nVmHWM:\t  420000 kB\nVmRSS:\t  378880 kB\n"
+
+
+def test_rss_counts_what_herokus_quota_counts(tmp_path):
+    # RssAnon, not VmRSS: VmRSS also counts shared library pages, which read
+    # 50-70 MB over Heroku Metrics and held ICE COLD builds back (2026-11-21).
+    status = tmp_path / "status"
+    status.write_text(STATUS + "RssAnon:\t  307200 kB\nRssFile:\t   71680 kB\n")
+    assert helpers.rss_mb(status) == 300
+
+
+def test_rss_falls_back_to_vmrss_without_rssanon(tmp_path):
+    status = tmp_path / "status"
+    status.write_text(STATUS)
+    assert helpers.rss_mb(status) == 370
+
+
+def test_rss_is_none_without_proc(tmp_path):
+    assert helpers.rss_mb(tmp_path / "missing") is None
+
+
 def test_app_pins_before_anything_big_loads():
     # The routes import data.py (the word lists) and pandas. A pin after them
     # would leave whatever they freed while loading to the old thresholds.
