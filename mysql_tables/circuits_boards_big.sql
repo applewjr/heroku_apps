@@ -15,10 +15,11 @@
 -- couldn't. Nothing else is touched: safe to run live. Prod and staging share
 -- the JawsDB; both are fine.
 --
--- Code deployed without it fails safe: boards that fit the old columns (every
--- real board so far, and realistic ones up to about 6 by 6) work as before; a
--- bigger one isn't stored, behind a `circuits_board_log_failed` alert, and
--- approving one says "Database error".
+-- Code deployed without it does not fail safe here. Boards that fit the old
+-- columns (every real board so far, and realistic ones up to about 6 by 6)
+-- work as before, but JawsDB runs without strict mode (sql_mode is
+-- NO_ENGINE_SUBSTITUTION, checked 2026-11-21) and the driver doesn't raise
+-- warnings: a bigger board is stored cut short, with no error and no alert.
 
 SET SESSION lock_wait_timeout = 5;
 
@@ -32,5 +33,8 @@ ALTER TABLE circuits_boards
 
 
 -- ---------------------------------------------------------------------------
--- Rollback: none needed. The previous code reads and writes the longer
--- columns as it did the shorter ones.
+-- Rollback: none needed for the columns. The previous code reads and writes
+-- the longer columns as it did the shorter ones. Rolling the code back past
+-- the change that lets boards grow is another matter: that code knows only
+-- 5x3, 4x4 and 5x4 boards and reads any other stored size as 5x3, so first
+-- remove the rows of other sizes (shape NOT IN ('5x3', '4x4', '5x4')).
