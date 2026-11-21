@@ -825,9 +825,9 @@ def run_circuits():
         log_solve(PAGE, data)
         return response
     schema_data = make_schema_data(
-        "Circuits Answers & Hints - Solver for Today's Puzzmo Circuits",
-        "Stuck on Puzzmo's Circuits? Enter the board and get help that fits each box: hints first, "
-        "letter by letter, or every answer at once.",
+        "Circuits Answers & Hints - Today's Puzzmo & Yahoo Circuits Solver",
+        "Stuck on Circuits from Puzzmo or Yahoo Games? Enter today's board and get help that fits each box: "
+        "hints first, letter by letter, or every answer at once.",
         "https://www.jamesapplewhite.com/circuits"
     )
     log_page_visit(PAGE)

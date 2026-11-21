@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}{% if approve %}Approve your Circuits board{% else %}Circuits Answers & Hints - Solver for Today's Puzzmo Circuits{% endif %}{% endblock %}
+{% block title %}{% if approve %}Approve your Circuits board{% else %}Circuits Answers & Hints - Today's Puzzmo & Yahoo Circuits Solver{% endif %}{% endblock %}
 
 {% block meta %}
-<meta name="description" content="Stuck on Puzzmo's Circuits? Enter today's board and get help that fits each box: hints first, letter by letter, or every answer at once.">
+<meta name="description" content="Stuck on Circuits from Puzzmo or Yahoo Games? Enter today's board and get help that fits each box: hints first, letter by letter, or every answer at once.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/circuits">
-<meta name="keywords" content="circuits answers, circuits puzzmo, circuits hints, puzzmo circuits today, circuits solver, circuits word game, compound word puzzle">
-<meta property="og:title" content="Circuits Answers & Hints - Solver for Today's Puzzmo Circuits">
-<meta property="og:description" content="Type Puzzmo's Circuits board and get spoiler-free hints for each box, one letter at a time, or every answer at once, with how sure the solver is.">
+<meta name="keywords" content="circuits answers, circuits puzzmo, circuits hints, puzzmo circuits today, yahoo circuits, circuits solver, circuits word game, compound word puzzle">
+<meta property="og:title" content="Circuits Answers & Hints - Today's Puzzmo & Yahoo Circuits Solver">
+<meta property="og:description" content="Type the Circuits board from Puzzmo or Yahoo Games and get spoiler-free hints for each box, one letter at a time, or every answer at once, with how sure the solver is.">
 <meta property="og:url" content="https://www.jamesapplewhite.com/circuits">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="JJ Apps">
@@ -27,7 +27,7 @@
       "name": "What is Circuits?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Circuits is Puzzmo's daily word puzzle. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION."
+        "text": "Circuits is Puzzmo's daily word puzzle, also on Yahoo Games. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION."
       }
     },
     {
@@ -35,7 +35,7 @@
       "name": "How does this solver help without spoiling the puzzle?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type the board in, then pick Help or Solve. Help shows each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Solve shows every box's answer at once, with how sure the solver is about each. The page remembers which one you like."
+        "text": "Type the board in, then pick Hints or Answers. Hints show each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Answers show every box's answer at once, with how sure the solver is about each. The page remembers which one you like."
       }
     },
     {
@@ -83,7 +83,7 @@
       "name": "About this tool",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its word data comes from public sources, listed under Data sources and licences below."
+        "text": "This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo or Yahoo. It never connects to Puzzmo or Yahoo: its word data comes from public sources, listed under Data sources and licences below."
       }
     }
   ]
@@ -448,10 +448,13 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
 }
 .cc-clear-btn:hover { background-color: #e9ecef; }
+/* A side gutter on phones, like the rest of the page. */
 .instructions {
     background-color: #f8f9fa;
     border-radius: 8px;
     margin: 20px auto;
+    width: calc(100% - 24px);
+    box-sizing: border-box;
     max-width: 600px;
     font-size: 14px;
     border: 1px solid #e9ecef;
@@ -508,11 +511,11 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
 {% if load_error %}<p class="cc-dev-note cc-load-error" role="alert">{{ load_error }}.</p>{% endif %}
 {% endif %}
 {% if data_ok %}
-<p class="cc-sub" id="cc-data-ok">Help with every box of Puzzmo's Circuits: hints first, or every answer at once.</p>
+<p class="cc-sub" id="cc-data-ok">Help with every box of Circuits from Puzzmo or Yahoo Games: hints first, or every answer at once.</p>
 {% else %}
 <div class="cc-notice" role="alert">The solver is unavailable right now. Please try again in a few minutes.</div>
 {% endif %}
-<p class="cc-unofficial">Unofficial helper. Not affiliated with or endorsed by Puzzmo.</p>
+<p class="cc-unofficial">Unofficial helper. Not affiliated with or endorsed by Puzzmo or Yahoo.</p>
 
 {# Hidden, not left out, on the approve page: the script below wires it. #}
 <div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
@@ -532,10 +535,10 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
         arrow your game doesn't show to remove it, or a dashed one to add it. After a solve, an arrow
         ringed in gold is one the solver can't make a compound across, so check that one first.
         <br><br>
-        <strong>3. Help or Solve.</strong> <strong>Help</strong> shows each box's length and the
-        compounds it makes, with the word hidden: <strong>Show a letter</strong> uncovers one letter at
-        a time, <strong>Show word</strong> the whole word. <strong>Solve</strong> shows every answer at
-        once. Each box says how sure the solver is: Sure, Likely or Guess.
+        <strong>3. Hints or Answers.</strong> Pick one above the results. <strong>Hints</strong> show
+        each box's length and the compounds it makes, with the word hidden: <strong>Show a letter</strong>
+        uncovers one letter at a time, <strong>Show word</strong> the whole word. <strong>Answers</strong>
+        show every answer at once. Each box says how sure the solver is: Sure, Likely or Guess.
         <br><br>
         <strong>4. Keep what you've got.</strong> When the game accepts a word, tap <strong>Keep</strong>
         on its box's card, or tap it among the box's other fits. If the card isn't showing that word,
@@ -543,12 +546,6 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
         letter it showed into that box's card and tap <strong>it starts with</strong>. Tap a revealed
         word to copy it.
     </div>
-</div>
-
-<div class="cc-modes" id="cc-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
-    <span class="cc-modes-label">Show me:</span>
-    <button type="button" class="cc-mode" data-mode="help">Help</button>
-    <button type="button" class="cc-mode" data-mode="solve">Solve</button>
 </div>
 
 {% if boards_on %}
@@ -598,6 +595,14 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
 </form>
 {% endif %}
 
+{# Hints or Answers, right above what it changes: hidden until the board can
+   be solved (renderResults), and always on the approve page. #}
+<div class="cc-modes" id="cc-modes" role="group" aria-label="Show me" hidden>
+    <span class="cc-modes-label">Show me:</span>
+    <button type="button" class="cc-mode" data-mode="help">Hints</button>
+    <button type="button" class="cc-mode" data-mode="solve">Answers</button>
+</div>
+
 <div class="cc-results" id="cc-results" aria-live="polite" hidden></div>
 
 <br>
@@ -617,11 +622,11 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
   <div style="border-top: 1px solid #e9ecef;">
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What is Circuits?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Circuits is Puzzmo's daily word puzzle. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Circuits is Puzzmo's daily word puzzle, also on Yahoo Games. The board is a small grid of word tiles and empty, numbered boxes, joined by arrows. Each box takes one word that makes a compound term with every tile or box its arrows touch, read in the arrow's direction, left to right or top to bottom: SNOW and BALL make SNOWBALL, FIRE and STATION make FIRE STATION.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the board in, then pick Help or Solve. Help shows each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Solve shows every box's answer at once, with how sure the solver is about each. The page remembers which one you like.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the board in, then pick Hints or Answers. Hints show each box's length and the compounds it makes, with the word hidden, and a box to start with. Tap Show a letter to uncover one letter at a time, or Show word for the whole word. Answers show every box's answer at once, with how sure the solver is about each. The page remembers which one you like.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
@@ -647,14 +652,14 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo. It never connects to Puzzmo: its word data comes from public sources, listed under <a href="#cc-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This is an unofficial helper for Circuits, provided for assistance and entertainment purposes only. It is not affiliated with, endorsed by or sponsored by Puzzmo or Yahoo. It never connects to Puzzmo or Yahoo: its word data comes from public sources, listed under <a href="#cc-sources" style="color: #02484d; text-decoration: underline;">Data sources and licences</a> below.</p>
     </div>
   </div>
 </section>
 
 <section id="cc-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
   <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
-  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Puzzmo. Its word data comes from the public sources below. Boxes marked Checked show a day's real answers, entered by hand, and when those answers need a word pair the sources lack, the pair is added too.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Puzzmo or Yahoo. Its word data comes from the public sources below. Boxes marked Checked show a day's real answers, entered by hand, and when those answers need a word pair the sources lack, the pair is added too.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word pairs from text.</strong> How often words sit side by side in <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikipedia</a>'s articles, and its article titles, by Wikipedia contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Compound words and phrases.</strong> Compound words from the public-domain ENABLE word list. Two-word phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, from <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a> (WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>), and from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>).</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word frequencies.</strong> From <a href="https://github.com/rspeer/wordfreq" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">wordfreq</a> by Robyn Speer (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>), which draws on <a href="http://books.google.com/ngrams" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Google Books Ngrams</a>, Wikipedia, the Leeds Internet Corpus, ParaCrawl, <a href="http://www.opensubtitles.org/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">OpenSubtitles</a>, Twitter, and the SUBTLEX word lists by Marc Brysbaert et al. SUBTLEX is freely available <a href="http://crr.ugent.be/programs-data/subtitle-frequencies" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">from Ghent University</a>.</p>
@@ -702,6 +707,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let starts = {};                 // box cell -> letters its word starts with (a Bolt in the game)
     let reveals = {};                // box cell -> letters shown in Help
     let selected = 0;                // the square the editor is on, or -1
+    // Square 1 as the page picked it to start an empty board, before the
+    // player taps or types there: a tap on it opens the editor rather than
+    // closing it (see the board's click handler).
+    let autoPicked = false;
     let boardSource = 'typed';       // 'typed' | 'shared' (today's board, untouched) | 'edited' (shared, then changed)
     let loggedSig = '';              // the board as last logged
     let arrowsTouched = false;       // the player set an arrow by hand
@@ -716,6 +725,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let savedAnswers = null;         // approve page: box cell -> the answer saved for the preloaded board
 
     const boardEl = document.getElementById('cc-board');
+    // The editor row shows only while a square is selected: with none, its
+    // input and buttons would do nothing.
+    const editorEl = document.getElementById('cc-editor');
     const editInput = document.getElementById('cc-edit');
     const editLabel = document.getElementById('cc-edit-label');
     const hintEl = document.getElementById('cc-hint');
@@ -979,6 +991,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderBoard() {
+        // Here rather than in selectCell: loading a board sets `selected`
+        // directly.
+        editorEl.hidden = selected < 0;
         const nums = {};
         boxes().forEach((i, k) => { nums[i] = k + 1; });
         cellEls.forEach((el, i) => {
@@ -1071,6 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- editing ---------- */
     function selectCell(i, focus) {
         selected = i;
+        autoPicked = false;
         if (i >= 0) {
             editInput.value = cells[i] === BOX ? '' : cells[i];
             editLabel.textContent = 'Square ' + (i + 1);
@@ -1113,6 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     editInput.addEventListener('input', () => {
         if (selected < 0) return;
+        autoPicked = false;
         const raw = editInput.value.toUpperCase();
         // A question mark on its own makes a box. After letters it's part of
         // the tile as the game prints it ("OR PLASTIC?"), so it goes like any
@@ -1164,7 +1181,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const gap = e.target.closest('.cc-gap');
         if (gap) { toggleArrow(Number(gap.dataset.a), Number(gap.dataset.b)); return; }
         const cell = e.target.closest('.cc-cell');
-        if (cell) selectCell(Number(cell.dataset.i), true);
+        if (!cell) return;
+        // Tapping the square being edited closes the editor, keyboard and
+        // all. Square 1 as the page picked it is the exception: a first tap
+        // there opens the keyboard.
+        const i = Number(cell.dataset.i);
+        if (i === selected && !autoPicked) {
+            selectCell(-1);
+            editInput.blur();
+        } else {
+            selectCell(i, true);
+        }
     });
 
     function toggleArrow(a, b) {
@@ -1368,6 +1395,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderResults() {
+        // Hints or Answers shows once the board can be solved, never on the
+        // approve page.
+        modesEl.hidden = APPROVE || !solvable();
         if (!solvable() || !last || !Array.isArray(last.boxes)) {
             resultsEl.hidden = true;
             resultsEl.innerHTML = '';
@@ -1471,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
         maybeLog();
     }
 
-    /* ---------- Help or Solve ---------- */
+    /* ---------- Hints or Answers (modes 'help' and 'solve') ---------- */
     function setMode(m) {
         mode = m === 'solve' ? 'solve' : 'help';
         if (!APPROVE) { try { localStorage.setItem(MODE_KEY, mode); } catch (_) {} }
@@ -1580,7 +1610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editInput.value = '';
         gaOnce('circuits_board_loaded');
         afterEdit();
-        renderHint("Loaded today's board, entered by other players. Check it matches your game.");
+        renderHint("Loaded today's board, entered by other players. Check it matches your game. Tap a square to change it.");
         schedule(0);
     });
 
@@ -1787,6 +1817,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setShape(START_ROWS, START_COLS);
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         selectCell(0, true);
+        autoPicked = true;
         afterEdit();
         fetchShared();
     }
@@ -1843,6 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // a mouse); a board brought back starts with none selected.
         const empty = !cells.some(c => c);
         selectCell(empty ? 0 : -1, empty && window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+        autoPicked = empty;
         afterEdit();
         schedule(0);
     }

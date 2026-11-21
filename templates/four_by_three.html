@@ -35,7 +35,7 @@
       "name": "How does this solver help without spoiling the puzzle?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like."
+        "text": "Type the nine words, then pick Hints or Answers. Hints keep the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Answers show the hub and all four groups at once. The page remembers which one you like."
       }
     },
     {
@@ -59,7 +59,7 @@
       "name": "How do I get the most points in 4x3?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Solve lists the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones."
+        "text": "Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Answers show the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones."
       }
     },
     {% if boards_on %}
@@ -239,7 +239,6 @@
 .fbt-big { font-size: 20px; font-weight: 700; color: #02484d; margin: 8px 0 0; overflow-wrap: anywhere; }
 .fbt-line { font-size: 14px; color: #374151; margin: 8px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
 .fbt-line strong { color: #02484d; }
-.fbt-caution { font-size: 12px; color: #a55; margin: 6px 0 0; }
 .fbt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .fbt-btn {
     background-color: #fff; border: 1px solid #cdd8d7; border-radius: 8px; color: #02484d;
@@ -326,9 +325,11 @@
     white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
 }
 .fbt-clear-btn:hover { background-color: #e9ecef; }
+/* A side gutter on phones, like the rest of the page. */
 .instructions {
     background-color: #f8f9fa; border-radius: 8px; margin: 20px auto; max-width: 600px; font-size: 14px;
     border: 1px solid #e9ecef; overflow: hidden; line-height: 1.6;
+    width: calc(100% - 24px); box-sizing: border-box;
 }
 .instructions-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; cursor: pointer; user-select: none; }
 .instructions-header:hover { background-color: #e9ecef; }
@@ -378,24 +379,18 @@
         Tab or Enter moves to the next box.{% if boards_on %} Once other players have entered today's board,
         you can skip this: tap it above the boxes and the words fill in.{% endif %}
         <br><br>
-        <strong>2. Help or Solve.</strong> <strong>Help</strong> keeps the answer hidden until you ask:
+        <strong>2. Hints or Answers.</strong> Once the nine words are in, pick one above the results.
+        <strong>Hints</strong> keep the answer hidden until you ask:
         <strong>Narrow it down</strong> shows the likeliest hubs, and each group can show its theme (when the
-        solver knows it), one of its words, or the whole group. <strong>Solve</strong> shows the hub and all
-        four groups. Each group says how sure the solver is: sure, likely or a guess. Solve lists the groups
-        in the order that scores the most points, and says how to tap them.
+        solver knows it), one of its words, or the whole group. <strong>Answers</strong> show the hub and all
+        four groups. Each group says how sure the solver is: sure, likely or a guess. Answers list the groups
+        in the order that scores the most points, and say how to tap them.
         <br><br>
         <strong>3. Tell it what the game said.</strong> After you try a guess in 4x3, tap the same three words
         on the board here and pick what the game said: Right, One away or Not even close (or Not sure which,
-        if you didn't catch it). If you called the
-        hub and it was right, tap the hub alone. The solver keeps everything you mark and works out the rest
+        if you didn't catch it). The solver keeps everything you mark and works out the rest
         again, and your marks help other players with the same board.
     </div>
-</div>
-
-<div class="fbt-modes" id="fbt-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
-    <span class="fbt-modes-label">Show me:</span>
-    <button type="button" class="fbt-mode" data-mode="help">Help</button>
-    <button type="button" class="fbt-mode" data-mode="solve">Solve</button>
 </div>
 
 {% if boards_on %}
@@ -451,6 +446,14 @@
 </div>
 {% endif %}
 
+{# Hints or Answers, right above what it changes: hidden until the nine words
+   are in (renderResults), and always on the approve page. #}
+<div class="fbt-modes" id="fbt-modes" role="group" aria-label="Show me" hidden>
+    <span class="fbt-modes-label">Show me:</span>
+    <button type="button" class="fbt-mode" data-mode="help">Hints</button>
+    <button type="button" class="fbt-mode" data-mode="solve">Answers</button>
+</div>
+
 <div class="fbt-results" id="fbt-results" aria-live="polite" hidden></div>
 
 <br>
@@ -474,7 +477,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the nine words, then pick Hints or Answers. Hints keep the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Answers show the hub and all four groups at once. The page remembers which one you like.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How sure is the solver?</p>
@@ -486,7 +489,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I get the most points in 4x3?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Solve lists the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Answers show the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -836,11 +839,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         markbarEl.hidden = false;
         let html = '';
-        if (picked.length === 1) {
-            html = '<span class="fbt-markbar-q">Called ' + esc(picked[0]) + ' the hub in 4x3 and got it right?</span>' +
-                '<button type="button" class="fbt-btn primary" data-said="hub">Yes, ' + esc(picked[0]) + ' is the hub</button>';
-        } else if (picked.length === 2) {
-            html = '<span class="fbt-markbar-q">Tap a third word.</span>';
+        // One or two words picked: just what's left to tap. (No hub call: 4x3
+        // hides its Call It button from most players, and a stray "yes" here
+        // would pin a wrong hub.)
+        if (picked.length < 3) {
+            html = '<span class="fbt-markbar-q">' + (picked.length === 1 ? 'Tap two more words.' : 'Tap a third word.') + '</span>';
         } else {
             html = '<span class="fbt-markbar-q">What did 4x3 say about ' + esc(picked.join(', ')) + '?</span>' +
                 '<button type="button" class="fbt-btn primary" data-said="right">&#10003; Right</button>' +
@@ -895,8 +898,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (marksEl.hidden) { marksEl.innerHTML = ''; return; }
         const dropped = new Set(last && lastSig === sigOf() && Array.isArray(last.dropped) ? last.dropped : []);
         const misses = live.filter(m => MISSES.includes(m.verdict)).length;
+        // A hub mark only comes from a save made before the page stopped
+        // asking about hub calls.
+        const called = live.some(m => m.verdict === 'hub');
         let html = '<p class="fbt-marks-title">Your guesses <span class="fbt-legend">(' +
-            (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; 3 end the game unless you called the hub)</span></p>';
+            (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; ' +
+            (called ? "you called the hub, so they can't end the game" : '3 end the game') + ')</span></p>';
         live.forEach((m, n) => {
             const isMiss = MISSES.includes(m.verdict);
             const cls = dropped.has(n) ? 'dropped' : isMiss ? 'miss' : 'right';
@@ -945,7 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // has a solve of its own on the way.
             if (seq !== solveSeq || sig !== sigOf()) return;
             if (!resp.ok) {
-                renderHint((data.error || 'Something went wrong.') + ' Tap Help or Solve to try again.', true);
+                renderHint((data.error || 'Something went wrong.') + ' Tap Hints or Answers to try again.', true);
                 solveFailed = true;
                 return;
             }
@@ -963,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(logTimer);
             logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
         } catch (_) {
-            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Help or Solve.', true);
+            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Hints or Answers.', true);
         }
     }
 
@@ -980,6 +987,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderResults() {
+        // Hints or Answers shows once the nine words are in, never on the
+        // approve page.
+        modesEl.hidden = APPROVE || !ready();
         if (!last || APPROVE && !ready()) {
             resultsEl.hidden = true;
             resultsEl.innerHTML = '';
@@ -998,16 +1008,13 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsEl.innerHTML = html;
     }
 
-    const caution = h => ['checked', 'yours', 'players'].includes(h.label) ? ''
-        : '<p class="fbt-caution">A wrong hub call ends your game in 4x3.</p>';
-
     function helpHtml(r) {
         const h = r.hub;
         const hubShown = hubReveal >= 2 || h.label === 'yours';
         let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
             '<p class="fbt-card-title">The hub ' + chip(h.label, HUB_LABELS) + '</p>';
         if (hubShown) {
-            html += '<p class="fbt-big">' + esc(h.tile) + '</p>' + caution(h);
+            html += '<p class="fbt-big">' + esc(h.tile) + '</p>';
         } else {
             // In alphabetical order, so the first isn't always the answer.
             if (hubReveal === 1) {
@@ -1089,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function solveHtml(r) {
         const h = r.hub;
         let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
-            '<p class="fbt-card-title">The hub: ' + esc(h.tile) + ' ' + chip(h.label, HUB_LABELS) + '</p>' + caution(h);
+            '<p class="fbt-card-title">The hub: ' + esc(h.tile) + ' ' + chip(h.label, HUB_LABELS) + '</p>';
         const next = h.candidates.slice(1).filter(c => c[1] >= NEXT_HUB_MIN);
         if (next.length && !['checked', 'yours', 'players'].includes(h.label)) {
             html += '<p class="fbt-line">Next likeliest: ' + esc(next.map(c => c[0] + ' (' + pct(c[1]) + ')').join(', ')) + '</p>';

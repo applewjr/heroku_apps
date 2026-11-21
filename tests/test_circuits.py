@@ -392,7 +392,7 @@ def test_page_shows_the_loaded_marker_and_says_unofficial(client, tiny):
     html = client.get('/circuits').get_data(as_text=True)
     # The hourly web probe expects this marker (datasets/health_web.yaml).
     assert 'id="cc-data-ok"' in html
-    assert 'Unofficial helper. Not affiliated with or endorsed by Puzzmo.' in html
+    assert 'Unofficial helper. Not affiliated with or endorsed by Puzzmo or Yahoo.' in html
 
 
 def test_page_says_when_the_data_is_unavailable(client, monkeypatch):
