@@ -554,9 +554,71 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     <p class="cc-shared-text" id="cc-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
     <div class="cc-shared-picks" id="cc-shared-picks"></div>
 </div>
+<script>
+/* The offer of today's boards, drawn here while the page is still arriving,
+   from the boards the server last looked up today (routes/circuits.py
+   first_paint_boards), so it's in the first paint: drawn later, it would
+   push the board down, a layout shift. The main script draws the offer with
+   this same function, and still asks for the newest boards. */
+function ccShowOffer(boards) {
+    const BOX = {{ box | tojson }};
+    const one = document.getElementById('cc-shared-one');
+    one.hidden = boards.length > 1;
+    document.getElementById('cc-shared-many').hidden = !one.hidden;
+    document.getElementById('cc-shared-picks').replaceChildren(...boards.map((b, k) => {
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'cc-shared-pick';
+        pick.dataset.pick = String(k);
+        pick.setAttribute('aria-label', 'Load the board with ' + b.cells.filter(c => c && c !== BOX).join(', '));
+        const mini = document.createElement('span');
+        mini.className = 'cc-mini';
+        mini.style.setProperty('--cols', String(b.cols));
+        mini.setAttribute('aria-hidden', 'true');
+        let n = 0;
+        // Down to its last row with something in it.
+        const lastRow = Math.floor(b.cells.reduce((m, c, i) => (c ? i : m), 0) / b.cols);
+        b.cells.slice(0, (lastRow + 1) * b.cols).forEach(c => {
+            const s = document.createElement('span');
+            if (c === BOX) { s.className = 'b'; s.textContent = String(++n); }
+            else if (c) { s.className = 't'; s.textContent = c; }
+            mini.appendChild(s);
+        });
+        const side = document.createElement('span');
+        side.className = 'cc-shared-side';
+        const label = document.createElement('span');
+        label.className = 'cc-shared-btn';
+        label.textContent = 'Load this board';
+        side.appendChild(label);
+        if (Array.isArray(b.sites) && b.sites.length) {
+            const site = document.createElement('span');
+            site.className = 'cc-shared-site';
+            site.textContent = b.sites.filter(s => typeof s === 'string').join(' and ');
+            side.appendChild(site);
+        }
+        pick.append(mini, side);
+        return pick;
+    }));
+    document.getElementById('cc-shared').hidden = false;
+}
+(function () {
+    const boards = {{ first_boards | default(none) | tojson }};
+    if (!Array.isArray(boards) || !boards.length) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('circuitsSolverState_v1'));
+        if (s && Array.isArray(s.cells) && s.cells.some(c => c)) return;
+    } catch (_) {}
+    ccShowOffer(boards);
+})();
+</script>
 {% endif %}
 
-<div class="cc-board" id="cc-board" role="group" aria-label="Board"></div>
+{# The starting board's rows are in the markup, so the first paint already has
+   the board's full height and nothing under it jumps when the script builds
+   the squares (buildGrid sets the same rows, then any other size). #}
+<div class="cc-board" id="cc-board" role="group" aria-label="Board" style="grid-template-rows: {% for r in range(rows) %}minmax(54px, auto){% if not loop.last %} 26px {% endif %}{% endfor %}{% if rows < max_side %} var(--grow){% endif %};"></div>
 
 <div class="cc-editor" id="cc-editor">
     <div class="cc-edit-row">
@@ -571,7 +633,9 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
         <button type="button" class="cc-btn primary" id="cc-next">Next</button>
     </div>
 </div>
-<p class="cc-hint" id="cc-hint" aria-live="polite"></p>
+{# The empty board's hint is in the markup too (renderHint reads it from
+   here), so its lines are there from the first paint. #}
+<p class="cc-hint" id="cc-hint" aria-live="polite">Tap a square and type its tile. Box makes an empty box; Blank, a square with nothing in it. A + at the edge adds a column or row.</p>
 <p class="cc-fit-row" id="cc-fit-row" hidden><button type="button" class="cc-btn" id="cc-fit">Remove empty rows and columns</button></p>
 
 {% if approve %}
@@ -731,6 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const editInput = document.getElementById('cc-edit');
     const editLabel = document.getElementById('cc-edit-label');
     const hintEl = document.getElementById('cc-hint');
+    // The empty board's hint, as the markup already shows it.
+    const EMPTY_HINT = hintEl.textContent;
     const resultsEl = document.getElementById('cc-results');
     const modesEl = document.getElementById('cc-modes');
     const sharedEl = document.getElementById('cc-shared');
@@ -1226,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 text = 'Square ' + (bad + 1) + ': a tile starts and ends with a letter.';
                 warn = true;
             } else if (!cells.some(c => c)) {
-                text = 'Tap a square and type its tile. Box makes an empty box; Blank, a square with nothing in it. A + at the edge adds a column or row.';
+                text = EMPTY_HINT;
             } else if (!cells.includes(BOX)) {
                 text = 'Mark the empty boxes too: tap one, then Box.';
             } else if (!complete()) {
@@ -1522,12 +1588,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // approved), once they agree. More than one can be real on a day, so each
     // is offered as a small grid: the player picks theirs. Players are never
     // told how boards are chosen.
-    const sharedOne = document.getElementById('cc-shared-one');
-    const sharedMany = document.getElementById('cc-shared-many');
     const sharedPicks = document.getElementById('cc-shared-picks');
     const isBoard = b => b && fits(b.rows, b.cols) && Array.isArray(b.cells) && b.cells.length === b.rows * b.cols &&
         b.cells.every(c => typeof c === 'string' && (c === '' || c === BOX || TILE.test(c))) &&
         b.cells.includes(BOX) && Array.isArray(b.arrows);
+    // The boards the page arrived with (drawn already by ccShowOffer, when
+    // the board is empty), until the request below brings the newest.
+    const FIRST_BOARDS = {{ first_boards | default(none) | tojson }};
+    sharedBoards = (Array.isArray(FIRST_BOARDS) ? FIRST_BOARDS : []).filter(isBoard);
 
     function postJSON(payload) {
         return fetch(POST_URL, {
@@ -1545,52 +1613,18 @@ document.addEventListener('DOMContentLoaded', () => {
         postJSON({action: 'todays_boards'})
             .then(data => {
                 sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+                // Drawing the same boards again moves nothing.
                 renderShared();
             })
             .catch(() => {});
     }
 
+    // Drawn by ccShowOffer, next to the offer's markup, which also draws it
+    // as the page arrives.
     function renderShared() {
         if (!sharedEl) return;
-        const show = sharedBoards.length > 0 && !cells.some(c => c);
-        sharedEl.hidden = !show;
-        if (!show) return;
-        sharedOne.hidden = sharedBoards.length > 1;
-        sharedMany.hidden = !sharedOne.hidden;
-        sharedPicks.replaceChildren(...sharedBoards.map((b, k) => {
-            const pick = document.createElement('button');
-            pick.type = 'button';
-            pick.className = 'cc-shared-pick';
-            pick.dataset.pick = String(k);
-            pick.setAttribute('aria-label', 'Load the board with ' + b.cells.filter(c => c && c !== BOX).join(', '));
-            const mini = document.createElement('span');
-            mini.className = 'cc-mini';
-            mini.style.setProperty('--cols', String(b.cols));
-            mini.setAttribute('aria-hidden', 'true');
-            let n = 0;
-            // Down to its last row with something in it.
-            const lastRow = Math.floor(b.cells.reduce((m, c, i) => (c ? i : m), 0) / b.cols);
-            b.cells.slice(0, (lastRow + 1) * b.cols).forEach(c => {
-                const s = document.createElement('span');
-                if (c === BOX) { s.className = 'b'; s.textContent = String(++n); }
-                else if (c) { s.className = 't'; s.textContent = c; }
-                mini.appendChild(s);
-            });
-            const side = document.createElement('span');
-            side.className = 'cc-shared-side';
-            const label = document.createElement('span');
-            label.className = 'cc-shared-btn';
-            label.textContent = 'Load this board';
-            side.appendChild(label);
-            if (Array.isArray(b.sites) && b.sites.length) {
-                const site = document.createElement('span');
-                site.className = 'cc-shared-site';
-                site.textContent = b.sites.filter(s => typeof s === 'string').join(' and ');
-                side.appendChild(site);
-            }
-            pick.append(mini, side);
-            return pick;
-        }));
+        if (sharedBoards.length > 0 && !cells.some(c => c)) ccShowOffer(sharedBoards);
+        else sharedEl.hidden = true;
     }
 
     if (sharedPicks) sharedPicks.addEventListener('click', e => {

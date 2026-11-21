@@ -154,7 +154,9 @@
 /* ---------- the nine boxes (the editor) ---------- */
 .fbt-editor { box-sizing: border-box; width: min(92vw, 460px); margin: 14px auto 0; }
 .fbt-editor-label { font-size: 13px; color: #374151; margin: 0 0 8px; line-height: 1.4; }
-.fbt-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* Three 44px rows before the script adds the boxes, so nothing under them
+   jumps at the first paint. */
+.fbt-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(44px, auto)); gap: 6px; }
 /* Two classes, to beat base.html's input[type=text] padding. */
 .fbt-editor .fbt-input {
     width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; margin: 0; padding: 6px 6px;
@@ -399,6 +401,54 @@
     <p class="fbt-shared-text" id="fbt-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
     <div class="fbt-shared-picks" id="fbt-shared-picks"></div>
 </div>
+<script>
+/* The offer of today's boards, drawn here while the page is still arriving,
+   from what the server last looked up for the dates around today
+   (routes/four_by_three.py first_paint_boards), so it's in the first paint:
+   drawn later, it would push the boxes down, a layout shift. The page takes
+   the player's own date, as the game does. The main script draws the offer
+   with this same function, and still asks for the newest boards. */
+function fbtShowOffer(boards) {
+    const one = document.getElementById('fbt-shared-one');
+    one.hidden = boards.length > 1;
+    document.getElementById('fbt-shared-many').hidden = !one.hidden;
+    document.getElementById('fbt-shared-picks').replaceChildren(...boards.map((b, k) => {
+        const pickEl = document.createElement('button');
+        pickEl.type = 'button';
+        pickEl.className = 'fbt-shared-pick';
+        pickEl.dataset.pick = String(k);
+        pickEl.setAttribute('aria-label', 'Load the board with the words ' + b.tiles.join(', '));
+        const mini = document.createElement('span');
+        mini.className = 'fbt-mini';
+        mini.setAttribute('aria-hidden', 'true');
+        b.tiles.forEach(t => {
+            const s = document.createElement('span');
+            s.textContent = t;
+            mini.appendChild(s);
+        });
+        const label = document.createElement('span');
+        label.className = 'fbt-shared-btn';
+        label.textContent = 'Load this board';
+        pickEl.append(mini, label);
+        return pickEl;
+    }));
+    document.getElementById('fbt-shared').hidden = false;
+}
+(function () {
+    const byDay = {{ first_boards | default(none) | tojson }};
+    const d = new Date();
+    const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const boards = byDay && byDay[day];
+    if (!Array.isArray(boards) || !boards.length) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('fourByThreeState_v1'));
+        if (s && Array.isArray(s.tiles) && s.tiles.some(t => t)) return;
+    } catch (_) {}
+    fbtShowOffer(boards);
+})();
+</script>
 {% endif %}
 
 <div class="fbt-editor" id="fbt-editor">
@@ -593,8 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsEl = document.getElementById('fbt-results');
     const modesEl = document.getElementById('fbt-modes');
     const sharedEl = document.getElementById('fbt-shared');
-    const sharedOne = document.getElementById('fbt-shared-one');
-    const sharedMany = document.getElementById('fbt-shared-many');
     const sharedPicks = document.getElementById('fbt-shared-picks');
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -1227,6 +1275,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isBoard = b => b && Array.isArray(b.tiles) && b.tiles.length === TILES && b.tiles.every(isTile);
 
+    // The boards the page arrived with for the player's date (drawn already
+    // by fbtShowOffer, when the board is empty), until the request below
+    // brings the newest.
+    const FIRST_BOARDS = {{ first_boards | default(none) | tojson }};
+    if (FIRST_BOARDS && Array.isArray(FIRST_BOARDS[localDay()])) {
+        sharedBoards = FIRST_BOARDS[localDay()].filter(isBoard);
+        sharedDay = sharedFetchedOn = localDay();
+    }
+
     // Only the newest request's reply counts, and only while it's still the
     // date it asked about where the player is: one that comes back after
     // their midnight asks again, for the new day.
@@ -1246,33 +1303,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => {});
     }
 
+    // Drawn by fbtShowOffer, next to the offer's markup, which also draws it
+    // as the page arrives. Drawing the same boards again moves nothing.
     function renderShared() {
         if (!sharedEl) return;
-        const show = sharedBoards.length > 0 && !words().some(w => w);
-        sharedEl.hidden = !show;
-        if (!show) return;
-        sharedOne.hidden = sharedBoards.length > 1;
-        sharedMany.hidden = !sharedOne.hidden;
-        sharedPicks.replaceChildren(...sharedBoards.map((b, k) => {
-            const pickEl = document.createElement('button');
-            pickEl.type = 'button';
-            pickEl.className = 'fbt-shared-pick';
-            pickEl.dataset.pick = String(k);
-            pickEl.setAttribute('aria-label', 'Load the board with the words ' + b.tiles.join(', '));
-            const mini = document.createElement('span');
-            mini.className = 'fbt-mini';
-            mini.setAttribute('aria-hidden', 'true');
-            b.tiles.forEach(t => {
-                const s = document.createElement('span');
-                s.textContent = t;
-                mini.appendChild(s);
-            });
-            const label = document.createElement('span');
-            label.className = 'fbt-shared-btn';
-            label.textContent = 'Load this board';
-            pickEl.append(mini, label);
-            return pickEl;
-        }));
+        if (sharedBoards.length > 0 && !words().some(w => w)) fbtShowOffer(sharedBoards);
+        else sharedEl.hidden = true;
     }
 
     if (sharedPicks) sharedPicks.addEventListener('click', e => {

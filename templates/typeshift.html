@@ -173,9 +173,11 @@
 /* ---------- the column boxes (the editor) ---------- */
 .ts-editor { box-sizing: border-box; width: min(92vw, 520px); margin: 14px auto 0; }
 .ts-editor-label { font-size: 13px; color: #374151; margin: 0 0 8px; line-height: 1.4; }
-.ts-cols { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 6px; }
+/* min-height: one row of boxes (15px number + 2px + 44px box) before the
+   script adds the first, so nothing under them jumps at the first paint. */
+.ts-cols { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 6px; min-height: 61px; }
 .ts-col { display: flex; flex-direction: column; align-items: stretch; flex: 0 0 76px; min-width: 0; }
-.ts-col-num { font-size: 11px; font-weight: 700; color: #4f9a97; margin-bottom: 2px; text-align: center; }
+.ts-col-num { font-size: 11px; line-height: 15px; font-weight: 700; color: #4f9a97; margin-bottom: 2px; text-align: center; }
 /* Two classes, to beat base.html's input[type=text] padding. */
 .ts-editor .ts-col-input {
     width: 100%;
@@ -513,6 +515,81 @@
     <p class="ts-shared-text" id="ts-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
     <div class="ts-shared-picks" id="ts-shared-picks"></div>
 </div>
+<script>
+/* The offer of today's boards (and yesterday's, early in the day), drawn
+   here while the page is still arriving, from what the server last looked
+   up today (routes/typeshift.py first_paint_reply), so it's in the first
+   paint: drawn later, it would push the boxes down, a layout shift. The
+   main script draws the offer with this same function, and still asks for
+   the newest. `picks` is [{b, day, yesterday}]. */
+function tsShowOffer(picks) {
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const shortDay = day => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+        return m ? MONTHS[Number(m[2]) - 1] + ' ' + Number(m[3]) : '';
+    };
+    const one = document.getElementById('ts-shared-one');
+    const picksEl = document.getElementById('ts-shared-picks');
+    if (one.dataset.text === undefined) one.dataset.text = one.textContent;
+    one.hidden = picks.length > 1;
+    document.getElementById('ts-shared-many').hidden = !one.hidden;
+    one.textContent = picks.length === 1 && picks[0].yesterday
+        ? "Still on yesterday's puzzle? Other players entered its board. Tap it to load it."
+        : one.dataset.text;
+    picksEl.replaceChildren(...picks.map((p, k) => {
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'ts-shared-pick';
+        pick.dataset.pick = String(k);
+        pick.setAttribute('aria-label', 'Load the board with the columns ' + p.b.columns.join(', '));
+        const mini = document.createElement('span');
+        mini.className = 'ts-mini';
+        mini.setAttribute('aria-hidden', 'true');
+        p.b.columns.forEach(col => {
+            const c = document.createElement('span');
+            c.className = 'ts-mini-col';
+            [...col].forEach(ch => {
+                const s = document.createElement('span');
+                s.textContent = ch;
+                c.appendChild(s);
+            });
+            mini.appendChild(c);
+        });
+        const side = document.createElement('span');
+        side.className = 'ts-shared-side';
+        const label = document.createElement('span');
+        label.className = 'ts-shared-btn';
+        label.textContent = 'Load this board';
+        side.appendChild(label);
+        const note = p.yesterday ? "Yesterday's puzzle, " + shortDay(p.day)
+            : (Array.isArray(p.b.sites) ? p.b.sites.filter(s => typeof s === 'string').join(' and ') : '');
+        if (note) {
+            const site = document.createElement('span');
+            site.className = 'ts-shared-site';
+            site.textContent = note;
+            side.appendChild(site);
+        }
+        pick.append(mini, side);
+        return pick;
+    }));
+    picksEl._picks = picks;
+    document.getElementById('ts-shared').hidden = false;
+}
+(function () {
+    const reply = {{ first_reply | default(none) | tojson }};
+    if (!reply) return;
+    const picks = reply.boards.map(b => ({b, day: reply.day, yesterday: false}))
+        .concat(reply.yesterday.map(b => ({b, day: reply.yesterday_day, yesterday: true})));
+    if (!picks.length) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('typeshiftSolverState_v1'));
+        if (s && Array.isArray(s.columns) && s.columns.some(c => c)) return;
+    } catch (_) {}
+    tsShowOffer(picks);
+})();
+</script>
 {% endif %}
 
 <div class="ts-editor" id="ts-editor">
@@ -687,10 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsEl = document.getElementById('ts-results');
     const modesEl = document.getElementById('ts-modes');
     const sharedEl = document.getElementById('ts-shared');
-    const sharedOne = document.getElementById('ts-shared-one');
-    const sharedMany = document.getElementById('ts-shared-many');
     const sharedPicks = document.getElementById('ts-shared-picks');
-    const SHARED_ONE_TEXT = sharedOne ? sharedOne.textContent : '';
     const suggestBox = document.getElementById('ts-suggest');
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -724,11 +798,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
         if (!m) return '';
         return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) - 1)).toISOString().slice(0, 10);
-    }
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    function shortDay(day) {
-        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
-        return m ? MONTHS[Number(m[2]) - 1] + ' ' + Number(m[3]) : '';
     }
 
     /* ---------- the board ---------- */
@@ -1442,69 +1511,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const isBoard = b => b && Array.isArray(b.columns) && b.columns.length >= MIN_COLS && b.columns.length <= MAX_COLS
         && b.columns.every(c => typeof c === 'string' && c.length && c.length <= MAX_LETTERS && LETTERS.test(c));
 
+    // What the server sent, as the page keeps it.
+    function takeReply(data) {
+        sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+        sharedYesterday = (data && Array.isArray(data.yesterday) ? data.yesterday : []).filter(isBoard);
+        sharedDay = data && typeof data.day === 'string' ? data.day : gameDay();
+        sharedYesterdayDay = data && typeof data.yesterday_day === 'string' ? data.yesterday_day : dayBefore(sharedDay);
+    }
+    // The boards the page arrived with (drawn already by tsShowOffer, when
+    // the board is empty), until the request below brings the newest.
+    const FIRST_REPLY = {{ first_reply | default(none) | tojson }};
+    if (FIRST_REPLY) {
+        takeReply(FIRST_REPLY);
+        sharedFetchedOn = sharedDay;
+    }
+
     function fetchShared() {
         if (!BOARDS_ON) return;
         sharedFetchedOn = gameDay();
         postJSON({action: 'todays_boards'})
             .then(data => {
-                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
-                sharedYesterday = (data && Array.isArray(data.yesterday) ? data.yesterday : []).filter(isBoard);
-                sharedDay = data && typeof data.day === 'string' ? data.day : gameDay();
-                sharedYesterdayDay = data && typeof data.yesterday_day === 'string' ? data.yesterday_day : dayBefore(sharedDay);
+                takeReply(data);
+                // Drawing the same boards again moves nothing.
                 renderShared();
             })
             .catch(() => {});
     }
 
+    // Drawn by tsShowOffer, next to the offer's markup, which also draws it
+    // as the page arrives.
     function renderShared() {
         if (!sharedEl) return;
         const picks = sharedBoards.map(b => ({b, day: sharedDay, yesterday: false}))
             .concat(sharedYesterday.map(b => ({b, day: sharedYesterdayDay, yesterday: true})));
-        const show = picks.length > 0 && !board().cols.length;
-        sharedEl.hidden = !show;
-        if (!show) return;
-        sharedOne.hidden = picks.length > 1;
-        sharedMany.hidden = !sharedOne.hidden;
-        sharedOne.textContent = picks.length === 1 && picks[0].yesterday
-            ? "Still on yesterday's puzzle? Other players entered its board. Tap it to load it."
-            : SHARED_ONE_TEXT;
-        sharedPicks.replaceChildren(...picks.map((p, k) => {
-            const pick = document.createElement('button');
-            pick.type = 'button';
-            pick.className = 'ts-shared-pick';
-            pick.dataset.pick = String(k);
-            pick.setAttribute('aria-label', 'Load the board with the columns ' + p.b.columns.join(', '));
-            const mini = document.createElement('span');
-            mini.className = 'ts-mini';
-            mini.setAttribute('aria-hidden', 'true');
-            p.b.columns.forEach(col => {
-                const c = document.createElement('span');
-                c.className = 'ts-mini-col';
-                [...col].forEach(ch => {
-                    const s = document.createElement('span');
-                    s.textContent = ch;
-                    c.appendChild(s);
-                });
-                mini.appendChild(c);
-            });
-            const side = document.createElement('span');
-            side.className = 'ts-shared-side';
-            const label = document.createElement('span');
-            label.className = 'ts-shared-btn';
-            label.textContent = 'Load this board';
-            side.appendChild(label);
-            const note = p.yesterday ? "Yesterday's puzzle, " + shortDay(p.day)
-                : (Array.isArray(p.b.sites) ? p.b.sites.filter(s => typeof s === 'string').join(' and ') : '');
-            if (note) {
-                const site = document.createElement('span');
-                site.className = 'ts-shared-site';
-                site.textContent = note;
-                side.appendChild(site);
-            }
-            pick.append(mini, side);
-            return pick;
-        }));
-        sharedPicks._picks = picks;
+        if (picks.length > 0 && !board().cols.length) tsShowOffer(picks);
+        else sharedEl.hidden = true;
     }
 
     if (sharedPicks) sharedPicks.addEventListener('click', e => {

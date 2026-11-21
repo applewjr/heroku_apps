@@ -800,3 +800,33 @@ def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, capsys):
     assert _solve(client)['hub']['tile'] == 'BAT'
     out = capsys.readouterr().out
     assert 'check=four_by_three_board_log_failed' in out and 'check=four_by_three_board_read_failed' in out
+
+
+# --- the offer in the first paint ------------------------------------------------
+
+def _first_paint(html):
+    """The boards the page arrived with, by date, which its offer script
+    draws at once for the player's own."""
+    import re
+    return json.loads(re.search(r'const FIRST_BOARDS = (.*?);\n', html).group(1))
+
+
+def test_the_page_arrives_with_the_boards_its_last_lookups_found(client, boards, monkeypatch):
+    # An offer drawn after the page paints pushes the boxes down (a layout
+    # shift), so the page carries each nearby date's boards as the memo last
+    # had them, and loading it never reads the table.
+    import routes.four_by_three as rt
+    monkeypatch.setattr(rt, '_boards_cache', {})
+    _log(client, 1)
+    _log(client, 2)
+    assert _first_paint(client.get('/4x3').get_data(as_text=True)) is None
+    assert _todays(client) == [_served()]
+    assert _todays(client, day=DAY + timedelta(days=1)) == []
+
+    def no_reads(*_args):
+        raise AssertionError('the page read the boards table')
+    monkeypatch.setattr(rt, 'rows_logged_between', no_reads)
+    assert _first_paint(client.get('/4x3').get_data(as_text=True)) == {
+        DAY.isoformat(): [_served()], (DAY + timedelta(days=1)).isoformat(): []}
+    rt._forget_boards()
+    assert _first_paint(client.get('/4x3').get_data(as_text=True)) is None

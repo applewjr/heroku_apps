@@ -612,6 +612,22 @@ def _boards_for(day):
     return boards
 
 
+def first_paint_boards():
+    """{date: boards} for each date near Pacific's today (within a day, as
+    parse_played_on takes them) whose boards a lookup in this process found,
+    fresh or not, for the page to draw its offer as it arrives, from the
+    player's own date (an offer that came later would push the boxes down, a
+    layout shift); None if there are none. Never reads the database: the page
+    still asks for the newest."""
+    if not FOUR_BY_THREE_BOARDS_LIVE:
+        return None
+    today = _pacific_today()
+    with _boards_lock:
+        entries = list(_boards_cache.items())
+    days = {day.isoformat(): entry[1] for day, entry in entries if abs((day - today).days) <= 1}
+    return days or None
+
+
 def _played_on(data):
     """The player's own date, or None if it can't be today anywhere on Earth
     (more than a day from Pacific's): a wrong clock, not a reason to 400."""
@@ -814,7 +830,7 @@ def run_four_by_three():
     )
     log_page_visit(PAGE)
     return render_template(PAGE, schema_data=schema_data, boards_on=FOUR_BY_THREE_BOARDS_LIVE,
-                           post_url=PATH, approve=False, **page_context())
+                           first_boards=first_paint_boards(), post_url=PATH, approve=False, **page_context())
 
 
 ##### admin #####

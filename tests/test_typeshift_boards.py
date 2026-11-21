@@ -541,3 +541,46 @@ def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, clock, caps
     assert client.post('/typeshift', json={'columns': COLUMNS}).get_json()['plan']
     out = capsys.readouterr().out
     assert 'check=typeshift_board_log_failed' in out and 'check=typeshift_board_read_failed' in out
+
+
+# --- the offer in the first paint ------------------------------------------------
+
+def _first_paint(html):
+    """The reply the page arrived with, which its offer script draws at once."""
+    import re
+    return json.loads(re.search(r'const FIRST_REPLY = (.*?);\n', html).group(1))
+
+
+def test_the_page_arrives_with_the_boards_its_last_lookup_found(client, boards, clock, monkeypatch):
+    # An offer drawn after the page paints pushes the boxes down (a layout
+    # shift), so the page carries the reply as the memo last had it, and
+    # loading it never reads the table.
+    import routes.typeshift as rt
+    monkeypatch.setattr(rt, '_boards_cache', {})
+    _log(client, 1)
+    _log(client, 2)
+    assert _first_paint(client.get('/typeshift').get_data(as_text=True)) is None
+    reply = _reply(client)
+    assert reply['boards'] == [_served()]
+
+    def no_reads(*_args):
+        raise AssertionError('the page read the boards table')
+    monkeypatch.setattr(rt, 'rows_logged_between', no_reads)
+    assert _first_paint(client.get('/typeshift').get_data(as_text=True)) == reply
+    rt._forget_boards()
+    assert _first_paint(client.get('/typeshift').get_data(as_text=True)) is None
+
+
+def test_early_in_the_day_the_page_waits_for_yesterdays_boards_too(client, boards, clock, monkeypatch):
+    # In the first hours yesterday's board is on offer as well: the page
+    # carries the reply only once both days are looked up.
+    import routes.typeshift as rt
+    monkeypatch.setattr(rt, '_boards_cache', {})
+    clock['at'] = _chicago(hour=1)
+    _log(client, 1, day=DAY - timedelta(days=1))
+    _log(client, 2, day=DAY - timedelta(days=1))
+    rt._boards_for(DAY)
+    assert _first_paint(client.get('/typeshift').get_data(as_text=True)) is None
+    reply = _reply(client)
+    assert reply['yesterday'] == [_served()]
+    assert _first_paint(client.get('/typeshift').get_data(as_text=True)) == reply

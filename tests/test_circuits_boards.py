@@ -691,3 +691,32 @@ def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, tiny, monke
     assert _solve(client)['boxes'][0]['word'] == 'BALL'
     out = capsys.readouterr().out
     assert 'check=circuits_board_log_failed' in out and 'check=circuits_board_read_failed' in out
+
+
+# --- the offer in the first paint ------------------------------------------------
+
+def _first_paint(html):
+    """The boards the page arrived with, which its offer script draws at once."""
+    import json
+    import re
+    return json.loads(re.search(r'const FIRST_BOARDS = (.*?);\n', html).group(1))
+
+
+def test_the_page_arrives_with_the_boards_its_last_lookup_found(client, boards, monkeypatch):
+    # An offer drawn after the page paints pushes the board down (a layout
+    # shift), so the page carries today's boards as the memo last had them,
+    # and loading it never reads the table.
+    import routes.circuits as rc
+    monkeypatch.setattr(rc, '_boards_cache', {})
+    _log(client, 1)
+    _log(client, 2)
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) is None
+    assert _todays(client) == [_served()]
+
+    def no_reads(*_args):
+        raise AssertionError('the page read the boards table')
+    monkeypatch.setattr(rc, 'rows_logged_between', no_reads)
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) == [_served()]
+    # An admin change: the page carries none until the next lookup.
+    rc._forget_boards()
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) is None

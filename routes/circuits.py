@@ -596,6 +596,15 @@ def _boards_for(day):
     return boards
 
 
+def first_paint_boards():
+    """Today's boards as the last lookup in this process found them, fresh
+    or not, for the page to draw its offer as it arrives (an offer that came
+    later would push the board down, a layout shift); None before any lookup
+    of today's. Never reads the database: the page still asks for the newest."""
+    entry = _boards_cache.get(_game_today())
+    return entry[1] if entry is not None else None
+
+
 def _answers_by_key():
     """{board_key: [answer per box, '' where none]} for every approved board
     James gave answers, the latest per board. Read at most once a minute
@@ -832,6 +841,7 @@ def run_circuits():
     )
     log_page_visit(PAGE)
     return render_template(PAGE, schema_data=schema_data, boards_on=CIRCUITS_BOARDS_LIVE,
+                           first_boards=first_paint_boards() if CIRCUITS_BOARDS_LIVE else None,
                            post_url='/circuits', approve=False, **page_context())
 
 
