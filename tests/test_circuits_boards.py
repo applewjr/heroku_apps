@@ -386,6 +386,34 @@ def test_a_four_by_four_board_is_logged_served_and_approved_in_its_shape(client,
     assert 'error=' in resp.headers['Location']
 
 
+# A 5 by 4 board: the same compounds a row lower, PLAN on its fifth row.
+CELLS_5x4 = [''] * 8 + ['SNOW', B, 'ROOM', ''] + ['', B, '', ''] + ['', 'PLAN', '', '']
+ARROWS_5x4 = [[8, 9], [9, 10], [9, 13], [13, 17]]
+
+
+def test_a_five_by_four_board_is_logged_served_and_approved_in_its_shape(client, boards, monkeypatch):
+    import routes.circuits as rc
+    shape = {'rows': 5, 'cols': 4}
+    for p in (1, 2):
+        resp = client.post('/circuits', headers=_player(p),
+                           json=dict(action='log_board', cells=CELLS_5x4, arrows=ARROWS_5x4, source='typed', **shape))
+        assert resp.get_json() == {'status': 'success'}
+    assert {row[rc.SHAPE] for row in boards.mine()} == {'5x4'}
+    assert _todays(client) == [_served(arrows=ARROWS_5x4, cells=CELLS_5x4, rows=5, cols=4)]
+    assert next(iter(boards.rows))[0] == rc.board_key(CELLS_5x4, 5, 4) != rc.board_key(CELLS_5x4)
+    # James approves one he typed: it's served first, in its shape, and the
+    # admin page draws it 4 wide.
+    auth = _admin_headers(monkeypatch)
+    other = list(CELLS_5x4)
+    other[8] = 'FOOT'
+    resp = _approve_typed(client, auth, cells=other, arrows=ARROWS_5x4, answers=['BALL', 'GAME'], shape='5x4')
+    assert 'success=' in resp.headers['Location']
+    assert _todays(client)[0] == _served(arrows=ARROWS_5x4, cells=other, rows=5, cols=4, sites=['Puzzmo'])
+    html = client.get('/circuits_admin', headers=auth).get_data(as_text=True)
+    assert 'mini-board c4' in html and 'mini-board c3' not in html
+    assert client.get('/circuits_admin/board?key=' + rc.board_key(other, 5, 4), headers=auth).status_code == 200
+
+
 def test_an_unfinished_or_bad_board_is_not_approved(client, boards, monkeypatch):
     auth = _admin_headers(monkeypatch)
     resp = _approve_typed(client, auth, arrows=[a for a in ARROWS if a != [1, 2]])

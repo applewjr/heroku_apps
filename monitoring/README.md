@@ -10,7 +10,7 @@ stays a UI setting rather than a deploy, and the alerting path has no SMTP
 failure mode of its own.
 
 ```
-JJ_ALERT check=youtube_trending_today sev=crit actual=0 compare=">=" threshold=45 note="Daily youtube_trending load, scheduler 12am PST"
+JJ_ALERT check=youtube_trending_today sev=crit actual=0 compare=">=" threshold=40 note="Daily youtube_trending load, scheduler 12am PST"
 JJ_PULSE source=checks ok=11 alert=0 skip=0 hour_pst=14 ms=940 retries=0 retry_ms=0
 ```
 

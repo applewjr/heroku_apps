@@ -43,7 +43,7 @@
       "name": "How do I enter the board?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
+        "text": "Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
       }
     },{% if boards_on %}
     {
@@ -111,6 +111,8 @@
 .cc-shapes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 12px auto 0; padding: 0 12px; }
 .cc-shape svg { display: block; flex-shrink: 0; }
 .cc-shape { display: inline-flex; align-items: center; gap: 6px; }
+/* Narrower than the mode pills, so the label and every size fit on one line at 360px. */
+.cc-mode.cc-shape { padding: 7px 12px; }
 .cc-mode {
     background-color: #fff;
     border: 1px solid #cdd8d7;
@@ -491,7 +493,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
         <span class="instructions-toggle-icon">&#9660;</span>
     </div>
     <div class="instructions-body">
-        <strong>1. Type the board.</strong> Pick the board size that matches your game, 5 by 3 or 4 by 4.
+        <strong>1. Type the board.</strong> Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4.
         Tap a square and type the word on that tile, then press
         Enter to go on to the next empty square (Tab goes to the very next one). For an empty box, tap <strong>Box</strong> (or type ?); for a
         square with nothing in it, tap <strong>Blank</strong>.{% if boards_on %} Once other players
@@ -602,7 +604,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game, 5 by 3 or 4 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -1014,7 +1016,10 @@ document.addEventListener('DOMContentLoaded', () => {
     editInput.addEventListener('input', () => {
         if (selected < 0) return;
         const raw = editInput.value.toUpperCase();
-        if (raw.includes('?')) {
+        // A question mark on its own makes a box. After letters it's part of
+        // the tile as the game prints it ("OR PLASTIC?"), so it goes like any
+        // other character a tile can't hold.
+        if (raw.includes('?') && !/[A-Z]/.test(raw)) {
             editInput.value = '';
             setCell(selected, BOX);
             advance();
