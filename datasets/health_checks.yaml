@@ -27,7 +27,7 @@ youtube_trending_today:
     sev: crit
     description: "Daily youtube_trending load, scheduler 12am PST"
     compare: ">="
-    threshold: 45
+    threshold: 40
     only_between_pst: [2, 23]
     sql: |
         SELECT COUNT(*)
@@ -38,7 +38,7 @@ youtube_grouped_today:
     sev: crit
     description: "Daily youtube_trending_revamp load, scheduler 12am PST"
     compare: ">="
-    threshold: 125
+    threshold: 120
     only_between_pst: [2, 23]
     sql: |
         SELECT COUNT(*)

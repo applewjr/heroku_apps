@@ -37,7 +37,7 @@ CREATE TABLE circuits_boards (
     source          VARCHAR(8)    NOT NULL,   -- 'typed', 'edited' (loaded, then changed), 'loaded' (words only) or 'admin'
     created_at      DATETIME      NOT NULL,   -- Pacific time, stamped in Python
     updated_at      DATETIME      NOT NULL,   -- when the player (or James) last changed it
-    shape           VARCHAR(5)    NOT NULL DEFAULT '5x3',   -- rows x columns: '5x3' (Puzzmo so far) or '4x4' (Yahoo)
+    shape           VARCHAR(5)    NOT NULL DEFAULT '5x3',   -- rows x columns: '5x3' (Puzzmo so far), '4x4' (Yahoo) or '5x4'
     PRIMARY KEY (id),
     UNIQUE KEY uq_board_player_day (board_key, voter_hash, played_on),
     KEY idx_played_on (played_on),

@@ -246,6 +246,15 @@ def test_shapes():
         cz.parse_board(cells, [[3, 4]], 4, 4)
     with pytest.raises(cz.BoardError):
         cz.parse_board(cells[:15], [[2, 6]], 4, 4)
+    # A 5 by 4 board: rows of four, and a fifth row a 4 by 4 board lacks.
+    assert cz.shape_name(5, 4) == '5x4' and cz.parse_shape('5x4') == (5, 4)
+    cells = [''] * 12 + ['', 'SNOW', '', 'FIRE'] + [B, B, '', '']
+    b = cz.parse_board(cells, [[13, 17]], 5, 4)
+    assert b.boxes == [16, 17] and (b.rows, b.cols) == (5, 4)
+    with pytest.raises(cz.BoardError):
+        cz.parse_board(cells, [[15, 16]], 5, 4)   # the end of one row to the start of the next
+    with pytest.raises(cz.BoardError):
+        cz.parse_board(cells[:16], [[13, 17]], 5, 4)
 
 
 def test_an_added_pair_can_name_a_whole_tile_the_data_lacks(data):
@@ -447,6 +456,16 @@ def test_a_four_by_four_board_through_the_route(client, tiny):
     assert [b['word'] for b in reply['boxes']] == ['BALL', 'GAME']
     # The same cells sent without a shape are a 5 by 3 board: 15 cells, not 16.
     assert client.post('/circuits', json={'cells': cells, 'arrows': arrows}).status_code == 400
+
+
+def test_a_five_by_four_board_through_the_route(client, tiny):
+    # The same compounds a row lower on a 5 by 4 grid: PLAN is on the fifth row.
+    cells = [''] * 8 + ['SNOW', B, 'ROOM', ''] + ['', B, '', ''] + ['', 'PLAN', '', '']
+    arrows = [[8, 9], [9, 10], [9, 13], [13, 17]]
+    reply = client.post('/circuits', json={'rows': 5, 'cols': 4, 'cells': cells, 'arrows': arrows}).get_json()
+    assert [b['word'] for b in reply['boxes']] == ['BALL', 'GAME']
+    # 20 cells are no 4 by 4 board.
+    assert client.post('/circuits', json={'rows': 4, 'cols': 4, 'cells': cells, 'arrows': arrows}).status_code == 400
 
 
 @pytest.mark.parametrize('body', [

@@ -32,11 +32,12 @@ from collections import defaultdict
 import numpy as np
 
 # The board: a grid of rows by columns with some cells blank. Puzzmo's boards
-# seen so far are 5 by 3 and Yahoo's 4 by 4 (2026-11-19). The page offers the
-# SHAPES (ROWS by COLS first); the solver itself takes any shape.
+# seen so far are 5 by 3 and Yahoo's 4 by 4 (2026-11-19), and a 5 by 4 board
+# turned up on 2026-11-21. The page offers the SHAPES (ROWS by COLS first);
+# the solver itself takes any shape.
 ROWS = 5
 COLS = 3
-SHAPES = ((5, 3), (4, 4))
+SHAPES = ((5, 3), (4, 4), (5, 4))
 BOX = '?'
 MAX_CELL_LEN = 24
 _GIVEN = re.compile(r"[A-Z](?:[A-Z '\-]{0,%d}[A-Z])?" % (MAX_CELL_LEN - 2))
