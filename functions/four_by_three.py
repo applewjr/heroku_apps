@@ -35,6 +35,10 @@ the route. solve() keeps only the answers that fit all of them.
 
 fit() tunes the weights from James's approved answers: each approved board
 is one example, his answer the right one of its 945 (a conditional logit).
+
+solve() also plans the game for the most points (game_points): the groups
+in the order 4x3 pays most for, by their colors when James's answer has
+them, else hardest-looking first.
 """
 
 import hashlib
@@ -92,6 +96,32 @@ THEME_MIN = 0.4
 MARK_VERDICTS = ('right', 'one_away', 'not_close', 'missed', 'hub')
 # Labels, in the order the page lists groups.
 LABELS = ('checked', 'players', 'yours', 'left', 'sure', 'likely', 'guess')
+
+# How 4x3 scores a won game, from its Scoring page
+# (hankgreen.com/fourbythree/scoring), checked against how the game plays,
+# 2026-11-21. A win starts at WIN. A mistake costs MISS, or MISS_LATE once
+# two groups are solved, and MAX_MISSES of them lose the game, unless the
+# player called the hub right (then mistakes cost nothing). The hub tapped
+# first in every guess adds HUB_FIRST. The first group solved adds
+# PURPLE_FIRST if it is purple, BLUE_FIRST if blue, and solving them in
+# BEST_ORDER adds REVERSE_RAINBOW. No mistakes, the hub first and BEST_ORDER
+# make a perfect game, which 4x3 scores PERFECT whatever the rest adds up to.
+# Then a game in the fewest taps (each guess's three words, nothing else)
+# adds TAPS_BONUS, and the streak a point a day. The game's clock bonus is
+# left out on purpose: a perfect game is PERFECT at any speed, and this page
+# never tells players to hurry.
+COLORS = ('yellow', 'green', 'blue', 'purple')      # easiest first, as 4x3 ranks them
+BEST_ORDER = ('purple', 'blue', 'green', 'yellow')
+WIN = 100
+MISS = 15
+MISS_LATE = 30
+MAX_MISSES = 3
+HUB_FIRST = 20
+PURPLE_FIRST = 15
+BLUE_FIRST = 5
+REVERSE_RAINBOW = 30
+PERFECT = 200
+TAPS_BONUS = 5
 
 
 class BoardError(ValueError):
@@ -355,7 +385,70 @@ def _label(p):
     return 'sure' if p >= SURE_P else 'likely' if p >= LIKELY_P else 'guess'
 
 
-def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
+# --- the most points ------------------------------------------------------------------
+
+def game_points(order=None, misses_at=(), called=False):
+    """What 4x3 scores a won game before the streak, when every guess starts
+    with the hub and no other word is tapped.
+
+    order      the four groups' colors in the order solved, or None if they
+               aren't known (then no order bonus counts)
+    misses_at  for each mistake, how many groups were solved when it was made
+    called     the player called the hub right
+
+    None for a game the mistakes have lost.
+    """
+    misses_at = list(misses_at)
+    if not called and len(misses_at) >= MAX_MISSES:
+        return None
+    points = WIN + HUB_FIRST
+    if not called:
+        points -= sum(MISS_LATE if solved >= 2 else MISS for solved in misses_at)
+    if order:
+        order = tuple(order)
+        points += PURPLE_FIRST if order[0] == 'purple' else BLUE_FIRST if order[0] == 'blue' else 0
+        if order == BEST_ORDER:
+            points += REVERSE_RAINBOW
+            if not misses_at:
+                points = PERFECT
+    if not misses_at:
+        points += TAPS_BONUS
+    return points
+
+
+def _plan(groups, solved_order, colors, difficulty, misses_at, called):
+    """The order to solve an answer's groups (GROUP_LIST indexes) in for the
+    most points, and what it scores. The groups the player has solved come
+    first, as they solved them. The rest go purple, blue, green, yellow when
+    James's colors cover the answer, else hardest-looking first: the
+    group the data sees the least link in (`difficulty`, lowest first),
+    which also puts the shakiest guesses where a miss costs MISS, not
+    MISS_LATE. Returns solve()'s 'plan', with 'order' as GROUP_LIST indexes
+    and 'solved' (how many of them the player has) and 'started' (a guess
+    made) for the page's wording."""
+    mask = {g: int(GROUP_MASKS[g]) for g in groups}
+    known = all(mask[g] in colors for g in groups)
+    done = [g for m in solved_order for g in groups if mask[g] == m]
+    rest = [g for g in groups if g not in done]
+    if known:
+        rest.sort(key=lambda g: BEST_ORDER.index(colors[mask[g]]))
+    else:
+        rest.sort(key=lambda g: (difficulty(g), g))
+    order = done + rest
+    if known:
+        sequence = tuple(colors[mask[g]] for g in order)
+    else:
+        # If the guess is right. Once a group is solved, its color is the
+        # player's to see, not the solver's: no points to promise.
+        sequence = None if done else BEST_ORDER
+    points = game_points(sequence, misses_at, called) if sequence else None
+    return {'order': order, 'colors': 'checked' if known else 'guess', 'points': points,
+            'floor': game_points(None, misses_at, called),
+            'perfect': points is not None and sequence == BEST_ORDER and not misses_at,
+            'solved': len(done), 'started': bool(done or misses_at)}
+
+
+def solve(signals, weights, marks=(), fixed=None, refused=(), names=None, colors=None):
     """The likeliest answer for a board, with how sure each part is.
 
     signals  Signals for the board.
@@ -367,15 +460,24 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
              enough players).
     refused  masks of groups players say the game refused.
     names    {mask: category name}: James's names, shown as themes.
+    colors   {mask: one of COLORS}: James's colors, for the plan.
 
     Constraints apply in order: James's groups, the player's marks, then the
     players' groups and refusals. One that leaves no answer is dropped, so a
     mark that contradicts the ones before it is ignored and reported in
     'dropped' (its index in marks). Returns a dict for the page (see the
     end of this function); positions are the board's, words as tiles.
+    'plan' is the game for the most points (_plan): 'order' (indexes into
+    'groups', the player's solved ones first), 'colors' ('checked' when
+    James's colors set the order, else 'guess'), 'points' (what it scores
+    if it's right; None for a guess once the player has solved a group),
+    'floor' (with no order bonus), both None once the player's misses have
+    lost the game, 'perfect' (points are a perfect game's), 'solved' and
+    'started' (see _plan).
     """
     fixed = dict(fixed or {})
     names = dict(names or {})
+    colors = dict(colors or {})
     tiles = signals.tiles
     alive = np.ones(ANSWERS, dtype=bool)
     dropped = []
@@ -392,17 +494,26 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
     for mask in checked:
         apply('group', mask)
     yours, solved = set(), set()
+    # For the plan: the groups in the order the player solved them, how many
+    # were solved at each miss (one per guess), and a right hub call.
+    solved_order, misses_at, missed, called = [], [], set(), False
     for n, (positions, verdict) in enumerate(marks):
         mask = mask_of(positions)
         if verdict == 'right':
             ok = apply('group', mask)
             if ok:
+                if mask not in solved:
+                    solved_order.append(mask)
                 yours.add(mask)
                 solved.add(mask)
         elif verdict == 'hub':
             ok = apply('hub', mask)
+            called = called or ok
         else:
             ok = apply(verdict, mask, frozenset(solved))
+            if ok and mask not in missed:
+                missed.add(mask)
+                misses_at.append(len(solved))
         if not ok:
             dropped.append(n)
     players = set()
@@ -454,10 +565,15 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
             rivals.sort(key=lambda o: -group_p[o])
             alternatives = [{'pair': [tiles[GROUP_LIST[o][1]], tiles[GROUP_LIST[o][2]]],
                              'p': round(float(group_p[o]), 3)} for o in rivals[:ALTERNATIVES]]
-        out_groups.append({'tiles': [tiles[h], tiles[a], tiles[b]], 'pair': [tiles[a], tiles[b]],
-                           'p': round(float(group_p[g]), 3), 'label': label, 'theme': theme,
-                           'alternatives': alternatives})
-    out_groups.sort(key=lambda x: (LABELS.index(x['label']), -x['p']))
+        out_groups.append((g, {'tiles': [tiles[h], tiles[a], tiles[b]], 'pair': [tiles[a], tiles[b]],
+                               'p': round(float(group_p[g]), 3), 'label': label, 'theme': theme,
+                               'color': colors.get(mask), 'alternatives': alternatives}))
+    out_groups.sort(key=lambda x: (LABELS.index(x[1]['label']), -x[1]['p']))
+    listed = [g for g, _out in out_groups]
+    out_groups = [out for _g, out in out_groups]
+    group_score = signals.feats @ w
+    plan = _plan(listed, solved_order, colors, lambda g: group_score[g], misses_at, called)
+    plan['order'] = [listed.index(g) for g in plan['order']]
 
     if hub_forced and checked:
         hub_label = 'checked'
@@ -476,6 +592,7 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
         'hub': {'tile': tiles[hub], 'p': round(float(hub_p[hub]), 3), 'label': hub_label,
                 'candidates': candidates},
         'groups': out_groups,
+        'plan': plan,
         'answer_p': round(float(p[top]), 3),
         'answers_left': int(alive.sum()),
         'dropped': dropped,
@@ -484,10 +601,12 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None):
 
 def first_pass(signals, weights):
     """The solver's own answer with no marks and nothing known: hub and
-    groups with their labels, compact, as the admin's Accuracy tab keeps it."""
+    groups with their labels, and its guess at the order for the most points
+    (indexes into groups), compact, as the admin's Accuracy tab keeps it."""
     result = solve(signals, weights)
     return {'hub': result['hub']['tile'], 'hub_label': result['hub']['label'],
-            'groups': [[g['pair'][0], g['pair'][1], g['label']] for g in result['groups']]}
+            'groups': [[g['pair'][0], g['pair'][1], g['label']] for g in result['groups']],
+            'order': result['plan']['order']}
 
 
 # --- tuning from James's answers ------------------------------------------------------

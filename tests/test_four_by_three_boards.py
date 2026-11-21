@@ -25,6 +25,9 @@ THIRD = ['BARK', 'WOOF', 'GROWL', 'TRUNK', 'BRANCH', 'RIND', 'PEEL', 'SHOUT', 'S
 FOURTH = ['BOLT', 'DASH', 'DART', 'NUT', 'SCREW', 'LATCH', 'LOCK', 'GULP', 'WOLF']
 BAT_ANSWER = {'hub': 'BAT', 'pairs': [['CLUB', 'RACKET'], ['OWL', 'MOTH'], ['BLINK', 'WINK'], ['SUPER', 'SPIDER']],
               'names': ['Sports gear', 'Night flyers', '', '___MAN']}
+# Made-up colors for its pairs, in their order.
+BAT_COLORS = ['yellow', 'green', 'blue', 'purple']
+BAT_BEST = [frozenset(p) for p in (('SUPER', 'SPIDER'), ('BLINK', 'WINK'), ('OWL', 'MOTH'), ('CLUB', 'RACKET'))]
 
 
 class MemoryBoards:
@@ -174,6 +177,8 @@ def _approve(client, auth, tiles=BOARD, answer=BAT_ANSWER, day=DAY):
     data = {'tiles': json.dumps(tiles), 'played_on': _iso(day), 'tab': 'boards'}
     if answer:
         data.update(hub=answer['hub'], pairs=json.dumps(answer['pairs']), names=json.dumps(answer['names']))
+        if 'colors' in answer:
+            data['colors'] = json.dumps(answer['colors'])
     return client.post('/4x3_admin/approve_typed_board', headers=auth, data=data)
 
 
@@ -427,6 +432,62 @@ def test_an_approval_without_groups_serves_the_board_alone(client, boards, monke
     assert _solve(client)['checked'] is False
 
 
+def test_an_approvals_colors_give_every_player_the_order_for_the_most_points(client, boards, monkeypatch):
+    import routes.four_by_three as rt
+    auth = _admin_headers(monkeypatch)
+    _approve(client, auth, answer=dict(BAT_ANSWER, colors=BAT_COLORS))
+    [row] = [r for r in boards.rows.values() if r[2] == 'admin']
+    assert json.loads(row[8])['colors'] == BAT_COLORS
+    result = _solve(client, tiles=list(reversed(BOARD)))
+    plan = result['plan']
+    assert plan == dict(plan, colors='checked', points=205, perfect=True, solved=0, started=False)
+    assert [frozenset(result['groups'][i]['pair']) for i in plan['order']] == BAT_BEST
+    assert {frozenset(g['pair']): g['color'] for g in result['groups']} == dict(zip(BAT_BEST, BAT_COLORS[::-1]))
+    html = client.get('/4x3_admin', headers=auth).get_data(as_text=True)
+    assert 'SUPER + SPIDER <span class="label">purple</span>' in html
+    # The same answer without colors: players get the solver's guess.
+    _approve(client, auth, answer=dict(BAT_ANSWER, colors=['', '', '', '']))
+    [row] = [r for r in boards.rows.values() if r[2] == 'admin']
+    assert 'colors' not in json.loads(row[8])
+    assert _solve(client)['plan']['colors'] == 'guess'
+    assert "no colors: players get the solver's guess" in client.get('/4x3_admin', headers=auth).get_data(as_text=True)
+    # Damaged colors are no colors; the answer itself still counts.
+    damaged = rt.parse_answer(json.dumps(dict(BAT_ANSWER, colors=['purple', 'blue'])))
+    assert damaged['colors'] is None and damaged['hub'] == 'BAT'
+    assert rt.parse_answer(json.dumps(dict(BAT_ANSWER, colors='purple')))['colors'] is None
+
+
+def test_the_editor_opens_with_the_answers_colors(client, boards, monkeypatch):
+    auth = _admin_headers(monkeypatch)
+    _log(client, 1)
+    html = client.get(f'/4x3_admin/board?key={_key()}', headers=auth).get_data(as_text=True)
+    assert json.loads(html.split('const PRELOAD = ', 1)[1].split(';\n', 1)[0])['colors'] == [''] * 4
+    _approve(client, auth, answer=dict(BAT_ANSWER, colors=BAT_COLORS))
+    html = client.get(f'/4x3_admin/board?key={_key()}', headers=auth).get_data(as_text=True)
+    assert json.loads(html.split('const PRELOAD = ', 1)[1].split(';\n', 1)[0])['colors'] == BAT_COLORS
+    assert 'name="colors"' in html
+
+
+def test_the_accuracy_tab_scores_the_order_guess_against_the_colors(client, boards, monkeypatch):
+    auth = _admin_headers(monkeypatch)
+    _approve(client, auth, answer=dict(BAT_ANSWER, colors=BAT_COLORS))
+    row = boards.rows[(_key(), 'admin', DAY)]
+    top = json.loads(row[9])
+    listed = [frozenset(g[:2]) for g in top['groups']]
+    best = [listed.index(pair) for pair in BAT_BEST]
+    tab = lambda: client.get('/4x3_admin?tab=accuracy', headers=auth).get_data(as_text=True)
+    row[9] = json.dumps(dict(top, order=best))
+    assert 'Order guess:</strong> purple first 1 / 1, whole order 1 / 1' in tab()
+    row[9] = json.dumps(dict(top, order=best[:2] + best[:1:-1]))
+    html = tab()
+    assert 'purple first 1 / 1, whole order 0 / 1' in html and 'purple first only' in html
+    row[9] = json.dumps(dict(top, order=best[::-1]))
+    assert 'purple first 0 / 1, whole order 0 / 1' in tab()
+    # A first pass kept before guesses were has no order to score.
+    row[9] = json.dumps({k: v for k, v in top.items() if k != 'order'})
+    assert 'Order guess:</strong>' not in tab() and 'Groups:</strong> 4 / 4 right' in tab()
+
+
 def test_one_approval_a_date(client, boards, monkeypatch):
     auth = _admin_headers(monkeypatch)
     _approve(client, auth)
@@ -443,6 +504,12 @@ def test_one_approval_a_date(client, boards, monkeypatch):
     {'pairs': json.dumps([['CLUB', 'OWL'], ['RACKET', 'MOTH'], ['BLINK', 'WINK'], ['SUPER', 'BAT']])},
     {'hub': 'NOPE'},
     {'pairs': 'not json'},
+    # Colors are all four, different, or none.
+    {'colors': json.dumps(['purple', 'blue', '', ''])},
+    {'colors': json.dumps(['purple', 'purple', 'blue', 'green'])},
+    {'colors': json.dumps(['purple', 'blue', 'green', 'red'])},
+    {'colors': json.dumps('purple')},
+    {'colors': 'not json'},
 ])
 def test_a_bad_approval_changes_nothing(client, boards, monkeypatch, change):
     data = {'tiles': json.dumps(BOARD), 'played_on': '2026-11-20', 'hub': 'BAT',
@@ -473,11 +540,12 @@ def test_the_longest_answer_fits_its_column_and_reads_back(client, boards, monke
     # characters JSON writes as 12 each (an emoji).
     tiles = [c * fbt.MAX_TILE_LEN for c in 'ABCDEFGHI']
     names = ['\U0001F600' * rt.NAME_MAX] * fbt.GROUPS
-    answer = {'hub': tiles[0], 'pairs': [tiles[1:3], tiles[3:5], tiles[5:7], tiles[7:9]], 'names': names}
+    answer = {'hub': tiles[0], 'pairs': [tiles[1:3], tiles[3:5], tiles[5:7], tiles[7:9]], 'names': names,
+              'colors': BAT_COLORS}
     assert 'success=' in _approve(client, _admin_headers(monkeypatch), tiles=tiles, answer=answer).headers['Location']
     [row] = [r for r in boards.rows.values() if r[2] == 'admin']
     assert len(row[8]) <= size
-    assert rt.parse_answer(row[8])['names'] == names
+    assert rt.parse_answer(row[8])['names'] == names and rt.parse_answer(row[8])['colors'] == BAT_COLORS
     assert {g['theme'] for g in _solve(client, tiles=tiles)['groups']} == {names[0]}
 
 

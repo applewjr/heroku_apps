@@ -30,7 +30,7 @@ CREATE TABLE four_by_three_boards (
     words           VARCHAR(400)   NOT NULL,   -- the nine words as typed, upper case, '|'-joined
     source          VARCHAR(8)     NOT NULL,   -- 'typed', 'edited' (loaded, then changed), 'loaded' (marks only) or 'admin'
     marks           VARCHAR(2000)  NULL,       -- the player's marks, in order: JSON [["W1|W2|W3", "r"|"a"|"n"|"m"|"h"], ...] (m: missed, not sure which)
-    answers         VARCHAR(4000)  NULL,       -- an approval's answer: JSON {"hub", "pairs", "names"}; NULL for the board alone. Up to ~3,400 characters: JSON writes a non-ASCII character of a name as 6 or 12
+    answers         VARCHAR(4000)  NULL,       -- an approval's answer: JSON {"hub", "pairs", "names", "colors" (optional)}; NULL for the board alone. Up to ~3,450 characters: JSON writes a non-ASCII character of a name as 6 or 12
     solver_top      VARCHAR(1000)  NULL,       -- an approval's: the solver's own first pass before it (JSON), for the Accuracy tab
     solver_version  CHAR(8)        NULL,       -- which solver made that first pass
     created_at      DATETIME       NOT NULL,   -- Pacific time, stamped in Python

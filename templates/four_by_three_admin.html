@@ -117,7 +117,7 @@ a.tab-button { color: inherit; text-decoration: none; }
                     <td>
                         {% if g.answer %}
                         <span class="status-served">Hub {{ g.answer.hub }}</span>
-                        <ul class="groups">{% for p in g.answer.pairs %}<li>{{ p|join(' + ') }}{% if g.answer.names[loop.index0] %} <span class="label">({{ g.answer.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul>
+                        <ul class="groups">{% for p in g.answer.pairs %}<li>{{ p|join(' + ') }}{% if g.answer.colors %} <span class="label">{{ g.answer.colors[loop.index0] }}</span>{% endif %}{% if g.answer.names[loop.index0] %} <span class="label">({{ g.answer.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul>{% if not g.answer.colors %}<span class="label">no colors: players get the solver's guess at the order</span>{% endif %}
                         {% elif g.approved %}
                         <span class="status-served">Board approved</span><br><span class="label">no answer yet</span>
                         {% else %}
@@ -173,6 +173,7 @@ a.tab-button { color: inherit; text-decoration: none; }
             <details class="admin-help"><summary>What these numbers are</summary>
                 <p class="crowd-note">Every board you answered in the last {{ accuracy_days }} days, against the solver's own first pass on it from the moment just before you first answered it (no marks, nothing confirmed). The weights it ran with were fit on your earlier answers only, so each line is a fair test. The totals per label show whether "sure" really means sure.</p>
                 <p class="crowd-note">The weights: from {{ min_tuning }} answers on, the solver refits them after each approval or Undo to make your answers most likely, pulled toward the defaults so a few boards can only nudge them. They can re-balance the signals the solver has; a kind of link it can't see (trivia, wordplay) stays a guess until its data grows.</p>
+                <p class="crowd-note">Order guess: until your answer with colors is in, players get the solver's guess at the order for the most points (hardest-looking group first). Where your answer has colors, the first pass's guess is checked against them: purple first is worth 15 points to a player, the whole order (purple, blue, green, yellow) a perfect game.</p>
             </details>
         </div>
         {% if accuracy_error %}
@@ -185,6 +186,9 @@ a.tab-button { color: inherit; text-decoration: none; }
             {% for label in ('sure', 'likely', 'guess') %}{% if label in totals.labels %}
             <span>{{ label|capitalize }}: {{ totals.labels[label][0] }} / {{ totals.labels[label][1] }}</span>
             {% endif %}{% endfor %}
+            {% if totals.order[2] %}
+            <span><strong>Order guess:</strong> purple first {{ totals.order[0] }} / {{ totals.order[2] }}, whole order {{ totals.order[1] }} / {{ totals.order[2] }}</span>
+            {% endif %}
         </div>
         {% endif %}
         <table class="weights">
@@ -203,11 +207,12 @@ a.tab-button { color: inherit; text-decoration: none; }
                 {% for b in accuracy %}
                 <tr>
                     <td class="when">{{ b.day.strftime('%Y-%m-%d') }}</td>
-                    <td><ul class="groups">{% for text in b.groups %}<li>{{ text }}{% if b.names[loop.index0] %} <span class="label">({{ b.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul></td>
+                    <td><ul class="groups">{% for text in b.groups %}<li>{{ text }}{% if b.colors %} <span class="label">{{ b.colors[loop.index0] }}</span>{% endif %}{% if b.names[loop.index0] %} <span class="label">({{ b.names[loop.index0] }})</span>{% endif %}</li>{% endfor %}</ul></td>
                     <td>
                         {% if b.top %}
                         Hub {{ b.top.hub }} <span class="{{ 'right' if b.top.hub_right else 'wrong' }}">{{ 'right' if b.top.hub_right else 'wrong' }}</span> <span class="label">({{ b.top.hub_label }})</span>
                         <ul class="groups">{% for g in b.top.groups %}<li><span class="{{ 'right' if g.right else 'wrong' }}">{{ g.text }}</span> <span class="label">({{ g.label }})</span></li>{% endfor %}</ul>
+                        {% if b.top.order %}<span class="label">Order guess:</span> <span class="{{ 'wrong' if b.top.order == 'neither' else 'right' }}">{{ {'whole': 'whole order', 'purple': 'purple first only', 'neither': 'neither'}[b.top.order] }}</span>{% endif %}
                         {% else %}<span class="status-waiting">not kept</span>{% endif %}
                     </td>
                 </tr>
