@@ -123,7 +123,7 @@ def page_context():
     """What the page template needs besides the SEO blob. Rendering the page
     never touches the database."""
     data = get_data()
-    return {'data_ok': data is not None, 'rows': cz.ROWS, 'cols': cz.COLS, 'shapes': cz.SHAPES,
+    return {'data_ok': data is not None, 'rows': cz.ROWS, 'cols': cz.COLS, 'max_side': cz.MAX_SIDE,
             'max_cell': cz.MAX_CELL_LEN, 'box': cz.BOX}
 
 
@@ -243,13 +243,16 @@ _COLUMNS = ('board_key, cells, arrows, site, answers, entered, solver_top, sourc
 
 
 def board_key(cells, rows=cz.ROWS, cols=cz.COLS):
-    """What makes two boards the same: their shape and cells, exactly
-    (positions, boxes and tiles as typed, upper case). Arrows are decided
-    arrow by arrow. A 5 by 3 board's key is its cells alone, as it was
-    before boards had shapes; any other shape's starts with the shape."""
-    text = '|'.join(cells)
-    if (rows, cols) != (cz.ROWS, cz.COLS):
-        text = cz.shape_name(rows, cols) + '|' + text
+    """What makes two boards the same: the squares they use, exactly (where
+    the boxes and tiles are, tiles as typed, upper case), wherever in the
+    grid they were typed: the key is of the board cz.trim makes of them. One
+    that fits in 5 by 3 is keyed by its cells alone, as boards always were;
+    any other size's key starts with its size. Arrows are decided arrow by
+    arrow."""
+    board = cz.trim(cz.Board(list(cells), [], rows, cols))[0]
+    text = '|'.join(board.cells)
+    if (board.rows, board.cols) != (cz.ROWS, cz.COLS):
+        text = cz.shape_name(board.rows, board.cols) + '|' + text
     return hashlib.sha1(text.encode()).hexdigest()
 
 
@@ -627,8 +630,8 @@ def _board_from(data):
     """A board from a POST body's cells, arrows, rows and cols (5 by 3 when
     left out), or ValidationError."""
     rows, cols = data.get('rows', cz.ROWS), data.get('cols', cz.COLS)
-    if not all(type(v) is int for v in (rows, cols)) or (rows, cols) not in cz.SHAPES:
-        raise ValidationError('a board is ' + ' or '.join(f'{r} by {c}' for r, c in cz.SHAPES))
+    if not cz.fits(rows, cols):
+        raise ValidationError(f'a board is 1 to {cz.MAX_SIDE} rows by 1 to {cz.MAX_SIDE} columns')
     try:
         return cz.parse_board(data.get('cells'), data.get('arrows', []), rows, cols)
     except cz.BoardError as e:
@@ -697,15 +700,18 @@ def _check(result, board):
 
 def _known_arrows(board):
     """The arrows of an offered board (today's or yesterday's, for a game
-    finished after midnight) with exactly these cells, if the player's
-    differ; else None."""
+    finished after midnight) with exactly these squares, wherever in their
+    grid the player typed them, if the player's differ: moved onto the
+    player's grid. Else None."""
     day = _game_today()
-    cells = list(board.cells)
-    mine = sorted(list(pair) for pair in board.arrows)
+    mine, top, left = cz.trim(board)
     for d in (day, day - timedelta(days=1)):
         for b in _boards_for(d):
-            if b['cells'] == cells and (b['rows'], b['cols']) == (board.rows, board.cols):
-                return None if b['arrows'] == mine else b['arrows']
+            served = cz.trim(cz.Board(b['cells'], sorted(tuple(p) for p in b['arrows']), b['rows'], b['cols']))[0]
+            if served.cells == mine.cells and (served.rows, served.cols) == (mine.rows, mine.cols):
+                if served.arrows == mine.arrows:
+                    return None
+                return cz.place(served.arrows, served.cols, board.cols, top, left)
     return None
 
 
@@ -763,7 +769,11 @@ def log_board(data):
     if source == 'loaded' and not entered:
         return jsonify(status='success')
     day = _game_today()
-    key = key_of(board)
+    # Stored as the squares it uses (cz.trim), so the same board typed at
+    # another size or place in the grid is the same row. Its boxes keep their
+    # reading order, so the kept words still go box by box.
+    trimmed = cz.trim(board)[0]
+    key = key_of(trimmed)
     voter = crowd.player_hash('circuits')
     try:
         rows = rows_with_key(key)
@@ -778,14 +788,14 @@ def log_board(data):
         if mine:
             source, keep = mine[0][SOURCE], _parse_arrows(mine[0][ARROWS])
         else:
-            keep = board.arrows
+            keep = trimmed.arrows
     else:
-        keep = _arrows_to_log(board.arrows, rows, voter, day, source)
+        keep = _arrows_to_log(trimmed.arrows, rows, voter, day, source)
         if keep is None:
             return jsonify(status='success')
-    store_board(day, voter, crowd.prefix_hash('circuits'), key, '|'.join(board.cells), keep, source,
-                _box_words(board, entered), _solver_top(board), solver_version(),
-                shape=cz.shape_name(board.rows, board.cols))
+    store_board(day, voter, crowd.prefix_hash('circuits'), key, '|'.join(trimmed.cells), keep, source,
+                _box_words(board, entered), _solver_top(trimmed), solver_version(),
+                shape=cz.shape_name(trimmed.rows, trimmed.cols))
     return jsonify(status='success')
 
 
@@ -1092,7 +1102,7 @@ def circuits_admin():
                            serve_identical=SERVE_IDENTICAL, serve_majority=SERVE_MAJORITY,
                            todays_boards_max=TODAYS_BOARDS_MAX, accuracy_days=ACCURACY_DAYS,
                            entered_prefill=ENTERED_PREFILL,
-                           shape_cols=sorted({cols for _rows, cols in cz.SHAPES}))
+                           shape_cols=range(1, cz.MAX_SIDE + 1))
 
 
 def editor_board(key):
@@ -1229,10 +1239,11 @@ def circuits_approve_typed_board():
     answer_text = _form_answers(board.boxes, answers) if answers else None
     if answers and answer_text is None and any(a.strip() for a in answers):
         return _back(error='Each answer is one word of letters')
-    key = key_of(board)
+    trimmed = cz.trim(board)[0]
+    key = key_of(trimmed)
     try:
-        replaced = store_approval(day, site, key, '|'.join(board.cells), board.arrows, answer_text,
-                                  shape=cz.shape_name(board.rows, board.cols))
+        replaced = store_approval(day, site, key, '|'.join(trimmed.cells), trimmed.arrows, answer_text,
+                                  shape=cz.shape_name(trimmed.rows, trimmed.cols))
     except Exception as e:
         print(f"Error approving typed circuits board: {e}")
         return _back(error='Database error')

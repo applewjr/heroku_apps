@@ -31,13 +31,14 @@ from collections import defaultdict
 
 import numpy as np
 
-# The board: a grid of rows by columns with some cells blank. Puzzmo's boards
-# seen so far are 5 by 3 and Yahoo's 4 by 4 (2026-11-19), and a 5 by 4 board
-# turned up on 2026-11-21. The page offers the SHAPES (ROWS by COLS first);
-# the solver itself takes any shape.
+# The board: a grid of rows by columns with some cells blank, in whatever size
+# the game draws it (Puzzmo's 5 by 3 and Yahoo's 4 by 4 on 2026-11-19, a 5 by
+# 4 on 2026-11-21): any size up to MAX_SIDE by MAX_SIDE is a board, with no
+# list of sizes to keep up. A new board starts ROWS by COLS on the page, and a
+# board that fits in that size is stored in it (trim).
 ROWS = 5
 COLS = 3
-SHAPES = ((5, 3), (4, 4), (5, 4))
+MAX_SIDE = 8
 BOX = '?'
 MAX_CELL_LEN = 24
 _GIVEN = re.compile(r"[A-Z](?:[A-Z '\-]{0,%d}[A-Z])?" % (MAX_CELL_LEN - 2))
@@ -219,18 +220,59 @@ class Board:
         return '|'.join(self.cells)
 
 
+def fits(rows, cols):
+    """True if a board can be rows by cols: whole numbers, 1 to MAX_SIDE."""
+    return all(type(v) is int and 1 <= v <= MAX_SIDE for v in (rows, cols))
+
+
 def shape_name(rows, cols):
-    """A shape as stored with a board: '5x3'."""
+    """A board's size as stored with it: '5x3'."""
     return f'{rows}x{cols}'
 
 
 def parse_shape(text):
-    """(rows, cols) from shape_name's text, if it's one of SHAPES, else None."""
+    """(rows, cols) from shape_name's text, if it's a size that fits, else None."""
     try:
         rows, cols = (int(x) for x in str(text).split('x'))
     except ValueError:
         return None
-    return (rows, cols) if (rows, cols) in SHAPES else None
+    return (rows, cols) if fits(rows, cols) else None
+
+
+def trim(board):
+    """The board as it's stored, matched and keyed: cut to the rows and
+    columns it uses, so the same board typed anywhere in a bigger grid is the
+    same board. One that fits in ROWS by COLS goes back in a grid that size,
+    top left, as every board was stored before boards could grow, so it keeps
+    the key it always had. Returns (board, top, left): the row and column of
+    `board` where the trimmed board's first square sits (for place)."""
+    used = [i for i, c in enumerate(board.cells) if c]
+    if not used:
+        return board, 0, 0
+    rows_used = [i // board.cols for i in used]
+    cols_used = [i % board.cols for i in used]
+    top, left = min(rows_used), min(cols_used)
+    height, width = max(rows_used) - top + 1, max(cols_used) - left + 1
+    rows, cols = (ROWS, COLS) if height <= ROWS and width <= COLS else (height, width)
+
+    def move(i):
+        return (i // board.cols - top) * cols + i % board.cols - left
+
+    cells = [''] * (rows * cols)
+    for i in used:
+        cells[move(i)] = board.cells[i]
+    arrows = sorted((move(i), move(j)) for i, j in board.arrows)
+    return Board(cells, arrows, rows, cols), top, left
+
+
+def place(arrows, cols, to_cols, top, left):
+    """Arrows of a trimmed board `cols` wide, moved onto a grid `to_cols`
+    wide where that board's first square sits at row `top`, column `left`
+    (as trim returns them): sorted [tail, head] lists."""
+    def move(i):
+        return (i // cols + top) * to_cols + i % cols + left
+
+    return sorted([move(i), move(j)] for i, j in arrows)
 
 
 def clean_cell(value):

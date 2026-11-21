@@ -235,9 +235,13 @@ def test_first_letters_narrow_a_box(data):
     assert words(cz.solve(data, b, starts={1: 'S1', 0: 'S'}))[0] in {'BALL', 'MAN', 'FLAKE', 'STORM'}
 
 
-def test_shapes():
-    assert cz.shape_name(4, 4) == '4x4' and cz.parse_shape('4x4') == (4, 4) and cz.parse_shape('5x3') == (5, 3)
-    assert cz.parse_shape('6x6') is None and cz.parse_shape('5') is None and cz.parse_shape(None) is None
+def test_sizes():
+    # Any size up to 8 by 8 is a board, with no list of sizes to keep up.
+    assert cz.shape_name(4, 4) == '4x4' and cz.parse_shape('5x3') == (5, 3) and cz.parse_shape('6x6') == (6, 6)
+    assert cz.parse_shape('8x8') == (8, 8) and cz.parse_shape('1x1') == (1, 1)
+    for text in ('9x9', '0x3', '3x9', '5', '5x3x1', 'x', None):
+        assert cz.parse_shape(text) is None, text
+    assert cz.fits(8, 1) and not cz.fits(9, 1) and not cz.fits(5.0, 3) and not cz.fits(True, 3) and not cz.fits('5', 3)
     # A 4 by 4 board: arrows across a row end at its fourth column.
     cells = ['', '', 'SNOW', ''] + ['', '', B, ''] + [''] * 8
     b = cz.parse_board(cells, [[2, 6]], 4, 4)
@@ -246,15 +250,39 @@ def test_shapes():
         cz.parse_board(cells, [[3, 4]], 4, 4)
     with pytest.raises(cz.BoardError):
         cz.parse_board(cells[:15], [[2, 6]], 4, 4)
-    # A 5 by 4 board: rows of four, and a fifth row a 4 by 4 board lacks.
-    assert cz.shape_name(5, 4) == '5x4' and cz.parse_shape('5x4') == (5, 4)
-    cells = [''] * 12 + ['', 'SNOW', '', 'FIRE'] + [B, B, '', '']
-    b = cz.parse_board(cells, [[13, 17]], 5, 4)
-    assert b.boxes == [16, 17] and (b.rows, b.cols) == (5, 4)
+    # A 6 by 6 board: rows of six, with an arrow into its sixth row.
+    cells = [''] * 24 + ['', '', '', '', 'SNOW', 'FIRE'] + [B, '', '', '', B, B]
+    b = cz.parse_board(cells, [[28, 34]], 6, 6)
+    assert b.boxes == [30, 34, 35] and (b.rows, b.cols) == (6, 6)
     with pytest.raises(cz.BoardError):
-        cz.parse_board(cells, [[15, 16]], 5, 4)   # the end of one row to the start of the next
+        cz.parse_board(cells, [[29, 30]], 6, 6)   # the end of one row to the start of the next
     with pytest.raises(cz.BoardError):
-        cz.parse_board(cells[:16], [[13, 17]], 5, 4)
+        cz.parse_board(cells[:30], [[28, 34]], 6, 6)
+
+
+def test_trim_keeps_the_squares_a_board_uses():
+    # SNOW [BALL] ROOM over [GAME], typed at the top left of a 5 by 3 grid,
+    # and a row down and a column in on a 6 by 6 grid: the same board.
+    small = cz.parse_board(['SNOW', B, 'ROOM', '', B, ''] + [''] * 9, [[0, 1], [1, 2], [1, 4]])
+    cells = [''] * 36
+    cells[7], cells[8], cells[9], cells[14] = 'SNOW', B, 'ROOM', B
+    big = cz.parse_board(cells, [[7, 8], [8, 9], [8, 14]], 6, 6)
+    for board, at in ((small, (0, 0)), (big, (1, 1))):
+        trimmed, top, left = cz.trim(board)
+        # It fits in 5 by 3, so it goes back in a 5 by 3 grid, as boards always were.
+        assert (trimmed.rows, trimmed.cols) == (5, 3) and (top, left) == at
+        assert trimmed.cells == small.cells and trimmed.arrows == small.arrows
+    # Its arrows go back onto the big grid, where it was typed.
+    assert cz.place(small.arrows, 3, 6, 1, 1) == [[7, 8], [8, 9], [8, 14]]
+    # A board 4 wide stays 4 wide, cut to the one row it uses; trimming it
+    # again changes nothing.
+    cells = [''] * 20
+    cells[4:8] = ['SNOW', B, 'GAME', B]
+    trimmed, top, left = cz.trim(cz.parse_board(cells, [[4, 5], [5, 6], [6, 7]], 5, 4))
+    assert (trimmed.rows, trimmed.cols, top, left) == (1, 4, 1, 0)
+    assert trimmed.cells == ['SNOW', B, 'GAME', B] and trimmed.arrows == [(0, 1), (1, 2), (2, 3)]
+    again = cz.trim(trimmed)
+    assert (again[0].cells, again[0].arrows, again[1:]) == (trimmed.cells, trimmed.arrows, (0, 0))
 
 
 def test_an_added_pair_can_name_a_whole_tile_the_data_lacks(data):
@@ -468,6 +496,17 @@ def test_a_five_by_four_board_through_the_route(client, tiny):
     assert client.post('/circuits', json={'rows': 4, 'cols': 4, 'cells': cells, 'arrows': arrows}).status_code == 400
 
 
+def test_a_six_by_six_board_through_the_route(client, tiny):
+    # The same compounds in the middle of a 6 by 6 grid: any size up to 8 by 8
+    # is a board.
+    cells = [''] * 36
+    cells[13], cells[14], cells[15], cells[20], cells[26] = 'SNOW', B, 'ROOM', B, 'PLAN'
+    arrows = [[13, 14], [14, 15], [14, 20], [20, 26]]
+    reply = client.post('/circuits', json={'rows': 6, 'cols': 6, 'cells': cells, 'arrows': arrows}).get_json()
+    assert [b['word'] for b in reply['boxes']] == ['BALL', 'GAME']
+    assert client.post('/circuits', json={'rows': 9, 'cols': 9, 'cells': [''] * 80 + [B], 'arrows': []}).status_code == 400
+
+
 @pytest.mark.parametrize('body', [
     {'cells': ['SNOW'] * 15, 'arrows': []},                       # no box
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[1, 0]]},       # an arrow pointing left
@@ -478,7 +517,7 @@ def test_a_five_by_four_board_through_the_route(client, tiny):
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'locked': {'١': 'ball'}},   # not an ASCII digit
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'1': 's1'}},     # letters only
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'starts': {'0': 's'}},      # a box's
-    {'cells': ['SNOW', B] + [''] * 34, 'arrows': [[0, 1]], 'rows': 6, 'cols': 6},      # not a shape the page offers
+    {'cells': ['SNOW', B] + [''] * 79, 'arrows': [[0, 1]], 'rows': 9, 'cols': 9},      # bigger than a board can be
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'rows': '5', 'cols': 3},    # not a number
     {'cells': ['SNOW', B] + [''] * 13, 'arrows': [[0, 1]], 'rows': 5.0, 'cols': 3.0},
     {'cells': ['SNOW', B] + [''] * 14, 'arrows': [[0, 1]], 'rows': 4, 'cols': True},

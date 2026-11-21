@@ -43,7 +43,7 @@
       "name": "How do I enter the board?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
+        "text": "The board starts 5 by 3; if your game's is wider or taller, tap a + at its edge to add a column or a row. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it."
       }
     },{% if boards_on %}
     {
@@ -108,11 +108,6 @@
 .cc-modes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px auto 0; padding: 0 12px; }
 .cc-modes[hidden] { display: none; }
 .cc-modes-label { font-size: 13px; color: #6b7280; margin-right: 2px; }
-.cc-shapes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 12px auto 0; padding: 0 12px; }
-.cc-shape svg { display: block; flex-shrink: 0; }
-.cc-shape { display: inline-flex; align-items: center; gap: 6px; }
-/* Narrower than the mode pills, so the label and every size fit on one line at 360px. */
-.cc-mode.cc-shape { padding: 7px 12px; }
 .cc-mode {
     background-color: #fff;
     border: 1px solid #cdd8d7;
@@ -159,9 +154,12 @@
     cursor: pointer;
 }
 .cc-shared-pick:hover, .cc-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
-/* --cols is set per board by the script; 4 wide boards get narrower squares. */
-.cc-mini { --mini: 62px; display: grid; grid-template-columns: repeat(var(--cols, 3), var(--mini)); grid-auto-rows: 22px; gap: 3px; }
-.cc-mini.c4 { --mini: 52px; }
+/* --cols is set per board by the script: the wider the board, the narrower
+   its squares, so a mini of any size fits its card. */
+.cc-mini {
+    --mini: min(62px, calc((min(92vw, 440px) - 70px) / var(--cols, 3) - 3px));
+    display: grid; grid-template-columns: repeat(var(--cols, 3), var(--mini)); grid-auto-rows: 22px; gap: 3px;
+}
 .cc-mini span {
     display: flex; align-items: center; justify-content: center;
     border-radius: 4px; font-size: 8.5px; font-weight: 700; line-height: 1;
@@ -177,11 +175,13 @@
 .cc-shared-site { font-size: 12px; font-weight: 600; color: #6b7280; }
 
 /* ---------- the board ---------- */
-/* Cells in odd tracks, the gaps between them (the arrows) in even ones; the
-   script lays the tracks out for the board's shape (buildGrid). A 4 wide
-   board gets narrower gaps, smaller arrows and a little more width. */
+/* Cells in odd tracks, the gaps between them (the arrows) in even ones, and
+   a last narrow track on the right and at the bottom for the + that grow the
+   board; the script lays the tracks out for the board's size (buildGrid).
+   Wider boards get narrower gaps, smaller arrows and a little more width. */
 .cc-board {
     --gap-x: 30px;
+    --grow: 26px;
     display: grid;
     width: min(92vw, 420px);
     box-sizing: border-box;
@@ -265,6 +265,32 @@
 .cc-board.c4 .cc-arrow { width: 20px; height: 20px; font-size: 13px; }
 .cc-board.c4 .cc-box-word { letter-spacing: 0.3px; }
 .cc-board.c4 .cc-box-word.mask { letter-spacing: 1px; }
+/* 5 columns and more: narrower gaps and arrows, and squares no narrower than
+   --cell-min. Past the phone's width the board scrolls sideways inside its
+   frame; the page itself never does. */
+.cc-board.c5, .cc-board.c6 { width: min(96vw, 620px); overflow-x: auto; --cell-min: 44px; --grow: 24px; }
+.cc-board.c5 { --gap-x: 16px; }
+.cc-board.c6 { --gap-x: 12px; --cell-min: 40px; }
+.cc-board.c5 .cc-cell, .cc-board.c6 .cc-cell { padding: 2px; }
+.cc-board.c5 .cc-cell.box, .cc-board.c6 .cc-cell.box { padding-top: 14px; }
+.cc-board.c5 .cc-arrow, .cc-board.c6 .cc-arrow { width: 16px; height: 16px; font-size: 11px; }
+.cc-board.c5 .cc-box-word, .cc-board.c6 .cc-box-word { letter-spacing: 0; }
+.cc-board.c5 .cc-box-word.mask, .cc-board.c6 .cc-box-word.mask { letter-spacing: 0.5px; }
+/* A + at the right edge (one more column) or the bottom (one more row),
+   level with its row or column. */
+.cc-grow {
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; border: none; background: none; font-family: inherit;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.cc-grow span {
+    display: flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%;
+    border: 2px dashed #4f9a97; background-color: #fff; color: #02484d;
+    font-size: 16px; font-weight: 700; line-height: 1; pointer-events: none;
+}
+.cc-grow:hover span { border-style: solid; }
+.cc-grow:focus-visible { outline: 2px solid #ffd700; outline-offset: -2px; border-radius: 6px; }
 .cc-gap:focus-visible { outline: 2px solid #ffd700; outline-offset: -2px; border-radius: 6px; }
 
 /* ---------- the editor ---------- */
@@ -318,6 +344,9 @@
 .cc-tools .cc-btn { flex: 1 1 0; padding: 8px 10px; }
 .cc-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 440px; min-height: 18px; padding: 0 12px; line-height: 1.5; }
 .cc-hint.warn { color: #a55; }
+/* Shown once a finished board has empty rows or columns at its edges. */
+.cc-fit-row { margin: 8px auto 0; text-align: center; }
+.cc-fit-row[hidden] { display: none; }
 
 /* ---------- results ---------- */
 .cc-results { max-width: 600px; margin: 6px auto 0; }
@@ -464,8 +493,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     .cc-board { padding: 8px; }
     .cc-card { margin: 10px 8px; padding: 12px; }
     .cc-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
-    .cc-mini { --mini: 54px; }
-    .cc-mini.c4 { --mini: 44px; }
+    .cc-mini { --mini: min(54px, calc((min(92vw, 440px) - 70px) / var(--cols, 3) - 3px)); }
 }
 </style>
 {% endblock %}
@@ -493,7 +521,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
         <span class="instructions-toggle-icon">&#9660;</span>
     </div>
     <div class="instructions-body">
-        <strong>1. Type the board.</strong> Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4.
+        <strong>1. Type the board.</strong> The board starts 5 by 3; if your game's is wider or taller, tap a + at its edge to add a column or a row.
         Tap a square and type the word on that tile, then press
         Enter to go on to the next empty square (Tab goes to the very next one). For an empty box, tap <strong>Box</strong> (or type ?); for a
         square with nothing in it, tap <strong>Blank</strong>.{% if boards_on %} Once other players
@@ -531,14 +559,6 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
 </div>
 {% endif %}
 
-{# Each shape a board comes in, as a pill with a small picture of it. #}
-<div class="cc-shapes" id="cc-shapes" role="group" aria-label="Board size">
-    <span class="cc-modes-label">Board size:</span>
-    {% for r, c in shapes %}
-    <button type="button" class="cc-mode cc-shape" data-rows="{{ r }}" data-cols="{{ c }}" aria-pressed="false" aria-label="{{ r }} rows by {{ c }} columns"><svg width="{{ c * 4 - 1 }}" height="{{ r * 4 - 1 }}" viewBox="0 0 {{ c * 4 - 1 }} {{ r * 4 - 1 }}" aria-hidden="true">{% for y in range(r) %}{% for x in range(c) %}<rect x="{{ x * 4 }}" y="{{ y * 4 }}" width="3" height="3" rx="0.5" fill="currentColor"/>{% endfor %}{% endfor %}</svg>{{ r }} &times; {{ c }}</button>
-    {% endfor %}
-</div>
-
 <div class="cc-board" id="cc-board" role="group" aria-label="Board"></div>
 
 <div class="cc-editor" id="cc-editor">
@@ -555,6 +575,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     </div>
 </div>
 <p class="cc-hint" id="cc-hint" aria-live="polite"></p>
+<p class="cc-fit-row" id="cc-fit-row" hidden><button type="button" class="cc-btn" id="cc-fit">Remove empty rows and columns</button></p>
 
 {% if approve %}
 {# The board as it stands goes in cells, arrows and answers when an Approve
@@ -604,7 +625,7 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Pick the board size that matches your game: 5 by 3, 4 by 4 or 5 by 4. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The board starts 5 by 3; if your game's is wider or taller, tap a + at its edge to add a column or a row. Tap a square and type the word on that tile, then press Enter to move on to the next empty square, or Tab to go to the very next one. For an empty box, tap Box or type a question mark; for a square with nothing in it, tap Blank. The page draws an arrow from each box to every square next to it: tap any arrow your game doesn't show to remove it, or a dashed one to add it.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -649,12 +670,12 @@ button.cc-answer:hover { text-decoration: underline; text-underline-offset: 3px;
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    // The board's shape: one of SHAPES, [rows, cols]. The grid is rebuilt
-    // when it changes (setShape).
-    const SHAPES = {{ shapes | tojson }};
-    let ROWS = {{ rows }}, COLS = {{ cols }}, N = ROWS * COLS;
-    const SHAPE_KEY = 'circuitsShape_v1';   // the size this player last picked, for a new board
-    const isShape = (r, c) => SHAPES.some(s => s[0] === r && s[1] === c);
+    // The board's size, ROWS by COLS. A new board starts START_ROWS by
+    // START_COLS and grows with the + at its edges, up to MAX_SIDE each way;
+    // there's no size to pick. The grid is rebuilt when it changes (setShape).
+    const START_ROWS = {{ rows }}, START_COLS = {{ cols }}, MAX_SIDE = {{ max_side }};
+    let ROWS = START_ROWS, COLS = START_COLS, N = ROWS * COLS;
+    const fits = (r, c) => Number.isInteger(r) && Number.isInteger(c) && r >= 1 && c >= 1 && r <= MAX_SIDE && c <= MAX_SIDE;
     const BOX = {{ box | tojson }};
     const MAX_CELL = {{ max_cell }};
     // Where this copy posts, and whether it offers today's boards.
@@ -781,9 +802,15 @@ document.addEventListener('DOMContentLoaded', () => {
         cellEls = [];
         gapEls = {};
         boardEl.replaceChildren();
-        boardEl.classList.toggle('c4', COLS >= 4);
-        boardEl.style.gridTemplateColumns = Array(COLS).fill('minmax(0, 1fr)').join(' var(--gap-x) ');
-        boardEl.style.gridTemplateRows = Array(ROWS).fill('minmax(54px, auto)').join(' 26px ');
+        boardEl.classList.toggle('c4', COLS === 4);
+        boardEl.classList.toggle('c5', COLS === 5);
+        boardEl.classList.toggle('c6', COLS >= 6);
+        // Squares share the width; from 5 wide they stop at --cell-min and the
+        // board scrolls sideways instead. The + tracks stay while it can grow.
+        const square = COLS >= 5 ? 'minmax(var(--cell-min), 1fr)' : 'minmax(0, 1fr)';
+        const wider = COLS < MAX_SIDE, taller = ROWS < MAX_SIDE;
+        boardEl.style.gridTemplateColumns = Array(COLS).fill(square).join(' var(--gap-x) ') + (wider ? ' var(--grow)' : '');
+        boardEl.style.gridTemplateRows = Array(ROWS).fill('minmax(54px, auto)').join(' 26px ') + (taller ? ' var(--grow)' : '');
         for (let i = 0; i < N; i++) {
             const [r, c] = rc(i);
             const el = document.createElement('button');
@@ -808,18 +835,36 @@ document.addEventListener('DOMContentLoaded', () => {
             boardEl.appendChild(el);
             gapEls[pairKey(a, b)] = el;
         });
-        renderShapes();
+        if (wider) for (let r = 0; r < ROWS; r++) boardEl.appendChild(growButton('col', r, 2 * r + 1, 2 * COLS));
+        if (taller) for (let c = 0; c < COLS; c++) boardEl.appendChild(growButton('row', c, 2 * ROWS, 2 * c + 1));
     }
 
-    // The board in another shape. A square keeps its row and column where the
-    // new grid has room, with its arrows and words; the rest go.
-    const shapesEl = document.getElementById('cc-shapes');
-    function setShape(rows, cols) {
-        if (!isShape(rows, cols) || (rows === ROWS && cols === COLS)) return;
+    // A + at the edge: 'col' beside row `at` (one more column), 'row' under
+    // column `at` (one more row).
+    function growButton(kind, at, gridRow, gridColumn) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'cc-grow';
+        el.dataset.grow = kind;
+        el.dataset.at = String(at);
+        el.style.gridRow = String(gridRow);
+        el.style.gridColumn = String(gridColumn);
+        el.innerHTML = '<span aria-hidden="true">+</span>';
+        el.title = kind === 'col' ? 'Add a column' : 'Add a row';
+        el.setAttribute('aria-label', kind === 'col' ? 'Add a column, at row ' + (at + 1) : 'Add a row, at column ' + (at + 1));
+        return el;
+    }
+
+    // The board in another size, its squares moved up `top` rows and left
+    // `left` columns (only when fitting it to the squares it uses). A square
+    // keeps its place where the new grid has room, with its arrows and
+    // words; the rest go.
+    function setShape(rows, cols, top = 0, left = 0) {
+        if (!fits(rows, cols) || (rows === ROWS && cols === COLS && !top && !left)) return;
         const oldCols = COLS;
         const move = i => {
-            const r = Math.floor(i / oldCols), c = i % oldCols;
-            return r < rows && c < cols ? r * cols + c : -1;
+            const r = Math.floor(i / oldCols) - top, c = i % oldCols - left;
+            return r >= 0 && c >= 0 && r < rows && c < cols ? r * cols + c : -1;
         };
         const next = Array(rows * cols).fill('');
         cells.forEach((v, i) => { const j = move(i); if (j >= 0) next[j] = v; });
@@ -844,29 +889,62 @@ document.addEventListener('DOMContentLoaded', () => {
         buildGrid();
     }
 
-    function renderShapes() {
-        if (!shapesEl) return;
-        shapesEl.querySelectorAll('.cc-shape').forEach(btn => {
-            const on = Number(btn.dataset.rows) === ROWS && Number(btn.dataset.cols) === COLS;
-            btn.classList.toggle('active', on);
-            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
+    // One more column (a + at the right edge) or row (at the bottom), with
+    // the cursor on its square level with that +.
+    function growAt(kind, at) {
+        if (kind === 'col' && COLS < MAX_SIDE && at >= 0 && at < ROWS) {
+            setShape(ROWS, COLS + 1);
+            selectCell(at * COLS + COLS - 1, true);
+        } else if (kind === 'row' && ROWS < MAX_SIDE && at >= 0 && at < COLS) {
+            setShape(ROWS + 1, COLS);
+            selectCell((ROWS - 1) * COLS + at, true);
+        } else {
+            return;
+        }
+        afterEdit();
     }
 
-    shapesEl.addEventListener('click', e => {
-        const btn = e.target.closest('.cc-shape');
-        if (!btn) return;
-        const rows = Number(btn.dataset.rows), cols = Number(btn.dataset.cols);
-        if (rows === ROWS && cols === COLS) return;
-        const lost = cells.some((v, i) => v && (Math.floor(i / COLS) >= rows || i % COLS >= cols));
-        if (lost && !confirm('The squares outside a ' + rows + ' by ' + cols + ' board will go. Switch?')) return;
-        setShape(rows, cols);
-        try { localStorage.setItem(SHAPE_KEY, rows + 'x' + cols); } catch (_) {}
-        if (boardSource === 'shared') boardSource = 'edited';
-        if (selected >= N) selected = -1;
-        selectCell(cells.some(c => c) ? selected : 0, false);
+    // The rows and columns the board uses, and the size it's stored in: one
+    // that fits in START_ROWS by START_COLS goes in that size, top left
+    // (functions/circuits.py trim). Null for an empty board.
+    function usedArea() {
+        let top = ROWS, left = COLS, bottom = -1, right = -1;
+        cells.forEach((v, i) => {
+            if (!v) return;
+            const r = Math.floor(i / COLS), c = i % COLS;
+            top = Math.min(top, r); bottom = Math.max(bottom, r);
+            left = Math.min(left, c); right = Math.max(right, c);
+        });
+        if (bottom < 0) return null;
+        const h = bottom - top + 1, w = right - left + 1;
+        const small = h <= START_ROWS && w <= START_COLS;
+        return {rows: small ? START_ROWS : h, cols: small ? START_COLS : w, top, left};
+    }
+
+    // The grid never shrinks by itself (a player may grow it first and type
+    // after). Once the board is finished with empty rows or columns at its
+    // edges, a button fits the grid to it.
+    const fitRow = document.getElementById('cc-fit-row');
+    function renderFit() {
+        const a = usedArea();
+        fitRow.hidden = !(a && complete() && (a.rows !== ROWS || a.cols !== COLS || a.top || a.left));
+    }
+    document.getElementById('cc-fit').addEventListener('click', () => {
+        const a = usedArea();
+        if (!a) return;
+        setShape(a.rows, a.cols, a.top, a.left);
+        selectCell(selected, false);
         afterEdit();
     });
+
+    // On a board wider than its frame, bring the square into view.
+    function showSquare(i) {
+        const el = cellEls[i];
+        if (!el || boardEl.scrollWidth <= boardEl.clientWidth + 1) return;
+        const b = boardEl.getBoundingClientRect(), r = el.getBoundingClientRect();
+        if (r.left < b.left + 12) boardEl.scrollLeft -= b.left + 12 - r.left;
+        else if (r.right > b.right - 12) boardEl.scrollLeft += r.right - b.right + 12;
+    }
     buildGrid();
 
     // What a box shows: its word in Solve, the letters shown so far in Help
@@ -939,9 +1017,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Each cell's text at its size class, shrunk half a pixel at a time
     // until its longest word fits on a line (never below 8px).
     // If even 8px is too wide (a long word in a narrow square, as on a 4 wide
-    // board on a phone), the long words split in two, at a hyphen (a mask
-    // breaks without one), and are fitted again: two lines read better than
-    // one squeezed past legible.
+    // board on a phone), the long words split in two (in three if that's
+    // still too wide, on a board 6 or more wide), at a hyphen (a mask breaks
+    // without one), and are fitted again: two lines read better than one
+    // squeezed past legible.
     function fitCells() {
         boardEl.querySelectorAll('.fit').forEach(span => {
             if (span.dataset.text !== undefined) {
@@ -952,23 +1031,41 @@ document.addEventListener('DOMContentLoaded', () => {
             shrinkToFit(span);
             if (span.scrollWidth <= span.clientWidth + 0.5) return;
             const mark = span.classList.contains('mask') ? '​' : '­';
-            span.dataset.text = span.textContent;
-            span.textContent = span.textContent.split(' ').map(w => {
-                const half = Math.ceil(w.length / 2);
-                return w.length >= 6 ? w.slice(0, half) + mark + w.slice(half) : w;
-            }).join(' ');
-            span.classList.add('split');
-            shrinkToFit(span);
+            const text = span.textContent;
+            span.dataset.text = text;
+            for (const parts of [2, 3]) {
+                span.textContent = text.split(' ').map(w => (w.length >= 6 ? pieces(w, parts).join(mark) : w)).join(' ');
+                span.classList.add('split');
+                shrinkToFit(span);
+                if (span.scrollWidth <= span.clientWidth + 0.5) break;
+            }
         });
     }
 
+    // A word in n pieces, as even as can be, the longer ones first.
+    function pieces(w, n) {
+        const size = Math.ceil(w.length / n), out = [];
+        for (let i = 0; i < w.length; i += size) out.push(w.slice(i, i + size));
+        return out;
+    }
+
+    // The largest size, half a pixel at a time from its class's down to 8px,
+    // at which the span fits its line (8px if none does), found by halving:
+    // each try lays the board out again, which adds up on a big board.
     function shrinkToFit(span) {
         span.style.fontSize = '';
-        let size = parseFloat(getComputedStyle(span).fontSize);
-        while (span.scrollWidth > span.clientWidth + 0.5 && size > 8) {
-            size -= 0.5;
-            span.style.fontSize = size + 'px';
+        const fits = () => span.scrollWidth <= span.clientWidth + 0.5;
+        const top = parseFloat(getComputedStyle(span).fontSize);
+        if (top <= 8 || fits()) return;
+        // Step k is top - k / 2 px: the answer is the first step that fits.
+        let lo = 1, hi = Math.round((top - 8) * 2);
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            span.style.fontSize = (top - mid / 2) + 'px';
+            if (fits()) hi = mid;
+            else lo = mid + 1;
         }
+        span.style.fontSize = (top - lo / 2) + 'px';
     }
 
     /* ---------- editing ---------- */
@@ -985,6 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
             editInput.placeholder = 'Tap a square to change it';
         }
         renderBoard();
+        if (i >= 0) showSquare(i);
     }
 
     function setCell(i, value) {
@@ -1061,6 +1159,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cc-next').addEventListener('click', advance);
 
     boardEl.addEventListener('click', e => {
+        const grow = e.target.closest('.cc-grow');
+        if (grow) { growAt(grow.dataset.grow, Number(grow.dataset.at)); return; }
         const gap = e.target.closest('.cc-gap');
         if (gap) { toggleArrow(Number(gap.dataset.a), Number(gap.dataset.b)); return; }
         const cell = e.target.closest('.cc-cell');
@@ -1085,6 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function afterEdit() {
         renderBoard();
         renderHint();
+        renderFit();
         renderResults();
         renderShared();
         persist();
@@ -1098,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 text = 'Square ' + (bad + 1) + ': a tile starts and ends with a letter.';
                 warn = true;
             } else if (!cells.some(c => c)) {
-                text = 'Tap a square and type its tile. Box makes an empty box; Blank, a square with nothing in it.';
+                text = 'Tap a square and type its tile. Box makes an empty box; Blank, a square with nothing in it. A + at the edge adds a column or row.';
             } else if (!cells.includes(BOX)) {
                 text = 'Mark the empty boxes too: tap one, then Box.';
             } else if (!complete()) {
@@ -1394,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedOne = document.getElementById('cc-shared-one');
     const sharedMany = document.getElementById('cc-shared-many');
     const sharedPicks = document.getElementById('cc-shared-picks');
-    const isBoard = b => b && isShape(b.rows, b.cols) && Array.isArray(b.cells) && b.cells.length === b.rows * b.cols &&
+    const isBoard = b => b && fits(b.rows, b.cols) && Array.isArray(b.cells) && b.cells.length === b.rows * b.cols &&
         b.cells.every(c => typeof c === 'string' && (c === '' || c === BOX || TILE.test(c))) &&
         b.cells.includes(BOX) && Array.isArray(b.arrows);
 
@@ -1433,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pick.dataset.pick = String(k);
             pick.setAttribute('aria-label', 'Load the board with ' + b.cells.filter(c => c && c !== BOX).join(', '));
             const mini = document.createElement('span');
-            mini.className = 'cc-mini c' + b.cols;
+            mini.className = 'cc-mini';
             mini.style.setProperty('--cols', String(b.cols));
             mini.setAttribute('aria-hidden', 'true');
             let n = 0;
@@ -1591,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // A board clicked on the Today's Boards tab (routes/circuits.py
     // editor_board): it replaces the draft, to check, fix and approve.
     function preloaded() {
-        if (!PRELOAD || !isShape(PRELOAD.rows, PRELOAD.cols) || !Array.isArray(PRELOAD.cells)
+        if (!PRELOAD || !fits(PRELOAD.rows, PRELOAD.cols) || !Array.isArray(PRELOAD.cells)
             || PRELOAD.cells.length !== PRELOAD.rows * PRELOAD.cols) return false;
         setShape(PRELOAD.rows, PRELOAD.cols);
         cells = PRELOAD.cells.map(c => (typeof c === 'string' ? c : ''));
@@ -1637,7 +1738,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let s = null;
         try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
         if (!s || !Array.isArray(s.cells)) return false;
-        const shape = isShape(s.rows, s.cols) ? [s.rows, s.cols] : [SHAPES[0][0], SHAPES[0][1]];
+        const shape = fits(s.rows, s.cols) ? [s.rows, s.cols] : [START_ROWS, START_COLS];
         if (s.cells.length !== shape[0] * shape[1]) return false;
         if (s.day !== gameDay()) {
             try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
@@ -1683,6 +1784,7 @@ document.addEventListener('DOMContentLoaded', () => {
         arrows = []; cut = new Set(); kept = {}; starts = {}; reveals = {};
         boardSource = 'typed'; loggedSig = ''; arrowsTouched = false;
         last = null; lastSig = ''; approveWords = {}; savedAnswers = null;
+        setShape(START_ROWS, START_COLS);
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         selectCell(0, true);
         afterEdit();
@@ -1735,10 +1837,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // when the page changes width.
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitCells).catch(() => {});
     window.addEventListener('resize', fitCells);
-    try {
-        const m = /^(\d)x(\d)$/.exec(localStorage.getItem(SHAPE_KEY) || '');
-        if (m) setShape(Number(m[1]), Number(m[2]));
-    } catch (_) {}
     if (!preloaded()) {
         restore();
         // An empty board starts on square 1 (with the keyboard up where there's
