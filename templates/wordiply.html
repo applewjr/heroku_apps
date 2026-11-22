@@ -36,7 +36,15 @@
         "@type": "Answer",
         "text": "Type the letter sequence from your Wordiply puzzle into the input box. The solver instantly searches a large dictionary and returns the longest words that contain those letters in order, ranked from longest to shortest."
       }
-    },
+    },{% if starter_on %}
+    {
+      "@type": "Question",
+      "name": "Do I have to type today's letters?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players type their starter words into this solver as they play, so once other players have entered today's, it's offered above the box. Tap Load it and its longest words show straight away. If it isn't the starter in your game, tap ↩ Not my starter and type yours."
+      }
+    },{% endif %}
     {
       "@type": "Question",
       "name": "Is this Wordiply solver free?",
@@ -278,6 +286,65 @@
     margin: 20px 0;
 }
 
+/* Today's starter word (routes/wordiply.py): the bar above the box while
+   it's empty, and the note under the box once it's loaded. */
+.wp-today {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 10px;
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    padding: 8px 10px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+}
+.wp-today[hidden], .wp-loaded-note[hidden] { display: none; }
+.wp-today-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+.wp-today-text strong { white-space: nowrap; letter-spacing: 1px; }
+.wp-today-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    background-color: #02484d;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.wp-today-btn:hover { background-color: #03595f; }
+.wp-loaded-note {
+    width: min(92vw, 440px);
+    box-sizing: border-box;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #02484d;
+}
+.wp-not-mine {
+    display: inline-block;
+    box-sizing: border-box;
+    min-height: 44px;
+    margin-top: 6px;
+    padding: 10px 14px;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #02484d;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.wp-not-mine:hover { background-color: #eef4f4; }
+
 @media (max-width: 768px) {
     .wordiply-input {
         font-size: 20px;
@@ -338,17 +405,35 @@
             Enter the letters that must appear in the word. The solver will instantly find the longest words containing those letters.
             <br><br>
             <strong>Wordiply Rules:</strong> Find the longest word that contains the given letter sequence. The letters must appear together in the exact order shown.
+            {% if starter_on %}
+            <br><br>
+            Once other players have entered today's starter word, it's offered above the box: tap Load it to see its longest words.
+            {% endif %}
         </div>
     </div>
 
+    {% if starter_on %}
+    {# Today's starter word (routes/wordiply.py), offered while the box is
+       empty. In the first paint when this process has looked it up already,
+       so it doesn't push the box down later; the script asks for the newest. #}
+    <div class="wp-today" id="wp-today"{% if not first_starter %} hidden{% endif %}>
+        <span class="wp-today-text">Today's starter word: <strong id="wp-today-letters">{{ (first_starter or '')|upper }}</strong></span>
+        <button type="button" class="wp-today-btn" id="wp-load">Load it</button>
+    </div>
+    {% endif %}
+
     <form id="wordiply-form">
-        <input type="text" 
-               id="search-input" 
-               class="wordiply-input" 
-               placeholder="Enter letters" 
+        <input type="text"
+               id="search-input"
+               class="wordiply-input"
+               placeholder="Enter letters"
                autocomplete="off"
                autofocus>
     </form>
+    {% if starter_on %}
+    <p class="wp-loaded-note" id="wp-loaded-note" hidden>Loaded today's starter word, entered by other players.
+        <button type="button" class="wp-not-mine" id="wp-not-mine">↩ Not my starter</button></p>
+    {% endif %}
 
     <div id="results-container" class="results-container">
         <!-- Results will be displayed here -->
@@ -379,6 +464,12 @@
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this Wordiply solver work?</p>
           <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the letter sequence from your Wordiply puzzle into the input box. The solver instantly searches a large dictionary and returns the longest words that contain those letters in order, ranked from longest to shortest.</p>
         </div>
+        {% if starter_on %}
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type today's letters?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players type their starter words into this solver as they play, so once other players have entered today's, it's offered above the box. Tap Load it and its longest words show straight away. If it isn't the starter in your game, tap ↩ Not my starter and type yours.</p>
+        </div>
+        {% endif %}
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Wordiply solver free?</p>
           <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, this Wordiply solver is completely free to use with no signup or account required.</p>
@@ -423,12 +514,163 @@ document.addEventListener('DOMContentLoaded', () => {
         displayResults(window.initialResults);
     }
 
+    // ---- Today's starter word (routes/wordiply.py) ----
+    // While the box is empty, the bar above it offers today's starter: as
+    // the page came with it, then as the server has it now. Load it fills
+    // the box and lists its words. A starter the player types is logged
+    // once they use it (maybeLogStarter); a loaded one never is, so the
+    // starter on offer can't vote for itself.
+    const STARTER_ON = {{ 'true' if starter_on else 'false' }};
+    const STARTER_DAY = {{ (starter_day or '') | tojson }};
+    const isStarter = s => typeof s === 'string' && /^[a-z]{2,15}$/.test(s);
+    let starter = {{ (first_starter or none) | tojson }};
+    // How the box got its letters: 'typed', 'loaded' (today's starter) or
+    // 'edited' (loaded, then changed).
+    let starterSource = 'typed';
+    // The letters the words on screen are for ('' while they're for none).
+    let shownFor = '';
+    const todayBar = document.getElementById('wp-today');
+    const loadedNote = document.getElementById('wp-loaded-note');
+
+    function showOffer() {
+        if (!todayBar) return;
+        const on = STARTER_ON && isStarter(starter) && searchInput.value.trim() === '';
+        if (on) document.getElementById('wp-today-letters').textContent = starter.toUpperCase();
+        todayBar.hidden = !on;
+    }
+
+    // Wordiply's day: the date in London, as the server keys starters.
+    function gameDay() {
+        try {
+            const p = {};
+            new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'})
+                .formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+            if (/^\d{4}$/.test(p.year) && /^\d{2}$/.test(p.month) && /^\d{2}$/.test(p.day)) {
+                return p.year + '-' + p.month + '-' + p.day;
+            }
+        } catch (_) {}
+        return STARTER_DAY;
+    }
+
+    // The starters this tab has logged or loaded, as day|letters, so each
+    // one goes once. Best effort: with storage blocked one may go twice, and
+    // the second only updates the first.
+    function alreadyLogged(key) {
+        try {
+            return JSON.parse(sessionStorage.getItem('wordiplyStartersLogged_v1') || '[]').indexOf(key) !== -1;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function markLogged(key) {
+        try {
+            const keys = JSON.parse(sessionStorage.getItem('wordiplyStartersLogged_v1') || '[]')
+                .filter(k => k !== key).slice(-29);
+            keys.push(key);
+            sessionStorage.setItem('wordiplyStartersLogged_v1', JSON.stringify(keys));
+        } catch (_) {
+            // Storage blocked or full: nothing remembered, nothing lost.
+        }
+    }
+
+    // A starter the player is using, sent once per day and letters: on
+    // their first tap on a word, Define or Show more, or as they leave for
+    // their game (the window loses focus, or the page is hidden). Only
+    // letters whose words are on screen, so a pause mid-word sends nothing.
+    // keepalive lets it outlive a page that's going away. Logs even while
+    // the offer is switched off. Nothing in here may stop the page working.
+    function maybeLogStarter() {
+        try {
+            if (starterSource === 'loaded') return;
+            const letters = searchInput.value.trim().toLowerCase();
+            if (!isStarter(letters) || shownFor.trim().toLowerCase() !== letters || !allResults.length) return;
+            const key = gameDay() + '|' + letters;
+            if (alreadyLogged(key)) return;
+            markLogged(key);
+            fetch('/wordiply', {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'log_starter', letters: letters, source: starterSource }),
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // A letter typed or deleted: a loaded starter becomes the player's own
+    // edit, and the offer shows only while the box is empty.
+    function noteStarterChange() {
+        try {
+            if (starterSource === 'loaded') {
+                starterSource = 'edited';
+                if (loadedNote) loadedNote.hidden = true;
+            }
+            showOffer();
+        } catch (_) {}
+    }
+
+    // One search, for the letters in the box. A reply for letters the box
+    // no longer holds is dropped: the player has typed on since.
+    function runSearch(searchString) {
+        const first = firstSolve;
+        firstSolve = false;
+        fetch('/wordiply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ search_string: searchString, first_solve: first }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (searchInput.value !== searchString) return;
+            shownFor = searchString;
+            displayResults(data.results);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            if (searchInput.value !== searchString) return;
+            resultsContainer.innerHTML = '<div class="no-results">Error loading results</div>';
+        });
+    }
+
+    // Fill the box with today's starter and list its words straight away.
+    function loadStarter() {
+        if (!isStarter(starter)) return;
+        clearTimeout(searchTimeout);
+        searchInput.value = starter.toUpperCase();
+        starterSource = 'loaded';
+        shownFor = '';
+        markLogged(gameDay() + '|' + starter);
+        showOffer();
+        if (loadedNote) loadedNote.hidden = false;
+        resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+        runSearch(searchInput.value);
+    }
+
+    // Not the starter in the player's game: an empty box to type theirs,
+    // with today's starter on offer again.
+    function notMyStarter() {
+        clearTimeout(searchTimeout);
+        searchInput.value = '';
+        starterSource = 'typed';
+        shownFor = '';
+        allResults = [];
+        if (loadedNote) loadedNote.hidden = true;
+        resultsContainer.innerHTML = '';
+        document.getElementById('copy-hint').style.display = 'none';
+        showOffer();
+        searchInput.focus();
+    }
+
     searchInput.addEventListener('input', (event) => {
         const searchString = event.target.value.toUpperCase();
         searchInput.value = searchString;
+        noteStarterChange();
 
         clearTimeout(searchTimeout);
-        
+        shownFor = '';
+
         if (searchString.trim() === '') {
             resultsContainer.innerHTML = '';
             return;
@@ -438,26 +680,34 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
 
         // Debounce the search
-        searchTimeout = setTimeout(() => {
-            const first = firstSolve;
-            firstSolve = false;
+        searchTimeout = setTimeout(() => runSearch(searchString), 300); // 300ms delay
+    });
+
+    try {
+        if (STARTER_ON) {
+            document.getElementById('wp-load').addEventListener('click', loadStarter);
+            document.getElementById('wp-not-mine').addEventListener('click', notMyStarter);
+            showOffer();
             fetch('/wordiply', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ search_string: searchString, first_solve: first }),
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'todays_starter' }),
             })
             .then(response => response.json())
             .then(data => {
-                displayResults(data.results);
+                starter = data && isStarter(data.starter) ? data.starter : null;
+                showOffer();
             })
-            .catch((error) => {
-                console.error('Error:', error);
-                resultsContainer.innerHTML = '<div class="no-results">Error loading results</div>';
-            });
-        }, 300); // 300ms delay
-    });
+            .catch(() => {});
+        }
+        window.addEventListener('blur', maybeLogStarter);
+        window.addEventListener('pagehide', maybeLogStarter);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') maybeLogStarter();
+        });
+    } catch (e) {
+        console.error("Today's starter:", e);
+    }
 
     const WORDS_STEP = 15;
     let allResults = [];
@@ -497,11 +747,15 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.innerHTML = html;
         document.getElementById('copy-hint').style.display = 'block';
 
-        // Add click handlers to each word result
+        // Add click handlers to each word result. A tap on a word, or on its
+        // Define link, also means the player is using these letters.
         document.querySelectorAll('.word-result').forEach(element => {
             element.addEventListener('click', function() {
                 copyToClipboard(this);
+                maybeLogStarter();
             });
+            const define = element.querySelector('.define-link');
+            if (define) define.addEventListener('click', maybeLogStarter);
         });
 
         // "Show more" button when results remain
@@ -513,6 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.className = 'show-more-btn';
             btn.textContent = `Show ${more} more (${remaining} remaining)`;
             btn.addEventListener('click', () => {
+                maybeLogStarter();
                 visibleCount += WORDS_STEP;
                 renderWords();
             });

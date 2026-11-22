@@ -180,6 +180,7 @@
             <details class="admin-help"><summary>How boards are served</summary>
                 <p class="crowd-note">The boards players typed into the solver, logged on their first petal tap, on their own date (Blossom rolls over at each player's midnight). A board is the center plus the letter in each petal spot, in the solver's order: top-left, top-right, middle-left, middle-right, bottom-left, bottom-right. Served is the board players whose date that is are offered{% if not board_live %} (once it goes live){% endif %}, with its hints.</p>
                 <p class="crowd-note">Your approval is served straight away, whatever the players typed, and the latest one for a day wins. Without one, a board is served once {{ serve_crowd }} players enter it exactly, every petal in the same spot; then whichever board has the most players, a tie going to the first to reach {{ serve_crowd }}. Players count once per network (an IPv6 /48, or one IPv4 address), and a player's later board of the same puzzle that day replaces their earlier one. Only the puzzle most players entered that day can be served, never one first seen on an earlier day (an archive game), unless you approve it. Remove deletes the players' entries of that board on that day; Undo takes back an approval and leaves the players' boards alone.</p>
+                <p class="crowd-note">Load it solves the served board straight away on its first bonus petal: the petal letter that comes first alphabetically ("bonus starts on"), since Blossom moves the bonus through the petals in alphabetical order. It's worked out from the letters, so nothing about it is stored or voted on.</p>
             </details>
         </div>
         {% if load_error %}
@@ -213,6 +214,7 @@
         <div class="puzzle-card">
             <p class="puzzle-line">
                 <span class="board-text">{{ g.letters[0]|upper }} · {{ g.letters[1:]|upper }}</span>
+                - bonus starts on {{ g.first_petal|upper }}
                 - {{ g.players }} player{{ '' if g.players == 1 else 's' }} this day, first seen {{ g.first_seen.strftime('%m-%d') }}
                 {% if g.archive %}<span class="status-waiting">(an older puzzle)</span>{% endif %}
                 - {% if g.served %}<span class="status-served">Served</span>{% else %}<span class="status-waiting">{{ g.why or 'not served' }}</span>{% endif %}

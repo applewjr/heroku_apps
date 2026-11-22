@@ -132,7 +132,7 @@ def test_four_players_wait_and_the_fifth_serves_the_board(client, boards):
     assert board["center"] + board["petals"] == BOARD
     assert board["date"] == "2026-10-23" and board["text"] == "E · L C T I O N"
     # What the page needs, and nothing about how it was chosen.
-    assert set(board) == {"date", "center", "petals", "text", "hints"}
+    assert set(board) == {"date", "center", "petals", "text", "first_petal", "hints"}
 
 
 def test_the_same_letters_in_other_spots_are_another_board(client, boards):
@@ -301,6 +301,92 @@ def test_a_results_page_keeps_how_the_letters_came(client, boards):
     assert '<input type="hidden" name="board_source" value="typed">' in html
     # No bar or hints on a results page.
     assert 'id="bl-today"' not in html
+
+
+# ---------------------------------------------------------------------------
+# The first bonus petal: Load it solves on it
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("petals, first", [
+    ("lction", "c"),        # this file's board
+    ("lrieay", "a"),        # B · L R I E A Y goes A, E, I, L, R, Y
+    ("ilskce", "c"),
+    ("zyxwvu", "u"),
+])
+def test_the_first_bonus_petal_is_the_alphabetically_first_petal(petals, first):
+    assert blossom.first_bonus_petal(petals) == first
+
+
+def test_the_served_board_comes_with_its_first_bonus_petal(client, boards):
+    for n in range(1, 6):
+        _log(client, n)
+    assert _todays(client)["first_petal"] == "c"
+    # In the page too, for the Load it the page arrives with.
+    assert '"first_petal": "c"' in client.get("/blossom").get_data(as_text=True)
+    # Spots don't change it: it's the puzzle's, not the board's.
+    boards.approve(DAY, LETTERS, OTHER)
+    assert _served(client) == OTHER and _todays(client)["first_petal"] == "c"
+
+
+def test_load_it_solves_on_the_first_bonus_petal(client, boards):
+    for n in range(1, 6):
+        _log(client, n)
+    html = client.get("/blossom").get_data(as_text=True)
+    # loadBoard taps the petal itself, marking the board fresh; a board
+    # without a first petal waits for a tap.
+    assert "b.petals.indexOf(b.first_petal)" in html and "selectPetal(first);" in html
+    assert "if (fresh) fresh.value = '1';" in html
+    assert '<input type="hidden" name="fresh_load" value="">' in html
+    assert 'id="bl-loaded-note" hidden' in html
+
+
+FRESH = '<input type="hidden" name="fresh_load" value="1">'
+
+
+def _results(client, petal="C", source="loaded", fresh="1"):
+    form = {"must_have": "E", "may_have": "LCTION", "petal_letter": petal, "board_source": source,
+            "fresh_load": fresh}
+    return client.post("/blossom", data=form).get_data(as_text=True)
+
+
+def test_a_loaded_boards_results_offer_not_my_board(client, boards):
+    html = _results(client)
+    assert 'id="bl-fresh-note"' in html and 'href="/blossom" class="bl-not-mine"' in html
+    assert "↩ Not my board" in html
+    assert "with its first bonus petal, C." in html
+    assert FRESH in html                                     # carried to the next tap
+
+
+def test_not_my_board_goes_for_good_once_another_petal_is_tapped(client, boards):
+    html = _results(client, petal="O")
+    assert 'id="bl-fresh-note"' not in html and FRESH not in html
+    assert '<input type="hidden" name="fresh_load" value="">' in html
+    # Back on the first petal later (the bonus comes round again): still theirs.
+    assert 'id="bl-fresh-note"' not in _results(client, petal="C", fresh="")
+
+
+def test_a_loaded_board_without_the_fresh_mark_has_no_not_my_board(client, boards):
+    # A page from before this change, or a direct post.
+    assert 'id="bl-fresh-note"' not in _results(client, fresh="")
+
+
+def test_not_my_board_goes_once_a_word_on_the_board_is_used(client, boards):
+    client.post("/blossom", json={"action": "toggle_word", "word": "xylophone"})
+    assert 'id="bl-fresh-note"' in _results(client)         # another board's word
+    client.post("/blossom", json={"action": "toggle_word", "word": "election"})
+    assert 'id="bl-fresh-note"' not in _results(client)     # played from this board
+
+
+def test_typed_and_edited_boards_have_no_not_my_board(client, boards):
+    for source in ("typed", "edited"):
+        assert 'id="bl-fresh-note"' not in _results(client, source=source)
+
+
+def test_the_admin_tab_says_where_the_bonus_starts(client, boards, monkeypatch):
+    for n in range(1, 6):
+        _log(client, n)
+    html = client.get("/blossom_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert "bonus starts on C" in html
 
 
 def test_the_faq_answer_comes_with_the_board(client, boards, monkeypatch):
@@ -669,6 +755,7 @@ def test_players_are_never_told_how_a_board_is_chosen(client, boards, monkeypatc
         client.get("/blossom").get_data(as_text=True),
         client.post("/blossom", data={"must_have": "e", "may_have": "lction",
                                       "petal_letter": "l"}).get_data(as_text=True),
+        _results(client),
         json.dumps(_todays(client)),
         json.dumps(_todays(client, played_on=DAY + timedelta(days=1))),
         json.dumps(_log(client, 6).get_json()),
