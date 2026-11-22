@@ -791,8 +791,11 @@ def test_a_player_over_the_daily_limit_logs_nothing(monkeypatch):
     assert not db.statements('INSERT INTO four_by_three_boards')
 
 
-def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, capsys):
+def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, capsys, monkeypatch):
+    import routes.four_by_three as rt
     from monitoring import alerts
+    # DAY is fixed, so pin "today" to it; on the real clock a date more than a day away is ignored.
+    monkeypatch.setattr(rt, '_pacific_today', lambda: DAY)
     alerts.reset_throttle()
     _log(client, 1)
     _mark(client, 1, [RIGHT])
