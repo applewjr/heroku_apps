@@ -317,7 +317,105 @@ def test_the_first_pass_is_compact(words):
     top = fbt.first_pass(_signals(words), fbt.DEFAULT_WEIGHTS)
     assert top['hub'] == HUB and top['hub_label'] == 'sure'
     assert {frozenset(g[:2]) for g in top['groups']} == {frozenset(p) for p in PAIRS}
+    # Its guess at the order for the most points, as indexes into groups.
+    assert sorted(top['order']) == [0, 1, 2, 3]
     assert len(json.dumps(top)) < 1000
+
+
+# --- the most points --------------------------------------------------------------------
+
+def test_game_points_follow_4x3s_scoring():
+    best = fbt.BEST_ORDER
+    # A perfect game is 200 whatever else it earned, then 5 for the fewest taps.
+    assert fbt.game_points(best) == 205
+    assert fbt.game_points(('yellow', 'green', 'blue', 'purple')) == 125
+    assert fbt.game_points(None) == 125
+    assert fbt.game_points(('purple', 'green', 'blue', 'yellow')) == 140
+    assert fbt.game_points(('blue', 'purple', 'green', 'yellow')) == 130
+    # A mistake costs 15, or 30 once two groups are solved, and the order
+    # bonuses still count; three lose the game.
+    assert fbt.game_points(best, misses_at=[0]) == 150
+    assert fbt.game_points(None, misses_at=[1]) == 105
+    assert fbt.game_points(None, misses_at=[2]) == 90
+    assert fbt.game_points(None, misses_at=[0, 3]) == 75
+    assert fbt.game_points(best, misses_at=[0, 0, 1]) is None
+    # After a right hub call, mistakes cost nothing and never lose the game.
+    assert fbt.game_points(None, misses_at=[0, 2, 3], called=True) == 120
+    assert fbt.game_points(best, called=True) == 205
+
+
+def _ranked_words():
+    """The test words with links of different strengths: none for ANT-BEE, a
+    synonym pair for CAT-DOG, a synonym and family pair for ELM-FIR, and
+    those plus a synonym of the hub for GAS-OIL."""
+    return FakeWords(_vectors(), synonyms={'cat': ['dog'], 'elm': ['fir'], 'gas': ['oil', 'hub']},
+                     related={'elm': ['fir'], 'gas': ['oil']})
+
+
+def _planned(result):
+    return [frozenset(result['groups'][i]['pair']) for i in result['plan']['order']]
+
+
+PAIR_SETS = {p: frozenset(p) for p in PAIRS}
+# Made-up colors, an order that isn't the solver's guess.
+COLORS = {('GAS', 'OIL'): 'purple', ('ELM', 'FIR'): 'blue', ('ANT', 'BEE'): 'green', ('CAT', 'DOG'): 'yellow'}
+
+
+def _colors(signals):
+    return {fbt.mask_of(_at(signals, (HUB,) + p)): c for p, c in COLORS.items()}
+
+
+def test_without_colors_the_plan_guesses_hardest_looking_first():
+    signals = _signals(_ranked_words())
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS)
+    assert _groups(result) == TRUTH
+    assert _planned(result) == [PAIR_SETS[p] for p in PAIRS]
+    plan = result['plan']
+    assert plan['colors'] == 'guess' and plan['points'] == 205 and plan['floor'] == 125 and plan['perfect']
+    assert plan['solved'] == 0 and plan['started'] is False
+    assert all(g['color'] is None for g in result['groups'])
+    # The listing itself stays surest first, so Help's group numbers hold.
+    assert [g['p'] for g in result['groups']] == sorted((g['p'] for g in result['groups']), reverse=True)
+
+
+def test_jamess_colors_set_the_plan_purple_blue_green_yellow():
+    signals = _signals(_ranked_words())
+    checked = {fbt.mask_of(_at(signals, (HUB,) + p)): 'checked' for p in PAIRS}
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, fixed=checked, colors=_colors(signals))
+    assert _planned(result) == [PAIR_SETS[p] for p in (('GAS', 'OIL'), ('ELM', 'FIR'), ('ANT', 'BEE'), ('CAT', 'DOG'))]
+    assert result['plan'] == dict(result['plan'], colors='checked', points=205, floor=125, perfect=True)
+    assert {frozenset(g['pair']): g['color'] for g in result['groups']} == {PAIR_SETS[p]: c for p, c in COLORS.items()}
+
+
+def test_the_plan_keeps_the_players_solved_groups_first():
+    signals = _signals(_ranked_words())
+    colors = _colors(signals)
+    green_first = [(_at(signals, (HUB, 'ANT', 'BEE')), 'right')]
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=green_first, colors=colors)
+    assert _planned(result)[0] == PAIR_SETS[('ANT', 'BEE')]
+    assert result['plan'] == dict(result['plan'], points=125, perfect=False, solved=1, started=True)
+    purple_first = [(_at(signals, (HUB, 'GAS', 'OIL')), 'right')]
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=purple_first, colors=colors)
+    assert result['plan'] == dict(result['plan'], points=205, perfect=True, solved=1)
+    # Without colors, a solved group's color is the player's to see: the plan
+    # promises only what no order bonus can take away.
+    result = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=green_first)
+    assert result['plan'] == dict(result['plan'], colors='guess', points=None, floor=125)
+
+
+def test_the_plan_counts_the_players_misses():
+    signals = _signals(_ranked_words())
+    early = [(_at(signals, (HUB, 'ANT', 'CAT')), 'one_away')]
+    plan = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=early)['plan']
+    assert plan == dict(plan, points=150, floor=105, perfect=False, started=True, solved=0)
+    late = [(_at(signals, (HUB,) + PAIRS[0]), 'right'), (_at(signals, (HUB,) + PAIRS[1]), 'right'),
+            (_at(signals, (HUB, 'ELM', 'GAS')), 'one_away')]
+    assert fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=late)['plan']['floor'] == 90
+    misses = [(_at(signals, trio), 'one_away') for trio in ((HUB, 'ANT', 'CAT'), (HUB, 'ANT', 'DOG'), (HUB, 'BEE', 'CAT'))]
+    lost = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=misses)['plan']
+    assert lost['points'] is None and lost['floor'] is None
+    called = fbt.solve(signals, fbt.DEFAULT_WEIGHTS, marks=[(_at(signals, (HUB,)), 'hub')] + misses)['plan']
+    assert called['floor'] == 120 and called['points'] == 165
 
 
 # --- tuning ---------------------------------------------------------------------------
@@ -413,18 +511,27 @@ def test_faq_structured_data_parses_and_matches_the_visible_faq(client):
     faq = _faq(html)
     visible = re.sub(r'<[^>]+>', '', re.sub(r'<script.*?</script>', '', html, flags=re.S))
     visible = ' '.join(visible.split())
-    assert len(faq['mainEntity']) == 8
+    assert len(faq['mainEntity']) == 9
     for q in faq['mainEntity']:
         assert q['name'] in visible
         assert q['acceptedAnswer']['text'] in visible
     assert any('midnight where you are' in q['acceptedAnswer']['text'] for q in faq['mainEntity'])
+    assert any('perfect game' in q['acceptedAnswer']['text'] for q in faq['mainEntity'])
 
 
 def test_faq_leaves_out_shared_boards_when_they_are_off(client, monkeypatch):
     import routes.four_by_three as rt
     monkeypatch.setattr(rt, 'FOUR_BY_THREE_BOARDS_LIVE', False)
     html = client.get('/4x3').get_data(as_text=True)
-    assert len(_faq(html)['mainEntity']) == 7 and 'id="fbt-shared"' not in html
+    assert len(_faq(html)['mainEntity']) == 8 and 'id="fbt-shared"' not in html
+
+
+def test_the_page_never_tells_players_to_hurry(client):
+    # A perfect game scores the same at any speed: the page leaves the
+    # game's clock bonus out, in its words and its script's.
+    html = client.get('/4x3').get_data(as_text=True).lower()
+    for word in ('90 seconds', 'hurry', 'faster', 'quickly', 'speed', 'under 90', 'clock bonus', 'sub-90'):
+        assert word not in html, f'the page mentions {word!r}'
 
 
 def test_players_are_never_told_how_boards_or_answers_are_decided(client):

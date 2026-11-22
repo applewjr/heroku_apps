@@ -1,0 +1,40 @@
+-- Circuits today's boards: room for boards of any size up to 8 by 8 (routes/
+-- circuits.py, functions/circuits.py MAX_SIDE). Boards no longer come in a
+-- fixed list of sizes: players grow the grid with + at its edges, and each
+-- board is stored as the squares it uses. The columns below were sized for
+-- small boards; an 8 by 8 board can need, at most:
+--   cells       64 cells of up to 24 characters, '|'-joined:   1,599
+--   arrows      112 'tail-head' pairs of up to 5, comma-joined:   671
+--   answers, entered, solver_top  64 words of up to 24:          1,599
+-- (A realistic dense 8 by 8 already needs 246 of arrows' 255.)
+--
+-- Run this BEFORE deploying the code that lets boards grow. Each column only
+-- gets longer, in place: the table is utf8mb4, so these VARCHARs keep the
+-- 2-byte length they already have and no table copy is needed. LOCK=NONE and
+-- ALGORITHM=INPLACE make MySQL refuse, rather than copy the table, if it ever
+-- couldn't. Nothing else is touched: safe to run live. Prod and staging share
+-- the JawsDB; both are fine.
+--
+-- Code deployed without it does not fail safe here. Boards that fit the old
+-- columns (every real board so far, and realistic ones up to about 6 by 6)
+-- work as before, but JawsDB runs without strict mode (sql_mode is
+-- NO_ENGINE_SUBSTITUTION, checked 2026-11-21) and the driver doesn't raise
+-- warnings: a bigger board is stored cut short, with no error and no alert.
+
+SET SESSION lock_wait_timeout = 5;
+
+ALTER TABLE circuits_boards
+    MODIFY cells       VARCHAR(2000) NOT NULL,
+    MODIFY arrows      VARCHAR(1000) NOT NULL,
+    MODIFY answers     VARCHAR(2000) NULL,
+    MODIFY entered     VARCHAR(2000) NULL,
+    MODIFY solver_top  VARCHAR(2000) NULL,
+    ALGORITHM=INPLACE, LOCK=NONE;
+
+
+-- ---------------------------------------------------------------------------
+-- Rollback: none needed for the columns. The previous code reads and writes
+-- the longer columns as it did the shorter ones. Rolling the code back past
+-- the change that lets boards grow is another matter: that code knows only
+-- 5x3, 4x4 and 5x4 boards and reads any other stored size as 5x3, so first
+-- remove the rows of other sizes (shape NOT IN ('5x3', '4x4', '5x4')).

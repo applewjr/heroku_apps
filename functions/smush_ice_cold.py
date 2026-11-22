@@ -992,7 +992,7 @@ class TableCache:
         # work that needs the table but mustn't hold up the requests.
         self.after_built = after_built
         # Whether there's room to keep a table answering while it's rebuilt
-        # (refresh); if not, it goes first.
+        # (refresh); if not, the refresh is refused and the table stays.
         self.may_refresh = may_refresh
         self.must_shed = must_shed
         self.today = today
@@ -1147,11 +1147,12 @@ class TableCache:
     def refresh(self, key, fingerprint, make_pool):
         """Build this board's table again now, from its pool as it is now:
         an admin's Recalc, or its backstop. The old table answers until the
-        new one is in; short of room for both (may_refresh says no), it goes
-        first and the board waits like a new one. A board with no table gets
-        a build as usual. -> 'building', 'failed' (it failed lately and
-        retries soon) or 'capped'."""
-        dropped = False
+        new one is in. Short of room for both (may_refresh says no), nothing
+        changes: dropping the old table first could leave the board with no
+        plan at all if the build then can't start (2026-11-03; James's rule
+        since 2026-11-21: at worst, refuse). A board with no table gets a
+        build as usual. -> 'building', 'no_room', 'failed' (it failed lately
+        and retries soon) or 'capped'."""
         with self._lock:
             now = self.clock()
             if key not in self._tables:
@@ -1164,12 +1165,9 @@ class TableCache:
             if not self._may_build():
                 return 'capped'
             if self.may_refresh is not None and not self.may_refresh():
-                del self._tables[key]
-                dropped = True
+                return 'no_room'
             self._queue[key] = (fingerprint, make_pool)
             self._next(now)
-        if dropped:
-            release_memory()
         return 'building'
 
     def describe(self, key):

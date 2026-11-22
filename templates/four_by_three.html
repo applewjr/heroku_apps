@@ -35,7 +35,7 @@
       "name": "How does this solver help without spoiling the puzzle?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like."
+        "text": "Type the nine words, then pick Hints or Answers. Hints keep the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Answers show the hub and all four groups at once. The page remembers which one you like."
       }
     },
     {
@@ -52,6 +52,14 @@
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I get the most points in 4x3?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Answers show the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones."
       }
     },
     {% if boards_on %}
@@ -146,7 +154,9 @@
 /* ---------- the nine boxes (the editor) ---------- */
 .fbt-editor { box-sizing: border-box; width: min(92vw, 460px); margin: 14px auto 0; }
 .fbt-editor-label { font-size: 13px; color: #374151; margin: 0 0 8px; line-height: 1.4; }
-.fbt-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* Three 44px rows before the script adds the boxes, so nothing under them
+   jumps at the first paint. */
+.fbt-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(44px, auto)); gap: 6px; }
 /* Two classes, to beat base.html's input[type=text] padding. */
 .fbt-editor .fbt-input {
     width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; margin: 0; padding: 6px 6px;
@@ -231,7 +241,6 @@
 .fbt-big { font-size: 20px; font-weight: 700; color: #02484d; margin: 8px 0 0; overflow-wrap: anywhere; }
 .fbt-line { font-size: 14px; color: #374151; margin: 8px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
 .fbt-line strong { color: #02484d; }
-.fbt-caution { font-size: 12px; color: #a55; margin: 6px 0 0; }
 .fbt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .fbt-btn {
     background-color: #fff; border: 1px solid #cdd8d7; border-radius: 8px; color: #02484d;
@@ -262,6 +271,15 @@
 }
 .fbt-alt:hover { background-color: #eef4f4; }
 .fbt-section { font-size: 14px; font-weight: 700; color: #02484d; margin: 16px 12px 6px; }
+/* The order for the most points: each row's step, its color once James's
+   answer has colors (as words: the tiles keep this site's own colors). */
+.fbt-plan { font-size: 14px; color: #374151; margin: 0 12px 10px; line-height: 1.5; }
+.fbt-step {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    width: 24px; height: 24px; border-radius: 50%; background-color: #02484d; color: #fff;
+    font-size: 13px; font-weight: 700;
+}
+.fbt-color { font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap; }
 .miss-confirm {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px;
     padding: 8px; border: 1px dashed #e55555; border-radius: 8px; background-color: #fff;
@@ -295,6 +313,10 @@
 .fbt-approve input[type=date] { font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #cdd8d7; border-radius: 6px; }
 .fbt-approve-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .fbt-approve-status { margin: 8px 0 0; font-size: 13px; color: #6b7280; }
+.fbt-approve-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.fbt-btn.fbt-color-btn { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+.fbt-btn.fbt-color-btn.on { background-color: #02484d; border-color: #02484d; color: #fff; }
+.fbt-btn.fbt-color-btn.on:disabled { background-color: #4f9a97; border-color: #4f9a97; color: #fff; }
 {% endif %}
 
 /* ---------- shared bits ---------- */
@@ -305,9 +327,11 @@
     white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
 }
 .fbt-clear-btn:hover { background-color: #e9ecef; }
+/* A side gutter on phones, like the rest of the page. */
 .instructions {
     background-color: #f8f9fa; border-radius: 8px; margin: 20px auto; max-width: 600px; font-size: 14px;
     border: 1px solid #e9ecef; overflow: hidden; line-height: 1.6;
+    width: calc(100% - 24px); box-sizing: border-box;
 }
 .instructions-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; cursor: pointer; user-select: none; }
 .instructions-header:hover { background-color: #e9ecef; }
@@ -357,23 +381,18 @@
         Tab or Enter moves to the next box.{% if boards_on %} Once other players have entered today's board,
         you can skip this: tap it above the boxes and the words fill in.{% endif %}
         <br><br>
-        <strong>2. Help or Solve.</strong> <strong>Help</strong> keeps the answer hidden until you ask:
+        <strong>2. Hints or Answers.</strong> Once the nine words are in, pick one above the results.
+        <strong>Hints</strong> keep the answer hidden until you ask:
         <strong>Narrow it down</strong> shows the likeliest hubs, and each group can show its theme (when the
-        solver knows it), one of its words, or the whole group. <strong>Solve</strong> shows the hub and all
-        four groups. Each group says how sure the solver is: sure, likely or a guess.
+        solver knows it), one of its words, or the whole group. <strong>Answers</strong> show the hub and all
+        four groups. Each group says how sure the solver is: sure, likely or a guess. Answers list the groups
+        in the order that scores the most points, and say how to tap them.
         <br><br>
         <strong>3. Tell it what the game said.</strong> After you try a guess in 4x3, tap the same three words
         on the board here and pick what the game said: Right, One away or Not even close (or Not sure which,
-        if you didn't catch it). If you called the
-        hub and it was right, tap the hub alone. The solver keeps everything you mark and works out the rest
+        if you didn't catch it). The solver keeps everything you mark and works out the rest
         again, and your marks help other players with the same board.
     </div>
-</div>
-
-<div class="fbt-modes" id="fbt-modes" role="group" aria-label="Mode"{% if approve %} hidden{% endif %}>
-    <span class="fbt-modes-label">Show me:</span>
-    <button type="button" class="fbt-mode" data-mode="help">Help</button>
-    <button type="button" class="fbt-mode" data-mode="solve">Solve</button>
 </div>
 
 {% if boards_on %}
@@ -382,6 +401,54 @@
     <p class="fbt-shared-text" id="fbt-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
     <div class="fbt-shared-picks" id="fbt-shared-picks"></div>
 </div>
+<script>
+/* The offer of today's boards, drawn here while the page is still arriving,
+   from what the server last looked up for the dates around today
+   (routes/four_by_three.py first_paint_boards), so it's in the first paint:
+   drawn later, it would push the boxes down, a layout shift. The page takes
+   the player's own date, as the game does. The main script draws the offer
+   with this same function, and still asks for the newest boards. */
+function fbtShowOffer(boards) {
+    const one = document.getElementById('fbt-shared-one');
+    one.hidden = boards.length > 1;
+    document.getElementById('fbt-shared-many').hidden = !one.hidden;
+    document.getElementById('fbt-shared-picks').replaceChildren(...boards.map((b, k) => {
+        const pickEl = document.createElement('button');
+        pickEl.type = 'button';
+        pickEl.className = 'fbt-shared-pick';
+        pickEl.dataset.pick = String(k);
+        pickEl.setAttribute('aria-label', 'Load the board with the words ' + b.tiles.join(', '));
+        const mini = document.createElement('span');
+        mini.className = 'fbt-mini';
+        mini.setAttribute('aria-hidden', 'true');
+        b.tiles.forEach(t => {
+            const s = document.createElement('span');
+            s.textContent = t;
+            mini.appendChild(s);
+        });
+        const label = document.createElement('span');
+        label.className = 'fbt-shared-btn';
+        label.textContent = 'Load this board';
+        pickEl.append(mini, label);
+        return pickEl;
+    }));
+    document.getElementById('fbt-shared').hidden = false;
+}
+(function () {
+    const byDay = {{ first_boards | default(none) | tojson }};
+    const d = new Date();
+    const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const boards = byDay && byDay[day];
+    if (!Array.isArray(boards) || !boards.length) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('fourByThreeState_v1'));
+        if (s && Array.isArray(s.tiles) && s.tiles.some(t => t)) return;
+    } catch (_) {}
+    fbtShowOffer(boards);
+})();
+</script>
 {% endif %}
 
 <div class="fbt-editor" id="fbt-editor">
@@ -408,7 +475,7 @@
 <div class="fbt-approve" id="fbt-approve">
     <p class="fbt-approve-title">Your game's answer</p>
     <label class="fbt-approve-switch"><input type="checkbox" id="fbt-finished"> <span>Typed from the finished screen: the hub is the middle word, and each group is a line of three through it.</span></label>
-    <p class="fbt-approve-help" id="fbt-approve-help">Or tap the three words of each group on the board above, then Add group.</p>
+    <p class="fbt-approve-help" id="fbt-approve-help">Or tap the three words of each group on the board above, then Add group. Typed from the finished screen, each line's place gives its group's color; otherwise tap each group's color, or leave them all off. Players get the order for the most points from the colors.</p>
     <div class="fbt-actions">
         <button type="button" class="fbt-btn" id="fbt-add-group">Add group</button>
         <button type="button" class="fbt-btn" id="fbt-solver-groups">Use the solver's groups</button>
@@ -421,6 +488,7 @@
         <input type="hidden" name="hub" id="fbt-approve-hub">
         <input type="hidden" name="pairs" id="fbt-approve-pairs">
         <input type="hidden" name="names" id="fbt-approve-names">
+        <input type="hidden" name="colors" id="fbt-approve-colors">
         <input type="hidden" name="tab" value="boards">
         <button type="submit" class="fbt-btn primary" id="fbt-approve-btn" disabled>Approve</button>
     </form>
@@ -428,15 +496,23 @@
 </div>
 {% endif %}
 
+{# Hints or Answers, right above what it changes: hidden until the nine words
+   are in (renderResults), and always on the approve page. #}
+<div class="fbt-modes" id="fbt-modes" role="group" aria-label="Show me" hidden>
+    <span class="fbt-modes-label">Show me:</span>
+    <button type="button" class="fbt-mode" data-mode="help">Hints</button>
+    <button type="button" class="fbt-mode" data-mode="solve">Answers</button>
+</div>
+
 <div class="fbt-results" id="fbt-results" aria-live="polite" hidden></div>
 
 <br>
 <div class="fbt-play-row">
     {% if not approve %}
-    <a href="https://www.hankgreen.com/fourbythree/" class="action-btn" target="_blank" rel="noopener noreferrer">Play 4x3</a>
-    <a href="/feedback" class="action-btn">Give Feedback</a>
+    <a href="https://www.hankgreen.com/fourbythree/" class="action-btn" target="_blank" rel="noopener noreferrer">&#10035;&#65039; Play 4x3</a>
+    <a href="/feedback" class="action-btn">&#128172; Give Feedback</a>
     {% endif %}
-    <button type="button" class="fbt-clear-btn" id="fbt-clear">Clear board</button>
+    <button type="button" class="fbt-clear-btn" id="fbt-clear">&#128260; Clear board</button>
 </div>
 
 {% if not approve %}
@@ -451,7 +527,7 @@
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How does this solver help without spoiling the puzzle?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the nine words, then pick Help or Solve. Help keeps the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Solve shows the hub and all four groups at once. The page remembers which one you like.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Type the nine words, then pick Hints or Answers. Hints keep the answer hidden until you ask: narrow down the hub, then for each group see its theme when the solver knows it, one of its words, or the whole group. Answers show the hub and all four groups at once. The page remembers which one you like.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How sure is the solver?</p>
@@ -460,6 +536,10 @@
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What do I do after I try a guess in the game?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tell the solver what 4x3 said. Tap the three words on the board here, then Right, One away or Not even close, or use the buttons on a group you tried. If it didn't take them and you didn't catch which of the two it said, pick Not sure which. The solver keeps what you learned and works out the rest again. Not even close means the hub is not one of those three words.</p>
+    </div>
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I get the most points in 4x3?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Play a perfect game: no mistakes, the hub tapped first in every guess, and the groups solved in the order purple, blue, green, yellow. 4x3 scores a perfect game 200 points, adds 5 for doing it in 12 taps, the fewest a game can take, and adds your streak. Each mistake costs 15 points, or 30 once two groups are solved, and putting the hub last in every guess scores -100. Answers show the groups in the order that scores the most: by the day's colors once they're entered on this site, and before that by the solver's guess, hardest first. 4x3 sets each day's colors from its first players' games, so a game started very early in the day can show different ones.</p>
     </div>
     {% if boards_on %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -563,8 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsEl = document.getElementById('fbt-results');
     const modesEl = document.getElementById('fbt-modes');
     const sharedEl = document.getElementById('fbt-shared');
-    const sharedOne = document.getElementById('fbt-shared-one');
-    const sharedMany = document.getElementById('fbt-shared-many');
     const sharedPicks = document.getElementById('fbt-shared-picks');
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -809,11 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         markbarEl.hidden = false;
         let html = '';
-        if (picked.length === 1) {
-            html = '<span class="fbt-markbar-q">Called ' + esc(picked[0]) + ' the hub in 4x3 and got it right?</span>' +
-                '<button type="button" class="fbt-btn primary" data-said="hub">Yes, ' + esc(picked[0]) + ' is the hub</button>';
-        } else if (picked.length === 2) {
-            html = '<span class="fbt-markbar-q">Tap a third word.</span>';
+        // One or two words picked: just what's left to tap. (No hub call: 4x3
+        // hides its Call It button from most players, and a stray "yes" here
+        // would pin a wrong hub.)
+        if (picked.length < 3) {
+            html = '<span class="fbt-markbar-q">' + (picked.length === 1 ? 'Tap two more words.' : 'Tap a third word.') + '</span>';
         } else {
             html = '<span class="fbt-markbar-q">What did 4x3 say about ' + esc(picked.join(', ')) + '?</span>' +
                 '<button type="button" class="fbt-btn primary" data-said="right">&#10003; Right</button>' +
@@ -868,8 +946,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (marksEl.hidden) { marksEl.innerHTML = ''; return; }
         const dropped = new Set(last && lastSig === sigOf() && Array.isArray(last.dropped) ? last.dropped : []);
         const misses = live.filter(m => MISSES.includes(m.verdict)).length;
+        // A hub mark only comes from a save made before the page stopped
+        // asking about hub calls.
+        const called = live.some(m => m.verdict === 'hub');
         let html = '<p class="fbt-marks-title">Your guesses <span class="fbt-legend">(' +
-            (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; 3 end the game unless you called the hub)</span></p>';
+            (misses === 1 ? '1 miss' : misses + ' misses') + ' so far; ' +
+            (called ? "you called the hub, so they can't end the game" : '3 end the game') + ')</span></p>';
         live.forEach((m, n) => {
             const isMiss = MISSES.includes(m.verdict);
             const cls = dropped.has(n) ? 'dropped' : isMiss ? 'miss' : 'right';
@@ -918,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // has a solve of its own on the way.
             if (seq !== solveSeq || sig !== sigOf()) return;
             if (!resp.ok) {
-                renderHint((data.error || 'Something went wrong.') + ' Tap Help or Solve to try again.', true);
+                renderHint((data.error || 'Something went wrong.') + ' Tap Hints or Answers to try again.', true);
                 solveFailed = true;
                 return;
             }
@@ -936,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(logTimer);
             logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
         } catch (_) {
-            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Help or Solve.', true);
+            if (seq === solveSeq) toast('Could not reach the solver. Check your connection, then tap Hints or Answers.', true);
         }
     }
 
@@ -953,6 +1035,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderResults() {
+        // Hints or Answers shows once the nine words are in, never on the
+        // approve page.
+        modesEl.hidden = APPROVE || !ready();
         if (!last || APPROVE && !ready()) {
             resultsEl.hidden = true;
             resultsEl.innerHTML = '';
@@ -971,16 +1056,13 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsEl.innerHTML = html;
     }
 
-    const caution = h => ['checked', 'yours', 'players'].includes(h.label) ? ''
-        : '<p class="fbt-caution">A wrong hub call ends your game in 4x3.</p>';
-
     function helpHtml(r) {
         const h = r.hub;
         const hubShown = hubReveal >= 2 || h.label === 'yours';
         let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
             '<p class="fbt-card-title">The hub ' + chip(h.label, HUB_LABELS) + '</p>';
         if (hubShown) {
-            html += '<p class="fbt-big">' + esc(h.tile) + '</p>' + caution(h);
+            html += '<p class="fbt-big">' + esc(h.tile) + '</p>';
         } else {
             // In alphabetical order, so the first isn't always the answer.
             if (hubReveal === 1) {
@@ -1010,6 +1092,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             html += '</div>';
         });
+        // The order by the cards' numbers, so it gives nothing away.
+        const line = planText(r, true);
+        if (line) html += '<div class="fbt-card"><p class="fbt-card-title">For the most points</p><p class="fbt-line">' + esc(line) + '</p></div>';
         return html;
     }
 
@@ -1023,18 +1108,56 @@ document.addEventListener('DOMContentLoaded', () => {
             '<button type="button" class="fbt-btn miss" data-act="missed" data-tiles="' + tiles + '">&#10007; It didn\'t</button></div>';
     }
 
+    /* The game for the most points (functions/four_by_three.py solve's
+       'plan'): the groups in the order 4x3 pays most for, by James's colors
+       ('checked') or the solver's guess, hardest first. The words say how to
+       tap; the clock is never mentioned. */
+    const COLOR_NAMES = {yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple'};
+    const hasPlan = r => !!(r.plan && Array.isArray(r.plan.order) && r.plan.order.length === r.groups.length);
+
+    function planText(r, help) {
+        const p = r.plan;
+        if (!hasPlan(r) || typeof p.floor !== 'number') return '';
+        const left = p.order.slice(p.solved || 0);
+        if (!left.length) return '';
+        const guess = p.colors !== 'checked';
+        const names = left.map(i => 'Group ' + (i + 1));
+        const list = names.length > 1 ? names.slice(0, -1).join(', ') + ', then ' + names[names.length - 1] : names[0];
+        const worth = n => (p.perfect ? 'a perfect game: ' : '') + n + ' points plus your streak';
+        const out = [];
+        if (guess) out.push("This board's colors aren't in yet, so " + (help ? 'the' : 'this') + " order is the solver's guess, hardest first.");
+        if (help) out.push((p.started ? 'Next: ' : 'Solve them in this order: ') + list + '.');
+        else if (!guess) out.push(p.started ? 'Carry on top to bottom.' : 'Solve them top to bottom.');
+        out.push('In each guess, tap the hub first, then the other two words, and tap nothing else.');
+        if (typeof p.points !== 'number') {
+            out.push("That's " + p.floor + ' points or more, plus your streak.');
+        } else if (guess) {
+            out.push('If the groups and the order are right, that\'s ' + worth(p.points) + '.');
+            if (p.floor < p.points) out.push('Right groups in another order still make ' + p.floor + ' or more.');
+        } else {
+            out.push("That's " + worth(p.points) + '.');
+        }
+        if (p.started) out.push('This assumes your guesses so far started with the hub too.');
+        return out.join(' ');
+    }
+
     function solveHtml(r) {
         const h = r.hub;
         let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
-            '<p class="fbt-card-title">The hub: ' + esc(h.tile) + ' ' + chip(h.label, HUB_LABELS) + '</p>' + caution(h);
+            '<p class="fbt-card-title">The hub: ' + esc(h.tile) + ' ' + chip(h.label, HUB_LABELS) + '</p>';
         const next = h.candidates.slice(1).filter(c => c[1] >= NEXT_HUB_MIN);
         if (next.length && !['checked', 'yours', 'players'].includes(h.label)) {
             html += '<p class="fbt-line">Next likeliest: ' + esc(next.map(c => c[0] + ' (' + pct(c[1]) + ')').join(', ')) + '</p>';
         }
-        html += '</div><p class="fbt-section">The groups</p>';
-        r.groups.forEach(g => {
+        const line = planText(r, false);
+        html += '</div><p class="fbt-section">' + (line ? 'The groups, in order for the most points' : 'The groups') + '</p>';
+        if (line) html += '<p class="fbt-plan">' + esc(line) + '</p>';
+        const showColors = hasPlan(r) && r.plan.colors === 'checked';
+        (hasPlan(r) ? r.plan.order.map(i => r.groups[i]) : r.groups).forEach((g, n) => {
             html += '<div class="fbt-row' + (isKnown(g.label) ? ' known' : '') + '"><div class="fbt-row-head">' +
-                '<span class="fbt-row-words">' + esc(g.tiles.join(' + ')) + '</span>' + chip(g.label) + '</div>';
+                (hasPlan(r) ? '<span class="fbt-step">' + (n + 1) + '</span>' : '') +
+                '<span class="fbt-row-words">' + esc(g.tiles.join(' + ')) + '</span>' + chip(g.label) +
+                (showColors && g.color ? '<span class="fbt-color">' + esc(COLOR_NAMES[g.color] || g.color) + '</span>' : '') + '</div>';
             if (g.theme) html += '<p class="fbt-row-theme">Theme: <strong>' + esc(g.theme) + '</strong></p>';
             if (g.alternatives && g.alternatives.length) {
                 html += '<div class="fbt-alts">Or:' + g.alternatives.map(a =>
@@ -1152,6 +1275,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isBoard = b => b && Array.isArray(b.tiles) && b.tiles.length === TILES && b.tiles.every(isTile);
 
+    // The boards the page arrived with for the player's date (drawn already
+    // by fbtShowOffer, when the board is empty), until the request below
+    // brings the newest.
+    const FIRST_BOARDS = {{ first_boards | default(none) | tojson }};
+    if (FIRST_BOARDS && Array.isArray(FIRST_BOARDS[localDay()])) {
+        sharedBoards = FIRST_BOARDS[localDay()].filter(isBoard);
+        sharedDay = sharedFetchedOn = localDay();
+    }
+
     // Only the newest request's reply counts, and only while it's still the
     // date it asked about where the player is: one that comes back after
     // their midnight asks again, for the new day.
@@ -1171,33 +1303,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => {});
     }
 
+    // Drawn by fbtShowOffer, next to the offer's markup, which also draws it
+    // as the page arrives. Drawing the same boards again moves nothing.
     function renderShared() {
         if (!sharedEl) return;
-        const show = sharedBoards.length > 0 && !words().some(w => w);
-        sharedEl.hidden = !show;
-        if (!show) return;
-        sharedOne.hidden = sharedBoards.length > 1;
-        sharedMany.hidden = !sharedOne.hidden;
-        sharedPicks.replaceChildren(...sharedBoards.map((b, k) => {
-            const pickEl = document.createElement('button');
-            pickEl.type = 'button';
-            pickEl.className = 'fbt-shared-pick';
-            pickEl.dataset.pick = String(k);
-            pickEl.setAttribute('aria-label', 'Load the board with the words ' + b.tiles.join(', '));
-            const mini = document.createElement('span');
-            mini.className = 'fbt-mini';
-            mini.setAttribute('aria-hidden', 'true');
-            b.tiles.forEach(t => {
-                const s = document.createElement('span');
-                s.textContent = t;
-                mini.appendChild(s);
-            });
-            const label = document.createElement('span');
-            label.className = 'fbt-shared-btn';
-            label.textContent = 'Load this board';
-            pickEl.append(mini, label);
-            return pickEl;
-        }));
+        if (sharedBoards.length > 0 && !words().some(w => w)) fbtShowOffer(sharedBoards);
+        else sharedEl.hidden = true;
     }
 
     if (sharedPicks) sharedPicks.addEventListener('click', e => {
@@ -1324,16 +1435,21 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- approve ---------- */
     // The answer: four groups of three that share one word, the hub, and
     // cover all nine. Typed from the finished screen, the middle box is the
-    // hub and each group a line through it.
+    // hub and each group a line through it, and the line is the group's
+    // color: 4x3's finished screen keeps each color on its own line
+    // (LINE_COLORS[k] is LINES[k]'s).
     const PRELOAD = {{ preload | tojson }};
     const APPROVE_PENDING = 'fourByThreeApprovePending_v1';
     const LINES = [[0, 4, 8], [1, 4, 7], [3, 4, 5], [2, 4, 6]];
+    const LINE_COLORS = ['blue', 'green', 'yellow', 'purple'];
+    // The color buttons, easiest first, as 4x3 ranks them.
+    const COLOR_CHOICES = ['yellow', 'green', 'blue', 'purple'];
     const approveForm = document.getElementById('fbt-approve-form');
     const approveBtn = document.getElementById('fbt-approve-btn');
     const approveStatus = document.getElementById('fbt-approve-status');
     const groupsEl = document.getElementById('fbt-approve-groups');
     const finishedEl = document.getElementById('fbt-finished');
-    let groups = [];      // {tiles: [3 words], name}
+    let groups = [];      // {tiles: [3 words], name, color ('' for none)}
     let finished = false;
 
     function hubOf(gs) {
@@ -1350,6 +1466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!hub) return 'The four groups must share exactly one word, the hub.';
         const all = new Set(groups.flatMap(g => g.tiles));
         if (all.size !== TILES || !words().every(w => all.has(w))) return 'The groups must use every word once, besides the hub.';
+        const colored = groups.filter(g => g.color).length;
+        if (colored && colored < 4) return 'Give every group its color, or clear them.';
         return '';
     }
 
@@ -1357,7 +1475,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!finished || !ready()) return;
         const w = words();
         const names = groups.map(g => g.name);
-        groups = LINES.map((line, k) => ({tiles: [w[4], w[line[0]], w[line[2]]], name: names[k] || ''}));
+        groups = LINES.map((line, k) => ({tiles: [w[4], w[line[0]], w[line[2]]], name: names[k] || '', color: LINE_COLORS[k]}));
+    }
+
+    // A color tapped for a group: tapped again, it comes off; taken from
+    // another group, that one gets none; and with three set, the fourth
+    // group gets the color left (so taking a color swaps two).
+    function setColor(k, color) {
+        if (groups[k].color === color) {
+            groups[k].color = '';
+            return;
+        }
+        groups.forEach(g => { if (g.color === color) g.color = ''; });
+        groups[k].color = color;
+        const unset = groups.filter(g => !g.color);
+        if (groups.length === 4 && unset.length === 1) {
+            const used = new Set(groups.map(g => g.color));
+            unset[0].color = COLOR_CHOICES.find(c => !used.has(c));
+        }
     }
 
     function renderApprove() {
@@ -1367,7 +1502,9 @@ document.addEventListener('DOMContentLoaded', () => {
         approveBtn.disabled = !ok;
         approveBtn.textContent = groups.length ? 'Approve board and answer' : 'Approve the board alone';
         approveStatus.textContent = !ready() ? 'Type all nine words first.' : problem ||
-            (groups.length ? 'Ready: the hub is ' + hubOf(groups) + '.' : 'No groups yet: approving serves the board without an answer.');
+            (groups.length ? 'Ready: the hub is ' + hubOf(groups) + (groups.every(g => g.color) ? ', with the colors.'
+                : ". No colors: players get the solver's guess at the order.")
+                : 'No groups yet: approving serves the board without an answer.');
         groupsEl.replaceChildren(...groups.map((g, k) => {
             const li = document.createElement('li');
             li.className = 'fbt-approve-group';
@@ -1382,7 +1519,23 @@ document.addEventListener('DOMContentLoaded', () => {
             name.value = g.name || '';
             name.dataset.k = String(k);
             name.setAttribute('aria-label', 'Name of group ' + (k + 1));
-            li.append(ws, name);
+            const cs = document.createElement('div');
+            cs.className = 'fbt-approve-colors';
+            cs.setAttribute('role', 'group');
+            cs.setAttribute('aria-label', 'Color of group ' + (k + 1));
+            COLOR_CHOICES.forEach(c => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'fbt-btn fbt-color-btn' + (g.color === c ? ' on' : '');
+                b.dataset.k = String(k);
+                b.dataset.color = c;
+                b.textContent = COLOR_NAMES[c];
+                b.setAttribute('aria-pressed', g.color === c ? 'true' : 'false');
+                // From the finished screen, the line sets the color.
+                b.disabled = finished;
+                cs.appendChild(b);
+            });
+            li.append(ws, name, cs);
             if (!finished) {
                 const rm = document.createElement('button');
                 rm.type = 'button';
@@ -1403,6 +1556,15 @@ document.addEventListener('DOMContentLoaded', () => {
         persist();
     });
     groupsEl.addEventListener('click', e => {
+        const colorBtn = e.target.closest('[data-color]');
+        if (colorBtn) {
+            const k = Number(colorBtn.dataset.k);
+            if (finished || !groups[k] || !COLOR_CHOICES.includes(colorBtn.dataset.color)) return;
+            setColor(k, colorBtn.dataset.color);
+            persist();
+            renderApprove();
+            return;
+        }
         const btn = e.target.closest('[data-remove]');
         if (!btn) return;
         groups.splice(Number(btn.dataset.remove), 1);
@@ -1419,7 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (finished) { approveStatus.textContent = 'Turn off "Typed from the finished screen" to pick groups yourself.'; return; }
         if (picked.length !== 3) { approveStatus.textContent = 'Tap the three words of a group on the board first.'; return; }
         if (groups.length >= 4) { approveStatus.textContent = 'There are four groups already: remove one first.'; return; }
-        groups.push({tiles: picked.slice(), name: ''});
+        groups.push({tiles: picked.slice(), name: '', color: ''});
         picked = [];
         persist();
         renderBoard();
@@ -1429,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!last || lastSig !== sigOf()) { approveStatus.textContent = 'Wait for the solver, then try again.'; return; }
         finished = false;
         finishedEl.checked = false;
-        groups = last.groups.map(g => ({tiles: g.tiles.slice(), name: ''}));
+        groups = last.groups.map(g => ({tiles: g.tiles.slice(), name: '', color: ''}));
         persist();
         renderApprove();
     });
@@ -1453,6 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fbt-approve-hub').value = hub;
         document.getElementById('fbt-approve-pairs').value = JSON.stringify(groups.map(g => g.tiles.filter(t => t !== hub)));
         document.getElementById('fbt-approve-names').value = JSON.stringify(groups.map(g => (g.name || '').trim()));
+        document.getElementById('fbt-approve-colors').value = JSON.stringify(groups.map(g => g.color || ''));
         persist();
         try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
     });
@@ -1464,7 +1627,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBoard(PRELOAD.tiles, 'shared', localDay());
         finished = false;
         groups = (PRELOAD.hub && Array.isArray(PRELOAD.pairs) ? PRELOAD.pairs : []).map((p, k) => ({
-            tiles: [PRELOAD.hub].concat(p), name: (PRELOAD.names || [])[k] || ''}));
+            tiles: [PRELOAD.hub].concat(p), name: (PRELOAD.names || [])[k] || '',
+            color: COLOR_CHOICES.includes((PRELOAD.colors || [])[k]) ? PRELOAD.colors[k] : ''}));
         renderApprove();
         renderHint('Loaded from the Boards tab: ' + PRELOAD.note + '. Check it against your game, then approve it.');
         try {
@@ -1526,7 +1690,8 @@ document.addEventListener('DOMContentLoaded', () => {
         finished = !!s.finished;
         finishedEl.checked = finished;
         groups = (Array.isArray(s.groups) ? s.groups : []).filter(g => g && Array.isArray(g.tiles) && g.tiles.length === 3
-            && g.tiles.every(isTile)).slice(0, 4).map(g => ({tiles: g.tiles, name: typeof g.name === 'string' ? g.name.slice(0, NAME_MAX) : ''}));
+            && g.tiles.every(isTile)).slice(0, 4).map(g => ({tiles: g.tiles, name: typeof g.name === 'string' ? g.name.slice(0, NAME_MAX) : '',
+                                                            color: COLOR_CHOICES.includes(g.color) ? g.color : ''}));
         {% endif %}
         return true;
     }

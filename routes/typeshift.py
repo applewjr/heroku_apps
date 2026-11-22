@@ -519,6 +519,15 @@ def _boards_for(day):
     return boards
 
 
+def _reply(today, todays, yesterdays):
+    """The `todays_boards` reply from today's boards and (an empty list
+    after YESTERDAY_HOURS) yesterday's, leaving out any of yesterday's that
+    is also today's."""
+    offered = {canonical(b['columns']) for b in todays}
+    return {'boards': todays, 'yesterday': [b for b in yesterdays if canonical(b['columns']) not in offered],
+            'day': today.isoformat(), 'yesterday_day': (today - timedelta(days=1)).isoformat()}
+
+
 def todays_reply(serve_dark=False):
     """The `todays_boards` action: the boards for Puzzmo's today and, in the
     first YESTERDAY_HOURS after midnight Central, yesterday's, each list as
@@ -529,12 +538,30 @@ def todays_reply(serve_dark=False):
         return jsonify(boards=[], yesterday=[], day=today.isoformat())
     # Read once: the same list is offered and checked against yesterday's.
     todays = _boards_for(today)
-    yesterday = []
+    yesterdays = _boards_for(today - timedelta(days=1)) if now.hour < YESTERDAY_HOURS else []
+    return jsonify(**_reply(today, todays, yesterdays))
+
+
+def first_paint_reply():
+    """The `todays_boards` reply as the last lookups in this process found
+    the boards, fresh or not, for the page to draw its offer as it arrives
+    (an offer that came later would push the boxes down, a layout shift);
+    None until today's (and, early in the day, yesterday's) have been looked
+    up. Never reads the database: the page still asks for the newest."""
+    if not TYPESHIFT_BOARDS_LIVE:
+        return None
+    now = _game_now()
+    today = now.date()
+    todays = _boards_cache.get(today)
+    if todays is None:
+        return None
+    yesterdays = []
     if now.hour < YESTERDAY_HOURS:
-        offered = {canonical(b['columns']) for b in todays}
-        yesterday = [b for b in _boards_for(today - timedelta(days=1)) if canonical(b['columns']) not in offered]
-    return jsonify(boards=todays, yesterday=yesterday, day=today.isoformat(),
-                   yesterday_day=(today - timedelta(days=1)).isoformat())
+        entry = _boards_cache.get(today - timedelta(days=1))
+        if entry is None:
+            return None
+        yesterdays = entry[1]
+    return _reply(today, todays[1], yesterdays)
 
 
 def _board_day(value):
@@ -639,7 +666,8 @@ def run_typeshift():
     )
     log_page_visit(PAGE)
     return render_template(PAGE, schema_data=schema_data, boards_on=TYPESHIFT_BOARDS_LIVE,
-                           post_url='/typeshift', approve=False, **page_context())
+                           first_reply=first_paint_reply(), post_url='/typeshift', approve=False,
+                           **page_context())
 
 
 ##### admin #####

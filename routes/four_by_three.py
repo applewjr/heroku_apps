@@ -21,8 +21,11 @@ and it is served in alphabetical order, never in a player's layout or
 James's: a finished game's layout gives away the answer.
 
 Answers. James approves a day's board on /4x3_admin/board, with its hub, its
-four groups and, if he likes, their names: every player of that board sees
-them as checked. Players mark what the game said about their guesses (right,
+four groups and, if he likes, their names and colors: every player of that
+board sees them as checked, and the colors set the order the page gives for
+the most points (functions/four_by_three.py game_points). His finished
+screen gives the colors for free: 4x3 puts each group on its color's line
+through the hub. Players mark what the game said about their guesses (right,
 one away, not even close), and a group enough players marked right (one per
 network) is served to later players of the board as confirmed by players;
 one enough marked as a miss is never suggested. Players are never told how
@@ -257,7 +260,7 @@ def solve_request(data, live):
     if words is None:
         return jsonify(error='The solver is unavailable right now. Please try again in a few minutes.'), 503
     at = {t: i for i, t in enumerate(board)}
-    fixed, refused, names, checked = {}, set(), {}, False
+    fixed, refused, names, colors, checked = {}, set(), {}, {}, False
     if live:
         known = answers_for(fbt.board_key(board))
         # A stored answer or mark that names a word not on this board (a
@@ -265,11 +268,13 @@ def solve_request(data, live):
         answer = known['checked']
         if answer is not None and all(set(trio) <= set(at) for trio in answer['groups']):
             checked = True
-            for trio, name in zip(answer['groups'], answer['names']):
+            for n, (trio, name) in enumerate(zip(answer['groups'], answer['names'])):
                 mask = fbt.mask_of(at[t] for t in trio)
                 fixed[mask] = 'checked'
                 if name:
                     names[mask] = name
+                if answer['colors']:
+                    colors[mask] = answer['colors'][n]
         for trio in known['players']:
             if set(trio) <= set(at):
                 fixed.setdefault(fbt.mask_of(at[t] for t in trio), 'players')
@@ -277,7 +282,7 @@ def solve_request(data, live):
     weights, _n = current_weights()
     signals = fbt.Signals.build(board, words, get_pairs())
     result = fbt.solve(signals, weights, [(tuple(at[t] for t in tiles), verdict) for tiles, verdict in marks],
-                       fixed=fixed, refused=refused, names=names)
+                       fixed=fixed, refused=refused, names=names, colors=colors)
     result['checked'] = checked
     return jsonify(result)
 
@@ -607,6 +612,22 @@ def _boards_for(day):
     return boards
 
 
+def first_paint_boards():
+    """{date: boards} for each date near Pacific's today (within a day, as
+    parse_played_on takes them) whose boards a lookup in this process found,
+    fresh or not, for the page to draw its offer as it arrives, from the
+    player's own date (an offer that came later would push the boxes down, a
+    layout shift); None if there are none. Never reads the database: the page
+    still asks for the newest."""
+    if not FOUR_BY_THREE_BOARDS_LIVE:
+        return None
+    today = _pacific_today()
+    with _boards_lock:
+        entries = list(_boards_cache.items())
+    days = {day.isoformat(): entry[1] for day, entry in entries if abs((day - today).days) <= 1}
+    return days or None
+
+
 def _played_on(data):
     """The player's own date, or None if it can't be today anywhere on Earth
     (more than a day from Pacific's): a wrong clock, not a reason to 400."""
@@ -670,20 +691,32 @@ def _parse_marks(text):
         return []
 
 
+def _colors(raw):
+    """Four different colors (four_by_three.COLORS), one for each pair of an
+    answer in its order, or None."""
+    if (isinstance(raw, list) and len(raw) == fbt.GROUPS and all(isinstance(c, str) for c in raw)
+            and set(raw) == set(fbt.COLORS)):
+        return list(raw)
+    return None
+
+
 def parse_answer(text):
-    """James's answer from an approval: {'hub', 'pairs', 'names', 'groups'
-    (each pair with the hub, as sets)}, or None."""
+    """James's answer from an approval: {'hub', 'pairs', 'names', 'colors'
+    (each pair's color, or None if he gave none), 'groups' (each pair with
+    the hub, as sets)}, or None. Damaged colors are no colors, never a
+    reason to lose the answer."""
     try:
         answer = json.loads(text) if text else None
         hub, pairs = answer['hub'], [tuple(p) for p in answer['pairs']]
         names = [str(n or '') for n in answer.get('names') or [''] * fbt.GROUPS][:fbt.GROUPS]
-    except (ValueError, TypeError, KeyError):
+        colors = _colors(answer.get('colors'))
+    except (ValueError, TypeError, KeyError, AttributeError):
         return None
     if (not isinstance(hub, str) or len(pairs) != fbt.GROUPS
             or any(len(p) != 2 or not all(isinstance(w, str) for w in p) for p in pairs)):
         return None
     names += [''] * (fbt.GROUPS - len(names))
-    return {'hub': hub, 'pairs': pairs, 'names': names,
+    return {'hub': hub, 'pairs': pairs, 'names': names, 'colors': colors,
             'groups': [frozenset((hub,) + p) for p in pairs]}
 
 
@@ -797,7 +830,7 @@ def run_four_by_three():
     )
     log_page_visit(PAGE)
     return render_template(PAGE, schema_data=schema_data, boards_on=FOUR_BY_THREE_BOARDS_LIVE,
-                           post_url=PATH, approve=False, **page_context())
+                           first_boards=first_paint_boards(), post_url=PATH, approve=False, **page_context())
 
 
 ##### admin #####
@@ -866,12 +899,31 @@ def _admin_days():
     return days, None
 
 
+def _order_guess(top, answer):
+    """How a first pass's guess at the order for the most points did against
+    James's colors: 'whole' (all four in order), 'purple' (only the first
+    group right), 'neither', or None when there's nothing to check (his
+    answer has no colors, or the first pass is from before guesses were
+    kept)."""
+    order, groups = top.get('order'), top.get('groups') or []
+    if (not answer['colors'] or len(groups) != fbt.GROUPS or not isinstance(order, list)
+            or not all(isinstance(i, int) for i in order) or sorted(order) != list(range(fbt.GROUPS))):
+        return None
+    guessed = [frozenset((top.get('hub'), groups[i][0], groups[i][1])) for i in order]
+    by_color = dict(zip(answer['colors'], answer['groups']))
+    wanted = [by_color[color] for color in fbt.BEST_ORDER]
+    if guessed == wanted:
+        return 'whole'
+    return 'purple' if guessed[0] == wanted[0] else 'neither'
+
+
 def _accuracy():
     """(boards, totals, error): each board answered for a date in the last
     ACCURACY_DAYS, against the solver's first pass from just before James
     first answered it. Only that approval keeps one, whatever its date
     (four_by_three_approve_typed_board), so it's looked for among all of the
-    board's approvals."""
+    board's approvals. Where his answer has colors, the first pass's guess at
+    the order is checked too (_order_guess)."""
     since = _pacific_today() - timedelta(days=ACCURACY_DAYS)
     try:
         rows = approved_rows(1000)
@@ -882,7 +934,8 @@ def _accuracy():
     for row in rows:
         by_key[row[KEY]].append(row)
     boards = []
-    totals = {'hub': [0, 0], 'groups': [0, 0], 'labels': {}}
+    # 'order': [boards whose guess had purple first, had the whole order, checked].
+    totals = {'hub': [0, 0], 'groups': [0, 0], 'labels': {}, 'order': [0, 0, 0]}
     for key, key_rows in by_key.items():
         day = max(row[PLAYED_ON] for row in key_rows)
         if day < since:
@@ -894,7 +947,7 @@ def _accuracy():
             continue
         entry = {'day': day, 'hub': answer['hub'],
                  'groups': [' + '.join((answer['hub'],) + p) for p in answer['pairs']],
-                 'names': answer['names'], 'top': None}
+                 'names': answer['names'], 'colors': answer['colors'], 'top': None}
         if firsts:
             try:
                 top = json.loads(min(firsts, key=lambda row: row[UPDATED])[TOP])
@@ -913,9 +966,15 @@ def _accuracy():
                 totals['hub'][1] += 1
                 totals['groups'][0] += sum(rights)
                 totals['groups'][1] += len(rights)
+                order = _order_guess(top, answer)
+                if order is not None:
+                    totals['order'][0] += order in ('purple', 'whole')
+                    totals['order'][1] += order == 'whole'
+                    totals['order'][2] += 1
                 entry['top'] = {'hub': top.get('hub'), 'hub_label': top.get('hub_label'), 'hub_right': hub_right,
                                 'groups': [{'text': ' + '.join((top['hub'], a, b)), 'label': label, 'right': r}
-                                           for (a, b, label), r in zip(top.get('groups') or [], rights)]}
+                                           for (a, b, label), r in zip(top.get('groups') or [], rights)],
+                                'order': order}
         boards.append(entry)
     boards.sort(key=lambda b: b['day'], reverse=True)
     return boards, totals, None
@@ -949,7 +1008,8 @@ def four_by_three_admin():
 def editor_board(key, day=None):
     """What /4x3_admin/board opens with when James clicks a board on the
     Boards tab, or None if no row has this key: {'tiles', 'hub', 'pairs',
-    'names', 'note'}. The tiles as he approved them, else as the latest
+    'names', 'colors' ('' each when unknown), 'note'}. The tiles as he
+    approved them, else as the latest
     player typed them; the answer his newest, from any date (the one
     players get), else the groups players confirmed filled out by the
     solver, else the solver's. The tiles from `day`'s rows when it has
@@ -972,9 +1032,10 @@ def editor_board(key, day=None):
         # When that answer was saved, which may be another date's approval.
         saved = max(row[UPDATED] for row in every if row[SOURCE] == APPROVAL and row[ANSWERS])
         return {'tiles': list(tiles), 'hub': answer['hub'], 'pairs': [list(p) for p in answer['pairs']],
-                'names': answer['names'], 'note': f"your answer from {saved:%m-%d %H:%M}"}
+                'names': answer['names'], 'colors': answer['colors'] or [''] * fbt.GROUPS,
+                'note': f"your answer from {saved:%m-%d %H:%M}"}
     preload = {'tiles': list(tiles), 'hub': '', 'pairs': [], 'names': [''] * fbt.GROUPS,
-               'note': f"the board from {newest[UPDATED]:%m-%d %H:%M}"}
+               'colors': [''] * fbt.GROUPS, 'note': f"the board from {newest[UPDATED]:%m-%d %H:%M}"}
     words = get_words()
     if words is not None:
         at = {t: i for i, t in enumerate(tiles)}
@@ -1024,13 +1085,15 @@ def four_by_three_admin_board():
 def _answer_from_form(tiles):
     """(answer JSON or None, error or None) from the approve form: no groups
     at all approves the board alone; otherwise a hub and four pairs that
-    make an answer of this board, and up to four names."""
+    make an answer of this board, up to four names, and the four pairs'
+    colors or none."""
     raw_pairs = request.form.get('pairs', '').strip()
     if not raw_pairs or raw_pairs == '[]':
         return None, None
     try:
         pairs = [tuple(fbt.clean_tile(w) for w in p) for p in json.loads(raw_pairs)]
         names = json.loads(request.form.get('names', '') or '[]')
+        colors = json.loads(request.form.get('colors', '') or '[]')
     except (ValueError, TypeError):
         return None, 'The groups did not come through: check them, then approve again'
     hub = fbt.clean_tile(request.form.get('hub', ''))
@@ -1042,7 +1105,15 @@ def _answer_from_form(tiles):
         names = []
     names = [' '.join(str(n).split())[:NAME_MAX] if isinstance(n, str) else '' for n in names[:fbt.GROUPS]]
     names += [''] * (fbt.GROUPS - len(names))
-    return json.dumps({'hub': hub, 'pairs': [list(p) for p in pairs], 'names': names}), None
+    answer = {'hub': hub, 'pairs': [list(p) for p in pairs], 'names': names}
+    # Colors are all four or none: an order with a gap in it would be wrong.
+    if not isinstance(colors, list):
+        return None, 'Give every group its color, or none'
+    if any(colors):
+        if _colors(colors) is None:
+            return None, 'Give every group its color, or none'
+        answer['colors'] = colors
+    return json.dumps(answer), None
 
 
 def _answered_before(key):
@@ -1062,8 +1133,9 @@ def _answered_before(key):
 def four_by_three_approve_typed_board():
     """Serve a board James entered on /4x3_admin/board, for players whose
     date is `played_on`, with his answer if he gave one. `tiles` is the nine
-    words as a JSON list; `hub`, `pairs` (JSON) and `names` (JSON) the
-    answer. With his first answer to a board, the solver's own first pass on
+    words as a JSON list; `hub`, `pairs` (JSON), `names` (JSON) and `colors`
+    (JSON, '' each for none) the answer. With his first answer to a board,
+    the solver's own first pass on
     it is kept, for the Accuracy tab; approvals after that keep none."""
     day = parse_iso_day(request.form.get('played_on', ''))
     try:

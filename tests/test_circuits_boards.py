@@ -141,8 +141,8 @@ def _player(n):
     return {'X-Forwarded-For': f'198.51.100.{n}' if isinstance(n, int) else n}
 
 
-def _log(client, player, cells=CELLS, arrows=ARROWS, source='typed', entered=None):
-    body = {'action': 'log_board', 'cells': cells, 'arrows': arrows, 'source': source}
+def _log(client, player, cells=CELLS, arrows=ARROWS, source='typed', entered=None, **size):
+    body = {'action': 'log_board', 'cells': cells, 'arrows': arrows, 'source': source, **size}
     if entered is not None:
         body['entered'] = entered
     resp = client.post('/circuits', headers=_player(player), json=body)
@@ -348,70 +348,80 @@ def _key(cells=CELLS):
     return rc.board_key(cells)
 
 
-# A 4 by 4 board (Yahoo's shape so far): SNOW [BALL] ROOM on its second row,
-# [GAME] under BALL, PLAN under that.
-CELLS_4 = [''] * 4 + ['SNOW', B, 'ROOM', ''] + ['', B, '', ''] + ['', 'PLAN', '', '']
-ARROWS_4 = [[4, 5], [5, 6], [5, 9], [9, 13]]
+# A board 4 wide and 2 tall: SNOW [BALL] GAME [SHOW] along a row, ROOM under
+# SHOW. Boards have no list of sizes: players type them into grids of any
+# size up to 8 by 8, wherever they like.
+WIDE = ['SNOW', B, 'GAME', B, '', '', '', 'ROOM']
+WIDE_ARROWS = [[0, 1], [1, 2], [2, 3], [3, 7]]
 
 
-def test_a_four_by_four_board_is_logged_served_and_approved_in_its_shape(client, boards, monkeypatch):
+def _typed_at(rows, cols, top, left, board=WIDE, arrows=WIDE_ARROWS, width=4):
+    """A board `width` wide typed into a rows by cols grid, its first square
+    at row `top`, column `left`: (cells, arrows) as the page sends them."""
+    cells = [''] * (rows * cols)
+    for i, c in enumerate(board):
+        cells[(i // width + top) * cols + i % width + left] = c
+    return cells, cz.place(arrows, width, cols, top, left)
+
+
+def test_a_board_is_the_squares_it_uses_wherever_it_was_typed(client, boards, monkeypatch):
     import routes.circuits as rc
-    shape = {'rows': 4, 'cols': 4}
-    for p in (1, 2):
-        resp = client.post('/circuits', headers=_player(p),
-                           json=dict(action='log_board', cells=CELLS_4, arrows=ARROWS_4, source='typed', **shape))
-        assert resp.get_json() == {'status': 'success'}
-    assert {row[rc.SHAPE] for row in boards.mine()} == {'4x4'}
-    assert _todays(client) == [_served(arrows=ARROWS_4, cells=CELLS_4, rows=4, cols=4)]
-    # Its key is its shape and cells: the same cells can't be another shape's.
-    assert next(iter(boards.rows))[0] == rc.board_key(CELLS_4, 4, 4) != rc.board_key(CELLS_4)
-    # A player typing those cells gets the arrows the others drew.
-    reply = client.post('/circuits', headers=_player(9), json=dict(cells=CELLS_4, arrows=ARROWS_4[:3], **shape)).get_json()
-    assert reply['known_arrows'] == ARROWS_4
-    # James approves one he typed, with answers: it's served in its shape,
-    # the answers show as checked, and the admin page draws it 4 wide.
+    # Two players type the same board, one at the top left of a 4 by 4 grid,
+    # one in the middle of a 6 by 6: one board, stored and served as the 2 by
+    # 4 it uses.
+    for p, (rows, cols, top, left) in ((1, (4, 4, 0, 0)), (2, (6, 6, 2, 1))):
+        cells, arrows = _typed_at(rows, cols, top, left)
+        _log(client, p, cells=cells, arrows=arrows, rows=rows, cols=cols)
+    assert {(row[0], row[rc.SHAPE], row[rc.CELLS]) for row in boards.mine()} == {
+        (rc.board_key(WIDE, 2, 4), '2x4', '|'.join(WIDE))}
+    assert _todays(client) == [_served(arrows=WIDE_ARROWS, cells=WIDE, rows=2, cols=4)]
+    # A third player types it somewhere else again, an arrow short: the arrows
+    # the others drew come back on that player's own grid.
+    cells, arrows = _typed_at(5, 4, 3, 0)
+    reply = _solve(client, cells=cells, arrows=arrows[:3], rows=5, cols=4)
+    assert reply['known_arrows'] == arrows
+    # James approves it typed in an 8 by 8 grid, with answers: it's served
+    # first, as the 2 by 4 it uses, and checked for a player in any grid.
     auth = _admin_headers(monkeypatch)
-    other = list(CELLS_4)
-    other[4] = 'FOOT'
-    resp = _approve_typed(client, auth, cells=other, arrows=ARROWS_4, answers=['BALL', 'GAME'], shape='4x4')
+    cells, arrows = _typed_at(8, 8, 5, 3)
+    resp = _approve_typed(client, auth, cells=cells, arrows=arrows, answers=['BALL', 'SHOW'], shape='8x8')
     assert 'success=' in resp.headers['Location']
-    assert _todays(client)[0] == _served(arrows=ARROWS_4, cells=other, rows=4, cols=4, sites=['Puzzmo'])
-    reply = client.post('/circuits', headers=_player(9), json=dict(cells=other, arrows=ARROWS_4, **shape)).get_json()
-    assert [(b['word'], b['confidence']) for b in reply['boxes']] == [('BALL', 'checked'), ('GAME', 'checked')]
+    assert _todays(client) == [_served(arrows=WIDE_ARROWS, cells=WIDE, rows=2, cols=4, sites=['Puzzmo'])]
+    cells, arrows = _typed_at(4, 4, 0, 0)
+    reply = _solve(client, cells=cells, arrows=arrows, rows=4, cols=4)
+    assert [(b['word'], b['confidence']) for b in reply['boxes']] == [('BALL', 'checked'), ('SHOW', 'checked')]
+    # The admin page draws it 4 wide and opens it in the board editor.
     html = client.get('/circuits_admin', headers=auth).get_data(as_text=True)
-    assert 'mini-board c4' in html and 'mini-board c3' not in html
-    assert client.get('/circuits_admin/board?key=' + rc.board_key(other, 4, 4), headers=auth).status_code == 200
-    # A shape the page doesn't offer isn't approved.
-    resp = _approve_typed(client, auth, cells=other, arrows=ARROWS_4, shape='6x6')
+    assert 'mini-board c4' in html
+    assert client.get('/circuits_admin/board?key=' + rc.board_key(WIDE, 2, 4), headers=auth).status_code == 200
+    # Bigger than 8 by 8 is no board.
+    resp = _approve_typed(client, auth, cells=[''] * 80 + [B], arrows=[], shape='9x9')
     assert 'error=' in resp.headers['Location']
 
 
-# A 5 by 4 board: the same compounds a row lower, PLAN on its fifth row.
-CELLS_5x4 = [''] * 8 + ['SNOW', B, 'ROOM', ''] + ['', B, '', ''] + ['', 'PLAN', '', '']
-ARROWS_5x4 = [[8, 9], [9, 10], [9, 13], [13, 17]]
-
-
-def test_a_five_by_four_board_is_logged_served_and_approved_in_its_shape(client, boards, monkeypatch):
+def test_a_board_that_fits_5_by_3_keeps_the_key_boards_always_had(client, boards):
+    import hashlib
     import routes.circuits as rc
-    shape = {'rows': 5, 'cols': 4}
+    # Typed in 5 by 3 as ever, and by another player a column in on a 6 by 6
+    # grid: one board, stored in 5 by 3 under the key it had before boards
+    # could grow, so boards logged before then still match.
+    _log(client, 1)
+    cells, arrows = _typed_at(6, 6, 0, 1, board=CELLS, arrows=ARROWS, width=3)
+    _log(client, 2, cells=cells, arrows=arrows, rows=6, cols=6)
+    assert _key() == hashlib.sha1('|'.join(CELLS).encode()).hexdigest()
+    assert {(row[0], row[rc.SHAPE], row[rc.CELLS]) for row in boards.mine()} == {(_key(), '5x3', '|'.join(CELLS))}
+    assert _todays(client) == [_served()]
+
+
+def test_a_board_of_any_width_is_served_and_drawn(client, boards, monkeypatch):
+    # A row 5 wide, SNOW [BALL] GAME [SHOW] ROOM, typed into a 6 by 6 grid.
+    row = ['SNOW', B, 'GAME', B, 'ROOM']
+    arrows = [[0, 1], [1, 2], [2, 3], [3, 4]]
     for p in (1, 2):
-        resp = client.post('/circuits', headers=_player(p),
-                           json=dict(action='log_board', cells=CELLS_5x4, arrows=ARROWS_5x4, source='typed', **shape))
-        assert resp.get_json() == {'status': 'success'}
-    assert {row[rc.SHAPE] for row in boards.mine()} == {'5x4'}
-    assert _todays(client) == [_served(arrows=ARROWS_5x4, cells=CELLS_5x4, rows=5, cols=4)]
-    assert next(iter(boards.rows))[0] == rc.board_key(CELLS_5x4, 5, 4) != rc.board_key(CELLS_5x4)
-    # James approves one he typed: it's served first, in its shape, and the
-    # admin page draws it 4 wide.
-    auth = _admin_headers(monkeypatch)
-    other = list(CELLS_5x4)
-    other[8] = 'FOOT'
-    resp = _approve_typed(client, auth, cells=other, arrows=ARROWS_5x4, answers=['BALL', 'GAME'], shape='5x4')
-    assert 'success=' in resp.headers['Location']
-    assert _todays(client)[0] == _served(arrows=ARROWS_5x4, cells=other, rows=5, cols=4, sites=['Puzzmo'])
-    html = client.get('/circuits_admin', headers=auth).get_data(as_text=True)
-    assert 'mini-board c4' in html and 'mini-board c3' not in html
-    assert client.get('/circuits_admin/board?key=' + rc.board_key(other, 5, 4), headers=auth).status_code == 200
+        _log(client, p, cells=row + [''] * 31, arrows=arrows, rows=6, cols=6)
+    assert _todays(client) == [_served(arrows=arrows, cells=row, rows=1, cols=5)]
+    html = client.get('/circuits_admin', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    assert 'mini-board c5' in html
 
 
 def test_an_unfinished_or_bad_board_is_not_approved(client, boards, monkeypatch):
@@ -681,3 +691,32 @@ def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, tiny, monke
     assert _solve(client)['boxes'][0]['word'] == 'BALL'
     out = capsys.readouterr().out
     assert 'check=circuits_board_log_failed' in out and 'check=circuits_board_read_failed' in out
+
+
+# --- the offer in the first paint ------------------------------------------------
+
+def _first_paint(html):
+    """The boards the page arrived with, which its offer script draws at once."""
+    import json
+    import re
+    return json.loads(re.search(r'const FIRST_BOARDS = (.*?);\n', html).group(1))
+
+
+def test_the_page_arrives_with_the_boards_its_last_lookup_found(client, boards, monkeypatch):
+    # An offer drawn after the page paints pushes the board down (a layout
+    # shift), so the page carries today's boards as the memo last had them,
+    # and loading it never reads the table.
+    import routes.circuits as rc
+    monkeypatch.setattr(rc, '_boards_cache', {})
+    _log(client, 1)
+    _log(client, 2)
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) is None
+    assert _todays(client) == [_served()]
+
+    def no_reads(*_args):
+        raise AssertionError('the page read the boards table')
+    monkeypatch.setattr(rc, 'rows_logged_between', no_reads)
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) == [_served()]
+    # An admin change: the page carries none until the next lookup.
+    rc._forget_boards()
+    assert _first_paint(client.get('/circuits').get_data(as_text=True)) is None

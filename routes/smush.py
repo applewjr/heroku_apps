@@ -723,6 +723,9 @@ def smush_recalc_ice():
     if status == 'building':
         return _back(success=f"Rebuilding {text}'s ICE COLD plan: the new table takes over "
                              f"in a minute or two")
+    if status == 'no_room':
+        return _back(error=f"Not enough memory to rebuild {text}'s plan while it keeps answering. "
+                           f"Nothing changed; try again later")
     if status == 'capped':
         return _back(error="Today's ICE COLD builds are used up; the plan stays as it is")
     return _back(error=f"{text}'s last build failed; it tries again in a few minutes")
