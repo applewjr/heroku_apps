@@ -848,6 +848,9 @@ def test_board_entry_is_the_ribbit_editor_with_an_approve_bar(client, boards, mo
     assert 'id="rb-approve-btn" disabled>' in form
     # Edit only: no Solve, and none of the solver's page around it.
     assert 'id="phase-solve" hidden>' in html and 'id="phase-edit" hidden>' in html
+    # A board picked here stays in the editor to check and approve.
+    assert "Solved straight away" not in html and "Not the board in your game?" not in html
+    assert "then approve it, or ↩ Not my board if it doesn't." in html
     for gone in ("Frequently Asked Questions", "💬 Give Feedback", 'class="jj-ad"',
                  "Ribbit Solver &amp; Answers"):
         assert gone not in html, f"the board entry shows {gone!r}"
@@ -1129,11 +1132,12 @@ def test_ribbit_page_ships_the_shared_board_hooks(client, monkeypatch):
                  "data.boards",
                  "action: 'shared_board'", "action: 'board_links'", "action: 'log_board'"):
         assert hook in html, f"ribbit.html lost {hook}"
-    # Right after loading, Clear sits next to Solve (hidden until then), and
-    # the hint points at it.
+    # A picked board solves itself (James, 2026-11-22), with Not my board
+    # next to Solve (hidden until then) and the hint pointing at it.
     assert ('id="phase-solve">▶ Solve</button>\n    <button type="button" '
-            'class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>🔄 Clear board</button>') in html
-    assert "then hit ▶ Solve, or 🔄 Clear board if it doesn't." in html
+            'class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>↩ Not my board</button>') in html
+    assert "setPhase('solve');\n        hint.textContent = \"Loaded today's board from other players. " \
+           "Not the board in your game? Tap ↩ Not my board.\";" in html
 
 
 def test_the_faq_explains_the_shared_board_without_numbers(client, monkeypatch):
