@@ -308,18 +308,46 @@ def rows_logged_between(first, last):
         (first, last))
 
 
+def _stored_board(cells, shape):
+    """A stored board's cells as a cz.Board, without its arrows."""
+    return cz.Board(_split(cells), [], *(cz.parse_shape(shape) or (cz.ROWS, cz.COLS)))
+
+
+def partial_boards(cells, shape, others):
+    """The board_keys of the boards in `others` that are part of this one
+    (cz.inside): boards a player logged half-typed, when they switched to
+    the game in the middle of typing it in (the page logs on the way out),
+    and that the finished board now replaces (James, 2026-11-22: they
+    cluttered the admin tab and used up the daily limit). `others` is the
+    player's other boards that day, (board_key, cells, shape, source), as
+    stored; only ones they typed or edited count, never a loaded one."""
+    new = _stored_board(cells, shape)
+    return sorted({k for k, other, other_shape, other_source in others
+                   if other_source in BOARD_SOURCES and cz.inside(_stored_board(other, other_shape), new)})
+
+
 def store_board(day, voter, prefix, key, cells, arrows, source, entered, top, version, shape='5x3'):
     """Log one player's board, replacing their earlier version of it that
-    day. Inline, not on the write-behind queue: a missing table there would
-    drop the rest of its batch, page visits included. Best-effort."""
+    day and any board of theirs that day it finishes (partial_boards).
+    Inline, not on the write-behind queue: a missing table there would drop
+    the rest of its batch, page visits included. Best-effort."""
     now = pst_now_str()
     try:
         with db_cursor() as (conn, cursor):
             cursor.execute(
-                "SELECT COUNT(*) FROM circuits_boards "
+                "SELECT board_key, cells, shape, source FROM circuits_boards "
                 "WHERE voter_hash = %s AND played_on = %s AND board_key <> %s",
                 (voter, day, key))
-            if cursor.fetchone()[0] >= BOARDS_PER_PLAYER_PER_DAY:
+            others = cursor.fetchall()
+            partial = partial_boards(cells, shape, others)
+            if partial:
+                cursor.execute(
+                    f"DELETE FROM circuits_boards WHERE voter_hash = %s AND played_on = %s "
+                    f"AND source IN ({', '.join(['%s'] * len(BOARD_SOURCES))}) "
+                    f"AND board_key IN ({', '.join(['%s'] * len(partial))})",
+                    (voter, day, *BOARD_SOURCES, *partial))
+            if len(others) - len(partial) >= BOARDS_PER_PLAYER_PER_DAY:
+                conn.commit()
                 return
             cursor.execute(
                 """INSERT INTO circuits_boards (played_on, voter_hash, prefix_hash, board_key, shape,

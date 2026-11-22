@@ -373,9 +373,9 @@ def make_schema_data(name, description, url, operating_system='Web'):
 
 # Solvers tagged NEW in the site's solver links, and the last day (Pacific)
 # each keeps the tag. It drops off by itself: no deploy, nothing to remember.
+# /guess_the_phrase's came off early (James, 2026-11-22).
 NEW_UNTIL = {
     '/chainle': date(2026, 12, 31),
-    '/guess_the_phrase': date(2026, 12, 31),
 }
 
 

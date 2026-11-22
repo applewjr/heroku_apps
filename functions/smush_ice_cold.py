@@ -1,5 +1,5 @@
 """ICE COLD planner for Smush (hankgreen.com/smush), served on /smush for
-today's boards and on /smush_dev (routes/smush_ice.py).
+today's boards (routes/smush_ice.py).
 
 Smush's secret ICE COLD bonus x5s the whole final score (after Clean Plate's
 +50 and the rest) for a game of at least five words in which no word ever
@@ -947,8 +947,9 @@ def states_below(L):
 class TableCache:
     """Full-board tables, built in a background thread, one build at a time.
 
-    /smush_dev's cache (the defaults) holds one board: whatever board was
-    last asked for, built the first time a request needs it. A newer
+    With the defaults (as /smush_dev used it, until that page was removed
+    on 2026-11-22) it holds one board: whatever board was last asked for,
+    built the first time a request needs it. A newer
     fingerprint for that board (a crowd correction, a newly played or
     flagged word) rebuilds it, at most once per `rebuild_gap`, and the old
     table keeps answering meanwhile. A table no request has used for

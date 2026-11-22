@@ -1194,8 +1194,8 @@ page can mean a confusing page.
   logs one row when it sees it, after the solve. Blossom, where every solve is
   a form post and a new page, sends a `first_solve=1` field that only its GET
   render has. Side requests (votes, board logging, today's board) and
-  `/smush_dev`, `/chainle_dev`, `/ribbit_admin/board`, `/circuits_admin/board`,
-  `/typeshift_admin/board` and `/4x3_admin/board` never log a use.
+  `/ribbit_admin/board`, `/circuits_admin/board`, `/typeshift_admin/board`
+  and `/4x3_admin/board` never log a use.
   Quordle's own Sequence-mode request on load doesn't either.
 - **Readers.** The solver views name their pages, and the error views and
   checks match `error`, so none of them counts a `(solve)` row. `site_idle`

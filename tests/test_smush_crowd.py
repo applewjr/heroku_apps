@@ -494,6 +494,66 @@ def test_admin_report_text_is_green_unless_invalid(client, smush_db, monkeypatch
     assert html.count('<td class="">invalid</td>') == 2
 
 
+def _dated_rows():
+    """Reports on three made-up boards, as report_sql sorts them by vote
+    date: OTHER_TAG's votes are newest, but it is an archive board first
+    logged weeks earlier; PUZZLE_TAG was approved the day after most of its
+    votes; THIRD was never logged."""
+    from datetime import date, datetime
+    when = datetime(2026, 11, 21, 8, 0)
+    third = "e:abcdfghi"
+    return third, {
+        "FROM smush_word_votes v": [
+            ("bagel", "invalid", 2, when, "waiting", when, OTHER_TAG, date(2026, 11, 21)),
+            ("flagellum", "invalid", 1, when, "waiting", when, PUZZLE_TAG, date(2026, 11, 20)),
+            (NOT_LISTED, "missing", 3, when, "waiting", when, PUZZLE_TAG, date(2026, 11, 20)),
+            ("chafe", "invalid", 1, when, "waiting", when, third, date(2026, 11, 19)),
+        ],
+        # (letters, day, approved that day, player networks that day)
+        "MAX(source = %s)": [
+            ("lacefgmou", date(2026, 11, 20), 0, 3),
+            ("lacefgmou", date(2026, 11, 21), 1, 4),
+            ("tabegilnr", date(2026, 10, 30), 0, 2),
+            ("tabegilnr", date(2026, 11, 21), 0, 1),
+        ],
+    }
+
+
+def _report_order(html):
+    # The table only: the explanation above it names the bases too.
+    reports = html.split('id="reports-tab"')[1].split('id="invalid-tab"')[0].split("<table")[1]
+    words = re.findall(r"<td><strong>(\w+)</strong></td>", reports)
+    return words, reports
+
+
+def test_reports_are_dated_by_the_day_each_board_was_played(client, smush_db, monkeypatch):
+    # James, 2026-11-22: newest boards first, still grouped by board, dated
+    # from smush_boards rather than the day most votes came in.
+    _third, rows = _dated_rows()
+    db = smush_db(rows=rows)
+    html = client.get("/smush_admin?tab=reports", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+    words, reports = _report_order(html)
+    # The approved board (11-21), its two rows together, most players first;
+    # the never-logged one on its vote date (11-19); the archive board on
+    # the day players first logged it (10-30).
+    assert words == [NOT_LISTED, "flagellum", "chafe", "bagel"]
+    assert reports.count("you approved") == 2 and reports.count("from votes") == 1
+    assert reports.count("players logged") == 1 and "10-30" in reports
+    [(sql, params)] = db.statements("MAX(source = %s)")
+    # The board's letters as smush_boards keeps them: no colon.
+    assert {"lacefgmou", "tabegilnr", "eabcdfghi"} <= set(params)
+
+
+def test_a_failed_boards_read_keeps_the_vote_order(client, smush_db, monkeypatch):
+    _third, rows = _dated_rows()
+    smush_db(rows=rows, fail="MAX(source = %s)")
+    resp = client.get("/smush_admin?tab=reports", headers=_admin_headers(monkeypatch))
+    assert resp.status_code == 200
+    words, reports = _report_order(resp.get_data(as_text=True))
+    assert words == ["bagel", "flagellum", NOT_LISTED, "chafe"]
+    assert "you approved" not in reports
+
+
 def test_admin_forms_carry_the_search(client, smush_db, monkeypatch):
     smush_db(rows=_sweep_rows())
     html = client.get(f"/smush_admin?q={PUZZLE_TAG}&settled=1&tab=reports",
@@ -738,19 +798,18 @@ def test_the_tab_a_vote_came_from_is_logged_never_refused(client, smush_db, sent
     assert (row["vote"], row["mode"]) == ("missing", logged)
 
 
-@pytest.mark.parametrize("data, dev, logged", [
-    ({"mode": "all8", "ice_cold": True}, True, "dev_all8_ice"),
-    ({"mode": "pts", "ice_cold": False}, True, "dev_pts"),
-    ({"mode": "pan"}, True, "dev_pan"),
-    ({"mode": "all8", "ice_cold": "yes"}, True, "dev_all8"),
-    ({"ice_cold": True}, True, None),
-    # Only /smush_dev has the Ice Cold toggle; /smush's 🧊 Ice Cold is a tab.
-    ({"mode": "all8", "ice_cold": True}, False, "all8"),
-    ({"mode": "ice"}, False, "ice"),
+@pytest.mark.parametrize("data, logged", [
+    # /smush's 🧊 Ice Cold is a tab; an ice_cold flag (once /smush_dev's
+    # toggle, removed 2026-11-22) changes nothing.
+    ({"mode": "all8", "ice_cold": True}, "all8"),
+    ({"mode": "ice"}, "ice"),
+    ({"mode": "pan"}, "pan"),
+    ({"ice_cold": True}, None),
+    ({"mode": "dev_pts"}, None),
 ])
-def test_smush_dev_votes_are_tagged_as_dev(data, dev, logged):
+def test_the_vote_mode_is_the_tab(data, logged):
     from routes.smush import _vote_mode
-    assert _vote_mode(data, dev) == logged
+    assert _vote_mode(data) == logged
 
 
 def test_the_logged_tabs_are_the_pages_tabs():
@@ -761,10 +820,8 @@ def test_the_logged_tabs_are_the_pages_tabs():
         return set(re.findall(r"'(\w+)'", re.search(r"const SORT_MODES = \[(.*?)\];", source).group(1)))
 
     assert tabs("smush.html") == set(SMUSH_RESULT_TABS)
-    # /smush_dev has every tab but /smush's 🧊 Ice Cold (it has a toggle instead).
-    assert tabs("smush_dev.html") == set(SMUSH_RESULT_TABS) - {"ice"}
-    # The longest mode still fits the log's VARCHAR(16).
-    assert max(len(f"dev_{tab}_ice") for tab in SMUSH_RESULT_TABS) <= 16
+    # Every mode fits the log's VARCHAR(16).
+    assert max(len(tab) for tab in SMUSH_RESULT_TABS) <= 16
 
 
 # ---------------------------------------------------------------------------

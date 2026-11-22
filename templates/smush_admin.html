@@ -273,8 +273,10 @@
             A word is removed once enough different players flag it - the rarer the word, the fewer it takes: {% for floor, needed in crowd_remove_bands %}{{ needed }} at popularity {{ floor }} or above, {% endfor %}{{ crowd_remove_rare }} below that or none. A pangram (all nine letters) takes {{ pangram_remove_votes }}, however rare. A word is added once {{ crowd_add_votes }} suggest it. Needed is that number for each word.
             Players counts every vote in the window, including ones from a player over the daily flag limit, which don't count toward a removal.
             Either button clears that word's votes, whichever kind they were.</p>
+        <p class="crowd-note">Boards are newest first, by the day each was played: the day you approved it, else the first day players logged it on Today's Board (an older board replayed from the archive keeps its old day), else the day most of its votes came in.</p>
         {% endcall %}
         {% if reports %}
+        {% set date_basis = {'approved': 'you approved', 'players': 'players logged', 'votes': 'from votes'} %}
         <div class="table-wrap">
         <table class="words-table">
             <thead>
@@ -310,7 +312,7 @@
                         <span class="crowd-note">not recorded</span>
                         {% endfor %}
                     </td>
-                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}</td>
+                    <td>{{ r[7].strftime('%m-%d') if r[7] else 'N/A' }}{% if r|length > 8 %}<br><span class="when">{{ date_basis.get(r[8], r[8]) }}</span>{% endif %}</td>
                     <td class="result-{{ 'waiting' if r[4] == 'waiting' else 'done' }}">{{ r[4] }}</td>
                     <td>
                         {% if r[4] == 'waiting' %}

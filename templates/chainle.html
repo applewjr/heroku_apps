@@ -3,7 +3,6 @@
 {% block title %}Chainle Answers & Hints - Solver for Today's Rounds{% endblock %}
 
 {% block meta %}
-{% if dev %}<meta name="robots" content="noindex, nofollow">{% endif %}
 <meta name="description" content="Chainle answers and hints for today's rounds: type the clue words to see the best linking words, or take a spoiler-free hint first.">
 <link rel="canonical" href="https://www.jamesapplewhite.com/chainle">
 <meta name="keywords" content="chainle solver, chainle hint, chainle answer, chainle help, daily word chain, word bridge puzzle">
@@ -347,19 +346,6 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 .chn-offer-site { font-size: 11px; font-weight: 600; color: #6b7280; }
 .chn-offer-note { font-size: 13px; color: #02484d; margin: 8px auto 0; max-width: 480px; padding: 0 12px; line-height: 1.5; }
 
-/* /chainle_dev says which copy it is. */
-.chn-dev-note {
-    max-width: 460px;
-    margin: 8px auto 0;
-    padding: 8px 12px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #02484d;
-    background-color: #eef4f4;
-    border: 1px dashed #4f9a97;
-    border-radius: 8px;
-}
-
 .chn-new-btn {
     background-color: #f8f9fa;
     color: #495057;
@@ -432,9 +418,6 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 {% block content %}
 
 <center>
-{% if dev %}
-<p class="chn-dev-note">/chainle_dev - only you can see this copy. Today's rounds show here even while /chainle keeps them dark, and none of your rounds here are logged.</p>
-{% endif %}
 <br>
 <h1 style="text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2;">Chainle Answers &amp; Hints</h1>
 {% if vocab_size %}
@@ -584,15 +567,11 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    // /chainle_dev (James's copy) keeps its own state, so his /chainle game
-    // is left alone.
-    const STORAGE_KEY = {{ ('chainleDevState_v1' if dev else 'chainleSolverState_v1') | tojson }};
-    // This copy's own address: /chainle, or /chainle_dev.
-    const POST_URL = {{ (post_url or '/chainle') | tojson }};
-    // Today's rounds are offered where they're on (always on /chainle_dev),
-    // and a round the player uses is logged everywhere but /chainle_dev.
+    const STORAGE_KEY = 'chainleSolverState_v1';
+    const POST_URL = '/chainle';
+    // Today's rounds are offered while they're on; a round the player uses
+    // is logged either way.
     const ROUNDS_ON = {{ 'true' if rounds_on else 'false' }};
-    const LOG_ROUNDS = {{ 'false' if dev else 'true' }};
     // The daily game's rounds: three two-word bridges, a three-word one, then
     // the closest meaning. Each round's type can be switched.
     const DEFAULT_TYPES = ['pair', 'pair', 'pair', 'triple', 'meaning'];
@@ -1152,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function noteUse() {
         try {
             const r = round();
-            if (!LOG_ROUNDS || r.from === 'loaded' || !solvedClean()) return;
+            if (r.from === 'loaded' || !solvedClean()) return;
             const clues = cluesOf(r);
             const sig = localISO() + '|' + clues.slice().sort().join(' ');
             if (r.logged === sig) return;

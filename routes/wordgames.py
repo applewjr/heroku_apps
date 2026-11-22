@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, auth, limiter, log_page_visit, log_solve
+from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit, log_solve
 from functions import all_words, wordle
 from helpers import ValidationError, json_object, make_schema_data, parse_float, parse_int
 from routes import chainle
@@ -285,7 +285,7 @@ def parse_smush_word_list(data, key):
 
 
 def parse_solve(data):
-    """A Smush solve's board and pile, from a /smush or /smush_dev POST:
+    """A Smush solve's board and pile, from a /smush POST:
     (center, outer_uses, spicy, first_word, rejected, played, want_plan), all
     lowercase."""
     center = data.get('center', '')
@@ -382,7 +382,6 @@ def run_smush():
             plan = {'complete': not leftover, 'words': plan_words,
                     'leftover': leftover}
 
-        # Here, not in parse_solve: /smush_dev shares that, and logs nothing.
         log_solve('smush.html', data)
         return jsonify(results=results[:400], total_playable=total_playable,
                        pangram_status=pangram_status, plan=plan)
@@ -465,26 +464,9 @@ def run_guess_the_phrase():
 @bp.route("/chainle", methods=["POST", "GET"])
 @limiter.limit(INTERACTIVE_LIMITS)
 def run_chainle():
-    return _chainle_page(dev=False)
-
-
-@bp.route("/chainle_dev", methods=["POST", "GET"])
-@limiter.limit(INTERACTIVE_LIMITS)
-@auth.login_required
-def run_chainle_dev():
-    """James's copy of /chainle, with today's rounds on even while
-    CHAINLE_ROUNDS_LIVE is off: the page as it will look once they go live
-    (James asked, 2026-10-28). It posts to itself and logs none of his
-    rounds, so his own play stays out of the players' counts; his reports
-    count like any player's, tagged dev in the vote log. Not a page visit."""
-    return _chainle_page(dev=True)
-
-
-def _chainle_page(dev):
-    """/chainle, or /chainle_dev with `dev`: the page, a solve, or a JSON
-    action. Today's rounds (routes/chainle.py) show wherever rounds_on is:
-    always on /chainle_dev, and on /chainle once CHAINLE_ROUNDS_LIVE."""
-    schema_data = None if dev else make_schema_data(
+    """The page, a solve, or a JSON action. Today's rounds
+    (routes/chainle.py) show while CHAINLE_ROUNDS_LIVE is on."""
+    schema_data = make_schema_data(
         "Chainle Answers & Hints - Solver for Today's Rounds",
         "Stuck on a Chainle round? Enter the clue words and get spoiler-free help: a hint first, then the words that link your clues, revealed one letter at a time. Works for bridge and closest-meaning rounds.",
         "https://www.jamesapplewhite.com/chainle"
@@ -496,18 +478,15 @@ def _chainle_page(dev):
         # a word the game refused: not a round to solve.
         if 'action' in data:
             if data.get('action') in chainle.ROUND_ACTIONS:
-                return chainle.handle_rounds_action(data, dev=dev)
-            return chainle.handle_vote(data, dev=dev)
+                return chainle.handle_rounds_action(data)
+            return chainle.handle_vote(data)
         response = chainle.solve_request(data)
-        if not dev:
-            log_solve('chainle.html', data)
+        log_solve('chainle.html', data)
         return response
     else:
-        if not dev:
-            log_page_visit('chainle.html')
-        return render_template("chainle.html", schema_data=schema_data, dev=dev,
-                               post_url='/chainle_dev' if dev else '/chainle',
-                               rounds_on=dev or chainle.CHAINLE_ROUNDS_LIVE, **chainle.page_context())
+        log_page_visit('chainle.html')
+        return render_template("chainle.html", schema_data=schema_data,
+                               rounds_on=chainle.CHAINLE_ROUNDS_LIVE, **chainle.page_context())
 
 
 @bp.route("/wordiply", methods=["POST", "GET"])

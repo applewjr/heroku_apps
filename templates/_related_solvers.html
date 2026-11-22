@@ -11,32 +11,34 @@
    (vw_prod_internal_flow) counts what these links do, from app_visits
    referrers.
 
-   Each daily solver is a card: the emoji on that page's own Play button, its
-   name, and a hook. Hooks say "today", "answers" and "hints", the words
-   people search for, but never promise a ready-made list. Wordle, Antiwordle
-   and Quordle help with guesses rather than today's answers, so they get a
-   line of plain links under the cards, and every solver page still links to
-   all the others.
+   The busier daily solvers are cards: the emoji on that page's own Play
+   button, its name, and a hook. Hooks say "today", "answers" and "hints",
+   the words people search for, but never promise a ready-made list. The
+   rest get a line of plain links under the cards, busiest first: Wordiply
+   and Guess The Phrase (moved there 2026-11-22, James's call: they draw
+   the fewest visits of the daily solvers), and Wordle, Antiwordle and
+   Quordle, which help with guesses rather than today's answers. Every
+   solver page still links to all the others.
 
    is_new (helpers.NEW_UNTIL) tags a solver NEW until a set day, and is_beta
-   (helpers.BETA_PAGES) tags one Beta until James takes it off. Wordle, the
-   first solver, wears a grey OLD for good (James's joke). A card's tag sits
-   on its corner, so it never changes the card's size. Styles: .jj-more* in
+   (helpers.BETA_PAGES) tags one Beta until James takes it off, on a card or
+   in the plain line. Wordle, the first solver, wears a grey OLD for good
+   (James's joke). A card's tag sits on its corner, so it never changes the
+   card's size. Styles: .jj-more* in
    base.html. #}
-{% set daily = [('/smush', '🥞', 'Smush', "Today's pangram and best words"),
+{% set cards = [('/smush', '🥞', 'Smush', "Today's pangram and best words"),
                 ('/blossom', '🌸', 'Blossom', "Today's hints and answers"),
                 ('/chainle', '🔗', 'Chainle', "Answers and hints for today's rounds"),
                 ('/ribbit', '🐸', 'Ribbit', "Every word on today's board"),
-                ('/wordiply', '🧩', 'Wordiply', "Longest words for today's letters"),
-                ('/guess_the_phrase', '🎡', 'Guess The Phrase', 'Spoiler-free letter hints'),
                 ('/circuits', '⚡', 'Circuits', "Hints and answers for today's board"),
                 ('/typeshift', '↕️', 'Typeshift', "Hints and answers for today's columns"),
                 ('/4x3', '✳️', '4x3', "Hints and answers for today's hub and groups")] %}
-{% set guess_helpers = [('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'), ('/quordle', 'Quordle')] %}
+{% set plain = [('/wordiply', 'Wordiply'), ('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'),
+                ('/quordle', 'Quordle'), ('/guess_the_phrase', 'Guess The Phrase')] %}
 <section class="jj-more" aria-labelledby="jj-more-title">
     <h2 class="jj-more-title" id="jj-more-title">More daily puzzle solvers</h2>
     <div class="jj-more-grid">
-        {% for path, icon, name, hook in daily if path != current %}
+        {% for path, icon, name, hook in cards if path != current %}
         <a class="jj-more-tile" href="{{ path }}">
             <span class="jj-more-name"><span class="jj-more-icon" aria-hidden="true">{{ icon }}</span>{{ name }}</span>
             <span class="jj-more-hook">{{ hook }}</span>
@@ -45,6 +47,6 @@
         {% endfor %}
     </div>
     <p class="jj-more-also">More solvers:
-        {% for path, name in guess_helpers if path != current %}{% if not loop.first %} · {% endif %}<a href="{{ path }}">{{ name }}{% if path == '/wordle' %}<span class="jj-more-tag jj-more-old">OLD</span>{% endif %}</a>{% endfor %}
+        {% for path, name in plain if path != current %}{% if not loop.first %} · {% endif %}<a href="{{ path }}">{{ name }}{% if path == '/wordle' %}<span class="jj-more-tag jj-more-old">OLD</span>{% elif is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% elif is_beta(path) %}<span class="jj-more-tag jj-more-beta">Beta</span>{% endif %}</a>{% endfor %}
     </p>
 </section>

@@ -75,13 +75,15 @@ STRIP = "More daily puzzle solvers"
 
 
 def test_the_solver_links_run_biggest_first_with_new_tags(client, monkeypatch):
-    # The daily solvers keep one order, the games players most likely know
-    # first (James, 2026-10-23); the NEW tags still mark the newest two.
+    # The cards keep one order, the games players most likely know first
+    # (James, 2026-10-23), and the plain line runs busiest first, Guess The
+    # Phrase last (2026-11-22); the NEW tags still mark the newest two,
+    # cards or not.
     _new_until(monkeypatch, date(9999, 12, 31))
     html = client.get("/smush").get_data(as_text=True)
     links = html.split(STRIP)[1]
     spots = [links.index(f'href="{path}"')
-             for path in ("/blossom", "/chainle", "/ribbit", "/wordiply", "/guess_the_phrase", "/wordle")]
+             for path in ("/blossom", "/chainle", "/ribbit", "/wordiply", "/wordle", "/guess_the_phrase")]
     assert spots == sorted(spots)
     assert html.count(">NEW</span>") == 2
     assert client.get("/").get_data(as_text=True).count(">NEW</span>") == 2
@@ -156,14 +158,22 @@ def test_jj_admin_links_every_password_page(client, flask_app, monkeypatch):
         else:
             assert not rule.arguments, f"no way to link {rule.rule}"
             pages.add(aliases.get(rule.rule, rule.rule))
-    # The walk itself must keep finding them: every admin page, /smush_dev,
-    # each ETL round and the espresso pages.
-    assert {"/smush_admin", "/ribbit_admin", "/smush_dev",
+    # The walk itself must keep finding them: every admin page, each ETL
+    # round and the espresso pages.
+    assert {"/smush_admin", "/ribbit_admin",
             "/blossom_admin", "/chainle_admin", "/guess_the_phrase_admin", "/circuits_admin",
             "/typeshift_admin", "/typeshift_admin/board", "/4x3_admin", "/4x3_admin/board",
             "/etl_dash/1", "/espresso/home/"} <= pages
     for path in sorted(pages):
         assert f'href="{path}"' in html, f"/jj_admin doesn't link {path}"
+
+
+def test_the_dev_pages_are_gone(client):
+    # James never used them (removed 2026-11-22).
+    for path in ("/smush_dev", "/chainle_dev"):
+        assert client.get(path).status_code == 404, path
+        # A GET-only catch-all route answers a POST with 405.
+        assert client.post(path, json={}).status_code in (404, 405), path
 
 
 def test_ribbit_clear_board_sits_right_of_give_feedback(client):

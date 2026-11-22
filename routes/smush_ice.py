@@ -1,5 +1,4 @@
-"""ICE COLD plans (functions/smush_ice_cold.py) for /smush's 🧊 Ice Cold tab
-and for /smush_dev.
+"""ICE COLD plans (functions/smush_ice_cold.py) for /smush's 🧊 Ice Cold tab.
 
 /smush plans today's boards only: the board decided for each date that is
 today somewhere, which is two at most, since Smush rolls over at each
@@ -24,8 +23,7 @@ memory for both.
 
 What a plan knows about which words Smush takes: popularity priors and ✗
 votes, never what a player says they played (James, 2026-10-31: "players
-are chaos"). /smush_dev also counts James's own played words, for his own
-requests only (routes/smush_dev.py).
+are chaos").
 """
 
 import threading

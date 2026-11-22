@@ -1,6 +1,6 @@
 """Chainle's today's rounds (routes/chainle.py): the rounds early players
 type, offered to the players after them, who pick by the clues on their
-screen; James's approvals; /chainle_dev; and the Today's Rounds tab.
+screen; James's approvals; and the Today's Rounds tab.
 
 Nothing here reaches a real database: secret_pass points at the production
 JawsDB. Most tests swap the module's table functions for an in-memory
@@ -21,8 +21,6 @@ from urllib.parse import unquote_plus
 import pytest
 
 import routes.chainle as rc
-import routes.wordgames as wordgames
-from test_ad_slots import LIVE, LOADER, UNIT, slots  # noqa: F401
 from test_blossom import _admin_headers, _ScriptedDB
 from test_chainle import tiny  # noqa: F401
 
@@ -189,7 +187,6 @@ def test_a_set_with_fewer_than_five_rounds_is_never_offered(client, rounds, tiny
     tiny()
     _play(client, IPS[:3], *DAY_ROUNDS[:4])
     assert _sets(client) == []
-    assert _sets(client, path='/chainle_dev', headers=_admin_headers(monkeypatch)) == []
     html = _tab(client, monkeypatch)
     assert '<b>Set 1</b>' not in html and 'Nothing to offer yet.' in html
     assert 'formaction="/chainle_admin/remove_set"' not in html
@@ -522,7 +519,7 @@ def test_the_admin_page_opens_on_todays_rounds(client, rounds, tiny, monkeypatch
     html = client.get('/chainle_admin', headers=_admin_headers(monkeypatch)).get_data(as_text=True)
     assert 'id="rounds-tab" class="tab-content active"' in html
     assert 'id="reports-tab" class="tab-content"' in html
-    assert 'dark; shown on /chainle_dev' not in html
+    assert '/chainle_dev' not in html
 
 
 def test_the_tab_works_when_the_word_lists_fail(client, rounds, monkeypatch):
@@ -634,57 +631,40 @@ def test_the_sql_writes_and_reads_the_right_columns(monkeypatch):
     assert db.commits == 5
 
 
-# --- /chainle_dev ---------------------------------------------------------------
+# --- /chainle_dev is gone (James, 2026-11-22) ----------------------------------
 
-def test_chainle_dev_is_password_only(client):
-    assert client.get('/chainle_dev').status_code == 401
-    assert client.post('/chainle_dev', json={'action': 'todays_rounds', 'played_on': '2026-10-28'}).status_code == 401
-    assert client.post('/chainle_dev', json={'clues': R1, 'kind': 'bridge'}).status_code == 401
+def test_chainle_dev_is_gone(client, monkeypatch):
+    headers = _admin_headers(monkeypatch)
+    assert client.get('/chainle_dev', headers=headers).status_code == 404
+    assert client.post('/chainle_dev', json={'action': 'todays_rounds', 'played_on': '2026-10-28'},
+                       headers=headers).status_code in (404, 405)
 
 
-def test_chainle_dev_shows_the_offer_while_dark_and_logs_none_of_your_rounds(client, rounds, monkeypatch):
+def test_while_dark_chainle_logs_rounds_and_offers_none(client, rounds, monkeypatch):
     monkeypatch.setattr(rc, 'CHAINLE_ROUNDS_LIVE', False)
-    headers = _admin_headers(monkeypatch)
-    visits = []
-    monkeypatch.setattr(wordgames, 'log_page_visit', visits.append)
-    html = client.get('/chainle_dev', headers=headers).get_data(as_text=True)
-    assert '<meta name="robots" content="noindex, nofollow">' in html
-    assert '<p class="chn-dev-note">' in html and 'id="chn-offer"' in html
-    assert '"/chainle_dev"' in html and 'chainleDevState_v1' in html and FAQ_Q in html
-    assert 'WebApplication' not in html
-    assert visits == []
     _play(client, IPS[:3], *DAY_ROUNDS)
-    assert _sets(client) == []
-    assert _sets(client, path='/chainle_dev', headers=headers) == [_day()]
-    _log(client, IPS[5], 2, R2, path='/chainle_dev', headers=headers)
     assert len(rounds.players()) == 15
+    assert _sets(client) == []
+    monkeypatch.setattr(rc, 'CHAINLE_ROUNDS_LIVE', True)
+    assert _sets(client) == [_day()]
 
 
-def test_chainle_dev_loads_no_ads(client, rounds, slots, monkeypatch):
-    headers = _admin_headers(monkeypatch)
-    page = client.get('/chainle_dev', base_url=LIVE, headers=headers).get_data(as_text=True)
-    assert UNIT not in page and LOADER not in page
-
-
-def test_chainle_dev_reports_are_tagged_dev(client, rounds, monkeypatch):
-    headers = _admin_headers(monkeypatch)
+def test_reports_carry_the_rounds_kind(client, rounds, monkeypatch):
     votes = []
     monkeypatch.setattr(rc.CHAINLE_CROWD, 'record_vote', lambda *args: votes.append(args))
     body = {'action': 'refuse', 'word': 'ball', 'clues': ['snow', 'foot'], 'kind': 'bridge'}
-    assert client.post('/chainle_dev', json=body, headers=headers).get_json()['result'] == 'recorded'
     assert client.post('/chainle', json=body).get_json()['result'] == 'recorded'
-    assert [vote[3] for vote in votes] == ['dev_bridge', 'bridge']
+    assert [vote[3] for vote in votes] == ['bridge']
 
 
-def test_the_faq_entry_shows_only_where_rounds_are_on(client, rounds, monkeypatch):
-    monkeypatch.setattr(rc, 'CHAINLE_ROUNDS_LIVE', False)
-    headers = _admin_headers(monkeypatch)
-    for path, kw, shown in (('/chainle', {}, False), ('/chainle_dev', {'headers': headers}, True)):
-        html = client.get(path, **kw).get_data(as_text=True)
+def test_the_faq_entry_shows_only_while_rounds_are_on(client, rounds, monkeypatch):
+    for live in (False, True):
+        monkeypatch.setattr(rc, 'CHAINLE_ROUNDS_LIVE', live)
+        html = client.get('/chainle').get_data(as_text=True)
         blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
         faq = next(d for d in map(json.loads, blocks) if d.get('@type') == 'FAQPage')
-        assert (FAQ_Q in [q['name'] for q in faq['mainEntity']]) is shown
-        assert (FAQ_Q in html) is shown
+        assert (FAQ_Q in [q['name'] for q in faq['mainEntity']]) is live
+        assert (FAQ_Q in html) is live
 
 
 def test_players_are_never_told_how_rounds_are_chosen(client, rounds):

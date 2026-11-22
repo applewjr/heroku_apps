@@ -19,7 +19,7 @@ anyone gaming this would want. Admin pages and the daily digest show them.
 import hashlib
 import hmac
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 from flask import current_app, request
@@ -308,15 +308,23 @@ class CrowdList:
                  a pangram missing from word_pop, went twice in one day at
                  3 players), and 19% of pangram ✗s were taken back against
                  5% for other words.
+    board_dates -- for a game that logs its boards (Smush): a function from
+                 the report rows' board tags to {tag: (day, basis)}, the day
+                 each board was really played, from the game's own board
+                 table, and why ('approved', 'players'). Admin reports are
+                 then dated and sorted by it (see _redate). Without it, or
+                 for a board it doesn't know, the vote date stands (basis
+                 'votes').
     """
 
     def __init__(self, game, on_change, window_days=CROWD_WINDOW_DAYS,
-                 pangram_letters=None):
+                 pangram_letters=None, board_dates=None):
         if game not in CROWD_GAMES:
             raise ValueError(f'not a crowd game: {game!r}')
         self.game = game
         self.window_days = window_days
         self.pangram_letters = pangram_letters
+        self.board_dates = board_dates
         self.votes_table = f'{game}_word_votes'
         self.invalid_table = f'{game}_invalid_words'
         self.added_table = f'{game}_added_words'
@@ -618,6 +626,28 @@ class CrowdList:
             cursor.execute(report_sql(self.game, self.window_days))
             return cursor.fetchall()
 
+    def _redate(self, reports):
+        """The report rows dated by board_dates: index 7 becomes the day the
+        board was played, and its basis is added as index 8 ('approved',
+        'players' or 'votes'). Sorted as report_sql sorts: newest board
+        first, each board's rows together, most players, latest report.
+        Rows as they came if board_dates fails, so the tab always shows."""
+        try:
+            dates = self.board_dates(sorted({r[6] for r in reports if r[6]}))
+        except Exception as e:
+            print(f"Error dating {self.game} report boards: {e}")
+            return reports
+        rows = []
+        for r in reports:
+            day, basis = dates.get(r[6]) or (r[7] if len(r) > 7 else None, 'votes')
+            rows.append(tuple(r[:7]) + (day, basis) + tuple(r[8:]))
+        # Stable sorts, last key first (the dates can't be negated).
+        rows.sort(key=lambda r: r[3] or datetime.min, reverse=True)
+        rows.sort(key=lambda r: r[2], reverse=True)
+        rows.sort(key=lambda r: r[6] or '', reverse=True)
+        rows.sort(key=lambda r: r[7] or date.min, reverse=True)
+        return rows
+
     def admin_view(self, args, path, tabs=('reports', 'invalid', 'added')):
         """What an admin page shows of this game's lists, from its query args.
 
@@ -633,6 +663,8 @@ class CrowdList:
 
         invalid_all, added_all = self.list_rows()
         reports_all = self.recent_reports()
+        if self.board_dates is not None:
+            reports_all = self._redate(reports_all)
         settled = [r for r in reports_all if r[4] in SETTLED_RESULTS]
         open_reports = [r for r in reports_all if r[4] not in SETTLED_RESULTS]
         # Column 6 of a report row is its board (see recent_reports).
