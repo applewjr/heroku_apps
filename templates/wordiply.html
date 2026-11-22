@@ -524,6 +524,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const STARTER_DAY = {{ (starter_day or '') | tojson }};
     const isStarter = s => typeof s === 'string' && /^[a-z]{2,15}$/.test(s);
     let starter = {{ (first_starter or none) | tojson }};
+    // The Wordiply day `starter` is for: a tab still open after London
+    // midnight holds yesterday's, which is never offered or loaded.
+    let starterDay = STARTER_DAY;
     // How the box got its letters: 'typed', 'loaded' (today's starter) or
     // 'edited' (loaded, then changed).
     let starterSource = 'typed';
@@ -534,9 +537,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showOffer() {
         if (!todayBar) return;
-        const on = STARTER_ON && isStarter(starter) && searchInput.value.trim() === '';
+        const on = STARTER_ON && isStarter(starter) && starterDay === gameDay() &&
+            searchInput.value.trim() === '';
         if (on) document.getElementById('wp-today-letters').textContent = starter.toUpperCase();
         todayBar.hidden = !on;
+    }
+
+    // Today's starter as the server has it now, with the day it's for.
+    function refreshStarter() {
+        fetch('/wordiply', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'todays_starter' }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            starter = data && isStarter(data.starter) ? data.starter : null;
+            starterDay = data && typeof data.day === 'string' ? data.day : '';
+            showOffer();
+        })
+        .catch(() => {});
     }
 
     // Wordiply's day: the date in London, as the server keys starters.
@@ -635,7 +655,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Fill the box with today's starter and list its words straight away.
+    // One from before London midnight is yesterday's: the offer asks again
+    // instead, and shows today's if there is one yet.
     function loadStarter() {
+        if (starterDay !== gameDay()) {
+            showOffer();
+            refreshStarter();
+            return;
+        }
         if (!isStarter(starter)) return;
         clearTimeout(searchTimeout);
         searchInput.value = starter.toUpperCase();
@@ -688,22 +715,17 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('wp-load').addEventListener('click', loadStarter);
             document.getElementById('wp-not-mine').addEventListener('click', notMyStarter);
             showOffer();
-            fetch('/wordiply', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ action: 'todays_starter' }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                starter = data && isStarter(data.starter) ? data.starter : null;
-                showOffer();
-            })
-            .catch(() => {});
+            refreshStarter();
         }
         window.addEventListener('blur', maybeLogStarter);
         window.addEventListener('pagehide', maybeLogStarter);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') maybeLogStarter();
+            if (document.visibilityState === 'hidden') {
+                maybeLogStarter();
+            } else if (STARTER_ON && starterDay !== gameDay()) {
+                // Back to a tab opened before London midnight.
+                refreshStarter();
+            }
         });
     } catch (e) {
         console.error("Today's starter:", e);

@@ -203,12 +203,22 @@ def consensus(rows):
             network (crowd.prefix_hash) count once.
 
     Returns a dict: players (networks), reached_at (when its SERVE_CROWD-th
-    network came in, or None), approved / approved_at, first_at and last_at.
+    network first entered it, or None), approved / approved_at, first_at and
+    last_at.
     """
     approvals = [row for row in rows if row[SOURCE] == APPROVAL]
-    networks = crowd.one_per_network([row for row in rows if row[SOURCE] in BOARD_SOURCES],
-                                     VOTER, PREFIX, UPDATED)
-    times = sorted(row[UPDATED] for row in networks.values())
+    player_rows = [row for row in rows if row[SOURCE] in BOARD_SOURCES]
+    networks = crowd.one_per_network(player_rows, VOTER, PREFIX, UPDATED)
+    # When each network first entered this starter: created_at, which a
+    # later use of the same starter (from another tab, say) leaves alone,
+    # unlike updated_at. So a repeat can't change which starter reached
+    # SERVE_CROWD first, or flip a tie.
+    first_in = {}
+    for row in player_rows:
+        network = row[PREFIX] or row[VOTER]
+        if network in networks:
+            first_in[network] = min(first_in.get(network, row[CREATED]), row[CREATED])
+    times = sorted(first_in.values())
     return {
         'players': len(networks),
         'reached_at': times[SERVE_CROWD - 1] if len(times) >= SERVE_CROWD else None,

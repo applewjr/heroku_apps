@@ -152,6 +152,17 @@ def test_most_players_win_and_a_tie_goes_to_the_first_to_three(client, starters)
     assert _served(client) == "cap"
 
 
+def test_using_a_starter_again_cannot_flip_a_tie(client, starters):
+    for n in range(1, 4):
+        _log(client, n, "row")                 # ROW reaches three first
+    for n in range(4, 7):
+        _log(client, n, "cap")
+    assert _served(client) == "row"
+    _log(client, 1, "row")                     # player 1 again, from another tab
+    _log(client, 2, "row")
+    assert _served(client) == "row"            # ROW still got there first
+
+
 def test_a_half_typed_starter_is_never_served(client, starters):
     # Three players caught on RO (they left for the game mid-word) and the
     # same three on ROW: the longer one is the starter.
