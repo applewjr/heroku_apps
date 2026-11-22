@@ -42,8 +42,12 @@ class MemoryBoards:
 
     def store(self, day, voter, prefix, key, cells, arrows, source, entered, top, version, shape='5x3'):
         import routes.circuits as rc
-        others = {k for (k, v, d) in self.rows if v == voter and d == day and k != key}
-        if len(others) >= rc.BOARDS_PER_PLAYER_PER_DAY:
+        others = [(k, row[1], row[12], row[7]) for (k, v, d), row in self.rows.items()
+                  if v == voter and d == day and k != key]
+        partial = rc.partial_boards(cells, shape, others)
+        for k in partial:
+            del self.rows[(k, voter, day)]
+        if len(others) - len(partial) >= rc.BOARDS_PER_PLAYER_PER_DAY:
             return
         self.rows[(key, voter, day)] = [key, cells, rc._arrows_text(arrows), '', None, entered, top,
                                         source, voter, day, self.tick(), prefix, shape]
@@ -227,9 +231,41 @@ def test_one_player_logs_at_most_ten_boards_a_day(client, boards):
     import routes.circuits as rc
     for n in range(rc.BOARDS_PER_PLAYER_PER_DAY + 2):
         cells = list(CELLS)
-        cells[2] = 'ROOM' if n == 0 else f"ROOM{'X' * n}"
+        # Same-length tiles: none is a half-typed copy of another.
+        cells[2] = f'R{chr(65 + n)}OM'
         _log(client, 1, cells=cells)
     assert len(boards.mine()) == rc.BOARDS_PER_PLAYER_PER_DAY
+
+
+TOP_ROW = ['SNOW', B, 'ROOM'] + [''] * 12
+
+
+def test_a_finished_board_replaces_the_players_half_typed_ones(client, boards):
+    # James, 2026-11-22: players switch to the game while typing a board in,
+    # the page logs on the way out, and the admin tab filled up with them.
+    _log(client, 1, cells=TOP_ROW, arrows=[[0, 1], [1, 2]])
+    # Its bottom two rows, typed at the top of the grid.
+    _log(client, 1, cells=['', B, '', 'BATTLE', B, ''] + [''] * 9, arrows=[[1, 4], [3, 4]])
+    assert len(boards.mine()) == 2
+    # A tile still being typed: this board already finishes the top row.
+    _log(client, 1, cells=CELLS[:6] + ['BATT', B, ''] + [''] * 6)
+    assert len(boards.mine()) == 2
+    # A typo is another board, and another player's half-typed board is theirs.
+    typo = ['SNOE', B, 'ROOM'] + [''] * 12
+    _log(client, 1, cells=typo, arrows=[[0, 1], [1, 2]])
+    _log(client, 2, cells=TOP_ROW, arrows=[[0, 1], [1, 2]])
+    assert len(boards.mine()) == 4
+    _log(client, 1)
+    assert sorted(row[1] for row in boards.mine()) == sorted('|'.join(c) for c in (CELLS, typo, TOP_ROW))
+
+
+def test_only_boards_the_player_typed_count_as_half_typed():
+    import routes.circuits as rc
+    others = [('a' * 40, '|'.join(TOP_ROW), '5x3', 'typed'),
+              ('b' * 40, '|'.join(TOP_ROW), '5x3', 'loaded'),
+              ('c' * 40, '|'.join(['SNOW', B] + [''] * 13), '5x3', 'edited'),
+              ('d' * 40, '|'.join(['SNOE', B] + [''] * 13), '5x3', 'typed')]
+    assert rc.partial_boards('|'.join(CELLS), '5x3', others) == ['a' * 40, 'c' * 40]
 
 
 def test_typed_cells_of_an_offered_board_get_its_arrows(client, boards):
@@ -673,12 +709,35 @@ def test_the_writes_say_what_they_mean(monkeypatch):
     assert db.statements('INSERT INTO circuits_pairs')
 
 
+def _other_boards(n):
+    """n boards of one player's that day, none part of CELLS's board."""
+    return [(f'{k:040x}', '|'.join([f'Z{chr(65 + k)}Z', B] + [''] * 13), '5x3', 'typed') for k in range(n)]
+
+
 def test_a_player_over_the_daily_limit_logs_nothing(monkeypatch):
     import routes.circuits as rc
-    db = _ScriptedDB(answers={'SELECT COUNT(*)': (rc.BOARDS_PER_PLAYER_PER_DAY,)})
+    db = _ScriptedDB(rows={'SELECT board_key, cells, shape, source': _other_boards(rc.BOARDS_PER_PLAYER_PER_DAY)})
     monkeypatch.setattr(rc, 'db_cursor', db)
     rc.store_board(DAY, 'v' * 32, None, _key(), '|'.join(CELLS), [(0, 1)], 'typed', None, None, None)
     assert not db.statements('INSERT INTO circuits_boards')
+    assert not db.statements('DELETE FROM circuits_boards')
+
+
+def test_storing_a_finished_board_deletes_the_half_typed_one_first(monkeypatch):
+    import routes.circuits as rc
+    half = ('e' * 40, '|'.join(TOP_ROW), '5x3', 'typed')
+    # At the limit, with one of them half-typed: it goes, so this one fits.
+    db = _ScriptedDB(rows={'SELECT board_key, cells, shape, source':
+                           _other_boards(rc.BOARDS_PER_PLAYER_PER_DAY - 1) + [half]})
+    monkeypatch.setattr(rc, 'db_cursor', db)
+    rc.store_board(DAY, 'v' * 32, None, _key(), '|'.join(CELLS), [(0, 1)], 'typed', None, None, None)
+    [(sql, params)] = db.statements('DELETE FROM circuits_boards')
+    # Only this player's own typed or edited rows that day: never an
+    # approval (its voter is admin:site) or a loaded board.
+    assert 'voter_hash = %s AND played_on = %s AND source IN (%s, %s) AND board_key IN (%s)' in sql
+    assert params == ('v' * 32, DAY, 'typed', 'edited', 'e' * 40)
+    steps = [sql.split(' ')[0] for sql, _ in db.executed]
+    assert steps == ['SELECT', 'DELETE', 'INSERT']
 
 
 def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, tiny, monkeypatch, capsys):

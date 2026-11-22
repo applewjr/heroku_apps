@@ -265,6 +265,33 @@ def trim(board):
     return Board(cells, arrows, rows, cols), top, left
 
 
+def inside(small, big):
+    """True if `small` is part of `big`, as a board looks while it's still
+    being typed in: every square `small` uses sits on `big` at one offset, a
+    box on a box and a tile on a tile that starts with its text (typed
+    letter by letter), and the two aren't the same board. Arrows don't
+    count. Either board can be any size, anywhere in its grid."""
+    def squares(board):
+        return {(i // board.cols, i % board.cols): c for i, c in enumerate(board.cells) if c}
+
+    a, b = squares(small), squares(big)
+    if not a or len(a) > len(b):
+        return False
+    first_row, first_col = min(a)
+    for row, col in b:
+        dr, dc = row - first_row, col - first_col
+        matched = []
+        for (r, c), text in a.items():
+            other = b.get((r + dr, c + dc))
+            if other is None or (other == BOX) != (text == BOX) or not other.startswith(text):
+                break
+            matched.append(other == text)
+        else:
+            if len(a) < len(b) or not all(matched):
+                return True
+    return False
+
+
 def place(arrows, cols, to_cols, top, left):
     """Arrows of a trimmed board `cols` wide, moved onto a grid `to_cols`
     wide where that board's first square sits at row `top`, column `left`

@@ -1,4 +1,4 @@
-"""/chainle: the page, solving, and the admin's round log
+"""/chainle: the page, solving, and /chainle_admin's word lists
 (routes/chainle.py, templates/chainle.html, templates/chainle_admin.html).
 
 The solver runs on the tiny word set from test_chainle_solver.py. Every
@@ -24,7 +24,6 @@ def tiny(monkeypatch):
     any statement (the page itself must never need one)."""
     import routes.chainle as rc
     monkeypatch.setattr(rc, '_static', {'data': ch.Data(**_arrays()), 'failed_at': 0.0})
-    monkeypatch.setattr(rc, '_assessed', {})
     monkeypatch.setattr(rc, '_corrections', {'value': None, 'expires': 0.0})
 
     def install(answers=None, rows=None, fail=None):
@@ -210,169 +209,33 @@ def test_solving_without_the_data_is_a_503(client, no_data):
     assert _solve(client, ['snow', 'foot']).status_code == 503
 
 
-# --- the admin's round log -----------------------------------------------------------
+# --- the admin page ----------------------------------------------------------------
 
-# The last three columns are the solver version a round was logged with, its
-# first pick and its rank for the answer: NULL before
-# mysql_tables/chainle_rounds_version.sql, as here.
-ROWS = [
-    (1, date(2026, 10, 14), 'chainle.io', 'daily', 1, 'bridge', 'SNOW FOOT', 'MAN', 'BALL', 1000,
-     '0.61 0.12', 150, 30000, None, None, None, None),
-    (2, date(2026, 10, 14), 'chainle.io', 'unlimited', 5, 'meaning', 'BIG', 'HUGE', 'LARGE', 950,
-     None, None, None, 'took a while', None, None, None),
-    (3, date(2026, 10, 13), 'other', 'archive', 2, 'bridge', 'SNOW QWXZ', 'BALL', None, None,
-     None, None, None, None, None, None, None),
-]
-
-
-def _admin(tiny, monkeypatch, rows=ROWS, fail=None, versioned=False, versions=()):
-    """The admin login and a scripted database holding `rows`. versioned:
-    the version columns exist, and `versions` is the by-version summary."""
-    scripted = {'FROM chainle_rounds ORDER BY': rows}
-    if versioned:
-        scripted.update({'SHOW COLUMNS FROM chainle_rounds': [('solver_version',)],
-                         'GROUP BY solver_version': list(versions)})
-    db = tiny(answers={'SELECT COUNT(*)': (len(rows),)}, rows=scripted, fail=fail)
-    return db, _admin_headers(monkeypatch)
-
-
-def _round_form(**changes):
-    import routes.chainle as rc
-    form = {'played_on': rc._today().isoformat(), 'site': 'chainle.io', 'mode': 'unlimited', 'round_no': '4',
-            'kind': 'bridge', 'clue1': 'snow', 'clue2': 'Foot', 'clue3': 'basket',
-            'answer': 'ball', 'guess': 'Ball', 'score': '1000', 'link1': '.5', 'link2': '0.250',
-            'link3': '1', 'game_rank': '#12', 'rank_of': '31,000', 'notes': ''}
-    form.update(changes)
-    return form
+def _admin(tiny, monkeypatch, fail=None):
+    """The admin login and a scripted database."""
+    return tiny(fail=fail), _admin_headers(monkeypatch)
 
 
 def test_admin_needs_the_password(client, tiny):
     assert client.get('/chainle_admin').status_code == 401
-    assert client.post('/chainle_admin/log_round', data=_round_form()).status_code == 401
-    assert client.post('/chainle_admin/delete_round', data={'id': '1'}).status_code == 401
 
 
-def test_admin_page_rates_each_logged_round(client, tiny, monkeypatch):
-    _, headers = _admin(tiny, monkeypatch)
-    resp = client.get('/chainle_admin', headers=headers)
-    html = resp.get_data(as_text=True)
-    assert resp.status_code == 200
-    assert 'SNOW + FOOT' in html and 'MAN' in html
-    assert '<span class="rank hit">#1</span>' in html       # MAN is its first pick
-    assert 'Your guess BALL (1000):' in html
-    assert '<span class="rank near">#2</span>' in html      # HUGE comes after LARGE
-    assert "a clue word isn't in its list" in html          # QWXZ
-    assert 'Two-word bridge' in html and 'Closest meaning' in html
-    assert '&middot; unlimited &middot; round 5' in html
-    assert 'closeness 0.61 / 0.12' in html and 'ranked #150 of 30,000' in html
-    assert 'Your average score: <b>975</b>' in html
-
-
-def test_admin_lists_the_newest_10_rounds_but_rates_them_all(client, tiny, monkeypatch):
-    rows = [(rid, date(2026, 10, 14), 'chainle.io', 'daily', 1, 'bridge', 'SNOW FOOT', 'MAN', None, None,
-             None, None, None, None, None, None, None) for rid in range(1, 13)]
-    _, headers = _admin(tiny, monkeypatch, rows=rows)
-    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
-    assert html.count('class="round-card"') == 10
-    assert 'Showing the latest 10 of 12.' in html
-    summary = html.split('class="summary"')[1].split('</table>')[0]
-    assert '<td>12</td>' in summary
-
-
-def test_logging_a_round_saves_it_cleaned_up(client, tiny, monkeypatch):
-    import routes.chainle as rc
+def test_the_round_log_is_gone(client, tiny, monkeypatch):
+    # James, 2026-11-22: no round logged since 2026-10-17, and re-scoring
+    # the newest 100 on every load made the page slow. The page never reads
+    # chainle_rounds or runs the solver on a logged round now.
     db, headers = _admin(tiny, monkeypatch)
-    resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
-    assert resp.status_code == 302
-    [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
-    assert 'ON DUPLICATE KEY UPDATE' in sql
-    saved = dict(zip(rc.ROUND_COLUMNS, params))
-    del saved['created_at']
-    assert saved == {'played_on': rc._today().isoformat(), 'site': 'chainle.io', 'mode': 'unlimited',
-                     'round_no': 4, 'kind': 'bridge', 'clues': 'SNOW FOOT BASKET', 'answer': 'BALL',
-                     'guess': 'BALL', 'score': 1000, 'closeness': '0.5 0.25 1', 'game_rank': 12,
-                     'rank_of': 31000, 'notes': None}
-    assert db.commits == 1
-    # Back to the form for the same day's next round.
-    where = resp.headers['Location']
-    assert 'success=' in where and 'round=5' in where and f'date={rc._today().isoformat()}' in where
+    scored = []
+    monkeypatch.setattr(ch, 'assess', lambda *args, **kwargs: scored.append(args))
+    html = client.get('/chainle_admin?tab=log', headers=headers).get_data(as_text=True)
+    assert 'Round Log' not in html and 'id="log-tab"' not in html and 'Rounds logged' not in html
+    assert html.count('class="tab-content active"') == 1
+    assert scored == [] and not db.statements('chainle_rounds')
+    for path in ('/chainle_admin/log_round', '/chainle_admin/delete_round'):
+        assert client.post(path, data={'id': '1'}, headers=headers).status_code in (404, 405)
 
 
-def test_after_the_last_round_the_form_starts_over(client, tiny, monkeypatch):
-    _, headers = _admin(tiny, monkeypatch)
-    form = _round_form(round_no='5', kind='', clue1='big', clue2='', clue3='')
-    where = client.post('/chainle_admin/log_round', data=form, headers=headers).headers['Location']
-    assert 'success=' in where
-    assert 'round=' not in where and 'date=' not in where
-
-
-def test_the_form_opens_on_the_round_it_is_sent_to(client, tiny, monkeypatch):
-    _, headers = _admin(tiny, monkeypatch)
-    html = client.get('/chainle_admin?date=2026-10-13&round=3', headers=headers).get_data(as_text=True)
-    assert 'name="played_on" value="2026-10-13"' in html
-    assert 'name="round_no" value="3" checked' in html
-    assert 'id="picks-group"' in html    # the solver's picks, to play from this page
-
-
-def test_the_form_ignores_junk_defaults(client, tiny, monkeypatch):
-    import routes.chainle as rc
-    _, headers = _admin(tiny, monkeypatch)
-    html = client.get('/chainle_admin?date=<b>&round=9', headers=headers).get_data(as_text=True)
-    assert f'name="played_on" value="{rc._today().isoformat()}"' in html
-    assert 'name="round_no" value="1" checked' in html
-
-
-def test_a_meaning_round_takes_one_clue_and_blank_extras(client, tiny, monkeypatch):
-    db, headers = _admin(tiny, monkeypatch)
-    import routes.chainle as rc
-    form = _round_form(round_no='5', kind='', clue1='big', clue2='', clue3='', score='', mode='')
-    client.post('/chainle_admin/log_round', data=form, headers=headers)
-    [(_, params)] = db.statements('INSERT INTO chainle_rounds')
-    saved = dict(zip(rc.ROUND_COLUMNS, params))
-    assert (saved['round_no'], saved['kind'], saved['clues']) == (5, 'meaning', 'BIG')
-    assert saved['score'] is None
-    assert saved['mode'] == 'daily'     # the default
-    assert saved['closeness'] == '0.5'  # one clue, one closeness
-
-
-@pytest.mark.parametrize('changes', [
-    {'played_on': '14/10/2026'},
-    {'played_on': '2025-06-01'},
-    {'site': 'example.com'},
-    {'mode': 'weekly'},
-    {'round_no': '6'},
-    {'clue2': '', 'clue3': ''},
-    {'clue1': 'sn0w'},
-    {'guess': 'two words'},
-    {'score': '1001'},
-    {'score': '-5'},
-    {'link1': '1.5'},
-    {'link2': 'abc'},
-    {'link3': ''},
-    {'game_rank': 'first'},
-    {'game_rank': '500', 'rank_of': '400'},
-], ids=['date-format', 'date-range', 'site', 'mode', 'round', 'one-clue-bridge', 'digit', 'guess',
-        'score-high', 'score-negative', 'closeness-high', 'closeness-text', 'closeness-missing-one',
-        'rank-text', 'rank-past-count'])
-def test_a_bad_round_is_refused_not_saved(client, tiny, monkeypatch, changes):
-    db, headers = _admin(tiny, monkeypatch)
-    resp = client.post('/chainle_admin/log_round', data=_round_form(**changes), headers=headers)
-    assert resp.status_code == 302
-    assert 'error=' in resp.headers['Location']
-    assert 'round=' in resp.headers['Location']     # back on the same round
-    assert not db.statements('INSERT INTO chainle_rounds')
-
-
-def test_deleting_a_round(client, tiny, monkeypatch):
-    db, headers = _admin(tiny, monkeypatch)
-    resp = client.post('/chainle_admin/delete_round', data={'id': '3'}, headers=headers)
-    assert resp.status_code == 302
-    assert ('DELETE FROM chainle_rounds WHERE id = %s', (3,)) in db.executed
-    assert db.commits == 1
-
-
-# --- which solver version a round was logged with -------------------------------------
-
+# solver_version() still labels what 4x3 logs (routes/four_by_three.py).
 def test_the_solver_version_is_a_short_code_that_follows_the_data(tiny, monkeypatch):
     import routes.chainle as rc
     version = rc.solver_version()
@@ -383,73 +246,12 @@ def test_the_solver_version_is_a_short_code_that_follows_the_data(tiny, monkeypa
     assert rc.solver_version() != version
 
 
-def test_logging_works_before_the_version_columns_exist(client, tiny, monkeypatch):
-    # Prod may run this code before mysql_tables/chainle_rounds_version.sql.
-    import routes.chainle as rc
-    db, headers = _admin(tiny, monkeypatch)
-    resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
-    assert 'success=' in resp.headers['Location']
-    [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
-    assert 'solver_version' not in sql and len(params) == len(rc.ROUND_COLUMNS)
-
-
-def test_logging_saves_what_the_solver_made_of_the_round(client, tiny, monkeypatch):
-    import routes.chainle as rc
-    db, headers = _admin(tiny, monkeypatch, versioned=True)
-    client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
-    [(sql, params)] = db.statements('INSERT INTO chainle_rounds')
-    saved = dict(zip(rc.ROUND_COLUMNS + rc.VERSION_COLUMNS, params))
-    assert 'solver_top = new.solver_top' in sql
-    # SNOW + FOOT + BASKET: BALL is its first pick, and the answer.
-    assert (saved['solver_version'], saved['solver_top'], saved['answer_rank']) == (rc.solver_version(), 'BALL', 1)
-
-
-def test_admin_page_works_before_the_version_columns_exist(client, tiny, monkeypatch):
-    db, headers = _admin(tiny, monkeypatch)
-    html = ' '.join(client.get('/chainle_admin', headers=headers).get_data(as_text=True).split())
-    assert 'once mysql_tables/chainle_rounds_version.sql has run' in html
-    assert 'id="by-version"' not in html and 'Logged with solver' not in html
-    assert db.statements('NULL, NULL, NULL FROM chainle_rounds')
-    assert not db.statements('GROUP BY solver_version')
-
-
-def test_admin_page_splits_the_rounds_by_solver_version(client, tiny, monkeypatch):
-    import routes.chainle as rc
-    now = rc.solver_version()
-    rows = [ROWS[0][:14] + (now, 'MAN', 1), ROWS[1][:14] + ('0badc0de', 'LARGE', 2)]
-    versions = [(now, 1, 1000, 1, 1, 1, 0, date(2026, 10, 14), date(2026, 10, 14)),
-                ('0badc0de', 3, 812.4, 2, 1, 2, 2, date(2026, 10, 12), date(2026, 10, 13))]
-    _, headers = _admin(tiny, monkeypatch, rows=rows, versioned=True, versions=versions)
-    html = client.get('/chainle_admin', headers=headers).get_data(as_text=True)
-    assert f'Solver version <b>{now}</b>.' in html
-    table = html.split('id="by-version"')[1].split('</table>')[0]
-    assert f'{now} <span class="muted">(now)</span>' in table
-    assert '0badc0de' in table and '812' in table and '2026-10-12 to 2026-10-13' in table
-    assert f'Logged with solver {now}: its pick MAN,' in html
-    assert 'Logged with solver 0badc0de: its pick LARGE,' in html
-
-
 def test_admin_survives_a_database_error(client, tiny, monkeypatch):
-    # The page stays up and says which half it couldn't read.
+    # The page stays up and says which part it couldn't read.
     _, headers = _admin(tiny, monkeypatch, fail='SELECT')
     resp = client.get('/chainle_admin', headers=headers)
-    html = resp.get_data(as_text=True)
     assert resp.status_code == 200
-    assert "Couldn't read the word lists" in html and "Couldn't read the round log" in html
-    _, headers = _admin(tiny, monkeypatch, fail='INSERT')
-    resp = client.post('/chainle_admin/log_round', data=_round_form(), headers=headers)
-    assert resp.status_code == 302
-    assert 'Database+error' in resp.headers['Location']
-    assert 'tab=log' in resp.headers['Location']
-
-
-def test_the_round_log_still_works_without_the_crowd_tables(client, tiny, monkeypatch):
-    # Prod may run this code before mysql_tables/chainle_crowd.sql.
-    _, headers = _admin(tiny, monkeypatch, fail='chainle_invalid_words')
-    html = client.get('/chainle_admin?tab=log', headers=headers).get_data(as_text=True)
-    assert 'Has mysql_tables/chainle_crowd.sql been run?' in html
-    assert 'class="round-card"' in html and 'SNOW + FOOT' in html
-    assert 'id="log-tab" class="tab-content active"' in html
+    assert "Couldn't read the word lists" in resp.get_data(as_text=True)
 
 
 # --- the admin's word lists -----------------------------------------------------------
@@ -579,23 +381,20 @@ REPORT = ('ball', 'invalid', 4, datetime(2026, 10, 21, 9, 30), 'waiting',
           datetime(2026, 10, 21, 8, 0), 'foot:snow', date(2026, 10, 21))
 
 
-def test_admin_page_has_the_word_tabs_and_the_round_log(client, tiny, monkeypatch):
+def test_admin_page_has_the_word_tabs(client, tiny, monkeypatch):
     db, headers = _admin(tiny, monkeypatch)
     db.rows['WITH board_dates'] = [REPORT]
     db.rows['FROM chainle_invalid_words ORDER BY'] = [('cats', datetime(2026, 10, 20, 7, 0), 'crowd')]
     html = client.get('/chainle_admin?tab=reports', headers=headers).get_data(as_text=True)
-    for tab in ('Player Reports', 'Removed Words', 'Allowed Words', 'Round Log'):
+    for tab in ("Today's Rounds", 'Player Reports', 'Removed Words', 'Allowed Words'):
         assert tab in html
     assert 'id="reports-tab" class="tab-content active"' in html
-    assert 'id="log-tab" class="tab-content"' in html
     reports = html.split('id="reports-tab"')[1].split('id="invalid-tab"')[0]
     assert 'with the box under the answers on /chainle' in reports
     assert '<strong>ball</strong>' in reports and 'FOOT<br>SNOW<br>' in reports
     assert 'value="invalid" class="btn btn-danger">Remove now' in reports
     assert 'value="missing" class="btn btn-success">Allow now' in reports
     assert '<strong>cats</strong>' in html.split('id="invalid-tab"')[1].split('id="added-tab"')[0]
-    # The round log is all still there, on its own tab.
-    assert 'id="round-form"' in html and 'class="round-card"' in html
 
 
 def test_the_admin_removes_and_allows_words(client, tiny, monkeypatch):

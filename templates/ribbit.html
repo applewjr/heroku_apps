@@ -50,7 +50,7 @@
       "name": "Do I have to type the board in?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve."
+        "text": "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in, with the words listed under it - they did the work. Some days players enter more than one board; tap the one that matches your game. Tapped the wrong one? Tap Not my board to go back to the list. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you play the words."
       }
     },{% endif %}
     {
@@ -121,8 +121,9 @@
     background-color: #02484d; color: #fff; border-color: #02484d;
 }
 .rb-phase-btn.active { background-color: #02484d; color: #fff; border-color: #02484d; }
-/* Next to Solve only while a board loaded from other players waits to be
-   checked, so a player whose game doesn't match can start over right there. */
+/* Next to Solve from the moment a board is loaded from other players until
+   the player starts playing it, so a player whose game doesn't match can go
+   back to the picker right there. */
 .rb-phase-clear { color: #6b7280; }
 .rb-phase-btn[hidden] { display: none; }
 .rb-tool.active { background-color: #e55555; color: #fff; border-color: #c0392b; }
@@ -739,8 +740,9 @@
         <strong>1. Type the board.</strong> The grid is a fixed 4x4. Tap a square and type its
         letter - it hops to the next square automatically, so you can type the board left to right,
         top to bottom.{% if shared_boards %} Once other players have entered today's board, you can
-        skip this: tap it above the board and its letters and links fill in for you. If more than one
-        board is offered, pick the one that matches your game.{% endif %}
+        skip this: tap it above the board and its letters, links and words fill in for you. If more
+        than one board is offered, pick the one that matches your game. Picked the wrong one? Tap
+        <strong>↩ Not my board</strong> to go back.{% endif %}
         <br><br>
         <strong>2. Draw the connections.</strong> Drag a line across the tiles the game connects.
         A straight drag across a whole <strong>row, column, or diagonal links every tile it
@@ -769,7 +771,7 @@
     {# The approve page only edits: no Solve, so no Edit to come back to. #}
     <button type="button" class="rb-phase-btn active" id="phase-edit"{% if approve %} hidden{% endif %}>✏️ Edit board</button>
     <button type="button" class="rb-phase-btn" id="phase-solve"{% if approve %} hidden{% endif %}>▶ Solve</button>
-    {% if shared_boards %}<button type="button" class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>🔄 Clear board</button>{% endif %}
+    {% if shared_boards %}<button type="button" class="rb-phase-btn rb-phase-clear" id="phase-clear" hidden>↩ Not my board</button>{% endif %}
 </div>
 
 <div class="rb-tools" id="rb-tools" role="group" aria-label="Board tools">
@@ -877,7 +879,7 @@
     {% if shared_boards %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type the board in?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in for you - they did the work. Some days players enter more than one board; tap the one that matches your game. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you solve.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty board: tap it and its letters and links fill in, with the words listed under it - they did the work. Some days players enter more than one board; tap the one that matches your game. Tapped the wrong one? Tap Not my board to go back to the list. Playing an older puzzle from the archive? Type its letters: if other players have entered that board, its links fill in by themselves. Either way, check the board matches your game before you play the words.</p>
     </div>
     {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -929,7 +931,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let boardSource = 'typed';    // 'typed' | 'shared' (from other players) | 'edited' (shared, then changed)
     let loggedSig = '';           // the board as last sent to the shared-board log
     let sharedBoards = [];        // today's boards from other players, once they've settled them
-    let offerClear = false;       // that board was just loaded and isn't solved yet
+    let offeredBoards = [];       // the boards the player picked from, for ↩ Not my board
+    let offerClear = false;       // a picked board the player hasn't started playing yet
 
     let lastResults = [];
     let totalPlayable = 0;
@@ -1298,7 +1301,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function setPhase(p) {
         phase = p;
         activeWord = null;
-        if (p === 'solve') offerClear = false;
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
         const editing = p === 'edit';
         document.getElementById('phase-edit').classList.toggle('active', editing);
@@ -1381,9 +1383,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 380);
     });
 
-    // Back to an empty board. `ask` confirms first if there's anything to lose.
-    function clearBoard(ask) {
-        if (ask && cells.some(c => c) && !confirm('Clear the whole board and start over?')) return;
+    // Back to an empty board. `ask` confirms first if there's anything to lose;
+    // false if the player said no. `focus` puts them on the first square.
+    function clearBoard(ask, focus = true) {
+        if (ask && cells.some(c => c) && !confirm('Clear the whole board and start over?')) return false;
         cells = Array(N * N).fill('');
         edges = []; disabled = new Set();
         played = []; rejected = [];
@@ -1396,16 +1399,28 @@ document.addEventListener('DOMContentLoaded', () => {
         setPhase('edit');
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         fetchShared();
-        focusCell(0);   // the bottom button sits under the results: take them back to the board
+        // The bottom button sits under the results: take them back to the board.
+        if (focus) focusCell(0);
+        return true;
     }
 
     document.getElementById('clear-btn').addEventListener('click', () => clearBoard(true));
     // A board just loaded from other players, untouched, is nothing of the
     // player's to lose (Load brings it back), so only a changed one asks.
-    if (phaseClear) phaseClear.addEventListener('click', () => clearBoard(boardSource !== 'shared'));
+    // The boards they picked from come straight back (fetchShared refreshes
+    // them), and no square is focused, so a phone keyboard doesn't cover them.
+    if (phaseClear) phaseClear.addEventListener('click', () => {
+        if (!clearBoard(boardSource !== 'shared', false) || !offeredBoards.length) return;
+        sharedBoards = offeredBoards;
+        renderSharedPicks();
+        renderShared();
+    });
 
     /* ---------- solving ---------- */
+    // Called only when the player marks a word or frogs a tile: playing the
+    // board means it's theirs, so ↩ Not my board goes.
     function afterChange() {
+        if (offerClear) { offerClear = false; renderShared(); }
         renderStatus();
         persist();
         if (phase === 'solve') scheduleFetch();
@@ -1759,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderShared() {
         if (!sharedBanner) return;
         sharedBanner.hidden = !(sharedBoards.length && phase === 'edit' && !cells.some(c => c));
-        phaseClear.hidden = !(offerClear && phase === 'edit');
+        phaseClear.hidden = !offerClear;
     }
 
     // More than one board can be real on a day (routes/ribbit.py), so each
@@ -1817,9 +1832,17 @@ document.addEventListener('DOMContentLoaded', () => {
         edges = toEdges(b.edges);
         disabled = new Set(); activeWord = null;
         boardSource = 'shared'; loggedSig = boardSig();
+        offeredBoards = sharedBoards;
         sharedBoards = []; offerClear = true;
+        {% if approve %}
         renderAll(); renderShared(); persist();
-        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then {% if approve %}approve it{% else %}hit ▶ Solve{% endif %}, or 🔄 Clear board if it doesn't.";
+        hint.textContent = "Loaded today's board, entered by other players. Check it matches your game, then approve it, or ↩ Not my board if it doesn't.";
+        {% else %}
+        // Solved straight away, as if they'd hit ▶ Solve: renders, saves and
+        // fetches the words.
+        setPhase('solve');
+        hint.textContent = "Loaded today's board from other players. Not the board in your game? Tap ↩ Not my board.";
+        {% endif %}
     });
 
     // All 16 letters typed and nothing linked yet: if other players have
@@ -1920,7 +1943,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 phase, cells, edges, disabled: [...disabled],
-                played, rejected, boardSource, loggedSig, savedAt: Date.now()
+                played, rejected, boardSource, loggedSig, offerClear, savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1959,6 +1982,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(w => typeof w === 'string');
         boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
         loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig : '';
+        // Phones often reload the tab after a trip to the game to compare.
+        offerClear = s.offerClear === true;
         renderPiles();
         setPhase(s.phase === 'solve' && cells.some(c => c) ? 'solve' : 'edit');
         return true;

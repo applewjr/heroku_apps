@@ -287,13 +287,9 @@ def test_admin_copies_never_log(client, monkeypatch, tiny, no_db):
     import routes.ribbit as ribbit
     monkeypatch.setattr(ribbit, "handle_action", lambda data, serve_dark=False: jsonify(boards=[]))
     auth = _admin_headers(monkeypatch)
-    for path in ("/smush_dev", "/chainle_dev", "/ribbit_admin/board", "/circuits_admin/board",
-                 "/typeshift_admin/board", "/4x3_admin/board"):
+    for path in ("/ribbit_admin/board", "/circuits_admin/board", "/typeshift_admin/board",
+                 "/4x3_admin/board"):
         assert client.get(path, headers=auth).status_code == 200, path
-    solve = dict(SOLVES["/smush"][1], first_solve=True)
-    assert client.post("/smush_dev", json=solve, headers=auth).status_code == 200
-    chainle = dict(SOLVES["/chainle"][1], first_solve=True)
-    assert client.post("/chainle_dev", json=chainle, headers=auth).status_code == 200
     board = {"action": "shared_board", "played_on": "2026-10-27", "first_solve": True}
     assert client.post("/ribbit_admin/board", json=board, headers=auth).status_code == 200
     circuits = dict(SOLVES["/circuits"][1], first_solve=True)

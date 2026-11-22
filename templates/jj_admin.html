@@ -107,12 +107,6 @@
         {{ card('/4x3_admin/board', '4x3 Board Entry', "Enter your game's nine words and its answer on 4x3's own editor, then approve them") }}
     </div>
 
-    <div class="section-label">Solver tools</div>
-    <div class="card-grid">
-        {{ card('/smush_dev', 'Smush Dev', 'Smush with the ICE COLD planner') }}
-        {{ card('/chainle_dev', 'Chainle Dev', "Chainle with today's rounds on, as players will see it; none of your rounds are logged") }}
-    </div>
-
     <div class="section-label">ETL dashboard</div>
     <div class="card-grid">
         {% for round, name, panels in etl_rounds %}

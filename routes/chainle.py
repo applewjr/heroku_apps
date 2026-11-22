@@ -1,18 +1,16 @@
 """Chainle solver data, the solve request, players' reports of refused words,
 today's rounds, and /chainle_admin.
 
-The solver route itself is run_chainle in routes/wordgames.py (and James's
-copy, /chainle_dev); it hands a round to solve_request here, a round to log or
-a request for today's rounds to handle_rounds_action, and a report (any other
-JSON body with an `action`) to handle_vote.
+The solver route itself is run_chainle in routes/wordgames.py; it hands a
+round to solve_request here, a round to log or a request for today's rounds to
+handle_rounds_action, and a report (any other JSON body with an `action`) to
+handle_vote.
 
 Self-contained: the word data ships in datasets/ (see datasets/CHAINLE_DATA.md)
 and nothing is fetched at runtime. The solver never contacts any Chainle site.
 
-/chainle_admin has the players' reports, the words taken off or kept on the
-solver's list, and a log of rounds the admin plays, to tune the ranking in
-functions/chainle.py against. Logged rounds stay in the database: the solver
-never shows them and never uses them as answers.
+/chainle_admin has today's rounds to approve, the players' reports, and the
+words taken off or kept on the solver's list.
 """
 
 import hashlib
@@ -21,9 +19,8 @@ import re
 import threading
 import time
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from itertools import permutations
-from urllib.parse import urlencode
 
 import numpy as np
 from flask import Blueprint, jsonify, redirect, render_template, request
@@ -154,15 +151,13 @@ def solve_request(data):
 # so none can be missing.
 
 # (removed, kept) word sets, memoized in the module like routes/smush.py's
-# word list. The memo of how the solver rates logged rounds is dropped with
-# it, since corrections change those ranks.
+# word list.
 _corrections = {'value': None, 'expires': 0.0}
 
 
 def _forget_corrections():
     """Make the next get_corrections() re-read the lists."""
     _corrections['expires'] = 0.0
-    _assessed.clear()
 
 
 def get_corrections():
@@ -197,9 +192,8 @@ def _offered(clues, kind):
     return {r['word'].lower() for r in rows}
 
 
-def handle_vote(data, dev=False):
-    """A report from the box on /chainle, or on /chainle_dev with `dev`: the
-    game refused this word.
+def handle_vote(data):
+    """A report from the box on /chainle: the game refused this word.
 
     It only counts for a word this round lists, the top 10 for its clues:
     anything else is no suggestion of ours, and counting it would let anyone
@@ -207,7 +201,7 @@ def handle_vote(data, dev=False):
     the list (see crowd.py): 'recorded' either way, or 'not_suggested' for a
     word the round doesn't list. A word already taken off is 'recorded' too,
     for a player whose list was loaded before it went. The vote log's mode is
-    the round's kind, 'dev_' first from /chainle_dev (as /smush_dev's votes).
+    the round's kind.
     """
     if data.get('action') not in CHAINLE_VOTE_ACTIONS:
         raise ValidationError('unknown action')
@@ -221,7 +215,7 @@ def handle_vote(data, dev=False):
         return jsonify(status='success', result='recorded')
     if word not in _offered(clues, kind):
         return jsonify(status='success', result='not_suggested')
-    CHAINLE_CROWD.record_vote(word, 'invalid', _puzzle_tag(clues), ('dev_' + kind) if dev else kind)
+    CHAINLE_CROWD.record_vote(word, 'invalid', _puzzle_tag(clues), kind)
     return jsonify(status='success', result='recorded')
 
 
@@ -256,7 +250,7 @@ def handle_vote(data, dev=False):
 #
 # Live on /chainle since 2026-10-29 (James's call), after a dark launch from
 # 2026-10-28 in which /chainle only logged rounds and /chainle_dev, his
-# password-only copy, offered them.
+# password-only copy (removed 2026-11-22), offered them.
 
 # The sites an approval can be for: one Approve button each on
 # /chainle_admin, which also links each game. James named three on
@@ -291,7 +285,6 @@ ROUND_SOURCES = ('typed', 'edited')
 APPROVAL = 'admin'
 # Live on /chainle (James's call, 2026-10-29). False goes back to the dark
 # launch: /chainle logs rounds but offers none, even to a direct call.
-# /chainle_dev offers them either way.
 CHAINLE_ROUNDS_LIVE = True
 # How long a day's sets are reused before they are read again, and how long a
 # failed read waits before the next try (one gunicorn worker, so this
@@ -677,11 +670,11 @@ def _sets_for(day):
     return sets
 
 
-def _log_round(data, dev):
+def _log_round(data):
     """A round a player used, sent the first time they take a hint on it or
     leave it solved. Always the same reply, stored or not: nothing is stored
-    from /chainle_dev (James's own play), for a word the solver doesn't know,
-    or for a date that can't be today anywhere."""
+    for a word the solver doesn't know, or for a date that can't be today
+    anywhere."""
     round_no = data.get('round_no')
     if not (isinstance(round_no, int) and not isinstance(round_no, bool) and round_no in ROUND_SLOTS):
         raise ValidationError('round_no must be 1 to 5')
@@ -690,296 +683,50 @@ def _log_round(data, dev):
     if source not in ROUND_SOURCES:
         raise ValidationError('source must be typed or edited')
     day = parse_played_on(data.get('played_on'), _today())
-    if day is not None and not dev and _known(clues):
+    if day is not None and _known(clues):
         store_round(day, crowd.player_hash('chainle'), crowd.prefix_hash('chainle'), round_no,
                     clue_text(clues), _utc_offset(data.get('utc_offset')), source)
     return jsonify(status='success')
 
 
-def handle_rounds_action(data, dev=False):
-    """A round to log, or a request for today's rounds, posted to /chainle
-    (or /chainle_dev with `dev`). Today's rounds are an empty list while dark,
-    even to a direct call; /chainle_dev gets them all the same."""
+def handle_rounds_action(data):
+    """A round to log, or a request for today's rounds, posted to /chainle.
+    Today's rounds are an empty list while dark, even to a direct call."""
     if data.get('action') == 'log_round':
-        return _log_round(data, dev)
+        return _log_round(data)
     day = parse_played_on(data.get('played_on'), _today())
-    if not (dev or CHAINLE_ROUNDS_LIVE) or day is None:
+    if not CHAINLE_ROUNDS_LIVE or day is None:
         return jsonify(sets=[])
     return jsonify(sets=_sets_for(day))
 
 
-##### admin: the round log #####
+##### admin #####
 
 ADMIN = '/chainle_admin'
-SITES = ('chainle.io', 'chainle.org', 'chaindle.org', 'other')
-# The day's puzzle, an unlimited one, or a past day's from the archive.
-MODES = ('daily', 'unlimited', 'archive')
-# The daily game's rounds: 1-3 two-word bridges, 4 a three-word bridge, 5 the
-# closest meaning. The form can override the kind for a site that differs.
-ROUND_KIND = {1: 'bridge', 2: 'bridge', 3: 'bridge', 4: 'bridge', 5: 'meaning'}
+# The clue words each round of a day takes: rounds 1-3 are two-word bridges,
+# 4 a three-word bridge, 5 the closest meaning, on every site.
 ROUND_CLUES = {1: 2, 2: 2, 3: 2, 4: 3, 5: 1}
-# The summaries cover the last SHOW_ROUNDS rounds; the page lists only the
-# newest RECENT_ROUNDS of them.
-SHOW_ROUNDS = 100
-RECENT_ROUNDS = 10
-MAX_NOTES = 200
-FIRST_DAY = date(2026, 1, 1)
-
-# A row is one round, keyed by the day played, site, round and clues
-# (mysql_tables/chainle_rounds_unlimited.sql): saving the same round again
-# replaces it, and another puzzle the same day adds a row.
-ROUND_COLUMNS = ('played_on', 'site', 'mode', 'round_no', 'kind', 'clues', 'answer', 'guess',
-                 'score', 'closeness', 'game_rank', 'rank_of', 'notes', 'created_at')
-ROUND_KEY = ('played_on', 'site', 'round_no', 'clues')
-# What the solver made of a round when it was logged
-# (mysql_tables/chainle_rounds_version.sql): its version (solver_version()),
-# its first pick and its rank for the game's answer. Saved and shown once
-# that SQL has run; until then the admin works as before without them.
-VERSION_COLUMNS = ('solver_version', 'solver_top', 'answer_rank')
-
-
-def _upsert(columns):
-    return (f"INSERT INTO chainle_rounds ({', '.join(columns)}) "
-            f"VALUES ({', '.join(['%s'] * len(columns))}) AS new ON DUPLICATE KEY UPDATE "
-            + ', '.join(f'{c} = new.{c}' for c in columns if c not in ROUND_KEY))
-
-
-UPSERT_ROUND = _upsert(ROUND_COLUMNS)
-UPSERT_ROUND_VERSIONED = _upsert(ROUND_COLUMNS + VERSION_COLUMNS)
-# Per solver version, newest first: rounds, your average score, rounds it
-# could be judged on, its first pick right, its answer in the top 3, and
-# rounds you took its first pick.
-VERSION_SUMMARY = """
-SELECT solver_version, COUNT(*), AVG(score), SUM(solver_top IS NOT NULL AND answer IS NOT NULL),
-    SUM(solver_top = answer), SUM(answer_rank <= 3), SUM(guess = solver_top), MIN(played_on), MAX(played_on)
-FROM chainle_rounds WHERE solver_version IS NOT NULL
-GROUP BY solver_version ORDER BY MAX(created_at) DESC LIMIT 10
-"""
-
-
-def _has_version_columns(cursor):
-    """True once mysql_tables/chainle_rounds_version.sql has run."""
-    cursor.execute("SHOW COLUMNS FROM chainle_rounds LIKE 'solver_version'")
-    return bool(cursor.fetchall())
-
-
-def _versions(rows):
-    return [{'version': v, 'rounds': n, 'avg': round(avg) if avg is not None else None,
-             'judged': int(judged or 0), 'top1': int(top1 or 0), 'top3': int(top3 or 0),
-             'took': int(took or 0), 'first': str(first), 'last': str(last)}
-            for v, n, avg, judged, top1, top3, took, first, last in rows]
-
-
-def _back_to_log(**message):
-    """Back to the admin page's Round Log tab, with a success or error
-    message (and any form defaults: see _form_defaults)."""
-    message = {k: v for k, v in dict(message, tab='log').items() if v}
-    return redirect(ADMIN + '?' + urlencode(message))
+ADMIN_TABS = ('rounds', 'reports', 'invalid', 'added')
 
 
 def _back(**message):
-    """Back to /chainle_admin as the admin left it after a word action, with
-    a message (see crowd.admin_return_url)."""
+    """Back to /chainle_admin as the admin left it after an action, with a
+    message (see crowd.admin_return_url)."""
     return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
-
-
-def _form_defaults(args):
-    """The log form's date and round. After a save it's the same day's next
-    round, so playing all five is one flow; otherwise today's round 1."""
-    day = args.get('date', '')
-    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
-        day = _today().isoformat()
-    try:
-        round_no = int(args.get('round', ''))
-    except ValueError:
-        round_no = 1
-    return day, round_no if round_no in ROUND_KIND else 1
-
-
-def _word(form, field, label):
-    """An optional single word from the form, upper case, or None."""
-    value = form.get(field, '').strip()
-    if not value:
-        return None
-    if not re.fullmatch(r'[A-Za-z]{1,%d}' % MAX_WORD_LEN, value):
-        raise ValidationError(f'{label} must be one word, letters only')
-    return value.upper()
-
-
-def _closeness(form, count):
-    """The game's closeness to each clue, as it shows them ('0.54 0.08'), or
-    None. One number per clue or none at all, each from 0 to 1."""
-    raw = [form.get(f'link{n}', '').strip() for n in range(1, count + 1)]
-    if not any(raw):
-        return None
-    values = []
-    for r in raw:
-        try:
-            v = float(r)
-        except ValueError:
-            v = -1.0
-        if not 0 <= v <= 1:
-            raise ValidationError('Closeness takes a number from 0 to 1 for every clue')
-        values.append(f'{v:.3f}'.rstrip('0').rstrip('.'))
-    return ' '.join(values)
-
-
-def _game_rank(form):
-    """(the guess's rank in the game's list, the list's size), either None."""
-    rank = form.get('game_rank', '').strip().lstrip('#')
-    of = form.get('rank_of', '').strip().replace(',', '')
-    for value, label in ((rank, "The game's rank"), (of, 'The word count')):
-        if value and not (value.isdigit() and int(value) >= 1):
-            raise ValidationError(f'{label} must be a whole number')
-    rank, of = (int(rank) if rank else None), (int(of) if of else None)
-    if rank and of and rank > of:
-        raise ValidationError("The game's rank can't be past its word count")
-    return rank, of
-
-
-def parse_round(form):
-    """A round from the admin form, as {column: value} (ROUND_COLUMNS), or
-    raise ValidationError with a message for the page. The date is the day
-    it was played: unlimited puzzles have no date of their own."""
-    raw_day = form.get('played_on', '').strip()
-    try:
-        played_on = datetime.strptime(raw_day, '%Y-%m-%d').date() if raw_day else _today()
-    except ValueError:
-        raise ValidationError('Date must look like 2026-10-14')
-    if not FIRST_DAY <= played_on <= _today() + timedelta(days=1):
-        raise ValidationError('Date is out of range')
-    site = form.get('site', '')
-    if site not in SITES:
-        raise ValidationError('Choose the site you played on')
-    mode = form.get('mode') or 'daily'
-    if mode not in MODES:
-        raise ValidationError('Choose daily or unlimited')
-    try:
-        round_no = int(form.get('round_no', ''))
-    except ValueError:
-        round_no = 0
-    if round_no not in ROUND_KIND:
-        raise ValidationError('Round must be 1 to 5')
-    kind = form.get('kind') or ROUND_KIND[round_no]
-    if kind not in CLUES_PER_KIND:
-        raise ValidationError('Unknown round type')
-    clues = [form.get(f'clue{n}', '').strip() for n in (1, 2, 3)]
-    try:
-        clues = _clue_list([c for c in clues if c], kind)
-    except ValidationError as e:
-        raise ValidationError(str(e).capitalize())
-    answer = _word(form, 'answer', "The game's answer")
-    guess = _word(form, 'guess', 'Your guess')
-    raw_score = form.get('score', '').strip()
-    if raw_score and not (raw_score.isdigit() and int(raw_score) <= 1000):
-        raise ValidationError('Score must be a whole number from 0 to 1000')
-    notes = form.get('notes', '').strip()[:MAX_NOTES] or None
-    game_rank, rank_of = _game_rank(form)
-    return {
-        'played_on': played_on.isoformat(), 'site': site, 'mode': mode, 'round_no': round_no,
-        'kind': kind, 'clues': ' '.join(c.upper() for c in clues), 'answer': answer, 'guess': guess,
-        'score': int(raw_score) if raw_score else None, 'closeness': _closeness(form, len(clues)),
-        'game_rank': game_rank, 'rank_of': rank_of, 'notes': notes, 'created_at': pst_now_str(),
-    }
-
-
-# How the solver rates each logged round, by (kind, clues, answer, guess):
-# the rows don't change, so the admin page only pays for new ones. Cleared
-# when full; the data itself only changes on a deploy.
-_assessed = {}
-ASSESS_MEMO_MAX = 1000
-
-
-def _assess(data, kind, clues, answer, guess):
-    key = (kind, clues, answer, guess)
-    if key not in _assessed:
-        if len(_assessed) >= ASSESS_MEMO_MAX:
-            _assessed.clear()
-        removed, kept = get_corrections()
-        _assessed[key] = ch.assess(data, clues.lower().split(), kind, [answer, guess],
-                                   removed=removed, kept=kept)
-    return _assessed[key]
-
-
-def _round_type(kind, clues):
-    if kind == 'meaning':
-        return 'Closest meaning'
-    return 'Three-word bridge' if len(clues) == 3 else 'Two-word bridge'
-
-
-def assess_rounds(data, rows):
-    """The admin page's rows and summary: for each logged round, where the
-    solver ranks the game's answer and your guess, and its own first pick."""
-    rounds, tally, scores = [], {}, []
-    for (rid, played_on, site, mode, round_no, kind, clues, answer, guess, score, closeness, game_rank,
-         rank_of, notes, version, top_then, rank_then) in rows:
-        got = _assess(data, kind, clues, answer, guess) if data is not None else None
-        r = {
-            'id': rid, 'played_on': str(played_on), 'site': site, 'mode': mode, 'round_no': round_no,
-            'type': _round_type(kind, clues.split()), 'clues': clues.split(), 'answer': answer,
-            'guess': guess, 'score': score, 'closeness': closeness.split() if closeness else [],
-            'game_rank': game_rank, 'rank_of': rank_of, 'notes': notes, 'known': got is not None,
-            'top': got['top'] if got else None,
-            'rank': got['ranks'].get(answer) if got and answer else None,
-            'guess_rank': got['ranks'].get(guess) if got and guess else None,
-            # The version it was logged with, and what that version said.
-            'version': version, 'top_then': top_then, 'rank_then': rank_then,
-        }
-        rounds.append(r)
-        if score is not None:
-            scores.append(score)
-        if got and answer:
-            t = tally.setdefault(r['type'], {'rounds': 0, 'top1': 0, 'top3': 0, 'top10': 0})
-            t['rounds'] += 1
-            for name, cut in (('top1', 1), ('top3', 3), ('top10', 10)):
-                t[name] += r['rank'] is not None and r['rank'] <= cut
-    order = ('Two-word bridge', 'Three-word bridge', 'Closest meaning')
-    return {
-        'rounds': rounds,
-        'summary': [(name, tally[name]) for name in order if name in tally],
-        'avg_score': round(sum(scores) / len(scores)) if scores else None,
-    }
-
-
-ADMIN_TABS = ('rounds', 'reports', 'invalid', 'added', 'log')
-
-
-def _round_log():
-    """(context, error) for the Round Log tab: the newest logged rounds with
-    how the solver rates each, and the summary by solver version."""
-    try:
-        with db_cursor() as (conn, cursor):
-            versioned = _has_version_columns(cursor)
-            cursor.execute("SELECT COUNT(*) FROM chainle_rounds")
-            total = cursor.fetchone()[0]
-            cursor.execute(
-                "SELECT id, played_on, site, mode, round_no, kind, clues, answer, guess, score, "
-                "closeness, game_rank, rank_of, notes, "
-                + (', '.join(VERSION_COLUMNS) if versioned else 'NULL, NULL, NULL') +
-                " FROM chainle_rounds ORDER BY played_on DESC, created_at DESC, id DESC LIMIT %s",
-                (SHOW_ROUNDS,))
-            rows = cursor.fetchall()
-            versions = []
-            if versioned:
-                cursor.execute(VERSION_SUMMARY)
-                versions = _versions(cursor.fetchall())
-    except Exception as e:
-        print(f"Error loading chainle round log: {e}")
-        return ({'total': 0, 'versioned': False, 'versions': [], 'rounds': [], 'summary': [],
-                 'avg_score': None}, f'{type(e).__name__}: {e}')
-    return {'total': total, 'versioned': versioned, 'versions': versions,
-            **assess_rounds(get_data(), rows)}, None
 
 
 @bp.route(ADMIN)
 @auth.login_required
 def chainle_admin():
-    """Today's rounds, what players reported, the removed and allowed words,
-    and the round log. Each part still shows if another's tables can't be
-    read."""
+    """Today's rounds, what players reported, and the removed and allowed
+    words. Each part still shows if another's tables can't be read.
+
+    The Round Log tab went on 2026-11-22 (James asked): he had stopped
+    logging rounds, and re-scoring the newest 100 of them on every load,
+    after every restart and every word change, made the page slow. The
+    chainle_rounds table keeps what he logged."""
     # With no tab asked for, it opens on Today's Rounds, the first tab
-    # (James asked, 2026-10-29). Logging a round still comes back to the
-    # Round Log (_back_to_log).
+    # (James asked, 2026-10-29).
     args = request.args.to_dict()
     args.setdefault('tab', 'rounds')
     try:
@@ -988,63 +735,13 @@ def chainle_admin():
         print(f"Error loading chainle admin word lists: {e}")
         view = CHAINLE_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'rounds')
         crowd_error = f'{type(e).__name__}: {e}'
-    log, log_error = _round_log()
     rounds_days, rounds_error = _admin_rounds()
-    form_date, form_round = _form_defaults(request.args)
-    return render_template('chainle_admin.html', **view, **log, crowd_error=crowd_error,
-                           log_error=log_error, form_date=form_date, form_round=form_round,
-                           sites=SITES, modes=MODES, round_clues=ROUND_CLUES,
-                           data_ok=get_data() is not None, recent=RECENT_ROUNDS,
-                           version=solver_version(), rounds_days=rounds_days,
-                           rounds_error=rounds_error, rounds_live=CHAINLE_ROUNDS_LIVE,
-                           board_sites=BOARD_SITES, serve_crowd=SERVE_CROWD, link_min=LINK_MIN,
+    return render_template('chainle_admin.html', **view, crowd_error=crowd_error,
+                           data_ok=get_data() is not None, round_clues=ROUND_CLUES,
+                           rounds_days=rounds_days, rounds_error=rounds_error,
+                           rounds_live=CHAINLE_ROUNDS_LIVE, board_sites=BOARD_SITES,
+                           serve_crowd=SERVE_CROWD, link_min=LINK_MIN,
                            todays_sets_max=TODAYS_SETS_MAX, pacific_today=_today())
-
-
-@bp.route(ADMIN + '/log_round', methods=['POST'])
-@auth.login_required
-def chainle_log_round():
-    """Save a round. Logging the same date, site and round again replaces it."""
-    keep = {'date': request.form.get('played_on'), 'round': request.form.get('round_no')}
-    try:
-        row = parse_round(request.form)
-    except ValidationError as e:
-        return _back_to_log(error=str(e), **keep)
-    data = get_data()
-    got = _assess(data, row['kind'], row['clues'], row['answer'], row['guess']) if data is not None else None
-    row.update(solver_version=solver_version(), solver_top=got['top'] if got else None,
-               answer_rank=got['ranks'].get(row['answer']) if got and row['answer'] else None)
-    try:
-        with db_cursor() as (conn, cursor):
-            if _has_version_columns(cursor):
-                cursor.execute(UPSERT_ROUND_VERSIONED, tuple(row[c] for c in ROUND_COLUMNS + VERSION_COLUMNS))
-            else:
-                cursor.execute(UPSERT_ROUND, tuple(row[c] for c in ROUND_COLUMNS))
-            conn.commit()
-    except Exception as e:
-        print(f"Error logging chainle round: {e}")
-        return _back_to_log(error='Database error', **keep)
-    saved = f"Saved round {row['round_no']} ({row['mode']})"
-    if row['round_no'] < max(ROUND_KIND):
-        return _back_to_log(success=saved, date=row['played_on'], round=row['round_no'] + 1)
-    return _back_to_log(success=f'{saved}: that was the last one')
-
-
-@bp.route(ADMIN + '/delete_round', methods=['POST'])
-@auth.login_required
-def chainle_delete_round():
-    try:
-        rid = int(request.form.get('id', ''))
-    except ValueError:
-        return _back_to_log(error='No round chosen')
-    try:
-        with db_cursor() as (conn, cursor):
-            cursor.execute("DELETE FROM chainle_rounds WHERE id = %s", (rid,))
-            conn.commit()
-    except Exception as e:
-        print(f"Error deleting chainle round: {e}")
-        return _back_to_log(error='Database error')
-    return _back_to_log(success='Round deleted')
 
 
 NO_CHOICE = 'Choose Remove word or Allow word first'

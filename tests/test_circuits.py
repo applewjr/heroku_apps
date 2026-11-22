@@ -285,6 +285,30 @@ def test_trim_keeps_the_squares_a_board_uses():
     assert (again[0].cells, again[0].arrows, again[1:]) == (trimmed.cells, trimmed.arrows, (0, 0))
 
 
+def test_a_half_typed_board_is_inside_the_finished_one():
+    # The finished board: SNOW [BALL] ROOM, [GAME] under the box, BATTLE
+    # [PLAN] at the bottom.
+    full = cz.Board(['SNOW', B, 'ROOM', '', B, '', 'BATTLE', B, ''] + [''] * 6, [])
+    # Its top row alone; its bottom two rows, typed at the top of the grid
+    # (a different offset); and a tile still being typed (BATT).
+    assert cz.inside(cz.Board(['SNOW', B, 'ROOM'] + [''] * 12, []), full)
+    assert cz.inside(cz.Board(['', B, '', 'BATTLE', B, ''] + [''] * 9, []), full)
+    assert cz.inside(cz.Board(['SNOW', B, 'ROOM', '', B, '', 'BATT', B, ''] + [''] * 6, []), full)
+    # On a 6 by 6 grid, a row down and a column in: still the same squares.
+    cells = [''] * 36
+    cells[7], cells[8], cells[9] = 'SNOW', B, 'ROOM'
+    assert cz.inside(cz.Board(cells, [], 6, 6), full)
+    # Not inside: the same board, a typo (SNOE), a box where a tile is, a
+    # bigger board, an empty one.
+    assert not cz.inside(full, full)
+    assert not cz.inside(cz.Board(['SNOE', B, 'ROOM'] + [''] * 12, []), full)
+    assert not cz.inside(cz.Board([B, B, 'ROOM'] + [''] * 12, []), full)
+    assert not cz.inside(full, cz.Board(['SNOW', B, 'ROOM'] + [''] * 12, []))
+    assert not cz.inside(cz.Board([''] * 15, []), full)
+    # A longer tile isn't a half-typed shorter one.
+    assert not cz.inside(cz.Board(['SNOWS', B] + [''] * 13, []), full)
+
+
 def test_an_added_pair_can_name_a_whole_tile_the_data_lacks(data):
     # SHOW AND (the start of SHOW AND TELL) isn't in the tiny data, and nor is
     # AND, so its box has nothing to go on until SHOW AND + ROOM is added.

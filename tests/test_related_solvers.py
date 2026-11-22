@@ -30,9 +30,10 @@ PAGES = {
     "/antiwordle": "Play Antiwordle",
     "/quordle": "Play Quordle",
 }
-DAILY = ("/smush", "/blossom", "/chainle", "/ribbit", "/wordiply", "/guess_the_phrase", "/circuits",
-         "/typeshift", "/4x3")
-GUESS_HELPERS = ("/wordle", "/antiwordle", "/quordle")
+# Cards for the busier daily solvers, a line of plain links for the rest
+# (Wordiply and Guess The Phrase moved there 2026-11-22).
+CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3")
+PLAIN = ("/wordiply", "/wordle", "/antiwordle", "/quordle", "/guess_the_phrase")
 
 
 def _page(client, path):
@@ -52,11 +53,14 @@ def test_every_solver_links_every_other_solver_once(client, path):
     assert html.count(STRIP) == 1
     strip = _strip(html)
     assert f'href="{path}"' not in strip
-    for other in DAILY + GUESS_HELPERS:
+    for other in CARDS + PLAIN:
         if other != path:
             assert strip.count(f'href="{other}"') == 1, other
-    # The daily solvers are cards; the Wordle solvers a line of links.
-    assert strip.count('class="jj-more-tile"') == len(DAILY) - (path in DAILY)
+    # The busier daily solvers are cards; the rest a line of links, in order.
+    assert strip.count('class="jj-more-tile"') == len(CARDS) - (path in CARDS)
+    line = strip[strip.index('class="jj-more-also"'):]
+    shown = [p for p in PLAIN if p != path]
+    assert sorted(shown, key=lambda p: line.index(f'href="{p}"')) == shown
     # Links only: on /blossom the strip sits inside form1, where a button
     # would submit it. And no click logging: /log-click stores nothing.
     assert "<button" not in strip and "tracked-link" not in strip

@@ -77,7 +77,47 @@ def get_smush_words():
 # (James's call, 2026-10-26; see crowd.CrowdList). A board is always nine
 # distinct letters (_parse_board).
 
-SMUSH_CROWD = crowd.CrowdList('smush', on_change=_forget_smush_words, pangram_letters=9)
+def _report_board_dates(tags):
+    """{tag: (day, basis)} for /smush_admin's Player Reports (see
+    crowd.CrowdList's board_dates): the day each reported board was played,
+    from smush_boards, as the Today's Board tab sees it. The latest day you
+    approved it ('approved'); else the first day ARCHIVE_MIN_NETWORKS
+    networks logged it, or the first day anyone did ('players'). A board
+    nobody logged is left out, so its vote date stands. James asked,
+    2026-11-22: dated by its votes, a board replayed from the archive looked
+    as new as today's."""
+    letters = {}
+    for tag in tags:
+        if _is_letters(tag.replace(':', '')):
+            letters[tag.replace(':', '')] = tag
+    if not letters:
+        return {}
+    marks = ', '.join(['%s'] * len(letters))
+    sources = (APPROVAL,) + BOARD_SOURCES
+    rows = _fetch(
+        "SELECT letters, played_on, MAX(source = %s), "
+        "COUNT(DISTINCT CASE WHEN source <> %s THEN COALESCE(prefix_hash, voter_hash) END) "
+        f"FROM smush_boards WHERE letters IN ({marks}) AND source IN ({', '.join(['%s'] * len(sources))}) "
+        "GROUP BY letters, played_on",
+        (APPROVAL, APPROVAL, *letters, *sources))
+    approved, logged = {}, {}
+    for board, day, is_approval, networks in rows:
+        if is_approval:
+            approved[board] = max(day, approved.get(board, day))
+        if networks:
+            logged.setdefault(board, []).append((day, networks))
+    dates = {}
+    for board, tag in letters.items():
+        if board in approved:
+            dates[tag] = (approved[board], 'approved')
+        elif board in logged:
+            busy = [day for day, n in logged[board] if n >= ARCHIVE_MIN_NETWORKS]
+            dates[tag] = (min(busy or [day for day, _n in logged[board]]), 'players')
+    return dates
+
+
+SMUSH_CROWD = crowd.CrowdList('smush', on_change=_forget_smush_words, pangram_letters=9,
+                              board_dates=_report_board_dates)
 
 # Smush's own word lengths, same as the played-word box on the page.
 SMUSH_MIN_LEN, SMUSH_MAX_LEN = 3, 15
@@ -116,34 +156,30 @@ def _puzzle_tag(center, outer):
 
 
 SMUSH_VOTE_ACTIONS = ('reject', 'restore', 'suggest_missing')
-# The results tabs, as SORT_MODES in smush.html (smush_dev.html has all but
-# 'ice', /smush's 🧊 Ice Cold tab). A ✗ on the All 8 or Ice Cold tab also
-# re-plans, so some of those are steering, not refusals.
+# The results tabs, as SORT_MODES in smush.html ('ice' is the 🧊 Ice Cold
+# tab). A ✗ on the All 8 or Ice Cold tab also re-plans, so some of those are
+# steering, not refusals.
 SMUSH_RESULT_TABS = ('pts', 'eff', 'all8', 'pan', 'ice')
 
 
-def _vote_mode(data, dev):
-    """The tab the player voted from, for the vote log only: 'dev_<tab>'
-    from /smush_dev, plus '_ice' with its Ice Cold toggle on. None when the page didn't
-    say (one loaded before it started saying) or said something else - never
-    a reason to refuse the vote."""
+def _vote_mode(data):
+    """The tab the player voted from, for the vote log only. None when the
+    page didn't say (one loaded before it started saying) or said something
+    else - never a reason to refuse the vote. Older rows also hold
+    'dev_<tab>[_ice]', from /smush_dev (removed 2026-11-22)."""
     tab = data.get('mode')
-    if tab not in SMUSH_RESULT_TABS:
-        return None
-    if dev:
-        return 'dev_' + tab + ('_ice' if data.get('ice_cold') is True else '')
-    return tab
+    return tab if tab in SMUSH_RESULT_TABS else None
 
 
-def handle_vote(data, dev=False):
-    """A crowd vote posted to /smush, or to /smush_dev with `dev`. Every reply
-    is the same whether or not the vote changed the list (see crowd.py)."""
+def handle_vote(data):
+    """A crowd vote posted to /smush. Every reply is the same whether or not
+    the vote changed the list (see crowd.py)."""
     action = data.get('action')
     if action not in SMUSH_VOTE_ACTIONS:
         raise ValidationError('unknown action')
     word = _parse_word(data.get('word'))
     center, outer = _parse_board(data)
-    mode = _vote_mode(data, dev)
+    mode = _vote_mode(data)
 
     if action == 'reject':
         # Only a word actually on offer, on a board it fits: anything else is

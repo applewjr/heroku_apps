@@ -823,9 +823,9 @@ def run_four_by_three():
         log_solve(PAGE, data)
         return response
     schema_data = make_schema_data(
-        "4x3 Answers & Hints - Solver for Hank Green's Daily 4x3 Puzzle",
-        "Stuck on today's 4x3? Type the nine words and get hints for the hub and the four groups, "
-        "or the answer, with how sure the solver is of each.",
+        "4x3 Answers & Hints Today - Hank Green's Four by Three Solver",
+        "Stuck on today's 4x3, Hank Green's Four by Three? Type the nine words for hints on the hub "
+        "and the four groups, or the answers, with how sure the solver is.",
         "https://www.jamesapplewhite.com/4x3"
     )
     log_page_visit(PAGE)
