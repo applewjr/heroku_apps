@@ -1,0 +1,1676 @@
+{% extends 'base.html' %}
+
+{# The questions, once: the page's FAQ and its JSON-LD both loop over these. #}
+{% set faq = [
+    ('What is 4x6?',
+     "4x6 (also written 4×6) is Hank Green's daily color sorting puzzle. Six shelves hold four tiles each, in six colors, and beside them is the Stage, which can hold one color at a time. You take tiles from a shelf's right end and put them next to the same color or on an empty shelf, until every color is alone on its own shelf and the Stage is empty."),
+    ('How does this solver help without spoiling the puzzle?',
+     "Pick Help and nothing is shown until you ask. Each card opens one step at a time: where to start, which colors the Stage holds, where each color ends up, and your next move. You can also tap your own moves on the board here, and it tells you whether you're on track or stuck. Pick Solution to see every move in order. The page remembers which one you like."),
+    ('How does it know the fewest moves?',
+     "It searches. 4x6 hides nothing and has no luck in it, so the solver tries moves until it has proved the shortest way to finish the board. It never guesses. The game's par is always two more than the fewest moves, so if your game shows a different par from this page, a tile was entered wrong."),
+    ('How do I get the most points in 4x6?',
+     "Finish in the fewest moves with no tools and no undos. A solve is worth 100 points on a Monday and 5 more each day up to 130 on a Sunday. Using no tools adds 100, using no undos adds 50, finishing under par adds 25 (at par, 10), matching the fewest moves adds 50, and your streak adds 1 a day up to 50. That makes 325 on a Monday and 355 on a Sunday, plus your streak. Each tool costs at least 50 points. There is no bonus for speed."),
+    ("I'm partway through a game. Can I still use it?",
+     "Yes. Enter the board as it is now: tap a shelf, the Stage or Extra and tap the colors on it, left to right. The page works out the fewest moves from there. For the most points, though, Restart in 4x6 (it's free) and enter the board it starts with."),
+    ("I'm stuck. What should I do?",
+     "Use Restart in the game. It clears your moves, your undos and your tools, so it costs nothing, while Undo costs 50 points and a tool costs 50 or more. Only your first finish each day sets your score, so restart before you finish, not after. Then follow the moves here from the start. Don't tap I give up: it takes away everything but your streak points."),
+] %}
+{% set faq_boards = [
+    ('Do I have to enter the board?',
+     "Often not. Players enter their boards into this solver as they play, so once other players have entered today's board, it's offered above the empty one: tap it and it fills in and solves. Check that it matches your game. If it doesn't, tap Not my board to go back."),
+] if boards_on else [] %}
+{% set faq_more = [
+    ('When does a new 4x6 puzzle come out?',
+     "At midnight where you are. The game picks the board by your device's date, so players in different time zones get each day's board at their own midnight."),
+    ('Does it work for random boards?',
+     "Yes. The solver works on any 24 tiles with four of each color, so it solves today's board and the game's random ones. Points only count for the daily board."),
+    ('About this tool',
+     "This is an unofficial helper for 4x6, provided for assistance and entertainment purposes only. It is not affiliated with or endorsed by Hank Green. It never connects to the game: it solves the tiles you enter."),
+] %}
+{% set questions = faq + faq_boards + faq_more %}
+
+{% block title %}{% if approve %}Approve your 4x6 board{% else %}4x6 Answers & Hints Today - Hank Green's 4x6 Solver{% endif %}{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Stuck on today's 4x6 (4×6), Hank Green's color sorting game? Enter the board for hints, or the solution in the fewest moves, for the most points.">
+<link rel="canonical" href="https://www.jamesapplewhite.com/4x6">
+<meta name="keywords" content="4x6 answers, 4x6 hints, 4x6 today, hank green 4x6, 4×6 game, 4x6 solution, 4x6 par, 4x6 solver">
+<meta property="og:title" content="4x6 Answers & Hints Today - Hank Green's 4x6 Solver">
+<meta property="og:description" content="Enter today's 4x6 board (Hank Green's color sorting game) and get spoiler-free hints, or the solution in the fewest moves.">
+<meta property="og:url" content="https://www.jamesapplewhite.com/4x6">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JJ Apps">
+
+{% if schema_data %}
+<script type="application/ld+json">{{ schema_data | tojson }}</script>
+{% endif %}
+
+{% if not approve %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for q, a in questions %}
+    {"@type": "Question", "name": {{ q | tojson }}, "acceptedAnswer": {"@type": "Answer", "text": {{ a | tojson }}}}{% if not loop.last %},{% endif %}
+
+    {% endfor %}
+  ]
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+/* ---------- intro ---------- */
+.fbs-sub { font-size: 14px; color: #6b7280; margin: 4px auto 0; max-width: 560px; line-height: 1.5; padding: 0 12px; }
+.fbs-unofficial { font-size: 12px; color: #6b7280; margin: 6px auto 0; padding: 0 12px; }
+.fbs-h1 { text-align: center; font-size: clamp(1.5rem, 4vw, 2.5rem); line-height: 1.2; }
+.fbs-h1 .jj-beta-tag { font-size: 0.4em; vertical-align: 0.6em; }
+
+/* ---------- the tiles ---------- */
+/* Six colors to tell apart, each with its symbol: white on the darker ones,
+   teal on yellow. */
+.fbs-t-K { background-color: #d6488a; color: #fff; }
+.fbs-t-O { background-color: #d9661f; color: #fff; }
+.fbs-t-P { background-color: #7446b8; color: #fff; }
+.fbs-t-Y { background-color: #f3c93a; color: #02484d; }
+.fbs-t-G { background-color: #2f8f57; color: #fff; }
+.fbs-t-B { background-color: #2f6fd0; color: #fff; }
+
+/* ---------- mode pills (as on /4x3) ---------- */
+.fbs-modes { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px auto 0; padding: 0 12px; }
+.fbs-modes[hidden] { display: none; }
+.fbs-modes-label { font-size: 13px; color: #6b7280; margin-right: 2px; }
+.fbs-mode {
+    background-color: #fff; border: 1px solid #cdd8d7; border-radius: 999px; color: #02484d;
+    font-family: inherit; font-size: 14px; font-weight: 600; padding: 7px 16px; min-height: 44px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.fbs-mode.active { background-color: #02484d; border-color: #02484d; color: #fff; }
+
+/* ---------- today's boards ---------- */
+.fbs-shared {
+    box-sizing: border-box; width: min(92vw, 440px); margin: 12px auto 0; padding: 12px 14px;
+    background-color: #fffbe6; border: 1px solid #f0d97a; border-radius: 10px; text-align: center;
+}
+.fbs-shared[hidden] { display: none; }
+.fbs-shared-text { font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; margin: 0 0 10px; }
+.fbs-shared-text[hidden] { display: none; }
+.fbs-shared-picks { display: flex; flex-direction: column; gap: 10px; }
+.fbs-shared-pick {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 18px;
+    width: 100%; box-sizing: border-box; padding: 10px 12px; background-color: #fff;
+    border: 2px solid #02484d; border-radius: 10px; font-family: inherit; cursor: pointer;
+}
+.fbs-shared-pick:hover, .fbs-shared-pick:focus-visible { border-color: #ffd700; box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.45); outline: none; }
+.fbs-mini { display: grid; grid-template-columns: repeat(4, 22px); gap: 3px; }
+.fbs-mini span {
+    display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 4px;
+    font-size: 12px; line-height: 1;
+}
+.fbs-shared-btn {
+    background-color: #02484d; border-radius: 8px; color: #fff; font-size: 15px; font-weight: 600;
+    padding: 10px 14px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center;
+}
+
+/* ---------- the board ---------- */
+.fbs-board-wrap { box-sizing: border-box; width: min(92vw, 400px); margin: 14px auto 0; }
+.fbs-board-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; min-height: 44px; }
+.fbs-tip { flex: 1 1 auto; font-size: 14px; color: #374151; margin: 0; line-height: 1.35; text-align: left; }
+.fbs-tip strong { color: #02484d; }
+.fbs-edit { flex: 0 0 auto; padding: 6px 12px; font-size: 13px; }
+.fbs-edit[hidden] { display: none; }
+.fbs-board {
+    display: grid; grid-template-columns: minmax(0, 4.4fr) minmax(0, 1.2fr); gap: 10px;
+    box-sizing: border-box; padding: 10px; background-color: #f4f8f8;
+    border: 2px solid #cfe0e0; border-radius: 14px; touch-action: manipulation;
+}
+.fbs-shelves { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fbs-shelf {
+    display: grid; grid-template-columns: 14px repeat(4, minmax(0, 1fr)); gap: 5px; align-items: center;
+    width: 100%; box-sizing: border-box; margin: 0; padding: 3px; border: 2px solid transparent; border-radius: 10px;
+    background-color: transparent; font-family: inherit; text-align: center;
+}
+.fbs-shelf-n { font-size: 12px; font-weight: 700; color: #6b7280; }
+/* The Stage and Extra, beside the shelves. */
+.fbs-side { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-width: 0; }
+.fbs-stage {
+    display: flex; flex-direction: column; align-items: stretch; gap: 5px; min-width: 0;
+    box-sizing: border-box; width: 100%; margin: 0; padding: 6px 4px; border: 2px solid #cdd8d7; border-radius: 10px;
+    background-color: #fff; font-family: inherit;
+}
+.fbs-stage-label { font-size: 12px; font-weight: 700; color: #02484d; text-align: center; }
+button.fbs-shelf, button.fbs-stage { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.fbs-shelf { border-color: #cdd8d7; background-color: #fff; }
+button.fbs-shelf:hover, button.fbs-stage:hover { border-color: #4f9a97; }
+button.fbs-shelf:focus-visible, button.fbs-stage:focus-visible { outline: 3px solid #ffd700; outline-offset: 1px; }
+button.fbs-shelf.picked, button.fbs-stage.picked { border-color: #02484d; background-color: #fffbe6; box-shadow: 0 0 0 3px #ffd700; }
+.fbs-cell {
+    display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; min-width: 0; width: 100%;
+    box-sizing: border-box; margin: 0; padding: 0; border: 2px solid rgba(2, 72, 77, 0.35); border-radius: 8px;
+    font-family: inherit; font-size: 22px; line-height: 1;
+}
+.fbs-cell.empty { border: 2px dashed #b9cccc; background-color: #f9fbfb; }
+button.fbs-cell { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.fbs-cell.sel { box-shadow: 0 0 0 3px #ffd700, 0 0 0 5px #02484d; border-style: solid; }
+button.fbs-cell:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+.fbs-extra-note { font-size: 10px; font-weight: 600; color: #6b7280; text-align: center; line-height: 1.1; }
+/* The move to make: the tiles that go, and the places they go to. */
+.fbs-cell.go { box-shadow: 0 0 0 3px #ffd700, 0 0 0 5px #02484d; border-color: #02484d; }
+.fbs-cell.to { border: 3px dashed #02484d; background-color: #fff3b0; }
+.fbs-shelf.hintfrom, .fbs-stage.hintfrom { border-color: #02484d; box-shadow: 0 0 0 3px #ffd700; }
+
+/* ---------- the palette ---------- */
+.fbs-palette { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0; }
+.fbs-palette[hidden] { display: none; }
+.fbs-color {
+    display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 0; padding: 4px 6px;
+    border: 2px solid rgba(2, 72, 77, 0.35); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 700;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.fbs-color .fbs-sym { font-size: 18px; line-height: 1; }
+.fbs-color .fbs-left { font-size: 12px; font-weight: 700; opacity: 0.9; }
+.fbs-color.out { opacity: 0.35; }
+.fbs-color.over { opacity: 1; box-shadow: 0 0 0 3px #e55555; }
+.fbs-color:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+.fbs-palette-tools { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.fbs-palette-tools .fbs-btn { padding: 8px 6px; }
+.fbs-hint { font-size: 13px; color: #6b7280; margin: 10px auto 0; max-width: 460px; min-height: 20px; padding: 0 12px; line-height: 1.5; }
+.fbs-hint:empty { min-height: 0; margin: 0 auto; }
+.fbs-hint.warn { color: #a55; font-weight: 600; }
+/* For a moment after the board fills in, taps meant for the palette that has
+   just folded away don't land on what moved up in its place. */
+.fbs-settling .fbs-follow, .fbs-settling .fbs-results, .fbs-settling .fbs-modes, .fbs-settling .fbs-edit,
+.fbs-settling .fbs-play-row, .fbs-settling .fbs-approve, .fbs-settling .jj-more, .fbs-settling .fbs-board { pointer-events: none; }
+
+/* ---------- under the board: where the player is ---------- */
+.fbs-follow { box-sizing: border-box; width: min(92vw, 400px); margin: 0 auto; }
+.fbs-follow[hidden] { display: none; }
+.fbs-status { font-size: 14px; font-weight: 600; color: #02484d; margin: 10px 0 0; line-height: 1.45; text-align: center; }
+.fbs-status.warn { color: #a55; }
+.fbs-status-more { font-size: 13px; color: #374151; margin: 4px 0 0; line-height: 1.45; text-align: center; }
+.fbs-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0 0; }
+.fbs-controls .fbs-btn[hidden] { display: none; }
+.fbs-next { flex: 1 1 130px; max-width: 220px; }
+
+/* ---------- results ---------- */
+.fbs-results { max-width: 600px; margin: 6px auto 0; text-align: left; }
+.fbs-results[hidden] { display: none; }
+.fbs-results.stale { opacity: 0.55; }
+.fbs-summary { font-size: 16px; font-weight: 700; color: #02484d; margin: 10px 12px 0; line-height: 1.45; text-align: center; }
+.fbs-note { font-size: 13px; color: #374151; margin: 4px 12px 0; line-height: 1.5; text-align: center; }
+.fbs-card { margin: 12px 12px; padding: 12px 14px; border: 1px solid #f0d97a; border-radius: 8px; background-color: #fffdf3; }
+.fbs-card.plain { border-color: #cdd8d7; background-color: #f8f9fa; }
+.fbs-card-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; font-size: 15px; font-weight: 700; color: #02484d; margin: 0; }
+.fbs-card-title .fbs-legend { font-size: 13px; font-weight: 400; color: #6b7280; }
+.fbs-line { font-size: 14px; color: #374151; margin: 8px 0 0; line-height: 1.5; }
+.fbs-line strong { color: #02484d; }
+.fbs-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fbs-btn {
+    background-color: #fff; border: 1px solid #cdd8d7; border-radius: 8px; color: #02484d;
+    font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; min-height: 44px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.15s ease;
+}
+.fbs-btn:hover { background-color: #eef4f4; }
+.fbs-btn.primary { background-color: #02484d; border-color: #02484d; color: #fff; }
+.fbs-btn.primary:hover { background-color: #03595f; }
+.fbs-btn:disabled, .fbs-btn:disabled:hover { background-color: #e5e7eb; color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+.fbs-chip { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; font-size: 13px; line-height: 1; flex: 0 0 auto; }
+.fbs-section { font-size: 14px; font-weight: 700; color: #02484d; margin: 16px 12px 6px; }
+.fbs-steps { list-style: none; margin: 0 12px; padding: 0; }
+.fbs-row {
+    display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; min-height: 44px; margin: 0 0 6px;
+    padding: 6px 10px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa;
+    font-family: inherit; font-size: 15px; color: #1f2937; text-align: left; cursor: pointer;
+}
+.fbs-row:hover { background-color: #eef4f4; }
+.fbs-row.made { opacity: 0.55; }
+.fbs-row.now { border: 2px solid #02484d; background-color: #fffbe6; box-shadow: 0 0 0 2px #ffd700; opacity: 1; }
+.fbs-row-n {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 26px; height: 26px;
+    border-radius: 50%; background-color: #02484d; color: #fff; font-size: 13px; font-weight: 700;
+}
+.fbs-row-text { flex: 1 1 auto; min-width: 0; }
+/* Two classes, to beat base.html's table borders. */
+.fbs-card .fbs-points { width: 100%; border: 0; border-collapse: collapse; margin: 8px 0 0; font-size: 14px; color: #374151; }
+.fbs-card .fbs-points tr { background-color: transparent; }
+.fbs-card .fbs-points td { padding: 5px 0; border: 0; border-bottom: 1px solid #dfe6e6; text-align: left; }
+.fbs-card .fbs-points td:last-child { text-align: right; font-weight: 700; color: #02484d; white-space: nowrap; }
+.fbs-card .fbs-points tr.total td { border-bottom: 0; font-weight: 700; color: #02484d; font-size: 15px; }
+.fbs-card .fbs-points tr.lost td { color: #a55; }
+.fbs-badges summary { cursor: pointer; font-size: 15px; font-weight: 700; color: #02484d; min-height: 28px; }
+.fbs-badges dl { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #374151; }
+.fbs-badges dt { font-weight: 700; color: #02484d; margin-top: 10px; }
+.fbs-badges dd { margin: 0; }
+
+{% if approve %}
+/* ---------- James's board entry ---------- */
+.fbs-dev-note {
+    box-sizing: border-box; width: calc(100% - 24px); max-width: 460px; margin: 8px auto 0;
+    padding: 8px 12px; font-size: 13px; line-height: 1.4; color: #02484d;
+    background-color: #eef4f4; border: 1px dashed #4f9a97; border-radius: 8px;
+}
+.fbs-load-error { color: #a55; background-color: #fbf0f0; border: 1px solid #ecd3d3; }
+.fbs-approve {
+    box-sizing: border-box; width: min(92vw, 400px); margin: 14px auto 0;
+    padding: 12px; background-color: #eef4f4; border: 1px solid #4f9a97; border-radius: 8px; text-align: left;
+}
+.fbs-approve label { font-size: 14px; font-weight: 600; color: #02484d; }
+.fbs-approve input[type=date] { font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #cdd8d7; border-radius: 6px; }
+.fbs-approve-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fbs-approve-status { margin: 8px 0 0; font-size: 13px; color: #6b7280; }
+{% endif %}
+
+/* ---------- shared bits ---------- */
+.fbs-play-row { margin: 20px 0; text-align: center; min-height: 51px; }
+.fbs-clear-btn {
+    background-color: #f8f9fa; color: #495057; border: 1px solid #e9ecef; padding: 12px 20px;
+    border-radius: 8px; display: inline-block; margin: 4px; font-family: inherit; font-size: 14px;
+    white-space: nowrap; cursor: pointer; transition: all 0.2s ease;
+}
+.fbs-clear-btn:hover { background-color: #e9ecef; }
+/* A side gutter on phones, like the rest of the page. */
+.instructions {
+    background-color: #f8f9fa; border-radius: 8px; margin: 20px auto; max-width: 600px; font-size: 14px;
+    border: 1px solid #e9ecef; overflow: hidden; line-height: 1.6;
+    width: calc(100% - 24px); box-sizing: border-box;
+}
+.instructions-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; cursor: pointer; user-select: none; }
+.instructions-header:hover { background-color: #e9ecef; }
+.instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
+.instructions-body { padding: 0 15px 15px 15px; text-align: left; }
+.instructions.collapsed .instructions-body { display: none; }
+.instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
+.fbs-toast {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background-color: #333; color: white;
+    padding: 12px 20px; border-radius: 6px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 2001; font-size: 14px; max-width: 90vw; text-align: center;
+}
+.fbs-toast.warn { background-color: #ff6b6b; border: 2px solid #e55555; }
+
+@media (max-width: 480px) {
+    .fbs-card { margin: 12px 8px; padding: 12px; }
+    .fbs-steps { margin: 0 8px; }
+    .fbs-toast { top: 15px; font-size: 12px; padding: 8px 12px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<center>
+<br>
+<h1 class="fbs-h1">{% if approve %}Approve your game's board{% else %}4x6 Answers &amp; Hints{% if is_beta('/4x6') %} <span class="jj-beta-tag">Beta</span>{% endif %}{% endif %}</h1>
+{% if approve %}
+<p class="fbs-dev-note">Enter your game's board, then Approve: it's served to every player whose date you pick, first of that date's boards. Nothing here counts as a player. <a href="/4x6_admin">Back to 4x6 admin</a></p>
+{% if load_error %}<p class="fbs-dev-note fbs-load-error" role="alert">{{ load_error }}.</p>{% endif %}
+{% endif %}
+<p class="fbs-sub" id="fbs-ok">Help with Hank Green's daily 4x6: hints, or the solution in the fewest moves, for the most points.</p>
+<p class="fbs-unofficial">Unofficial helper. Not affiliated with or endorsed by Hank Green.</p>
+
+{# Hidden, not left out, on the approve page: the script below wires it. #}
+<div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
+    <div class="instructions-header" id="instructions-toggle">
+        <strong>How to use</strong>
+        <span class="instructions-toggle-icon">&#9660;</span>
+    </div>
+    <div class="instructions-body">
+        <strong>1. Enter the board.</strong> Tap the colors in your game's order: left to right, top shelf first.
+        Each tap fills the next square. Wrong one? Tap the square, then the right color. Partway through a
+        game? Enter the board as it is now: a short shelf ends with <strong>Next</strong> (or tap the next
+        shelf), and the Stage and Extra fill the same way.{% if boards_on %} Once other players have entered today's board, you can skip this: tap it
+        above the board and it fills in and solves. If it isn't your board, tap <strong>↩ Not my board</strong>.{% endif %}
+        <br><br>
+        <strong>2. Check the par.</strong> The page says what par your game should show. If yours is different,
+        a tile was entered wrong.
+        <br><br>
+        <strong>3. Help or Solution.</strong> <strong>Help</strong> shows nothing until you ask, one step at a
+        time. <strong>Solution</strong> lists every move, and Next walks through them on the board.
+        <br><br>
+        <strong>4. Follow along.</strong> Made a move of your own? Tap it on the board here: the shelf it came
+        from, then where it went. The page says whether you're on track, and works out the rest from there.
+    </div>
+</div>
+
+{% if boards_on %}
+<div class="fbs-shared" id="fbs-shared" hidden>
+    <p class="fbs-shared-text" id="fbs-shared-one">Other players already entered today's board for you. Tap it to load it.</p>
+    <p class="fbs-shared-text" id="fbs-shared-many" hidden>Players entered more than one board today. Tap the one that matches your game.</p>
+    <div class="fbs-shared-picks" id="fbs-shared-picks"></div>
+</div>
+<script>
+/* The offer of today's boards, drawn here while the page is still arriving,
+   from what the server last looked up for the dates around today
+   (routes/four_by_six.py first_paint_boards), so it's in the first paint:
+   drawn later, it would push the board down, a layout shift. The page takes
+   the player's own date, as the game does. The main script draws the offer
+   with this same function, and still asks for the newest boards. */
+const FBS_SYMBOLS = {{ fbs_symbols | tojson }};
+function fbsShowOffer(boards) {
+    const one = document.getElementById('fbs-shared-one');
+    one.hidden = boards.length > 1;
+    document.getElementById('fbs-shared-many').hidden = !one.hidden;
+    document.getElementById('fbs-shared-picks').replaceChildren(...boards.map((b, k) => {
+        const pickEl = document.createElement('button');
+        pickEl.type = 'button';
+        pickEl.className = 'fbs-shared-pick';
+        pickEl.dataset.pick = String(k);
+        pickEl.setAttribute('aria-label', 'Load today\'s board' + (boards.length > 1 ? ', number ' + (k + 1) : ''));
+        const mini = document.createElement('span');
+        mini.className = 'fbs-mini';
+        mini.setAttribute('aria-hidden', 'true');
+        b.board.split('').forEach(c => {
+            const s = document.createElement('span');
+            s.className = 'fbs-t-' + c;
+            s.textContent = FBS_SYMBOLS[c] || '';
+            mini.appendChild(s);
+        });
+        const label = document.createElement('span');
+        label.className = 'fbs-shared-btn';
+        label.textContent = 'Load this board';
+        pickEl.append(mini, label);
+        return pickEl;
+    }));
+    document.getElementById('fbs-shared').hidden = false;
+}
+(function () {
+    const byDay = {{ first_boards | default(none) | tojson }};
+    const d = new Date();
+    const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const boards = byDay && byDay[day];
+    if (!Array.isArray(boards) || !boards.length) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('fourBySixState_v1'));
+        if (s && Array.isArray(s.rows) && s.rows.some(r => typeof r === 'string' && /[A-Z]/.test(r))) return;
+    } catch (_) {}
+    fbsShowOffer(boards);
+})();
+</script>
+{% endif %}
+
+<div class="fbs-board-wrap">
+    <div class="fbs-board-head">
+        <p class="fbs-tip" id="fbs-tip">Tap the colors in your game's order: left to right, top shelf first.</p>
+        <button type="button" class="fbs-btn fbs-edit" id="fbs-edit" hidden>Edit the tiles</button>
+    </div>
+    {# Drawn here as it starts, empty, so nothing moves when the script takes over. #}
+    <div class="fbs-board editing" id="fbs-board">
+        <div class="fbs-shelves">
+            {% for i in range(shelves) %}
+            <div class="fbs-shelf"><span class="fbs-shelf-n">{{ i + 1 }}</span>{% for j in range(width) %}<span class="fbs-cell empty"></span>{% endfor %}</div>
+            {% endfor %}
+        </div>
+        <div class="fbs-side">
+            <div class="fbs-stage"><span class="fbs-stage-label">Stage</span>{% for j in range(width) %}<span class="fbs-cell empty"></span>{% endfor %}</div>
+            <div class="fbs-stage"><span class="fbs-stage-label">Extra</span><span class="fbs-cell empty"></span></div>
+        </div>
+    </div>
+    <div class="fbs-palette" id="fbs-palette" role="group" aria-label="Colors">
+        {% for code, name, symbol in tiles %}
+        <button type="button" class="fbs-color fbs-t-{{ code }}" data-c="{{ code }}"><span class="fbs-sym" aria-hidden="true">{{ symbol }}</span>{{ name }} <span class="fbs-left" data-left="{{ code }}">4</span></button>
+        {% endfor %}
+        <div class="fbs-palette-tools">
+            <button type="button" class="fbs-btn" id="fbs-backspace">&#9003; Take back</button>
+            <button type="button" class="fbs-btn" id="fbs-nextrow">Next: shelf 2</button>
+        </div>
+    </div>
+</div>
+<p class="fbs-hint" id="fbs-hint" aria-live="polite"></p>
+
+<div class="fbs-follow" id="fbs-follow" hidden>
+    <p class="fbs-status" id="fbs-status" aria-live="polite"></p>
+    <p class="fbs-status-more" id="fbs-status-more"></p>
+    <div class="fbs-controls">
+        <button type="button" class="fbs-btn" id="fbs-back">&#8249; Back</button>
+        <button type="button" class="fbs-btn primary fbs-next" id="fbs-next">Next &#8250;</button>
+        <button type="button" class="fbs-btn" id="fbs-over" hidden>Start over here</button>
+        {% if boards_on %}<button type="button" class="fbs-btn" id="fbs-notmine" hidden>↩ Not my board</button>{% endif %}
+    </div>
+</div>
+
+{% if approve %}
+<div class="fbs-approve" id="fbs-approve">
+    <form method="POST" action="/4x6_admin/approve_typed_board" class="fbs-approve-form" id="fbs-approve-form">
+        <label>Date <input type="date" name="played_on" value="{{ approve_day.strftime('%Y-%m-%d') }}" required></label>
+        <input type="hidden" name="board" id="fbs-approve-board">
+        <button type="submit" class="fbs-btn primary" id="fbs-approve-btn" disabled>Approve</button>
+    </form>
+    <p class="fbs-approve-status" id="fbs-approve-status" aria-live="polite"></p>
+</div>
+{% endif %}
+
+<div class="fbs-results" id="fbs-summary" aria-live="polite" hidden></div>
+
+{# Help or Solution, right above what it changes: hidden until the board is
+   solved, and always on the approve page. #}
+<div class="fbs-modes" id="fbs-modes" role="group" aria-label="Show me" hidden>
+    <span class="fbs-modes-label">Show me:</span>
+    <button type="button" class="fbs-mode" data-mode="help">Help</button>
+    <button type="button" class="fbs-mode" data-mode="solve">Solution</button>
+</div>
+
+<div class="fbs-results" id="fbs-results" hidden></div>
+<div class="fbs-results" id="fbs-extras" hidden></div>
+
+<br>
+<div class="fbs-play-row">
+    {% if not approve %}
+    <a href="https://www.hankgreen.com/4x6/" class="action-btn" target="_blank" rel="noopener noreferrer">&#128450;&#65039; Play 4x6</a>
+    <a href="/feedback" class="action-btn">&#128172; Give Feedback</a>
+    {% endif %}
+    <button type="button" class="fbs-clear-btn" id="fbs-clear">&#128260; Clear board</button>
+</div>
+
+{% if not approve %}
+{% with current='/4x6' %}{% include '_related_solvers.html' %}{% endwith %}
+
+<section style="max-width: 700px; margin: 30px auto 10px; padding: 0 20px; text-align: left;">
+  <h2 style="font-size: 18px; color: #333; margin-bottom: 16px; text-align: center;">Frequently Asked Questions</h2>
+  <div style="border-top: 1px solid #e9ecef;">
+    {% for q, a in questions %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">{{ q }}</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">{{ a }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+<br>
+<br>
+</center>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const SHELVES = {{ shelves }}, WIDTH = {{ width }}, STAGE = {{ stage }}, EXTRA = {{ extra }}, SPENT = {{ spent | tojson }};
+    const SIZE = SHELVES * WIDTH, ROWS = EXTRA + 1;
+    const MAX_MOVES = {{ max_moves }}, PAR_OVER = {{ par_over }};
+    const SCORING = {{ scoring | tojson }};
+    // The palette's order; a name and a symbol for each code.
+    const CODES = {{ tiles | map(attribute=0) | list | tojson }};
+    const NAMES = {{ fbs_names | tojson }};
+    const SYMBOLS = {{ fbs_symbols | tojson }};
+    // Where this copy posts, and whether it offers today's boards.
+    const POST_URL = {{ post_url | tojson }};
+    const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
+    const APPROVE = {{ 'true' if approve else 'false' }};
+    {# James's board entry keeps a board of its own, so it never touches his
+       game on the public page, and it never logs a board. Jinja comments
+       here keep that page's address out of the public page. #}
+    const STORAGE_KEY = {{ ('fourBySixApproveState_v1' if approve else 'fourBySixState_v1') | tojson }};
+    const LOG_BOARDS = !APPROVE;
+    const MODE_KEY = 'fourBySixMode_v1';
+    // A board the player has looked at this long, untouched, counts as used
+    // and is logged (once per version).
+    const LOG_AFTER_MS = 4000;
+    // A saved board from an earlier day goes, unless it's this new (a game
+    // that straddles midnight), as on /4x3.
+    const STALE_FLOOR_HOURS = 6;
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    /* ---------- state ---------- */
+    // The board as entered, as functions/four_by_six.py takes it: six shelves,
+    // the Stage and Extra, each left to right. A starting board has full
+    // shelves and nothing else; a player partway through a game enters the
+    // board as it is.
+    let rows = Array(ROWS).fill('');
+    // Where the next color goes: a row, and a square in it to change (-1:
+    // the end of the row).
+    let selRow = 0, selK = -1;
+    let editorOpen = true;
+    let boardSource = 'typed';           // 'typed' | 'shared' (a board on offer, untouched) | 'edited'
+    let boardDay = '';                   // the player's date when this board was started
+    let loggedSig = '';                  // the board as last logged
+    let mode = 'help';
+
+    // The server's plan for the board as entered, and what it answers.
+    let root = null, rootSig = '';
+    // The moves on show, from the board as entered: the first `at` are made
+    // (by the player, or stepped through), the rest are the shortest way on
+    // from there. `best` is the first place the rest is known to be the
+    // shortest from: 0 on the solver's own line, further on once the player
+    // leaves it.
+    let line = [], at = 0, best = 0;
+    let dead = false;                    // no way on from here
+    let route = 'fewest';                // or 'rainbow'
+    let waiting = false;                 // a plan for the player's own move is on its way
+    let picked = -1;                     // the place tapped first
+    let reveal = {start: 0, stage: 0, homes: 0, next: 0};
+    let restoredMoves = null;            // saved moves, until the plan comes back
+
+    let solveSeq = 0, logTimer = null;
+    // Marks this page load's first solve, so the server logs one use of it
+    // however many solves follow (extensions.log_solve).
+    let firstSolve = true;
+    let sharedBoards = [], sharedDay = '', sharedFetchedOn = '';
+    let offeredBoards = [];              // the boards the player picked from, for Not my board
+    let offerClear = false;              // a picked board the player hasn't started playing
+
+    const $ = id => document.getElementById(id);
+    const boardEl = $('fbs-board'), paletteEl = $('fbs-palette'), tipEl = $('fbs-tip'), editBtn = $('fbs-edit');
+    const hintEl = $('fbs-hint'), followEl = $('fbs-follow'), statusEl = $('fbs-status'), moreEl = $('fbs-status-more');
+    const backBtn = $('fbs-back'), nextBtn = $('fbs-next'), overBtn = $('fbs-over'), notMineBtn = $('fbs-notmine');
+    const nextRowBtn = $('fbs-nextrow');
+    const summaryEl = $('fbs-summary'), resultsEl = $('fbs-results'), extrasEl = $('fbs-extras'), modesEl = $('fbs-modes');
+    const sharedEl = $('fbs-shared'), sharedPicks = $('fbs-shared-picks');
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const colorName = c => (NAMES[c] || '').toLowerCase();
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const place = i => (i === STAGE ? 'the Stage' : i === EXTRA ? 'Extra' : 'shelf ' + (i + 1));
+    const chip = c => '<span class="fbs-chip fbs-t-' + c + '" aria-hidden="true">' + SYMBOLS[c] + '</span>';
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many || one + 's');
+    const room = r => (r === EXTRA ? 1 : WIDTH);
+
+    /* ---------- the player's date ---------- */
+    // The game's day turns at the player's own midnight, from the device's
+    // clock, as the game itself works it out.
+    const dayOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const localDay = () => dayOf(new Date());
+
+    // Monday 0 to Sunday 6, for the date the board was started.
+    function weekday() {
+        const d = new Date((boardDay || localDay()) + 'T12:00:00');
+        return (d.getDay() + 6) % 7;
+    }
+
+    /* ---------- the rules, for tapping moves ---------- */
+    // As functions/four_by_six.py has them; the server checks every move.
+    // Extra gives or takes one tile: into it only while it's free (the
+    // tool), out of it onto an empty shelf or next to the same color.
+    const held = pos => (pos[EXTRA] === SPENT ? '' : pos[EXTRA]);
+    const shown = (pos, i) => (i === EXTRA ? held(pos) : pos[i]);
+    function runLength(s) {
+        let n = 0;
+        while (n < s.length && s[s.length - 1 - n] === s[s.length - 1]) n++;
+        return n;
+    }
+    function movedTiles(pos, from, to) {
+        if (from === to) return 0;
+        if (to === EXTRA) return pos[from] && pos[EXTRA] === '' ? 1 : 0;
+        const src = shown(pos, from), dst = pos[to];
+        if (!src || dst.length >= WIDTH || (dst && dst[dst.length - 1] !== src[src.length - 1])) return 0;
+        return from === EXTRA ? 1 : Math.min(runLength(src), WIDTH - dst.length);
+    }
+    function stepFor(pos, from, to) {
+        const n = movedTiles(pos, from, to);
+        if (!n) return null;
+        const src = shown(pos, from), color = src[src.length - 1];
+        const after = pos.slice();
+        after[from] = from === EXTRA ? SPENT : after[from].slice(0, -n);
+        after[to] = to === EXTRA ? color : after[to] + color.repeat(n);
+        return {from: from, to: to, n: n, color: color, after: after};
+    }
+
+    /* ---------- the board ---------- */
+    const total = () => rows.join('').length;
+    const count = c => rows.join('').split(c).length - 1;
+    const ready = () => total() === SIZE && CODES.every(c => count(c) === WIDTH);
+    const isStartBoard = () => rows.slice(0, SHELVES).every(r => r.length === WIDTH) && !rows[STAGE] && !rows[EXTRA];
+    // As the server takes it: 24 codes for a starting board, else the parts.
+    const text = () => (isStartBoard() ? rows.slice(0, SHELVES).join('') : rows.join('|'));
+    const position = () => (at > 0 && line[at - 1] ? line[at - 1].after : rows.slice());
+    const solved = () => !!root && root.solvable && rootSig === text();
+    const startBoard = () => solved() && root.start_board;
+
+    // The move to point at on the board, and how much of it to show.
+    function pointer() {
+        if (!solved() || dead || waiting || at >= line.length) return null;
+        if (mode === 'solve' || route === 'rainbow' || APPROVE) return {step: line[at], from: true, to: true};
+        if (reveal.next >= 1) return {step: line[at], from: true, to: reveal.next >= 2};
+        return null;
+    }
+
+    function cellsHtml(tag, tilesHere, r, opts) {
+        // Each square of one shelf (or the Stage, or Extra), left to right.
+        const out = [];
+        for (let k = 0; k < room(r); k++) {
+            const c = tilesHere[k] || '';
+            const cls = 'fbs-cell' + (c ? ' fbs-t-' + c : ' empty') + (opts.go && opts.go(k) ? ' go' : '') + (opts.to && opts.to(k) ? ' to' : '') +
+                (opts.sel && opts.sel(k) ? ' sel' : '');
+            const label = opts.label ? ' aria-label="' + esc(opts.label(k)) + '"' : '';
+            const attr = opts.attr ? ' ' + opts.attr(k) : '';
+            out.push('<' + tag + (tag === 'button' ? ' type="button"' : '') + ' class="' + cls + '"' + attr + label + '>' + (c ? SYMBOLS[c] : '') + '</' + tag + '>');
+        }
+        return out.join('');
+    }
+    const words = s => (s ? s.split('').map(colorName).join(', ') : 'empty');
+
+    function editCells(r) {
+        return cellsHtml('button', rows[r], r, {
+            sel: k => editorOpen && selRow === r && (selK >= 0 ? k === selK : k === rows[r].length),
+            attr: k => 'data-row="' + r + '" data-k="' + k + '"',
+            label: k => cap(place(r)) + (room(r) > 1 ? ', square ' + (k + 1) : '') + ': ' + (colorName(rows[r][k]) || 'empty')
+        });
+    }
+
+    function renderBoard() {
+        const had = boardEl.contains(document.activeElement) ? document.activeElement.dataset : null;
+        const editing = editorOpen || !solved();
+        boardEl.classList.toggle('editing', editing);
+        let html = '<div class="fbs-shelves">';
+        if (editing) {
+            for (let i = 0; i < SHELVES; i++) html += '<div class="fbs-shelf"><span class="fbs-shelf-n">' + (i + 1) + '</span>' + editCells(i) + '</div>';
+            html += '</div><div class="fbs-side"><div class="fbs-stage"><span class="fbs-stage-label">Stage</span>' + editCells(STAGE) +
+                '</div><div class="fbs-stage"><span class="fbs-stage-label">Extra</span>' + editCells(EXTRA) + '</div></div>';
+        } else {
+            const pos = position(), p = pointer();
+            const opts = i => {
+                const here = shown(pos, i);
+                return {
+                    go: k => p && p.to && p.step.from === i && k >= here.length - p.step.n && k < here.length,
+                    to: k => p && p.to && p.step.to === i && k >= pos[i].length && k < pos[i].length + p.step.n
+                };
+            };
+            const cls = i => (picked === i ? ' picked' : '') + (p && p.from && !p.to && p.step.from === i ? ' hintfrom' : '');
+            const box = (i, label) => '<button type="button" class="fbs-stage' + cls(i) + '" data-place="' + i + '" aria-pressed="' + (picked === i) +
+                '" aria-label="' + esc(cap(place(i))) + ': ' + esc(words(shown(pos, i))) + (i === EXTRA && pos[i] === SPENT ? ', used' : '') +
+                '"><span class="fbs-stage-label">' + label + '</span>' + cellsHtml('span', shown(pos, i), i, opts(i)) +
+                (i === EXTRA && pos[i] === SPENT ? '<span class="fbs-extra-note">used</span>' : '') + '</button>';
+            for (let i = 0; i < SHELVES; i++) {
+                html += '<button type="button" class="fbs-shelf' + cls(i) + '" data-place="' + i + '" aria-pressed="' + (picked === i) +
+                    '" aria-label="Shelf ' + (i + 1) + ': ' + esc(words(pos[i])) + '"><span class="fbs-shelf-n">' + (i + 1) + '</span>' +
+                    cellsHtml('span', pos[i], i, opts(i)) + '</button>';
+            }
+            html += '</div><div class="fbs-side">' + box(STAGE, 'Stage') + box(EXTRA, 'Extra') + '</div>';
+        }
+        boardEl.innerHTML = html;
+        if (had) {
+            const again = had.place !== undefined ? boardEl.querySelector('[data-place="' + had.place + '"]')
+                : had.row !== undefined ? boardEl.querySelector('[data-row="' + had.row + '"][data-k="' + had.k + '"]') : null;
+            if (again) again.focus({preventScroll: true});
+        }
+        paletteEl.hidden = !editing;
+        editBtn.hidden = !(solved() || editorOpen && ready());
+        editBtn.textContent = editing ? 'Done' : 'Edit the tiles';
+        renderPalette();
+        renderTip();
+    }
+
+    function renderPalette() {
+        CODES.forEach(c => {
+            const left = WIDTH - count(c);
+            const btn = paletteEl.querySelector('[data-c="' + c + '"]');
+            btn.classList.toggle('out', left === 0);
+            btn.classList.toggle('over', left < 0);
+            btn.setAttribute('aria-label', NAMES[c] + ', ' + (left < 0 ? -left + ' too many' : left + ' left'));
+            paletteEl.querySelector('[data-left="' + c + '"]').textContent = left < 0 ? '+' + (-left) : String(left);
+        });
+        $('fbs-backspace').disabled = !total();
+        const next = nextRow(selRow);
+        nextRowBtn.disabled = next < 0 || ready();
+        nextRowBtn.textContent = 'Next: ' + (next < 0 ? 'none' : place(next)) + ' ↓';
+    }
+
+    function moveText(s) {
+        return place(s.from) + ' to ' + place(s.to) + ', ' + colorName(s.color) + (s.n > 1 ? ' x' + s.n : '');
+    }
+
+    function renderTip() {
+        const editing = editorOpen || !solved();
+        if (editing) {
+            tipEl.textContent = total() === SIZE ? 'Tap a square, then its color, to change it.'
+                : "Tap the colors in your game's order, left to right, top shelf first. Partway through? Tap a shelf, the Stage or Extra to fill it.";
+            return;
+        }
+        if (picked >= 0) {
+            tipEl.innerHTML = 'From ' + esc(place(picked)) + ': <strong>now tap where it went</strong>, or tap it again to stop.';
+            return;
+        }
+        if (dead) { tipEl.textContent = "There's no way on from here."; return; }
+        if (waiting) { tipEl.textContent = 'Working out the rest...'; return; }
+        if (at >= line.length) { tipEl.textContent = 'Every color is on its own shelf.'; return; }
+        const p = pointer();
+        if (p && p.to) {
+            tipEl.innerHTML = '<strong>Move ' + (at + 1) + ' of ' + line.length + ':</strong> ' + esc(moveText(p.step));
+            return;
+        }
+        tipEl.textContent = 'Made a move in 4x6? Tap it here: where it came from, then where it went.';
+    }
+
+    /* ---------- entering the board ---------- */
+    // The next row after `r` with room left (shelves, then the Stage, then
+    // Extra), or -1.
+    function nextRow(r) {
+        for (let k = 1; k <= ROWS; k++) {
+            const i = (r + k + ROWS) % ROWS;
+            if (rows[i].length < room(i)) return i;
+        }
+        return -1;
+    }
+
+    function putColor(c) {
+        if (!CODES.includes(c) || !editorOpen) return;
+        if (selRow < 0 || (selK < 0 && rows[selRow].length >= room(selRow))) {
+            selRow = nextRow(selRow < 0 ? -1 : selRow);
+            selK = -1;
+        }
+        if (selRow < 0) {
+            // A warning on show (no solution, no connection) matters more.
+            if (!hintEl.classList.contains('warn')) hint('The board is full. Tap the square to change first.');
+            return;
+        }
+        const r = selRow, tiles = rows[r];
+        if (r === STAGE && tiles.split('').some((t, k) => k !== selK && t !== c)) {
+            hint('The Stage holds one color at a time.', true);
+            return;
+        }
+        if (selK >= 0 && selK < tiles.length) {
+            // Changing a tile may make a fifth of a color for a moment: half
+            // of a swap.
+            rows[r] = tiles.slice(0, selK) + c + tiles.slice(selK + 1);
+            selK = -1;
+        } else {
+            if (count(c) >= WIDTH) {
+                hint('You already have four ' + colorName(c) + ' tiles. If one is wrong, tap it, then its color.', true);
+                return;
+            }
+            rows[r] = tiles + c;
+        }
+        if (rows[r].length >= room(r)) selRow = nextRow(r);
+        afterEdit();
+    }
+
+    function takeBack() {
+        if (!editorOpen) return;
+        if (selRow >= 0 && selK >= 0 && selK < rows[selRow].length) {
+            rows[selRow] = rows[selRow].slice(0, selK) + rows[selRow].slice(selK + 1);
+            selK = -1;
+        } else {
+            let r = selRow < 0 ? EXTRA : selRow;
+            while (r >= 0 && !rows[r]) r--;
+            if (r < 0) return;
+            rows[r] = rows[r].slice(0, -1);
+            selRow = r;
+            selK = -1;
+        }
+        afterEdit();
+    }
+
+    function afterEdit() {
+        if (!total()) {
+            boardDay = '';
+            boardSource = 'typed';
+        } else if (!boardDay) {
+            boardDay = localDay();
+        }
+        if (boardSource === 'shared') boardSource = 'edited';
+        offerClear = false;
+        forgetPlan();
+        if (ready()) { editorOpen = false; hint(''); settle(); solve(); }
+        else renderEditHint();
+        renderAll();
+        persist();
+    }
+
+    // See .fbs-settling: the board folds away under a player who may still
+    // be tapping.
+    let settleTimer = null;
+    function settle() {
+        document.body.classList.add('fbs-settling');
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => document.body.classList.remove('fbs-settling'), 900);
+    }
+
+    function renderEditHint() {
+        const over = CODES.filter(c => count(c) > WIDTH);
+        if (over.length) {
+            const c = over[0];
+            hint('There are ' + count(c) + ' ' + colorName(c) + ' tiles, and a board has four. Tap the one that is wrong, then its color.', true);
+        } else {
+            const left = SIZE - total();
+            hint(left === SIZE ? '' : plural(left, 'tile') + ' to go.');
+        }
+    }
+
+    function hint(msg, warn) {
+        hintEl.textContent = msg || '';
+        hintEl.classList.toggle('warn', !!warn);
+    }
+
+    paletteEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-c]');
+        if (btn) putColor(btn.dataset.c);
+    });
+    $('fbs-backspace').addEventListener('click', takeBack);
+    function goNextRow() {
+        const r = nextRow(selRow);
+        if (r < 0) return;
+        selRow = r;
+        selK = -1;
+        renderBoard();
+    }
+    nextRowBtn.addEventListener('click', goNextRow);
+
+    editBtn.addEventListener('click', () => {
+        if (editorOpen) {
+            if (!ready()) return;
+            editorOpen = false;
+            if (!solved()) solve();
+        } else {
+            editorOpen = true;
+            selRow = -1;
+            selK = -1;
+            picked = -1;
+            goTo(0);
+        }
+        renderAll();
+    });
+
+    // Keys 1 to 6 for the colors, in the palette's order; Enter for the next
+    // row; arrows and Backspace, while the board is being entered.
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.target.closest && e.target.closest('input, textarea, select')) return;
+        if (!editorOpen) return;
+        if (/^[1-6]$/.test(e.key)) { e.preventDefault(); putColor(CODES[Number(e.key) - 1]); return; }
+        if (e.key === 'Backspace') { e.preventDefault(); takeBack(); return; }
+        if (e.key === 'Enter' && (boardEl.contains(e.target) || e.target === document.body)) { e.preventDefault(); goNextRow(); return; }
+        if (!(boardEl.contains(e.target) || e.target === document.body)) return;
+        const r = selRow < 0 ? 0 : selRow;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            selRow = Math.max(0, Math.min(EXTRA, r + (e.key === 'ArrowUp' ? -1 : 1)));
+            selK = -1;
+            renderBoard();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const end = rows[r].length, k = (selK < 0 ? end : selK) + (e.key === 'ArrowLeft' ? -1 : 1);
+            selRow = r;
+            selK = k >= 0 && k < end ? k : (k >= end ? -1 : selK);
+            renderBoard();
+        }
+    });
+
+    boardEl.addEventListener('click', e => {
+        const cell = e.target.closest('[data-row]');
+        if (cell) {
+            editorOpen = true;
+            selRow = Number(cell.dataset.row);
+            const k = Number(cell.dataset.k);
+            selK = k < rows[selRow].length ? k : -1;
+            renderBoard();
+            return;
+        }
+        const spot = e.target.closest('[data-place]');
+        if (spot) tapPlace(Number(spot.dataset.place));
+    });
+
+    /* ---------- following along ---------- */
+    function tapPlace(i) {
+        if (!solved() || waiting) return;
+        const pos = position();
+        if (picked < 0) {
+            if (!shown(pos, i)) { hint(cap(place(i)) + ' is empty: tap where the move came from first.'); return; }
+            if (at >= line.length && !dead) { hint('This board is done. Tap Back to look at the moves again.'); return; }
+            picked = i;
+            hint('');
+            renderBoard();
+            return;
+        }
+        const from = picked;
+        picked = -1;
+        if (from === i) { hint(''); renderBoard(); return; }
+        const step = stepFor(pos, from, i);
+        if (!step) {
+            hint(i === EXTRA ? 'Extra holds one tile, and only once a game.'
+                : "4x6 doesn't allow that move. Tiles go next to their own color or on an empty shelf, and a shelf holds four.", true);
+            renderBoard();
+            return;
+        }
+        hint(i === EXTRA && route === 'fewest' ? 'That uses the Extra tool, which costs at least 50 points.' : '');
+        makeMove(step);
+    }
+
+    function makeMove(step) {
+        const next = line[at];
+        // A move of their own means the board is theirs.
+        offerClear = false;
+        if (!dead && next && next.from === step.from && next.to === step.to) {
+            goTo(at + 1);
+            return;
+        }
+        if (at >= MAX_MOVES) { hint('That is a lot of moves. Tap Start over here.', true); return; }
+        line = line.slice(0, at).concat(step);
+        at = line.length;
+        best = at;
+        route = 'fewest';
+        dead = false;
+        reveal.next = 0;
+        planFrom();
+    }
+
+    // The plan for the moves made so far, when they've left the line the
+    // page has.
+    async function planFrom() {
+        const seq = ++solveSeq, sig = text(), made = line.slice(0, at);
+        waiting = true;
+        renderAll();
+        persist();
+        try {
+            const data = await post({board: sig, moves: made.map(s => [s.from, s.to])});
+            if (seq !== solveSeq || sig !== text()) return;
+            waiting = false;
+            line = made.concat(data.steps || []);
+            at = made.length;
+            best = at;
+            dead = data.status === 'dead_end';
+            renderAll();
+            persist();
+        } catch (_) {
+            if (seq !== solveSeq) return;
+            waiting = false;
+            resetLine();
+            renderAll();
+            toast('Could not reach the solver, so your moves here went back to the start.', true);
+        }
+    }
+
+    // Back to the solver's own line, at its start.
+    function resetLine() {
+        line = root && root.steps ? root.steps : [];
+        at = 0; best = 0; dead = false; route = 'fewest'; waiting = false; picked = -1;
+        reveal.next = 0;
+    }
+
+    // Show the board after the first `n` moves. Before the place the line is
+    // known from, the rest has to be worked out again.
+    function goTo(n) {
+        n = Math.max(0, Math.min(n, line.length));
+        if (n === at) return;
+        solveSeq++;
+        waiting = false;
+        at = n;
+        picked = -1;
+        reveal.next = 0;
+        if (n < best || dead) {
+            const steps = root ? root.steps : [];
+            const onRoot = line.slice(0, n).every((s, k) => steps[k] && steps[k].from === s.from && steps[k].to === s.to);
+            dead = false;
+            if (onRoot) { line = steps; best = 0; route = 'fewest'; }
+            else { line = line.slice(0, n); best = n; planFrom(); return; }
+        }
+        renderAll();
+        persist();
+    }
+
+    backBtn.addEventListener('click', () => goTo(at - 1));
+    nextBtn.addEventListener('click', () => goTo(at + 1));
+    overBtn.addEventListener('click', () => {
+        hint('');
+        if (route === 'rainbow') { goTo(0); return; }
+        solveSeq++;
+        resetLine();
+        renderAll();
+        persist();
+    });
+
+    /* ---------- solving ---------- */
+    function post(payload) {
+        return fetch(POST_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) throw new Error('request failed: ' + r.status);
+            return r.json();
+        });
+    }
+
+    function forgetPlan() {
+        solveSeq++;
+        root = null;
+        rootSig = '';
+        restoredMoves = null;
+        resetLine();
+        reveal = {start: 0, stage: 0, homes: 0, next: 0};
+    }
+
+    async function solve() {
+        if (!ready()) return;
+        const seq = ++solveSeq, sig = text();
+        const body = {board: sig, first_solve: firstSolve};
+        firstSolve = false;
+        try {
+            const data = await post(body);
+            // Only a reply for the board as it is now.
+            if (seq !== solveSeq || sig !== text()) return;
+            root = data;
+            rootSig = sig;
+            resetLine();
+            if (!root.solvable) {
+                editorOpen = true;
+                selRow = -1;
+                hint(root.start_board
+                    ? 'The daily board always has a solution, and this one has none, so a tile is probably off. Check it against your game: tap a square, then its color.'
+                    : "There's no way to finish this board without a tool. Check the tiles against your game, or Restart in 4x6 (it's free) and enter the board it starts with.", true);
+            } else if (restoredMoves && restoredMoves.length) {
+                takeRestored();
+            }
+            restoredMoves = null;
+            renderAll();
+            persist();
+            if (root.solvable) {
+                gaOnce(mode === 'help' ? 'four_by_six_help' : 'four_by_six_solve');
+                clearTimeout(logTimer);
+                logTimer = setTimeout(maybeLog, LOG_AFTER_MS);
+            }
+        } catch (_) {
+            if (seq !== solveSeq) return;
+            editorOpen = true;
+            renderAll();
+            hint('Could not reach the solver. Check your connection, then tap Done to try again.', true);
+        }
+    }
+
+    // The moves a saved board had, checked against the rules as they go back
+    // on: along the solver's line as far as they follow it.
+    function takeRestored() {
+        const made = [];
+        let pos = rows.slice();
+        for (const m of restoredMoves) {
+            const step = stepFor(pos, m[0], m[1]);
+            if (!step) break;
+            made.push(step);
+            pos = step.after;
+        }
+        if (!made.length) return;
+        const follows = made.every((s, k) => line[k] && line[k].from === s.from && line[k].to === s.to);
+        if (follows) { at = made.length; return; }
+        line = made;
+        at = best = made.length;
+        planFrom();
+    }
+
+    /* ---------- drawing everything ---------- */
+    function renderAll() {
+        renderBoard();
+        renderFollow();
+        renderSummary();
+        renderResults();
+        renderExtras();
+        renderShared();
+        renderApprove();
+    }
+
+    const RESTART = 'Restart in 4x6 is free: it clears your moves, undos and tools. Then tap Start over here and follow the moves from the start.';
+
+    function tierOf(total) {
+        if (total <= root.par) return 'gold';
+        return total <= root.par + 2 ? 'silver' : 'over par';
+    }
+    // What a finish in `total` moves gives up, for its moves alone.
+    function shortOf(total) {
+        return SCORING.under_par + SCORING.fewest -
+            ((total < root.par ? SCORING.under_par : total === root.par ? SCORING.at_par : 0) + (total <= root.fewest ? SCORING.fewest : 0));
+    }
+
+    function renderFollow() {
+        const show = solved() && !editorOpen;
+        followEl.hidden = !show;
+        if (!show) return;
+        let msg = '', more = '', warn = false;
+        const left = line.length - at;
+        if (dead) {
+            msg = "Dead end: this can't be finished from here without a tool.";
+            more = RESTART;
+            warn = true;
+        } else if (waiting) {
+            msg = 'Working out the rest...';
+        } else if (route === 'rainbow') {
+            msg = 'The rainbow route: ' + plural(line.length, 'move') + (left ? ', ' + left + ' to go.' : ', done.');
+            more = 'Play it on a replay, after the finish that scores.';
+        } else if (line.length > root.fewest) {
+            if (root.start_board) {
+                msg = left ? plural(line.length, 'move') + ' in all this way: ' + tierOf(line.length) + ', and ' + shortOf(line.length) + ' points short of the best.'
+                    : 'Done in ' + plural(line.length, 'move') + ': ' + tierOf(line.length) + '.';
+                more = left ? RESTART : '';
+            } else {
+                msg = left ? plural(line.length, 'move') + ' this way, ' + (line.length - root.fewest) + ' more than from the board you entered.'
+                    : 'Done in ' + plural(line.length, 'move') + '.';
+            }
+            warn = true;
+        } else if (!left && at) {
+            msg = 'Done in ' + plural(at, 'move') + ', the fewest there are.';
+        } else if (at) {
+            msg = 'On track: ' + plural(left, 'move') + ' to go.';
+        }
+        // The game makes the last move off the Stage by itself.
+        if (!dead && !waiting && left === 1 && line[at].from === STAGE && pointer()) more = '4x6 may make this last move by itself.';
+        statusEl.textContent = msg;
+        statusEl.hidden = !msg;
+        statusEl.classList.toggle('warn', warn);
+        moreEl.textContent = more;
+        moreEl.hidden = !more;
+        const stepping = mode === 'solve' || route === 'rainbow' || APPROVE;
+        backBtn.hidden = !(at > 0 || stepping);
+        backBtn.disabled = at === 0;
+        nextBtn.hidden = !stepping;
+        nextBtn.disabled = dead || waiting || at >= line.length;
+        overBtn.hidden = !(at > 0);
+        if (notMineBtn) notMineBtn.hidden = !offerClear;
+    }
+
+    function renderSummary() {
+        const show = solved();
+        summaryEl.hidden = !show || editorOpen;
+        modesEl.hidden = APPROVE || summaryEl.hidden;
+        if (summaryEl.hidden) { summaryEl.innerHTML = ''; return; }
+        if (!root.fewest) {
+            summaryEl.innerHTML = '<p class="fbs-summary">This board is already sorted.</p>';
+        } else if (root.start_board) {
+            summaryEl.innerHTML = '<p class="fbs-summary">Solved in ' + plural(root.fewest, 'move') + '. Your game should say Par ' + root.par + '.</p>' +
+                '<p class="fbs-note">A different par means a tile is off: tap Edit the tiles.</p>';
+        } else {
+            summaryEl.innerHTML = '<p class="fbs-summary">' + plural(root.fewest, 'move') + ' to finish from here.</p>' +
+                '<p class="fbs-note">Add the moves your game already shows. For the most points, Restart in 4x6 (it\'s free) and enter the board it starts with.</p>';
+        }
+    }
+
+    function renderResults() {
+        const show = solved() && !editorOpen && root.fewest > 0;
+        resultsEl.hidden = !show;
+        if (!show) { resultsEl.innerHTML = ''; return; }
+        resultsEl.classList.toggle('stale', waiting);
+        resultsEl.innerHTML = mode === 'solve' || route === 'rainbow' || APPROVE ? stepsHtml() : helpHtml();
+    }
+
+    /* ---------- Solution: every move ---------- */
+    function stepsHtml() {
+        const title = route === 'rainbow' ? 'The rainbow route' : best > 0 ? 'Your moves, and the fewest from there' : 'Every move';
+        let html = '<p class="fbs-section">' + title + '</p>';
+        if (route === 'rainbow') {
+            html += '<div class="fbs-actions" style="margin: 0 12px 8px;"><button type="button" class="fbs-btn" data-act="fewest">Back to the fewest moves</button></div>';
+        }
+        html += '<ol class="fbs-steps">' + line.map((s, k) =>
+            '<li><button type="button" class="fbs-row' + (k < at ? ' made' : k === at && !dead ? ' now' : '') + '" data-act="jump" data-n="' + k + '"' +
+            (k === at ? ' aria-current="step"' : '') + '><span class="fbs-row-n">' + (k + 1) + '</span><span class="fbs-row-text">' +
+            esc(cap(moveText(s))) + '</span>' + chip(s.color) + '</button></li>').join('') + '</ol>';
+        return html;
+    }
+
+    /* ---------- Help: one step at a time ---------- */
+    function firstEmptied() {
+        for (const s of line) {
+            if (s.from < STAGE && !s.after[s.from]) return s.from;
+        }
+        return -1;
+    }
+    // The first color to come together, and where.
+    function firstTogether() {
+        for (const s of line) {
+            for (let i = 0; i <= STAGE; i++) {
+                if (s.after[i].length === WIDTH && runLength(s.after[i]) === WIDTH) return {color: s.color, where: i};
+            }
+        }
+        return null;
+    }
+    function stageColors() {
+        const out = [];
+        line.forEach(s => { if (s.to === STAGE && !out.includes(s.color)) out.push(s.color); });
+        return out;
+    }
+    // [color, shelf], in the order they come together there.
+    function homes() {
+        const end = line.length ? line[line.length - 1].after : rows.slice();
+        const when = i => {
+            for (let k = 0; k < line.length; k++) if (line[k].after[i] === end[i]) return k;
+            return line.length;
+        };
+        const out = [];
+        for (let i = 0; i < SHELVES; i++) if (end[i]) out.push([end[i][0], i, when(i)]);
+        return out.sort((a, b) => a[2] - b[2] || a[1] - b[1]);
+    }
+    const button = (act, label, primary) => '<button type="button" class="fbs-btn' + (primary ? ' primary' : '') + '" data-act="' + act + '">' + esc(label) + '</button>';
+    const card = (title, body, actions, legend) => '<div class="fbs-card"><p class="fbs-card-title"><span>' + esc(title) + '</span>' +
+        (legend ? '<span class="fbs-legend">' + esc(legend) + '</span>' : '') + '</p>' + body +
+        (actions ? '<div class="fbs-actions">' + actions + '</div>' : '') + '</div>';
+    const said = html => '<p class="fbs-line">' + html + '</p>';
+
+    function helpHtml() {
+        if (dead || waiting) return '';
+        if (at >= line.length) return '';
+        let html = '';
+
+        let body = '', actions = '';
+        const shelf = firstEmptied(), together = firstTogether();
+        if (reveal.start >= 1) body += said(shelf >= 0 ? 'The first shelf to empty is <strong>shelf ' + (shelf + 1) + '</strong>.' : 'No shelf needs emptying.');
+        if (reveal.start >= 2 && together) body += said('The first color to come together is <strong>' + colorName(together.color) + '</strong> ' + chip(together.color) + ', on ' + place(together.where) + '.');
+        if (reveal.start < 1) actions = button('start', 'Show the first shelf to empty');
+        else if (reveal.start < 2 && together) actions = button('start', 'Show the first color to come together');
+        html += card('Where to start', body, actions);
+
+        const onStage = stageColors();
+        body = ''; actions = '';
+        if (reveal.stage >= 1) body += said(onStage.length ? 'The first color on it is <strong>' + colorName(onStage[0]) + '</strong> ' + chip(onStage[0]) + '.' : "This way doesn't need the Stage.");
+        if (reveal.stage >= 2 && onStage.length) {
+            body += said(onStage.length === 1 ? 'It holds no other color.'
+                : 'In order, it holds <strong>' + onStage.map(colorName).join(', then ') + '</strong>.');
+        }
+        if (reveal.stage < 1) actions = button('stage', 'Show the first color on it');
+        else if (reveal.stage < 2 && onStage.length) actions = button('stage', 'Show every color it holds');
+        html += card('The Stage', body, actions);
+
+        const list = homes();
+        body = list.slice(0, reveal.homes).map(h => said(chip(h[0]) + ' <strong>' + cap(colorName(h[0])) + '</strong> ends on shelf ' + (h[1] + 1) + '.')).join('');
+        actions = reveal.homes < list.length ? button('homes', reveal.homes ? 'Show one more' : 'Show one color') : '';
+        html += card('Where each color ends up', body, actions);
+
+        const s = line[at];
+        body = '';
+        if (reveal.next >= 2) body = said('<strong>' + esc(cap(moveText(s))) + '</strong> ' + chip(s.color));
+        else if (reveal.next >= 1) body = said('It comes from <strong>' + esc(place(s.from)) + '</strong>.');
+        actions = reveal.next < 1 ? button('next', 'Where does it come from?') + button('move', 'Show the move', true)
+            : reveal.next < 2 ? button('move', 'Show the move', true) : button('made', 'I made it, next', true);
+        html += card('Your next move', body, actions, 'move ' + (at + 1) + ' of ' + line.length);
+        return html;
+    }
+
+    resultsEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn || !solved() || waiting) return;
+        const act = btn.dataset.act;
+        if (act === 'jump') { goTo(Number(btn.dataset.n)); boardEl.scrollIntoView({behavior: 'smooth', block: 'nearest'}); return; }
+        if (act === 'fewest') { solveSeq++; resetLine(); renderAll(); persist(); return; }
+        if (act === 'start' || act === 'stage' || act === 'homes') reveal[act]++;
+        else if (act === 'next') reveal.next = 1;
+        else if (act === 'move') reveal.next = 2;
+        else if (act === 'made') { goTo(at + 1); return; }
+        renderAll();
+        persist();
+    });
+
+    /* ---------- points and badges (starting boards) ---------- */
+    function pointsHtml() {
+        const day = weekday();
+        const total = !dead && !waiting && route === 'fewest' ? line.length : root.fewest;
+        const under = total < root.par ? SCORING.under_par : total === root.par ? SCORING.at_par : 0;
+        const few = total <= root.fewest ? SCORING.fewest : 0;
+        const solvedPts = SCORING.solved + SCORING.per_day * day;
+        const sum = solvedPts + SCORING.no_tools + SCORING.no_undos + under + few;
+        const top = solvedPts + SCORING.no_tools + SCORING.no_undos + SCORING.under_par + SCORING.fewest;
+        const row = (label, n, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td><td>' + esc(String(n)) + '</td></tr>';
+        let html = '<div class="fbs-card plain"><p class="fbs-card-title">Points for ' + (total === root.fewest ? 'this solve' : 'finishing in ' + total) + '</p><table class="fbs-points"><tbody>' +
+            row(DAYS[day] + ' solved', solvedPts) +
+            row('No tools', SCORING.no_tools) +
+            row('No undos', SCORING.no_undos) +
+            row(total === root.par ? 'At par' : 'Under par', under, under === SCORING.under_par ? '' : 'lost') +
+            row('Fewest moves', few, few ? '' : 'lost') +
+            row('Streak', '1 a day, up to ' + SCORING.streak_max) +
+            row('Total', sum + ' + streak', 'total') + '</tbody></table>';
+        if (sum < top) html += said('The fewest moves would make ' + top + '.');
+        html += said('Your first finish each day is the one that scores. Undo costs ' + SCORING.no_undos + ' points. Restart is free: it clears your moves, undos and tools.');
+        return html + '</div>';
+    }
+
+    // undefined: not asked for yet; null: there's none; else the route.
+    let rainbowLoading = false;
+    function rainbowHtml() {
+        const r = root.rainbow;
+        let text = 'Finish with the shelves in rainbow order, yellow, orange, pink, purple, blue, green, from the top or from the bottom. ';
+        let act = '';
+        if (r === undefined) {
+            act = rainbowLoading ? '<button type="button" class="fbs-btn" disabled>Working it out...</button>' : button('rainbow', 'Show the rainbow route');
+        } else if (r === null) {
+            text += "The solver couldn't find one for this board.";
+        } else {
+            text += 'This board takes ' + plural(r.moves, 'move') + (r.tool ? ', using Extra once, which this badge allows.' : r.gold ? ', which is still gold.' : '.');
+            act = route === 'rainbow' ? button('fewest', 'Back to the fewest moves') : button('rainbow', 'Show the rainbow route');
+        }
+        return '<dt>Taste the Rainbow</dt><dd>' + esc(text) + (act ? '<div class="fbs-actions">' + act + '</div>' : '') + '</dd>';
+    }
+
+    function badgesHtml() {
+        return '<details class="fbs-card plain fbs-badges" id="fbs-badges"' + (badgesOpen ? ' open' : '') + '><summary>Badges</summary>' +
+            said('Gold adds 25 points and No Undos adds 5, once each, and the solution above earns both. The rest add no points. Get them on a replay: finish once for your score, then Restart and play again. A replay never changes your score.') +
+            '<dl>' + rainbowHtml() +
+            '<dt>Full Toolbox</dt><dd>Use all three tools in one solve. Flip a shelf that is already one color, put a tile in Extra and take it back out, and Scoop a tile that is alone on its shelf instead of moving it.</dd>' +
+            '<dt>Time Traveler</dt><dd>Make a move and undo it 30 times, then finish at par or under with no tools.</dd>' +
+            '<dt>Clairvoyant, Sunday Best and Golden Week</dt><dd>These come by themselves from finishing in the fewest moves, with no tools and no undos, day after day.</dd>' +
+            '<dt>Collector</dt><dd>Needs a gold, a silver (one or two moves over par) and a plain finish, on different days.</dd></dl></details>';
+    }
+
+    let badgesOpen = false;
+    function renderExtras() {
+        const show = startBoard() && !editorOpen && root.fewest > 0 && !APPROVE;
+        extrasEl.hidden = !show;
+        extrasEl.innerHTML = show ? pointsHtml() + badgesHtml() : '';
+    }
+    // Kept open or closed as the player left it, since it's drawn again on
+    // every change.
+    extrasEl.addEventListener('toggle', e => { if (e.target.id === 'fbs-badges') badgesOpen = e.target.open; }, true);
+
+    function showRainbow() {
+        solveSeq++;
+        resetLine();
+        line = root.rainbow.steps;
+        route = 'rainbow';
+        renderAll();
+        persist();
+        boardEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+
+    extrasEl.addEventListener('click', async e => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn || !solved()) return;
+        if (btn.dataset.act === 'fewest') {
+            solveSeq++;
+            resetLine();
+            renderAll();
+            persist();
+            return;
+        }
+        if (btn.dataset.act !== 'rainbow') return;
+        if (root.rainbow) { showRainbow(); return; }
+        // It takes longer than the fewest moves, so it's worked out only when
+        // asked for.
+        const asked = root, sig = rootSig;
+        rainbowLoading = true;
+        renderExtras();
+        try {
+            const data = await post({board: sig, rainbow: true});
+            if (root !== asked) return;
+            root.rainbow = data.rainbow || null;
+            rainbowLoading = false;
+            if (root.rainbow) showRainbow();
+            else renderExtras();
+        } catch (_) {
+            rainbowLoading = false;
+            if (root === asked) renderExtras();
+            toast('Could not reach the solver. Try again in a moment.', true);
+        }
+    });
+
+    /* ---------- Help or Solution ---------- */
+    function setMode(m) {
+        mode = m;
+        modesEl.querySelectorAll('.fbs-mode').forEach(b => {
+            const on = b.dataset.mode === m;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (!APPROVE) { try { localStorage.setItem(MODE_KEY, m); } catch (_) {} }
+        if (solved()) gaOnce(m === 'help' ? 'four_by_six_help' : 'four_by_six_solve');
+        renderAll();
+    }
+    modesEl.addEventListener('click', e => {
+        const btn = e.target.closest('[data-mode]');
+        if (!btn) return;
+        // Picking either leaves the rainbow route.
+        if (route === 'rainbow') { solveSeq++; resetLine(); persist(); }
+        setMode(btn.dataset.mode);
+    });
+
+    /* ---------- today's boards ---------- */
+    const isBoard = b => b && typeof b.board === 'string' && b.board.length === SIZE && CODES.every(c => b.board.split(c).length === WIDTH + 1);
+
+    // The boards the page arrived with for the player's date (drawn already
+    // by fbsShowOffer, when the board is empty), until the request below
+    // brings the newest.
+    const FIRST_BOARDS = {{ first_boards | default(none) | tojson }};
+    if (FIRST_BOARDS && Array.isArray(FIRST_BOARDS[localDay()])) {
+        sharedBoards = FIRST_BOARDS[localDay()].filter(isBoard);
+        sharedDay = sharedFetchedOn = localDay();
+    }
+
+    // Only the newest request's reply counts, and only while it's still the
+    // date it asked about where the player is: one that comes back after
+    // their midnight asks again, for the new day.
+    let sharedSeq = 0;
+    function fetchShared() {
+        if (!BOARDS_ON) return;
+        const seq = ++sharedSeq, day = localDay();
+        post({action: 'todays_boards', played_on: day})
+            .then(data => {
+                if (seq !== sharedSeq) return;
+                if (day !== localDay()) { fetchShared(); return; }
+                sharedFetchedOn = day;
+                sharedBoards = (data && Array.isArray(data.boards) ? data.boards : []).filter(isBoard);
+                sharedDay = data && typeof data.day === 'string' ? data.day : day;
+                renderShared();
+            })
+            .catch(() => {});
+    }
+
+    // Drawn by fbsShowOffer, next to the offer's markup, which also draws it
+    // as the page arrives. Drawing the same boards again moves nothing.
+    function renderShared() {
+        if (!sharedEl) return;
+        if (sharedBoards.length > 0 && !total()) fbsShowOffer(sharedBoards);
+        else sharedEl.hidden = true;
+    }
+
+    if (sharedPicks) sharedPicks.addEventListener('click', e => {
+        const el = e.target.closest('[data-pick]');
+        const b = el && sharedBoards[Number(el.dataset.pick)];
+        if (!b) return;
+        // The player's date has changed since this list came: ask for the
+        // new day's first.
+        if (sharedFetchedOn && sharedFetchedOn !== localDay()) {
+            sharedBoards = [];
+            renderShared();
+            fetchShared();
+            hint("It's a new day where you are, so there's a new 4x6. The list now shows today's boards.");
+            return;
+        }
+        offeredBoards = sharedBoards;
+        offerClear = true;
+        loadBoard(b.board, 'shared', sharedDay);
+        gaOnce('four_by_six_board_loaded');
+    });
+
+    const boardRows = board => {
+        const out = [];
+        for (let i = 0; i < SHELVES; i++) out.push(board.slice(i * WIDTH, (i + 1) * WIDTH));
+        return out.concat('', '');
+    };
+
+    function loadBoard(board, source, day) {
+        forgetPlan();
+        rows = boardRows(board);
+        selRow = -1;
+        selK = -1;
+        boardSource = source;
+        boardDay = day || localDay();
+        sharedBoards = [];
+        editorOpen = false;
+        hint(source === 'shared' ? "Loaded today's board from other players. Check it matches your game." : '');
+        renderAll();
+        persist();
+        solve();
+    }
+
+    // The boards they picked from come straight back (fetchShared refreshes
+    // them).
+    if (notMineBtn) notMineBtn.addEventListener('click', () => {
+        const back = offeredBoards;
+        clearBoard(false);
+        sharedBoards = back;
+        renderShared();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    });
+
+    /* ---------- logging ---------- */
+    // A starting board the player uses (a solve, then a few seconds of
+    // looking) is logged once per version. A board from partway through a
+    // game is no day's board, and one loaded from today's boards and left as
+    // it is can't confirm itself (routes/four_by_six.py), so neither is sent.
+    // Nothing in here may stop the page.
+    let logPending = '';
+    function maybeLog() {
+        try {
+            if (!LOG_BOARDS || !startBoard() || boardSource === 'shared') return;
+            const sig = (boardDay || localDay()) + '|' + text() + '|' + boardSource;
+            if (sig === loggedSig || sig === logPending) return;
+            logPending = sig;
+            fetch(POST_URL, {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', board: text(), source: boardSource, played_on: boardDay || localDay()})
+            }).then(r => {
+                if (r.ok) {
+                    loggedSig = sig;
+                    persist();
+                }
+            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
+        } catch (_) {}
+    }
+
+    // Players switch to the game and back: log on the way out, and ask for
+    // today's boards again on the way back (more may be in by then).
+    let sharedAt = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') maybeLog();
+        else if (Date.now() - sharedAt > 60000 && !total()) { sharedAt = Date.now(); fetchShared(); }
+    });
+
+    /* ---------- GA4 ---------- */
+    // four_by_six_help / _solve when results first show in that mode, and
+    // four_by_six_board_loaded the first time a board on offer is loaded:
+    // each at most once per page load.
+    const gaSent = new Set();
+    function gaOnce(name) {
+        if (APPROVE || gaSent.has(name) || typeof gtag !== 'function') return;
+        gaSent.add(name);
+        if (document.readyState === 'complete') gtag('event', name);
+        else window.addEventListener('load', () => gtag('event', name));
+    }
+
+    {% if approve %}
+    /* ---------- approve ---------- */
+    const PRELOAD = {{ preload | default(none) | tojson }};
+    const APPROVE_PENDING = 'fourBySixApprovePending_v1';
+    const approveBtn = $('fbs-approve-btn'), approveStatus = $('fbs-approve-status');
+    function renderApprove() {
+        const ok = startBoard() && root.fewest > 0;
+        approveBtn.disabled = !ok;
+        approveStatus.textContent = ok ? 'Your game should say Par ' + root.par + '. Approve if it does.'
+            : root && rootSig === text() && !root.solvable ? 'This board has no solution, so a tile is wrong.'
+            : solved() && !root.start_board ? 'Only a starting board can be approved: full shelves, nothing on the Stage or in Extra.'
+            : 'Enter all 24 tiles to approve the board.';
+    }
+    $('fbs-approve-form').addEventListener('submit', e => {
+        if (approveBtn.disabled) { e.preventDefault(); return; }
+        $('fbs-approve-board').value = text();
+        // The admin page clears this draft once the approval worked.
+        try { sessionStorage.setItem(APPROVE_PENDING, '1'); } catch (_) {}
+    });
+    {% else %}
+    const PRELOAD = null;
+    function renderApprove() {}
+    {% endif %}
+
+    /* ---------- saving ---------- */
+    function persist() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                rows: rows, moves: route === 'fewest' ? line.slice(0, at).map(s => [s.from, s.to]) : [],
+                reveal, boardSource, boardDay, loggedSig, offerClear, savedAt: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    // A save from an earlier day is a finished puzzle (a new one comes out
+    // at the player's midnight): start fresh, unless it's a few hours old,
+    // as on /4x3. James's approval draft never runs out.
+    function isStale(s) {
+        if (APPROVE) return false;
+        if (!s.savedAt) return true;
+        const ageHours = (Date.now() - s.savedAt) / 36e5;
+        return dayOf(new Date(s.savedAt)) !== localDay() && ageHours > STALE_FLOOR_HOURS;
+    }
+
+    function restore() {
+        let s = null;
+        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        if (!s || !Array.isArray(s.rows) || s.rows.length !== ROWS) return;
+        if (isStale(s)) {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            if (s.rows.some(r => typeof r === 'string' && r)) toast("Cleared yesterday's board - enter today's");
+            return;
+        }
+        // Anything stored is checked before use: a bad value would stick.
+        rows = s.rows.map((r, i) => (typeof r === 'string' ? r.split('').filter(t => CODES.includes(t)).join('').slice(0, room(i)) : ''));
+        if (rows[STAGE] && new Set(rows[STAGE]).size > 1) rows[STAGE] = '';
+        boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        boardDay = typeof s.boardDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.boardDay) ? s.boardDay : '';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 100) : '';
+        offerClear = s.offerClear === true && boardSource === 'shared';
+        const places = n => Number.isInteger(n) && n >= 0 && n <= EXTRA;
+        restoredMoves = (Array.isArray(s.moves) ? s.moves : []).filter(m => Array.isArray(m) && m.length === 2 && m.every(places)).slice(0, MAX_MOVES);
+        const kept = s.reveal && typeof s.reveal === 'object' ? s.reveal : {};
+        const most = {start: 2, stage: 2, homes: SHELVES, next: 0};
+        Object.keys(most).forEach(k => { reveal[k] = Number.isInteger(kept[k]) ? Math.max(0, Math.min(most[k], kept[k])) : 0; });
+    }
+
+    function clearBoard(ask) {
+        if (ask && total() && !confirm('Clear the whole board and start over?')) return;
+        forgetPlan();
+        rows = Array(ROWS).fill('');
+        selRow = 0;
+        selK = -1;
+        editorOpen = true;
+        boardSource = 'typed'; boardDay = ''; loggedSig = '';
+        offerClear = false;
+        hint('');
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+        renderAll();
+        fetchShared();
+    }
+    $('fbs-clear').addEventListener('click', () => clearBoard(true));
+
+    /* ---------- toast ---------- */
+    let toastEl = null, toastTimer = null;
+    function toast(msg, warn) {
+        if (toastEl) toastEl.remove();
+        clearTimeout(toastTimer);
+        toastEl = document.createElement('div');
+        toastEl.className = 'fbs-toast' + (warn ? ' warn' : '');
+        toastEl.setAttribute('role', 'status');
+        toastEl.textContent = msg;
+        document.body.appendChild(toastEl);
+        const el = toastEl;
+        toastTimer = setTimeout(() => {
+            el.style.transition = 'opacity 0.5s ease';
+            el.style.opacity = '0';
+            setTimeout(() => { el.remove(); if (toastEl === el) toastEl = null; }, 500);
+        }, 2600);
+    }
+
+    /* ---------- instructions toggle ---------- */
+    const instructionsPanel = $('instructions-panel');
+    $('instructions-toggle').addEventListener('click', () => {
+        instructionsPanel.classList.toggle('collapsed');
+        try { localStorage.setItem('fourBySixInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    });
+    try {
+        if (localStorage.getItem('fourBySixInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+    } catch (_) {}
+
+    /* ---------- boot ---------- */
+    if (APPROVE) {
+        mode = 'solve';
+    } else {
+        try { const m = localStorage.getItem(MODE_KEY); if (m === 'solve' || m === 'help') mode = m; } catch (_) {}
+    }
+    if (PRELOAD && isBoard({board: PRELOAD})) {
+        rows = boardRows(PRELOAD);
+        boardDay = localDay();
+    } else {
+        restore();
+    }
+    selRow = nextRow(-1);
+    editorOpen = !ready();
+    setMode(mode);
+    if (ready()) solve();
+    else renderEditHint();
+    if (!total()) { sharedAt = Date.now(); fetchShared(); }
+});
+</script>
+
+{% endblock %}

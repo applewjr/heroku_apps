@@ -284,8 +284,12 @@ def parse_choice(value, field, options, default):
 def json_object(silent=False):
     """The request's JSON body, which must be an object: anything else raises
     ValidationError (-> 400). silent=True reads a body that isn't JSON as
-    None, so that is a 400 too, rather than get_json's own error."""
-    data = request.get_json(silent=silent)
+    None, so that is a 400 too, rather than get_json's own error. A body
+    nested too deep for the parser is a 400 as well, never a crash."""
+    try:
+        data = request.get_json(silent=silent)
+    except RecursionError:
+        raise ValidationError('expected a JSON object')
     if not isinstance(data, dict):
         raise ValidationError('expected a JSON object')
     return data
@@ -389,9 +393,9 @@ def is_new(path):
 # Pages tagged Beta: next to the page's own heading, and in the menu, the home
 # page's card and the solver links, where NEW would go (a Beta page never
 # wears NEW too). No date: the tag stays until James says to take it off
-# (2026-11-19; /typeshift and /4x3 too, 2026-11-20), then the entry goes and
-# the next deploy drops it everywhere.
-BETA_PAGES = frozenset({'/circuits', '/typeshift', '/4x3'})
+# (2026-11-19; /typeshift and /4x3 too, 2026-11-20; /4x6, 2026-11-23), then
+# the entry goes and the next deploy drops it everywhere.
+BETA_PAGES = frozenset({'/circuits', '/typeshift', '/4x3', '/4x6'})
 
 
 def is_beta(path):
