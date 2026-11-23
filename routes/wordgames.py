@@ -11,6 +11,7 @@ from routes import guess_the_phrase as gtp
 from routes import ribbit
 from routes import smush as smush_crowd
 from routes import smush_ice
+from routes import wordiply
 from routes.ribbit import parse_ribbit_board
 from routes.smush import get_smush_words
 
@@ -504,6 +505,10 @@ def run_wordiply():
         # HTTPException handling); a JSON `null` body or a non-dict payload
         # would 500 on .get, so guard the shape here too.
         data = request.get_json()
+        # A starter to log, or today's starter to fetch (routes/wordiply.py):
+        # not a search.
+        if isinstance(data, dict) and 'action' in data:
+            return wordiply.handle_action(data)
         search_string = data.get('search_string', '') if isinstance(data, dict) else ''
         if not isinstance(search_string, str) or len(search_string) > 100:
             raise ValidationError('search_string must be a string of at most 100 characters')
@@ -514,4 +519,6 @@ def run_wordiply():
         return jsonify(results=results)
     else:
         log_page_visit('wordiply.html')
-        return render_template("wordiply.html", schema_data=schema_data)
+        # Today's starter as last looked up, for the offer's first paint;
+        # the page still asks for the newest.
+        return render_template("wordiply.html", schema_data=schema_data, **wordiply.page_context())

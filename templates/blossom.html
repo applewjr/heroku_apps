@@ -48,7 +48,7 @@
       "name": "Do I have to type today's letters?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower: tap Load it and all seven letters fill in, each in its spot. Check they match your game, then tap a petal. Playing an older puzzle from the archive? Type its letters as usual."
+        "text": "Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower. Tap Load it: all seven letters fill in, each in its spot, and the words for the first bonus petal show straight away. If the letters don't match your game, tap ↩ Not my board. Playing an older puzzle from the archive? Type its letters as usual."
       }
     },{% endif %}
     {
@@ -1108,6 +1108,24 @@ table.blossom-results tr.reject-confirm-row:hover {
     line-height: 1.4;
     color: #02484d;
 }
+/* Back to an empty flower, for a player whose game shows another board. */
+.bl-not-mine {
+    display: inline-block;
+    box-sizing: border-box;
+    min-height: 44px;
+    margin-top: 6px;
+    padding: 10px 14px;
+    border: 1px solid #02484d;
+    border-radius: 8px;
+    background-color: #fff;
+    color: #02484d;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.bl-not-mine:hover { background-color: #eef4f4; }
 .bl-hints {
     width: min(92vw, 440px);
     box-sizing: border-box;
@@ -1192,6 +1210,10 @@ table.blossom-results tr.reject-confirm-row:hover {
        edited (loaded, then changed). The results page gets it back, so a
        loaded board is never logged as the player's own there either. -->
   <input type="hidden" name="board_source" value="{{ board_source or 'typed' }}">
+  <!-- 1 while today's board is loaded and still on its first bonus petal,
+       with no word on it played: set as the board loads, and kept only while
+       that holds (routes/blossom.py), so "↩ Not my board" shows until then. -->
+  <input type="hidden" name="fresh_load" value="{{ '1' if fresh_load else '' }}">
   {# Marks this page load's first solve, so the server logs one use of it
      (extensions.log_solve). Only the page you arrive on has it: results
      pages don't, and the script drops it once the form is sent. #}
@@ -1236,6 +1258,14 @@ table.blossom-results tr.reject-confirm-row:hover {
       }
     })();
   </script>
+  {% endif %}
+  {% if fresh_load %}
+  {# Results for today's board, loaded and solved on its first bonus petal
+     (routes/blossom.py first_bonus_petal), until the player makes it theirs:
+     another petal tapped, a word ticked Used or a letter changed (the server,
+     or the script below, takes it away). #}
+  <p class="bl-loaded-note" id="bl-fresh-note">Loaded today's board, entered by other players, with its first bonus petal, {{ first_petal|upper }}. Already played a word? Tap your game's bonus petal.
+    <a href="/blossom" class="bl-not-mine" id="bl-not-mine">↩ Not my board</a></p>
   {% endif %}
   <br>
 
@@ -1367,7 +1397,7 @@ table.blossom-results tr.reject-confirm-row:hover {
       {% if show_board %}
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to type today's letters?</p>
-        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower: tap Load it and all seven letters fill in, each in its spot. Check they match your game, then tap a petal. Playing an older puzzle from the archive? Type its letters as usual.</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter their letters into this solver as they play, so once other players have entered today's board, it's offered above the flower. Tap Load it: all seven letters fill in, each in its spot, and the words for the first bonus petal show straight away. If the letters don't match your game, tap ↩ Not my board. Playing an older puzzle from the archive? Type its letters as usual.</p>
       </div>
       {% endif %}
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
@@ -1768,6 +1798,10 @@ function initializeBlossomApp() {
     
     if (checkbox.checked) {
       row.classList.add('used-word');
+      // A word played from a loaded board: it's this player's board, so
+      // "↩ Not my board" goes (the server leaves it off from now on too).
+      const fresh = document.getElementById('bl-fresh-note');
+      if (fresh) fresh.hidden = true;
     } else {
       row.classList.remove('used-word');
     }
@@ -2524,6 +2558,8 @@ function initializeBlossomApp() {
         setBoardSource('edited');
         const note = document.getElementById('bl-loaded-note');
         if (note) note.hidden = true;
+        const fresh = document.getElementById('bl-fresh-note');
+        if (fresh) fresh.hidden = true;
       }
       const bar = document.getElementById('bl-today');
       if (bar && boardSig()) bar.hidden = true;
@@ -2535,7 +2571,9 @@ function initializeBlossomApp() {
   const isBoard = b => !!b && typeof b.date === 'string' && typeof b.center === 'string' &&
     /^[a-z]$/.test(b.center) && typeof b.petals === 'string' && /^[a-z]{6}$/.test(b.petals);
 
-  // Fill the flower with today's board, each letter in its spot.
+  // Fill the flower with today's board, each letter in its spot, then solve
+  // it on its first bonus petal (routes/blossom.py first_bonus_petal), as if
+  // the player had tapped it. Without one, the player taps a petal.
   function loadBoard(b) {
     if (!isBoard(b)) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -2550,6 +2588,14 @@ function initializeBlossomApp() {
     setBoardSource('loaded');
     markLogged(localISO() + '|' + boardSig());
     document.getElementById('bl-today').hidden = true;
+    const first = (typeof b.first_petal === 'string' && b.first_petal.length === 1)
+      ? b.petals.indexOf(b.first_petal) : -1;
+    if (first !== -1) {
+      const fresh = document.querySelector('input[name="fresh_load"]');
+      if (fresh) fresh.value = '1';
+      selectPetal(first);
+      return;
+    }
     document.getElementById('bl-loaded-note').hidden = false;
   }
 

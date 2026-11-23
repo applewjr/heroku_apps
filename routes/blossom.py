@@ -114,6 +114,21 @@ def blossom_solver():
             used_words = session.get('used_words', [])
             invalid_words = session.get('invalid_words', [])
 
+            # Today's board, loaded and solved on its first bonus petal, that
+            # the player hasn't made their own yet: no other petal tapped and
+            # no word on it ticked Used. The results page offers "↩ Not my
+            # board" for a player whose game shows another board. The page
+            # sets fresh_load as it loads the board, and the results page
+            # carries it only while this holds, so once the player taps
+            # another petal it's gone for good (James, 2026-11-22), even back
+            # on the first petal later.
+            first_petal = first_bonus_petal(may_have.lower()) if len(may_have) == 6 else ''
+            fresh_load = (board_source == 'loaded' and request.form.get('fresh_load') == '1'
+                          and len(must_have) == 1 and petal_letter.lower() == first_petal
+                          and not any(isinstance(w, str) and _fits_puzzle(w.lower(), must_have.lower(),
+                                                                           may_have.lower())
+                                      for w in used_words))
+
             # Get the blossom table and modify it to include checkboxes
             words_blossom_filtered = get_filtered_blossom_words()
             blossom_table, total_valid_words, show_load_more, pangrams = all_words.filter_words_blossom_revamp(
@@ -153,7 +168,9 @@ def blossom_solver():
                                 pangrams=pangrams,
                                 schema_data=schema_data,
                                 show_board=show_board,
-                                board_source=board_source)
+                                board_source=board_source,
+                                fresh_load=fresh_load,
+                                first_petal=first_petal)
 
         else:
             # Initialize session for used words if it doesn't exist
@@ -589,6 +606,23 @@ def board_text(board):
     return board[0].upper() + ' · ' + ' '.join(board[1:].upper())
 
 
+def first_bonus_petal(petals):
+    """The petal Blossom makes the bonus for a board's first word: the
+    alphabetically first petal letter, whatever the petals' spots. After
+    each word the bonus moves to the next letter alphabetically, wrapping
+    round (B · L R I E A Y goes A, E, I, L, R, Y).
+
+    Not from the game's code: from players' taps (2026-11-22, James
+    agrees). Matching each logged board to the solve it was logged with,
+    1,217 boards from 10-24 to 11-22, the most common first petal tapped
+    was the alphabetically first on all 30 approved days (28 outright, 2
+    ties), and 76% of the next petals tapped were the next letter
+    alphabetically. Around the flower the steps were spread evenly.
+    Load it solves on this petal, so a player who loads today's board sees
+    their first word's best answers straight away."""
+    return min(petals)
+
+
 def _fetch(sql, params):
     with db_cursor() as (conn, cursor):
         cursor.execute(sql, params)
@@ -750,8 +784,9 @@ def todays_board(rows, day):
     first seen on an earlier day (an archive game), and never a smaller
     puzzle while the biggest has no state settled yet: that could be some
     other game's board. Returns (board, groups): board is {'date', 'center',
-    'petals', 'text'} or None; groups is every puzzle of the day with its
-    consensus, 'archive' and 'served', most players first.
+    'petals', 'text', 'first_petal'} or None; groups is every puzzle of the
+    day with its consensus, 'archive', 'served' and 'first_petal' (see
+    first_bonus_petal), most players first.
     """
     by_letters = {}
     for row in rows:
@@ -763,6 +798,7 @@ def todays_board(rows, day):
             continue
         result = consensus(group_rows, day)
         result['letters'] = letters
+        result['first_petal'] = first_bonus_petal(letters[1:])
         result['archive'] = result['first_seen'] < day
         result['served'] = False
         if result['archive'] and not result['approved']:
@@ -792,7 +828,7 @@ def todays_board(rows, day):
     chosen['served'] = True
     board = chosen['board']
     return {'date': day.isoformat(), 'center': board[0], 'petals': board[1:],
-            'text': board_text(board)}, groups
+            'text': board_text(board), 'first_petal': first_bonus_petal(board[1:])}, groups
 
 
 def blossom_hints(center, petals, day):

@@ -125,6 +125,25 @@ def no_four_by_three_db(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_wordiply_db(monkeypatch):
+    """Keep /wordiply's today's starter off the database, for every test.
+
+    Starters are logged to and read from wordiply_boards, and
+    ``secret_pass.py`` points at the production JawsDB. Every cursor in
+    routes/wordiply.py fails here, as in an outage (the page fails safe),
+    and its memo starts empty. tests/test_wordiply_boards.py puts a table
+    of its own in place of these.
+    """
+    import routes.wordiply as wordiply
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(wordiply, "db_cursor", down)
+    monkeypatch.setattr(wordiply, "_starter_cache", {})
+
+
+@pytest.fixture(autouse=True)
 def no_ice_builds(monkeypatch):
     """Never really build an ICE COLD table in a test, for every test.
 

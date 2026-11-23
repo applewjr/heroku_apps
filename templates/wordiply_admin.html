@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+
+{% block title %}Wordiply Admin - Today's Starter{% endblock %}
+
+{% block content %}
+{% from '_crowd_admin.html' import styles, flash with context %}
+{{ styles() }}
+<style>
+.starter-text {
+    font-family: monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.status-served {
+    color: #218838;
+    font-weight: bold;
+}
+
+.status-waiting {
+    color: #666;
+}
+
+.when {
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+/* Approve your game's starter: one line above the days. */
+.approve-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin: 6px 0 4px;
+}
+
+.approve-entry input[type=text] {
+    width: 9em;
+    padding: 6px 8px;
+    font-family: monospace;
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.approve-entry input[type=date] {
+    padding: 5px 6px;
+}
+
+.approve-entry .btn {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+</style>
+
+
+<div class="admin-container">
+    <div class="admin-top">
+        <h1>Wordiply Admin - Today's Starter</h1>
+        <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
+            <a href="/wordiply" target="_blank" rel="noopener" class="btn btn-primary">Back to Wordiply Solver</a>
+            <a href="https://www.wordiply.com/" target="_blank" rel="noopener" class="btn btn-success">Play Wordiply</a>
+        </nav>
+    </div>
+
+    {{ flash() }}
+
+    <div class="stats">
+        <strong>Game day (Europe/London):</strong> {{ game_today.strftime('%Y-%m-%d') }} |
+        <strong>Today's starter:</strong> {{ 'live on /wordiply' if starter_live else 'logging only, served nowhere' }} |
+        <strong>Served at:</strong> {{ serve_crowd }} players, or your approval
+    </div>
+
+    <div class="tab-head">
+        <h2>Today's Starter</h2>
+        <details class="admin-help"><summary>How starters are served</summary>
+            <p class="crowd-note">The game day is Wordiply's: the date in Europe/London, for every player, so a new starter comes at London midnight (4pm Pacific most of the year). It's the server's clock, not the player's.</p>
+            <p class="crowd-note">A starter is logged once a player uses the solver on it: they tap a word, Define or Show more, or leave the page for their game with its words on screen. A starter loaded from the offer counts only once it's changed. It's served once {{ serve_crowd }} players enter the same one that day; then whichever has the most players, a tie going to the first to reach {{ serve_crowd }}. Players on one network count as one. A starter that a longer one at least as many players entered begins with is never served on its own (half-typed).</p>
+            <p class="crowd-note">Your approval is served straight away, whatever the players typed, and there's one a day: approving another starter that day replaces it. Approvals are optional; the players' starters serve without them. Add approves a starter players entered. Undo takes the day's approval back and leaves the players' starters alone. Remove deletes the players' entries of that starter on that day.</p>
+        </details>
+    </div>
+    {% if load_error %}
+    <div class="alert alert-error">
+        Couldn't read the starters ({{ load_error }}). Has mysql_tables/wordiply_boards.sql been run?
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/wordiply_admin/approve" class="approve-entry" id="approve-entry">
+        <strong>Approve your game's starter:</strong>
+        <input type="text" name="letters" maxlength="{{ max_len }}" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" aria-label="Starter word" required>
+        <input type="date" name="played_on" value="{{ game_today.strftime('%Y-%m-%d') }}" aria-label="Game day" required>
+        <button type="submit" class="btn btn-success">Approve</button>
+    </form>
+
+    {% for d in days %}
+    <h3>{{ d.day.strftime('%Y-%m-%d') }}{% if d.day == game_today %} (today){% endif %}
+        - {% if d.starter %}serving <span class="starter-text">{{ d.starter|upper }}</span>{% else %}<span class="status-waiting">nothing served</span>{% endif %}</h3>
+    <div class="table-wrap">
+    <table class="words-table">
+        <thead>
+            <tr>
+                <th>Starter</th>
+                <th>Players</th>
+                <th>Status</th>
+                <th>First / last</th>
+                <th>Approve</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in d.groups %}
+            <tr>
+                <td class="starter-text">{{ g.letters|upper }}</td>
+                <td>{{ g.players }}</td>
+                <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                <td class="when">
+                    {{ g.first_at.strftime('%m-%d %H:%M') }}<br>
+                    {{ g.last_at.strftime('%m-%d %H:%M') }}
+                </td>
+                <td>
+                    {% if g.approved %}
+                    <span class="status-served">Approved</span><br>
+                    <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span><br>
+                    <form method="POST" action="/wordiply_admin/unapprove" class="remove-form"
+                          onsubmit="return confirm('Undo your approval for {{ d.day.strftime('%Y-%m-%d') }}? Then the starters players entered decide again.')">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-secondary">Undo</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="/wordiply_admin/approve" class="remove-form"
+                          onsubmit="return confirm('Serve {{ g.letters|upper }} to every player on {{ d.day.strftime('%Y-%m-%d') }}?')">
+                        <input type="hidden" name="letters" value="{{ g.letters }}">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-success">Add</button>
+                    </form>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if g.players %}
+                    <form method="POST" action="/wordiply_admin/remove" class="remove-form"
+                          onsubmit="return confirm('Delete every player entry of {{ g.letters|upper }} on {{ d.day.strftime('%Y-%m-%d') }}?')">
+                        <input type="hidden" name="letters" value="{{ g.letters }}">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-danger">Remove</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    {% if not load_error %}<p>No starters logged in the last few days.</p>{% endif %}
+    {% endfor %}
+</div>
+
+{% endblock %}
