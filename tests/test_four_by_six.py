@@ -96,8 +96,28 @@ def test_a_board_from_partway_through_a_game():
     board = fbs.parse_board('Y|OOKK|PPBB|GGGG|OOK|PPBB|YYY|K')
     assert board == ('Y', 'OOKK', 'PPBB', 'GGGG', 'OOK', 'PPBB', 'YYY', 'K')
     assert not fbs.is_start(board) and fbs.board_text(board) == 'Y|OOKK|PPBB|GGGG|OOK|PPBB|YYY|K'
+    assert fbs.parse_board(fbs.board_text(board)) == board
     # Full shelves written in parts are a starting board.
     assert fbs.board_text(fbs.parse_board('YYYY|OOKK|PPBB|GGGG|OOKK|PPBB||')) == 'YYYYOOKKPPBBGGGGOOKKPPBB'
+
+
+def test_a_used_extra_stays_used():
+    # A tile into Extra and back: full shelves, but not a fresh board.
+    start = fbs.parse_board('YYYYOOKKPPBBGGGGOOKKPPBB')
+    used = fbs.apply_move(fbs.apply_move(start, 0, fbs.EXTRA), fbs.EXTRA, 0)
+    assert used[:fbs.EXTRA] == start[:fbs.EXTRA] and used[fbs.EXTRA] == fbs.SPENT
+    assert not fbs.is_start(used)
+    assert fbs.board_text(used) == 'YYYY|OOKK|PPBB|GGGG|OOKK|PPBB||-'
+    again = fbs.parse_board(fbs.board_text(used))
+    assert again == used and fbs.moved(again, 0, fbs.EXTRA) == 0
+
+
+@pytest.mark.parametrize('bad', ['-YYYOOKKPPBBGGGGOOKKPPBB', 'YYYYOOKKPPBBGGGGOOKKPPBB-',
+                                 'YYYY|OOKK|PPBB|GGGG|OOKK|PPBB|-|', 'YYY-|OOKK|PPBB|GGGG|OOKK|PPBB||Y',
+                                 'YYYY|OOKK|PPBB|GGGG|OOKK|PPBB||--', 'YYY|OOKK|PPBB|GGGG|OOKK|PPBB||Y-'])
+def test_the_used_marker_goes_only_in_extra(bad):
+    with pytest.raises(fbs.BoardError):
+        fbs.parse_board(bad)
 
 
 @pytest.mark.parametrize('bad', [None, 24, [], '', 'YYYY', 'Y' * 25, 'YYYYOOKKPPBBGGGGOOKKPPBX',
@@ -229,7 +249,8 @@ def test_the_estimate_is_never_too_high(solvable):
 def test_rainbow_finishes_in_rainbow_order_as_the_game_plays(solvable):
     ups = set()
     for board in solvable[:SEED_BOARDS]:
-        route = fbs.rainbow(board)
+        route, proved = fbs.rainbow(board)
+        assert proved
         position = board
         for k, step in enumerate(route):
             # Never through a finished board, and never where the game would
@@ -256,12 +277,76 @@ def test_rainbow_avoids_the_games_own_last_move():
 
 
 def test_a_finished_board_needs_no_moves():
-    assert fbs.solve(DONE) == () and fbs.rainbow(DONE) == ()
+    assert fbs.solve(DONE) == () and fbs.rainbow(DONE) == ((), True)
 
 
-def test_the_cap_stops_a_search(monkeypatch, solvable):
+def test_a_finished_board_takes_no_more_moves(solvable):
+    # The game is over, though a whole shelf could go to the empty Stage.
+    with pytest.raises(fbs.BoardError, match='finished'):
+        fbs.apply_move(DONE, 0, fbs.STAGE)
+    board = solvable[0]
+    moves = [(s.src, s.dst) for s in fbs.solve(board)]
+    assert fbs.plan(board, moves)['status'] == 'done'       # the move that finishes it is fine
+    with pytest.raises(fbs.BoardError, match='finished'):
+        fbs.plan(board, moves + [(0, fbs.STAGE)])
+
+
+@pytest.fixture
+def tiny_cap(monkeypatch):
+    """Every search stops at two positions; nothing it says is kept."""
+    def forget():
+        fbs._outcome.cache_clear()
+        fbs.rainbow.cache_clear()
+    forget()
     monkeypatch.setattr(fbs, 'POSITION_CAP', 2)
-    assert fbs._search(solvable[0], fbs._same_shelves, fbs.at_least, fbs.is_done) is None
+    yield
+    forget()
+
+
+def test_a_search_at_its_cap_is_not_an_answer(tiny_cap, solvable):
+    board = solvable[0]
+    with pytest.raises(fbs.SearchLimit):
+        fbs.solve(board)
+    with pytest.raises(fbs.SearchLimit):
+        fbs.solve(board)                                     # kept, and still not an answer
+    plan = fbs.plan(board)
+    assert plan['status'] == 'unknown' and plan['solvable'] is None
+    assert not {'fewest', 'par', 'steps', 'rainbow'} & set(plan)
+    assert fbs.rainbow(board) == (None, False)
+
+
+def test_a_capped_way_on_is_not_a_dead_end_or_a_finish(monkeypatch, solvable):
+    board = solvable[0]
+    start = fbs.solve(board)
+    src, dst, _n = next(m for m in fbs.legal_moves(board) if m[:2] != (start[0].src, start[0].dst))
+    real = fbs._outcome
+    monkeypatch.setattr(fbs, '_outcome', lambda p: real(p) if p == board else fbs._CAPPED)
+    plan = fbs.plan(board, [(src, dst)])
+    assert plan['status'] == 'unknown' and plan['steps'] == [] and plan['solvable'] is True
+    assert plan['fewest'] == len(start) and 'total' not in plan and 'gold' not in plan
+
+
+def test_a_rainbow_route_that_may_not_be_the_shortest_says_so(monkeypatch, solvable):
+    board = solvable[0]
+    route, _proved = fbs.rainbow(board)
+    path = [(s.src, s.dst, s.n) for s in route]
+    monkeypatch.setattr(fbs, '_rainbow_route', lambda position, tool: (path, True))
+    fbs.rainbow.cache_clear()
+    try:
+        plan = fbs.plan(board, with_rainbow=True)
+        assert plan['rainbow']['moves'] == len(path) and plan['rainbow_proved'] is False
+    finally:
+        fbs.rainbow.cache_clear()
+
+
+def test_real_boards_stay_far_under_the_cap(monkeypatch, dealt):
+    # The fewest moves, starting and partway. Measured over half a million
+    # boards, with a hill-climb for the worst: 1,302 positions at most.
+    monkeypatch.setattr(fbs, 'POSITION_CAP', 2500)
+    rng = random.Random(12)
+    for board in dealt[:150]:
+        for position in (board, partway(board, rng, 4)):
+            fbs._search(position, fbs._same_shelves, fbs.at_least, lambda p: False)
 
 
 # --- points -----------------------------------------------------------------------------
@@ -346,6 +431,35 @@ def test_a_player_may_use_extra_once(solvable):
     assert plan['position'][fbs.EXTRA] and plan['status'] in ('off', 'dead_end')
     with pytest.raises(fbs.BoardError):
         fbs.plan(board, [(0, fbs.EXTRA), (1, fbs.EXTRA)])
+
+
+def test_extra_can_open_a_way_on_a_board_with_no_solution(dealt):
+    found = 0
+    for board in dealt:
+        if fbs.solve(board) is not None:
+            continue
+        for src in range(fbs.SHELVES):
+            plan = fbs.plan(board, [(src, fbs.EXTRA)])
+            assert plan['solvable'] is False
+            # Nothing to measure it by: no fewest, no par, no score.
+            assert not {'fewest', 'par', 'gold', 'short'} & set(plan)
+            if plan['status'] == 'continued':
+                found += 1
+                now = fbs.apply_move(board, src, fbs.EXTRA)
+                assert plan['left'] == len(fbs.solve(now)) and plan['total'] == plan['left'] + 1
+                moves = [(src, fbs.EXTRA)] + [(s['from'], s['to']) for s in plan['steps']]
+                assert fbs.plan(board, moves)['status'] == 'done'
+            else:
+                assert plan['status'] == 'dead_end' and plan['steps'] == []
+        if found > 3:
+            break
+    assert found > 3
+
+
+def test_the_stage_hint_counts_what_is_on_it_already():
+    board = fbs.parse_board('YYY|OOOO|KKKK|PPPP|BBBB|GGGG|Y|')
+    assert fbs.plan(board)['stage_colors'] == ['Y']
+    assert fbs.plan(fbs.parse_board('YYY|OOOO|KKKK|PPPP|BBBB|GGGG||Y'))['stage_colors'] == []
 
 
 def test_a_board_with_no_solution(dealt):

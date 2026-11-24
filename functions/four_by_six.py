@@ -53,8 +53,11 @@ NAMES = {'Y': 'yellow', 'O': 'orange', 'K': 'pink', 'P': 'purple', 'B': 'blue', 
 # The game shows Par as the fewest moves plus this.
 PAR_OVER_FEWEST = 2
 # A search stops after this many positions: a cap on what one request can
-# cost. The fewest moves take a few hundred; the rainbow route with Extra
-# about 1,500, and 8,800 on the hardest board a hill-climbing search found.
+# cost. Measured with no cap, random boards and hill-climbs for the worst
+# (2026-11-23): the fewest moves closed 1,302 at most over 528,000 boards,
+# starting and partway, and a rainbow route 6,136 at most over 392,000
+# searches of solvable starting boards. So nothing is expected to reach it,
+# and a search that does says so (SearchLimit).
 POSITION_CAP = 20000
 # Moves a request may carry: a whole game is about 20.
 MAX_MOVES = 60
@@ -64,6 +67,11 @@ Step = namedtuple('Step', 'src dst n color after')
 
 class BoardError(ValueError):
     """A board, or a move on it, that can't be."""
+
+
+class SearchLimit(Exception):
+    """A search stopped at POSITION_CAP, so whether there's a way, and how
+    short, isn't known."""
 
 
 ##### boards #####
@@ -78,7 +86,8 @@ def parse_board(text):
     """A position from the page: a starting board as its 24 codes, shelf by
     shelf, left to right; or a board partway through a game as eight
     '|'-joined parts (the six shelves, the Stage and Extra, each left to
-    right). BoardError if it isn't one."""
+    right, with Extra as SPENT once it's been used). BoardError if it isn't
+    one."""
     if not isinstance(text, str):
         raise BoardError('the board must be 24 tiles')
     text = text.strip().upper()
@@ -91,6 +100,8 @@ def parse_board(text):
         if len(parts) != EXTRA + 1:
             raise BoardError('a board is six shelves, the Stage and Extra')
     for i, part in enumerate(parts):
+        if i == EXTRA and part == SPENT:
+            continue
         _codes(part, 'on the board')
         if len(part) > (1 if i == EXTRA else WIDTH):
             raise BoardError('Extra holds one tile' if i == EXTRA else 'a shelf holds four tiles')
@@ -104,8 +115,8 @@ def parse_board(text):
 
 
 def is_start(position):
-    """A starting board: full shelves, nothing on the Stage or in Extra."""
-    return all(len(s) == WIDTH for s in position[:SHELVES]) and not position[STAGE] and position[EXTRA] in ('', SPENT)
+    """A starting board: full shelves, nothing on the Stage, Extra unused."""
+    return all(len(s) == WIDTH for s in position[:SHELVES]) and not position[STAGE] and not position[EXTRA]
 
 
 def board_text(position):
@@ -113,7 +124,7 @@ def board_text(position):
     else its eight parts."""
     if is_start(position):
         return ''.join(position[:SHELVES])
-    return '|'.join(position[:EXTRA] + (position[EXTRA].replace(SPENT, ''),))
+    return '|'.join(position)
 
 
 def holding(position):
@@ -155,9 +166,12 @@ def _after(position, src, dst, n):
 
 
 def apply_move(position, src, dst):
-    """The position after a move. BoardError if it isn't legal."""
+    """The position after a move. BoardError if it isn't legal, or if the
+    board is finished already: that ended the game."""
     if not (type(src) is int and type(dst) is int and 0 <= src <= EXTRA and 0 <= dst <= EXTRA):
         raise BoardError('a move goes from one place on the board to another')
+    if is_done(position):
+        raise BoardError('the board is finished')
     n = moved(position, src, dst)
     if not n:
         raise BoardError("that move isn't allowed")
@@ -229,8 +243,8 @@ def _same_shelves(position):
 
 def _search(start, key, estimate, done, tool=False):
     """The shortest way from `start` to a position that is `done`, as
-    [(src, dst, n)], or None if there is none (or the cap was reached).
-    Positions with the same `key` count as one. As in the game, a finished
+    [(src, dst, n)], or None if there is none. SearchLimit if it reaches
+    POSITION_CAP first. Positions with the same `key` count as one. As in the game, a finished
     board ends the game, and a position the game finishes by itself
     (auto_finish) has only that move. `tool` lets a tile into Extra."""
     best = {key(start): 0}
@@ -251,14 +265,14 @@ def _search(start, key, estimate, done, tool=False):
                 path.append(move)
             return path[::-1]
         if len(closed) >= POSITION_CAP:
-            return None
+            raise SearchLimit
         if is_done(position):
             continue
         forced = auto_finish(position)
         for src, dst, n in [forced] if forced else legal_moves(position, tool):
             after = _after(position, src, dst, n)
             after_key = key(after)
-            if made + 1 < best.get(after_key, POSITION_CAP):
+            if made + 1 < best.get(after_key, made + 2):
                 best[after_key] = made + 1
                 came_from[after] = ((src, dst, n), position)
                 # Among equals, the newest first: straight on toward a finish.
@@ -276,35 +290,61 @@ def _steps(position, path):
     return tuple(out)
 
 
+# A search's outcome when it reached the cap, kept like any other.
+_CAPPED = object()
+
+
 @lru_cache(maxsize=512)
-def solve(position):
-    """The fewest moves from a position to a finished board, with no tool,
-    as Steps (none if it's finished already), or None if it can't be
-    finished."""
-    path = _search(position, _same_shelves, at_least, is_done)
+def _outcome(position):
+    try:
+        path = _search(position, _same_shelves, at_least, is_done)
+    except SearchLimit:
+        return _CAPPED
     return None if path is None else _steps(position, path)
 
 
+def solve(position):
+    """The fewest moves from a position to a finished board, with no tool,
+    as Steps (none if it's finished already), or None if it can't be
+    finished. SearchLimit if the search couldn't tell."""
+    steps = _outcome(position)
+    if steps is _CAPPED:
+        raise SearchLimit
+    return steps
+
+
 def _rainbow_route(position, tool):
-    best = None
+    """(the shorter of the two orders' paths or None, whether a search
+    reached the cap)."""
+    best, capped = None, False
     for order in (COLORS, COLORS[::-1]):
-        path = _search(position, lambda p: p, lambda p, o=order: _at_least_in_order(p, o),
-                       lambda p, o=order: is_done(p) and all(s[:1] == c for s, c in zip(p, o)), tool)
+        try:
+            path = _search(position, lambda p: p, lambda p, o=order: _at_least_in_order(p, o),
+                           lambda p, o=order: is_done(p) and all(s[:1] == c for s, c in zip(p, o)), tool)
+        except SearchLimit:
+            capped = True
+            continue
         if path is not None and (best is None or len(path) < len(best)):
             best = path
-    return best
+    return best, capped
 
 
 @lru_cache(maxsize=256)
 def rainbow(position):
-    """The fewest moves to a board finished in rainbow order (COLORS top to
-    bottom, or bottom to top), as Steps, or None: with no tool if that's as
-    short, else using Extra once."""
-    plain = _rainbow_route(position, False)
-    with_extra = _rainbow_route(position, True) if position[EXTRA] == '' else None
-    if plain is None or (with_extra is not None and len(with_extra) < len(plain)):
-        plain = with_extra
-    return None if plain is None else _steps(position, plain)
+    """(steps, proved): the fewest moves to a board finished in rainbow order
+    (COLORS top to bottom, or bottom to top), as Steps, with no tool if
+    that's as short, else using Extra once; None if none was found. proved
+    is False if a search reached the cap, so there may be a shorter way, or
+    one at all."""
+    path, capped = _rainbow_route(position, False)
+    if position[EXTRA] == '':
+        with_extra, extra_capped = _rainbow_route(position, True)
+        # Anything without the tool is a way with it too, so this search
+        # alone settles the fewest.
+        capped = extra_capped
+        if path is None or (with_extra is not None and len(with_extra) < len(path)):
+            path = with_extra
+    return (None if path is None else _steps(position, path)), not capped
 
 
 ##### points #####
@@ -350,9 +390,10 @@ def _homes(position):
     return {s[0]: i for i, s in enumerate(position[:SHELVES]) if s}
 
 
-def _stage_colors(steps):
-    """The colors the Stage holds, in the order each first goes on it."""
-    out = []
+def _stage_colors(position, steps):
+    """The colors the Stage holds, in order: the one on it already, then
+    each as it first goes on."""
+    out = list(position[STAGE][:1])
     for step in steps:
         if step.dst == STAGE and step.color not in out:
             out.append(step.color)
@@ -366,45 +407,64 @@ def plan(position, moves=(), with_rainbow=False):
 
     status is 'start' (no moves yet), 'on_track' (the fewest moves in all is
     still possible), 'off' (more than that now), 'dead_end' (it can't be
-    finished without a tool) or 'done'; 'unsolvable' when the board itself
-    has no solution. `start_board` says whether it's a starting board, whose
-    par the game shows. The rainbow route (rainbow: None if there's none) is
-    worked out only when asked for, as it takes longer, and only for a
-    starting board with no moves made.
+    finished without a tool) or 'done'. 'unsolvable' is a board with no
+    solution, before any move; after moves on one (a tile into Extra may
+    open a way), 'continued' is a way on, with no fewest or par to measure
+    it by. 'unknown' is a search that reached its cap: nothing is claimed.
+    solvable is True, False, or None when that isn't known.
+
+    `start_board` says whether it's a starting board, whose par the game
+    shows. The rainbow route (rainbow: None if none was found;
+    rainbow_proved: whether that's settled) is worked out only when asked
+    for, as it takes longer, and only for a starting board with no moves
+    made.
     """
-    start = solve(position)
+    start, known = _try_solve(position)
     now = position
     for src, dst in moves:
         now = apply_move(now, src, dst)
     made = len(moves)
     first = is_start(position)
-    result = {'solvable': start is not None, 'made': made, 'position': list(now), 'start_board': first}
-    if start is None:
-        result['status'] = 'unsolvable'
+    result = {'solvable': start is not None if known else None, 'made': made, 'position': list(now),
+              'start_board': first}
+    if start is None and not made:
+        result['status'] = 'unsolvable' if known else 'unknown'
         return result
-    fewest = len(start)
-    result['fewest'] = fewest
-    result['par'] = fewest + PAR_OVER_FEWEST
-    steps = solve(now) if made else start
+    steps, known = _try_solve(now) if made else (start, True)
+    if start is not None:
+        fewest = len(start)
+        result['fewest'] = fewest
+        result['par'] = fewest + PAR_OVER_FEWEST
     if steps is None:
-        result.update(status='dead_end', steps=[])
+        result.update(status='dead_end' if known else 'unknown', steps=[])
     else:
         total = made + len(steps)
         if not steps:
             status = 'done'
         elif not made:
             status = 'start'
+        elif start is None:
+            status = 'continued'
         else:
             status = 'on_track' if total == fewest else 'off'
         result.update(status=status, steps=_json_steps(steps), left=len(steps), total=total,
-                      gold=total <= fewest + PAR_OVER_FEWEST, short=short_of_best(total, fewest),
-                      homes=_homes(steps[-1].after if steps else now), stage_colors=_stage_colors(steps))
+                      homes=_homes(steps[-1].after if steps else now), stage_colors=_stage_colors(now, steps))
+        if start is not None:
+            result.update(gold=total <= fewest + PAR_OVER_FEWEST, short=short_of_best(total, fewest))
     if with_rainbow and first and not made:
-        route = rainbow(position)
-        result['rainbow'] = None
+        route, proved = rainbow(position)
+        result.update(rainbow=None, rainbow_proved=proved)
         if route is not None:
             tool = any(s.dst == EXTRA for s in route)
             result['rainbow'] = {'moves': len(route), 'tool': tool,
                                  'gold': not tool and len(route) <= fewest + PAR_OVER_FEWEST,
                                  'steps': _json_steps(route)}
     return result
+
+
+def _try_solve(position):
+    """(solve's answer, True), or (None, False) if it couldn't tell."""
+    try:
+        return solve(position), True
+    except SearchLimit:
+        return None, False

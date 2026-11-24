@@ -25,13 +25,14 @@ Players are never told how many of them it takes (see crowd.py on why).
 import threading
 import time
 from collections import defaultdict
-from datetime import date, timedelta
+from contextlib import contextmanager
+from datetime import timedelta
 
-from flask import Blueprint, jsonify, redirect, render_template, request
+from flask import Blueprint, abort, jsonify, redirect, render_template, request
 
 import crowd
-from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, limiter, log_page_visit, log_solve,
-                        pst_now_str)
+from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, from_another_site, limiter, log_page_visit,
+                        log_solve, pst_now_str)
 from functions import four_by_six as fbs
 # _pacific_today is a name of this module's own so tests can set the day.
 from helpers import ISO_DATE as _DATE
@@ -144,13 +145,40 @@ def rows_logged_between(first, last):
         (first, last))
 
 
+# How long a write waits for another of the same voter's to finish.
+LOCK_SECONDS = 3
+
+
+@contextmanager
+def _one_at_a_time(cursor, voter, day):
+    """Hold a database lock on one voter's rows for one date, so two of their
+    requests (or James's two approvals) can't both count the same rows, or
+    both find none, and then both insert. A lock by name, since there may be
+    no row yet to lock, and it holds whatever the isolation level. Raises if
+    another request keeps it LOCK_SECONDS. Closing the connection, or its
+    reset on going back to the pool, lets go of it too."""
+    name = f'four_by_six:{voter}:{day}'
+    cursor.execute("SELECT GET_LOCK(%s, %s)", (name, LOCK_SECONDS))
+    got = cursor.fetchone()
+    if not got or got[0] != 1:
+        raise RuntimeError('another write for the same voter and date is still running')
+    try:
+        yield
+    finally:
+        try:
+            cursor.execute("SELECT RELEASE_LOCK(%s)", (name,))
+            cursor.fetchone()
+        except Exception:
+            pass
+
+
 def store_board(day, voter, prefix, board, source):
     """Log one player's board; the same board again that date only updates
     their row. Inline, not on the write-behind queue: a missing table there
     would drop the rest of its batch, page visits included. Best-effort."""
     now = pst_now_str()
     try:
-        with db_cursor() as (conn, cursor):
+        with db_cursor() as (conn, cursor), _one_at_a_time(cursor, voter, day):
             cursor.execute(
                 "SELECT COUNT(*) FROM four_by_six_boards "
                 "WHERE voter_hash = %s AND played_on = %s AND board <> %s",
@@ -175,7 +203,7 @@ def store_approval(day, board):
     Both writes happen or neither. Returns how many other boards' approvals
     it replaced. Raises: the admin page says whether it worked."""
     now = pst_now_str()
-    with db_cursor() as (conn, cursor):
+    with db_cursor() as (conn, cursor), _one_at_a_time(cursor, APPROVAL, day):
         # The Heroku pool runs with autocommit on (config.py), so the two
         # writes need a transaction of their own to be one change.
         cursor.execute("START TRANSACTION")
@@ -221,14 +249,17 @@ def remove_board(board, day):
 
 ##### boards: what they add up to #####
 
-def _fewest(board):
-    """The fewest moves for a stored board, or None if it has no solution
-    (or isn't a board: a damaged row)."""
+def _check(board):
+    """(fewest moves, None) for a stored board, or (None, what's wrong): it
+    has no solution (or isn't a board: a damaged row), or the search couldn't
+    tell."""
     try:
         steps = fbs.solve(fbs.parse_board(board))
     except fbs.BoardError:
-        return None
-    return None if steps is None else len(steps)
+        steps = None
+    except fbs.SearchLimit:
+        return None, "couldn't be worked out"
+    return (None, 'has no solution') if steps is None else (len(steps), None)
 
 
 def _networks(rows):
@@ -295,9 +326,9 @@ def todays_boards(rows, day):
         result = consensus(on_day)
         seen = first_seen(board_rows)
         result['first_seen'] = seen or min(row[PLAYED_ON] for row in board_rows)
-        result['fewest'] = _fewest(board)
-        if result['fewest'] is None:
-            result['why'] = 'has no solution'
+        result['fewest'], problem = _check(board)
+        if problem:
+            result['why'] = problem
         elif seen is not None and seen < day and not result['approved']:
             result['why'] = f"a past puzzle, first seen {seen:%m-%d}"
         result['served'] = False
@@ -397,9 +428,9 @@ def log_board(data):
     if source not in BOARD_SOURCES:
         raise ValidationError('source must be typed or edited')
     day = _played_on(data)
-    if day is None or not fbs.is_start(position) or fbs.solve(position) is None:
-        return jsonify(status='success')
     board = fbs.board_text(position)
+    if day is None or not fbs.is_start(position) or _check(board)[1]:
+        return jsonify(status='success')
     if source == 'edited' and board in [b['board'] for b in _boards_for(day)]:
         # Changed and then changed back: still the board on offer, which
         # can't vote for itself.
@@ -450,6 +481,14 @@ ADMIN = '/4x6_admin'
 # The dates the page shows: Pacific's last three, and tomorrow for players
 # whose date is already ahead.
 ADMIN_DAYS_BACK = 2
+
+
+@bp.before_request
+def _admin_posts_from_this_site():
+    """A browser sends the saved admin password with a form another site
+    posts here, so the password alone doesn't say James sent it."""
+    if request.method == 'POST' and request.path.startswith(ADMIN) and from_another_site():
+        abort(403)
 
 
 def _back(**message):
@@ -534,8 +573,9 @@ def four_by_six_approve_typed_board():
         return _back(error='Not a board: check the 24 tiles, then approve again')
     if day is None:
         return _back(error='Pick a date')
-    if _fewest(board) is None:
-        return _back(error="That board has no solution, so a tile is wrong: it wasn't approved")
+    problem = _check(board)[1]
+    if problem:
+        return _back(error=f"That board {problem}, so it wasn't approved: check its tiles")
     try:
         replaced = store_approval(day, board)
     except Exception as e:
@@ -569,11 +609,12 @@ def four_by_six_unapprove_board():
 @auth.login_required
 def four_by_six_remove_board():
     """Delete one date's entries of a board, approvals too: test boards, or
-    junk. Takes the board as stored, so a damaged row can go too."""
-    board = request.form.get('board', '')
+    junk. Takes the board as stored, even empty, so a damaged row can go
+    too."""
+    board = request.form.get('board')
     played_on = request.form.get('played_on', '')
     day = parse_iso_day(played_on) if _DATE.fullmatch(played_on) else None
-    if day is None or not 1 <= len(board) <= fbs.TILES:
+    if day is None or board is None or len(board) > fbs.TILES:
         return _back(error='Not a board')
     try:
         removed = remove_board(board, day)

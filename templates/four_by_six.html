@@ -277,7 +277,11 @@ button.fbs-cell:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px;
     border: 1px solid #e9ecef; overflow: hidden; line-height: 1.6;
     width: calc(100% - 24px); box-sizing: border-box;
 }
-.instructions-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; cursor: pointer; user-select: none; }
+.instructions-header {
+    display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; margin: 0;
+    padding: 10px 15px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; user-select: none;
+}
+.instructions-header:focus-visible { outline: 3px solid #ffd700; outline-offset: -3px; }
 .instructions-header:hover { background-color: #e9ecef; }
 .instructions-toggle-icon { font-size: 11px; color: #6b7280; transition: transform 0.2s ease; }
 .instructions-body { padding: 0 15px 15px 15px; text-align: left; }
@@ -311,11 +315,11 @@ button.fbs-cell:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px;
 
 {# Hidden, not left out, on the approve page: the script below wires it. #}
 <div class="instructions collapsed" id="instructions-panel"{% if approve %} style="display: none;"{% endif %}>
-    <div class="instructions-header" id="instructions-toggle">
+    <button type="button" class="instructions-header" id="instructions-toggle" aria-expanded="false" aria-controls="instructions-body">
         <strong>How to use</strong>
-        <span class="instructions-toggle-icon">&#9660;</span>
-    </div>
-    <div class="instructions-body">
+        <span class="instructions-toggle-icon" aria-hidden="true">&#9660;</span>
+    </button>
+    <div class="instructions-body" id="instructions-body">
         <strong>1. Enter the board.</strong> Tap the colors in your game's order: left to right, top shelf first.
         Each tap fills the next square. Wrong one? Tap the square, then the right color. Partway through a
         game? Enter the board as it is now: a short shelf ends with <strong>Next</strong> (or tap the next
@@ -348,14 +352,25 @@ button.fbs-cell:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px;
    with this same function, and still asks for the newest boards. */
 const FBS_SYMBOLS = {{ fbs_symbols | tojson }};
 function fbsShowOffer(boards) {
+    const picks = document.getElementById('fbs-shared-picks');
+    // Boards drawn already stay as they are, with the focus a keyboard has
+    // on one; when they change, it goes to the same board's new button.
+    const drawn = boards.map(b => b.board).join(' ');
+    if (picks.dataset.drawn === drawn) {
+        document.getElementById('fbs-shared').hidden = false;
+        return;
+    }
+    const focused = picks.contains(document.activeElement) ? document.activeElement.dataset.board : '';
+    picks.dataset.drawn = drawn;
     const one = document.getElementById('fbs-shared-one');
     one.hidden = boards.length > 1;
     document.getElementById('fbs-shared-many').hidden = !one.hidden;
-    document.getElementById('fbs-shared-picks').replaceChildren(...boards.map((b, k) => {
+    picks.replaceChildren(...boards.map((b, k) => {
         const pickEl = document.createElement('button');
         pickEl.type = 'button';
         pickEl.className = 'fbs-shared-pick';
         pickEl.dataset.pick = String(k);
+        pickEl.dataset.board = b.board;
         pickEl.setAttribute('aria-label', 'Load today\'s board' + (boards.length > 1 ? ', number ' + (k + 1) : ''));
         const mini = document.createElement('span');
         mini.className = 'fbs-mini';
@@ -373,6 +388,8 @@ function fbsShowOffer(boards) {
         return pickEl;
     }));
     document.getElementById('fbs-shared').hidden = false;
+    const again = focused && [...picks.children].find(el => el.dataset.board === focused);
+    if (again) again.focus({preventScroll: true});
 }
 (function () {
     const byDay = {{ first_boards | default(none) | tojson }};
@@ -426,6 +443,7 @@ function fbsShowOffer(boards) {
     <div class="fbs-controls">
         <button type="button" class="fbs-btn" id="fbs-back">&#8249; Back</button>
         <button type="button" class="fbs-btn primary fbs-next" id="fbs-next">Next &#8250;</button>
+        <button type="button" class="fbs-btn primary" id="fbs-retry" hidden>Try again</button>
         <button type="button" class="fbs-btn" id="fbs-over" hidden>Start over here</button>
         {% if boards_on %}<button type="button" class="fbs-btn" id="fbs-notmine" hidden>↩ Not my board</button>{% endif %}
     </div>
@@ -524,7 +542,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let editorOpen = true;
     let boardSource = 'typed';           // 'typed' | 'shared' (a board on offer, untouched) | 'edited'
     let boardDay = '';                   // the player's date when this board was started
-    let loggedSig = '';                  // the board as last logged
+    let sharedText = '';                 // the board on offer this one was loaded from, if any
+    let loggedSigs = [];                 // the boards logged, newest last (maybeLog)
     let mode = 'help';
 
     // The server's plan for the board as entered, and what it answers.
@@ -536,6 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // leaves it.
     let line = [], at = 0, best = 0;
     let dead = false;                    // no way on from here
+    // Why the rest of the way isn't known, the moves made kept: 'offline'
+    // (couldn't ask) or 'unknown' (the solver couldn't tell); '' when it is.
+    let lost = '';
     let route = 'fewest';                // or 'rainbow'
     let waiting = false;                 // a plan for the player's own move is on its way
     let picked = -1;                     // the place tapped first
@@ -554,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const boardEl = $('fbs-board'), paletteEl = $('fbs-palette'), tipEl = $('fbs-tip'), editBtn = $('fbs-edit');
     const hintEl = $('fbs-hint'), followEl = $('fbs-follow'), statusEl = $('fbs-status'), moreEl = $('fbs-status-more');
     const backBtn = $('fbs-back'), nextBtn = $('fbs-next'), overBtn = $('fbs-over'), notMineBtn = $('fbs-notmine');
-    const nextRowBtn = $('fbs-nextrow');
+    const nextRowBtn = $('fbs-nextrow'), retryBtn = $('fbs-retry');
     const summaryEl = $('fbs-summary'), resultsEl = $('fbs-results'), extrasEl = $('fbs-extras'), modesEl = $('fbs-modes');
     const sharedEl = $('fbs-shared'), sharedPicks = $('fbs-shared-picks');
 
@@ -589,8 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
         while (n < s.length && s[s.length - 1 - n] === s[s.length - 1]) n++;
         return n;
     }
+    // Every shelf one color, the Stage empty, nothing held: the game is over.
+    const isDone = pos => !pos[STAGE] && !held(pos) && pos.slice(0, SHELVES).every(s => s.length === WIDTH && runLength(s) === WIDTH);
     function movedTiles(pos, from, to) {
-        if (from === to) return 0;
+        if (from === to || isDone(pos)) return 0;
         if (to === EXTRA) return pos[from] && pos[EXTRA] === '' ? 1 : 0;
         const src = shown(pos, from), dst = pos[to];
         if (!src || dst.length >= WIDTH || (dst && dst[dst.length - 1] !== src[src.length - 1])) return 0;
@@ -619,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // The move to point at on the board, and how much of it to show.
     function pointer() {
-        if (!solved() || dead || waiting || at >= line.length) return null;
+        if (!solved() || dead || lost || waiting || at >= line.length) return null;
         if (mode === 'solve' || route === 'rainbow' || APPROVE) return {step: line[at], from: true, to: true};
         if (reveal.next >= 1) return {step: line[at], from: true, to: reveal.next >= 2};
         return null;
@@ -723,7 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (dead) { tipEl.textContent = "There's no way on from here."; return; }
         if (waiting) { tipEl.textContent = 'Working out the rest...'; return; }
-        if (at >= line.length) { tipEl.textContent = 'Every color is on its own shelf.'; return; }
+        if (isDone(position())) { tipEl.textContent = 'Every color is on its own shelf.'; return; }
         const p = pointer();
         if (p && p.to) {
             tipEl.innerHTML = '<strong>Move ' + (at + 1) + ' of ' + line.length + ':</strong> ' + esc(moveText(p.step));
@@ -795,6 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!total()) {
             boardDay = '';
             boardSource = 'typed';
+            sharedText = '';
         } else if (!boardDay) {
             boardDay = localDay();
         }
@@ -869,7 +894,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!editorOpen) return;
         if (/^[1-6]$/.test(e.key)) { e.preventDefault(); putColor(CODES[Number(e.key) - 1]); return; }
         if (e.key === 'Backspace') { e.preventDefault(); takeBack(); return; }
-        if (e.key === 'Enter' && (boardEl.contains(e.target) || e.target === document.body)) { e.preventDefault(); goNextRow(); return; }
+        // Not on a button, link or summary: Enter there is its own.
+        if (e.key === 'Enter' && e.target === document.body) { e.preventDefault(); goNextRow(); return; }
         if (!(boardEl.contains(e.target) || e.target === document.body)) return;
         const r = selRow < 0 ? 0 : selRow;
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -906,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pos = position();
         if (picked < 0) {
             if (!shown(pos, i)) { hint(cap(place(i)) + ' is empty: tap where the move came from first.'); return; }
-            if (at >= line.length && !dead) { hint('This board is done. Tap Back to look at the moves again.'); return; }
+            if (isDone(pos)) { hint('This board is done. Tap Back to look at the moves again.'); return; }
             picked = i;
             hint('');
             renderBoard();
@@ -940,6 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
         best = at;
         route = 'fewest';
         dead = false;
+        lost = '';
         reveal.next = 0;
         planFrom();
     }
@@ -949,6 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function planFrom() {
         const seq = ++solveSeq, sig = text(), made = line.slice(0, at);
         waiting = true;
+        lost = '';
         renderAll();
         persist();
         try {
@@ -959,21 +987,27 @@ document.addEventListener('DOMContentLoaded', () => {
             at = made.length;
             best = at;
             dead = data.status === 'dead_end';
+            lost = data.status === 'unknown' ? 'unknown' : '';
             renderAll();
             persist();
         } catch (_) {
             if (seq !== solveSeq) return;
+            // The moves made stay, here and in the save; only the rest of
+            // the way is missing, until Try again or another move asks.
             waiting = false;
-            resetLine();
+            line = made;
+            at = best = made.length;
+            lost = 'offline';
             renderAll();
-            toast('Could not reach the solver, so your moves here went back to the start.', true);
+            persist();
         }
     }
+    retryBtn.addEventListener('click', () => { if (lost === 'offline') planFrom(); });
 
     // Back to the solver's own line, at its start.
     function resetLine() {
         line = root && root.steps ? root.steps : [];
-        at = 0; best = 0; dead = false; route = 'fewest'; waiting = false; picked = -1;
+        at = 0; best = 0; dead = false; lost = ''; route = 'fewest'; waiting = false; picked = -1;
         reveal.next = 0;
     }
 
@@ -987,10 +1021,11 @@ document.addEventListener('DOMContentLoaded', () => {
         at = n;
         picked = -1;
         reveal.next = 0;
-        if (n < best || dead) {
+        if (n < best || dead || lost) {
             const steps = root ? root.steps : [];
             const onRoot = line.slice(0, n).every((s, k) => steps[k] && steps[k].from === s.from && steps[k].to === s.to);
             dead = false;
+            lost = '';
             if (onRoot) { line = steps; best = 0; route = 'fewest'; }
             else { line = line.slice(0, n); best = n; planFrom(); return; }
         }
@@ -1045,7 +1080,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!root.solvable) {
                 editorOpen = true;
                 selRow = -1;
-                hint(root.start_board
+                hint(root.status === 'unknown'
+                    ? "The solver couldn't work this board out. Check the tiles against your game: tap a square, then its color."
+                    : root.start_board
                     ? 'The daily board always has a solution, and this one has none, so a tile is probably off. Check it against your game: tap a square, then its color.'
                     : "There's no way to finish this board without a tool. Check the tiles against your game, or Restart in 4x6 (it's free) and enter the board it starts with.", true);
             } else if (restoredMoves && restoredMoves.length) {
@@ -1121,6 +1158,10 @@ document.addEventListener('DOMContentLoaded', () => {
             warn = true;
         } else if (waiting) {
             msg = 'Working out the rest...';
+        } else if (lost) {
+            msg = lost === 'offline' ? "Could not reach the solver, so the rest isn't worked out." : "The solver couldn't work out the rest from here.";
+            more = lost === 'offline' ? 'Your moves are kept. Check your connection, then tap Try again.' : 'Your moves are kept. Tap Back, or Start over here.';
+            warn = true;
         } else if (route === 'rainbow') {
             msg = 'The rainbow route: ' + plural(line.length, 'move') + (left ? ', ' + left + ' to go.' : ', done.');
             more = 'Play it on a replay, after the finish that scores.';
@@ -1140,7 +1181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             msg = 'On track: ' + plural(left, 'move') + ' to go.';
         }
         // The game makes the last move off the Stage by itself.
-        if (!dead && !waiting && left === 1 && line[at].from === STAGE && pointer()) more = '4x6 may make this last move by itself.';
+        if (!dead && !lost && !waiting && left === 1 && line[at].from === STAGE && pointer()) more = '4x6 may make this last move by itself.';
         statusEl.textContent = msg;
         statusEl.hidden = !msg;
         statusEl.classList.toggle('warn', warn);
@@ -1149,8 +1190,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const stepping = mode === 'solve' || route === 'rainbow' || APPROVE;
         backBtn.hidden = !(at > 0 || stepping);
         backBtn.disabled = at === 0;
-        nextBtn.hidden = !stepping;
-        nextBtn.disabled = dead || waiting || at >= line.length;
+        nextBtn.hidden = !stepping || lost === 'offline';
+        nextBtn.disabled = dead || !!lost || waiting || at >= line.length;
+        retryBtn.hidden = lost !== 'offline';
         overBtn.hidden = !(at > 0);
         if (notMineBtn) notMineBtn.hidden = !offerClear;
     }
@@ -1187,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '<div class="fbs-actions" style="margin: 0 12px 8px;"><button type="button" class="fbs-btn" data-act="fewest">Back to the fewest moves</button></div>';
         }
         html += '<ol class="fbs-steps">' + line.map((s, k) =>
-            '<li><button type="button" class="fbs-row' + (k < at ? ' made' : k === at && !dead ? ' now' : '') + '" data-act="jump" data-n="' + k + '"' +
+            '<li><button type="button" class="fbs-row' + (k < at ? ' made' : k === at && !dead && !lost ? ' now' : '') + '" data-act="jump" data-n="' + k + '"' +
             (k === at ? ' aria-current="step"' : '') + '><span class="fbs-row-n">' + (k + 1) + '</span><span class="fbs-row-text">' +
             esc(cap(moveText(s))) + '</span>' + chip(s.color) + '</button></li>').join('') + '</ol>';
         return html;
@@ -1202,15 +1244,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // The first color to come together, and where.
     function firstTogether() {
+        const whole = t => t.length === WIDTH && runLength(t) === WIDTH;
+        let before = rows;
         for (const s of line) {
             for (let i = 0; i <= STAGE; i++) {
-                if (s.after[i].length === WIDTH && runLength(s.after[i]) === WIDTH) return {color: s.color, where: i};
+                if (whole(s.after[i]) && !whole(before[i])) return {color: s.after[i][0], where: i};
             }
+            before = s.after;
         }
         return null;
     }
     function stageColors() {
-        const out = [];
+        const out = rows[STAGE] ? [rows[STAGE][0]] : [];
         line.forEach(s => { if (s.to === STAGE && !out.includes(s.color)) out.push(s.color); });
         return out;
     }
@@ -1232,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const said = html => '<p class="fbs-line">' + html + '</p>';
 
     function helpHtml() {
-        if (dead || waiting) return '';
+        if (dead || lost || waiting) return '';
         if (at >= line.length) return '';
         let html = '';
 
@@ -1287,7 +1332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- points and badges (starting boards) ---------- */
     function pointsHtml() {
         const day = weekday();
-        const total = !dead && !waiting && route === 'fewest' ? line.length : root.fewest;
+        const total = !dead && !lost && !waiting && route === 'fewest' ? line.length : root.fewest;
         const under = total < root.par ? SCORING.under_par : total === root.par ? SCORING.at_par : 0;
         const few = total <= root.fewest ? SCORING.fewest : 0;
         const solvedPts = SCORING.solved + SCORING.per_day * day;
@@ -1307,18 +1352,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return html + '</div>';
     }
 
-    // undefined: not asked for yet; null: there's none; else the route.
-    let rainbowLoading = false;
+    // root.rainbow -- undefined: not asked for yet; null: none found; else the
+    // route. root.rainbowLoading: this board's is on its way.
     function rainbowHtml() {
         const r = root.rainbow;
         let text = 'Finish with the shelves in rainbow order, yellow, orange, pink, purple, blue, green, from the top or from the bottom. ';
         let act = '';
         if (r === undefined) {
-            act = rainbowLoading ? '<button type="button" class="fbs-btn" disabled>Working it out...</button>' : button('rainbow', 'Show the rainbow route');
+            act = root.rainbowLoading ? '<button type="button" class="fbs-btn" disabled>Working it out...</button>' : button('rainbow', 'Show the rainbow route');
         } else if (r === null) {
-            text += "The solver couldn't find one for this board.";
+            text += root.rainbow_proved ? "This board can't finish that way, even with Extra." : "The solver couldn't find a way for this board.";
         } else {
-            text += 'This board takes ' + plural(r.moves, 'move') + (r.tool ? ', using Extra once, which this badge allows.' : r.gold ? ', which is still gold.' : '.');
+            text += (root.rainbow_proved ? 'This board takes ' : 'The shortest way found takes ') + plural(r.moves, 'move') + (r.tool ? ', using Extra once, which this badge allows.' : r.gold ? ', which is still gold.' : '.');
             act = route === 'rainbow' ? button('fewest', 'Back to the fewest moves') : button('rainbow', 'Show the rainbow route');
         }
         return '<dt>Taste the Rainbow</dt><dd>' + esc(text) + (act ? '<div class="fbs-actions">' + act + '</div>' : '') + '</dd>';
@@ -1368,21 +1413,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (root.rainbow) { showRainbow(); return; }
         // It takes longer than the fewest moves, so it's worked out only when
         // asked for.
-        const asked = root, sig = rootSig;
-        rainbowLoading = true;
+        const asked = root;
+        if (asked.rainbowLoading) return;
+        // What the player was looking at: it opens by itself only if they
+        // haven't moved on meanwhile. The route stays with its board either
+        // way, a tap away.
+        const view = () => [root, line, at, route, mode, editorOpen, picked, badgesOpen, waiting];
+        const then = view();
+        asked.rainbowLoading = true;
         renderExtras();
         try {
-            const data = await post({board: sig, rainbow: true});
-            if (root !== asked) return;
-            root.rainbow = data.rainbow || null;
-            rainbowLoading = false;
-            if (root.rainbow) showRainbow();
-            else renderExtras();
+            const data = await post({board: rootSig, rainbow: true});
+            asked.rainbow = data.rainbow || null;
+            asked.rainbow_proved = data.rainbow_proved === true;
         } catch (_) {
-            rainbowLoading = false;
-            if (root === asked) renderExtras();
-            toast('Could not reach the solver. Try again in a moment.', true);
+            if (root === asked) toast('Could not reach the solver. Try again in a moment.', true);
         }
+        asked.rainbowLoading = false;
+        if (root !== asked) return;
+        if (asked.rainbow && view().every((x, k) => x === then[k])) showRainbow();
+        else renderExtras();
     });
 
     /* ---------- Help or Solution ---------- */
@@ -1475,6 +1525,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selRow = -1;
         selK = -1;
         boardSource = source;
+        sharedText = source === 'shared' ? board : '';
         boardDay = day || localDay();
         sharedBoards = [];
         editorOpen = false;
@@ -1500,13 +1551,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // game is no day's board, and one loaded from today's boards and left as
     // it is can't confirm itself (routes/four_by_six.py), so neither is sent.
     // Nothing in here may stop the page.
-    let logPending = '';
+    // Each board's request is its own: what's on its way, and what the
+    // server took, are kept by board, so a late reply for one says nothing
+    // about another.
+    const logPending = new Set(), LOGGED_MAX = 20;
     function maybeLog() {
         try {
             if (!LOG_BOARDS || !startBoard() || boardSource === 'shared') return;
+            // Changed and changed back: still the board on offer.
+            if (boardSource === 'edited' && text() === sharedText) return;
             const sig = (boardDay || localDay()) + '|' + text() + '|' + boardSource;
-            if (sig === loggedSig || sig === logPending) return;
-            logPending = sig;
+            if (loggedSigs.includes(sig) || logPending.has(sig)) return;
+            logPending.add(sig);
             fetch(POST_URL, {
                 method: 'POST',
                 keepalive: true,
@@ -1514,10 +1570,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({action: 'log_board', board: text(), source: boardSource, played_on: boardDay || localDay()})
             }).then(r => {
                 if (r.ok) {
-                    loggedSig = sig;
+                    loggedSigs = loggedSigs.filter(x => x !== sig).concat(sig).slice(-LOGGED_MAX);
                     persist();
                 }
-            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
+            }).catch(() => {}).finally(() => { logPending.delete(sig); });
         } catch (_) {}
     }
 
@@ -1570,7 +1626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 rows: rows, moves: route === 'fewest' ? line.slice(0, at).map(s => [s.from, s.to]) : [],
-                reveal, boardSource, boardDay, loggedSig, offerClear, savedAt: Date.now()
+                reveal, boardSource, sharedText, boardDay, loggedSigs, offerClear, savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1599,7 +1655,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (rows[STAGE] && new Set(rows[STAGE]).size > 1) rows[STAGE] = '';
         boardSource = ['typed', 'shared', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
         boardDay = typeof s.boardDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.boardDay) ? s.boardDay : '';
-        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 100) : '';
+        sharedText = isBoard({board: s.sharedText}) ? s.sharedText : boardSource === 'shared' ? text() : '';
+        loggedSigs = (Array.isArray(s.loggedSigs) ? s.loggedSigs : []).filter(x => typeof x === 'string').map(x => x.slice(0, 100)).slice(-LOGGED_MAX);
         offerClear = s.offerClear === true && boardSource === 'shared';
         const places = n => Number.isInteger(n) && n >= 0 && n <= EXTRA;
         restoredMoves = (Array.isArray(s.moves) ? s.moves : []).filter(m => Array.isArray(m) && m.length === 2 && m.every(places)).slice(0, MAX_MOVES);
@@ -1615,7 +1672,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selRow = 0;
         selK = -1;
         editorOpen = true;
-        boardSource = 'typed'; boardDay = ''; loggedSig = '';
+        boardSource = 'typed'; sharedText = ''; boardDay = ''; loggedSigs = [];
         offerClear = false;
         hint('');
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
@@ -1643,13 +1700,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ---------- instructions toggle ---------- */
-    const instructionsPanel = $('instructions-panel');
-    $('instructions-toggle').addEventListener('click', () => {
-        instructionsPanel.classList.toggle('collapsed');
-        try { localStorage.setItem('fourBySixInstructionsCollapsed', instructionsPanel.classList.contains('collapsed')); } catch (_) {}
+    const instructionsPanel = $('instructions-panel'), instructionsBtn = $('instructions-toggle');
+    function setInstructions(collapsed) {
+        instructionsPanel.classList.toggle('collapsed', collapsed);
+        instructionsBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    instructionsBtn.addEventListener('click', () => {
+        const collapsed = !instructionsPanel.classList.contains('collapsed');
+        setInstructions(collapsed);
+        try { localStorage.setItem('fourBySixInstructionsCollapsed', collapsed); } catch (_) {}
     });
     try {
-        if (localStorage.getItem('fourBySixInstructionsCollapsed') === 'false') instructionsPanel.classList.remove('collapsed');
+        if (localStorage.getItem('fourBySixInstructionsCollapsed') === 'false') setInstructions(false);
     } catch (_) {}
 
     /* ---------- boot ---------- */

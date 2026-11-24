@@ -8,6 +8,7 @@ is what helpers.client_ip reads. The boards are made up (seeded shuffles),
 never a real puzzle's.
 """
 
+import html as html_lib
 import json
 import random
 import re
@@ -207,10 +208,11 @@ def test_the_faq_matches_its_json_ld(client):
     faq = next(b for b in blobs if b.get('@type') == 'FAQPage')
     names = [q['name'] for q in faq['mainEntity']]
     assert len(names) == 10 and len(set(names)) == 10
-    import html as html_lib
-    page = html_lib.unescape(html)
-    for q in faq['mainEntity']:
-        assert page.count(q['acceptedAnswer']['text']) >= 1, q['name']
+    # The section players see, apart from the JSON-LD in the head.
+    section = re.search(r'Frequently Asked Questions</h2>(.*?)</section>', html, re.S).group(1)
+    shown = [html_lib.unescape(p).strip() for p in re.findall(r'<p[^>]*>(.*?)</p>', section, re.S)]
+    assert list(zip(shown[::2], shown[1::2])) == [(q['name'], q['acceptedAnswer']['text']) for q in faq['mainEntity']]
+    assert len(shown) == 2 * len(names)
 
 
 def test_the_page_never_rushes_players_or_says_how_boards_are_served(client):
@@ -389,10 +391,68 @@ def test_undo_and_remove(client, boards, monkeypatch):
     _approve(client, auth)
     resp = client.post('/4x6_admin/remove_board', headers=auth, data={'board': BOARD, 'played_on': DAY.isoformat()})
     assert 'Removed+2+entries' in resp.headers['Location'] and boards.rows == {}
-    for data in ({'board': BOARD, 'played_on': 'x'}, {'board': '', 'played_on': DAY.isoformat()},
+    for data in ({'board': BOARD, 'played_on': 'x'}, {'played_on': DAY.isoformat()},
                  {'board': 'Y' * 25, 'played_on': DAY.isoformat()}, {'board': BOARD, 'played_on': '2026-02-30'}):
         resp = client.post('/4x6_admin/remove_board', headers=auth, data=data)
         assert 'error=' in resp.headers['Location'], data
+
+
+def test_a_damaged_row_with_an_empty_board_can_be_removed(client, boards, monkeypatch):
+    boards.rows[('', 'a', DAY)] = ('', 'typed', 'a', DAY, boards.tick(), 'a')
+    _log(client, 1)
+    auth = _admin_headers(monkeypatch)
+    assert 'has no solution' in client.get('/4x6_admin', headers=auth).get_data(as_text=True)
+    resp = client.post('/4x6_admin/remove_board', headers=auth, data={'board': '', 'played_on': DAY.isoformat()})
+    assert 'Removed+1+entry' in resp.headers['Location']
+    assert [row[0] for row in boards.rows.values()] == [BOARD]
+
+
+ADMIN_POSTS = ('/4x6_admin/board', '/4x6_admin/approve_typed_board', '/4x6_admin/unapprove_board',
+               '/4x6_admin/remove_board')
+
+
+@pytest.mark.parametrize('path', ADMIN_POSTS)
+@pytest.mark.parametrize('sent', [{'Sec-Fetch-Site': 'cross-site'}, {'Sec-Fetch-Site': 'same-site'},
+                                  {'Origin': 'https://evil.example'}, {'Origin': 'null'},
+                                  {'Sec-Fetch-Site': 'cross-site', 'Origin': 'http://localhost'}])
+def test_another_sites_post_is_refused_password_and_all(client, boards, monkeypatch, path, sent):
+    _approve(client, _admin_headers(monkeypatch))
+    before = dict(boards.rows)
+    resp = client.post(path, headers=dict(_admin_headers(monkeypatch), **sent),
+                       data={'board': OTHER, 'played_on': DAY.isoformat()})
+    assert resp.status_code == 403 and boards.rows == before
+
+
+@pytest.mark.parametrize('sent', [{}, {'Sec-Fetch-Site': 'same-origin'}, {'Origin': 'http://localhost'},
+                                  {'Sec-Fetch-Site': 'same-origin', 'Origin': 'null'}])
+def test_the_approve_form_itself_gets_through(client, boards, monkeypatch, sent):
+    resp = client.post('/4x6_admin/approve_typed_board', headers=dict(_admin_headers(monkeypatch), **sent),
+                       data={'board': BOARD, 'played_on': DAY.isoformat()})
+    assert 'success=' in resp.headers['Location'] and _todays(client) == [_served(approved=True)]
+
+
+def test_the_origin_check_is_only_for_admin_posts(client, boards, monkeypatch):
+    other = {'Sec-Fetch-Site': 'cross-site', 'Origin': 'https://evil.example'}
+    assert client.post('/4x6', headers=other, json={'board': BOARD}).status_code == 200
+    assert client.get('/4x6_admin', headers=dict(_admin_headers(monkeypatch), **other)).status_code == 200
+    # No password, no reply either way.
+    assert client.post('/4x6_admin/remove_board', headers={'Sec-Fetch-Site': 'same-origin'}).status_code == 401
+
+
+def test_a_board_the_search_could_not_settle_is_neither_stored_nor_called_unsolvable(client, boards, monkeypatch):
+    def capped(position):
+        raise fbs.SearchLimit
+    _log(client, 1, board=OTHER)
+    monkeypatch.setattr(fbs, 'solve', capped)
+    _log(client, 2)
+    auth = _admin_headers(monkeypatch)
+    resp = _approve(client, auth)
+    assert 'worked+out' in resp.headers['Location'] and 'no+solution' not in resp.headers['Location']
+    assert [row[0] for row in boards.rows.values()] == [OTHER]
+    html = html_lib.unescape(client.get('/4x6_admin', headers=auth).get_data(as_text=True))
+    assert "couldn't be worked out" in html and 'has no solution' not in html
+    reply = client.post('/4x6', json={'board': BOARD}).get_json()
+    assert reply['status'] == 'unknown' and reply['solvable'] is None
 
 
 def test_the_admin_page_shows_each_date_its_par_and_why(client, boards, monkeypatch):
@@ -432,24 +492,50 @@ def test_a_database_error_is_said_on_the_admin_page(client, monkeypatch):
 
 # --- the SQL itself ---------------------------------------------------------------------
 
+# A lock that's free, and a player with no boards yet.
+FREE = {'GET_LOCK': (1,), 'RELEASE_LOCK': (1,), 'SELECT COUNT(*)': (0,)}
+
+
+@pytest.mark.parametrize('answer', [(0,), (None,), None])
+def test_a_write_that_cannot_get_its_lock_writes_nothing(client, capsys, monkeypatch, answer):
+    import routes.four_by_six as rt
+    from monitoring import alerts
+    alerts.reset_throttle()
+    db = _ScriptedDB(answers=dict(FREE, GET_LOCK=answer))
+    monkeypatch.setattr(rt, 'db_cursor', db)
+    rt.store_board(DAY, 'v' * 32, None, BOARD, 'typed')
+    assert 'four_by_six_board_log_failed' in ''.join(capsys.readouterr())
+    resp = _approve(client, _admin_headers(monkeypatch))
+    assert 'Database+error' in resp.headers['Location']
+    assert {s.split('(')[0] for s, _ in db.executed} == {'SELECT GET_LOCK'} and db.commits == 0
+
+
 def test_the_writes_say_what_they_mean(monkeypatch):
     import routes.four_by_six as rt
-    db = _ScriptedDB(answers={'SELECT COUNT(*)': (0,)})
+    db = _ScriptedDB(answers=dict(FREE))
     monkeypatch.setattr(rt, 'db_cursor', db)
     rt.store_board(DAY, 'v' * 32, 'p' * 32, BOARD, 'typed')
+    # Counted and inserted under one lock on this voter's rows for the date.
+    assert [s.split('(')[0] for s, _ in db.executed] == [
+        'SELECT GET_LOCK', 'SELECT COUNT', 'INSERT INTO four_by_six_boards ', 'SELECT RELEASE_LOCK']
+    lock = 'four_by_six:' + 'v' * 32 + ':2026-11-23'
+    assert db.executed[0][1] == (lock, rt.LOCK_SECONDS) and db.executed[-1][1] == (lock,) and len(lock) <= 64
     [(sql, params)] = db.statements('INSERT INTO four_by_six_boards')
     assert 'AS new ON DUPLICATE KEY UPDATE source = new.source' in sql
     assert params[:5] == (DAY, 'v' * 32, 'p' * 32, BOARD, 'typed') and sql.count('%s') == len(params)
     rt.store_approval(DAY, BOARD)
     sql, params = db.statements('INSERT INTO four_by_six_boards')[-1]
     assert params[:4] == (DAY, 'admin', BOARD, 'admin') and sql.count('%s') == len(params)
-    assert [s.split(' ')[0] for s, _ in db.executed[-3:]] == ['START', 'DELETE', 'INSERT']
-    assert db.executed[-2][1] == ('admin', DAY, BOARD)
-    failing = _ScriptedDB(fail='INSERT INTO four_by_six_boards')
+    assert [s.split(' ')[0] for s, _ in db.executed[-5:]] == ['SELECT', 'START', 'DELETE', 'INSERT', 'SELECT']
+    # The same lock whichever board is approved, so two can't both go in.
+    assert db.executed[-5][1] == ('four_by_six:admin:2026-11-23', rt.LOCK_SECONDS)
+    assert db.executed[-3][1] == ('admin', DAY, BOARD)
+    failing = _ScriptedDB(answers=dict(FREE), fail='INSERT INTO four_by_six_boards')
     monkeypatch.setattr(rt, 'db_cursor', failing)
     with pytest.raises(RuntimeError):
         rt.store_approval(DAY, BOARD)
-    assert failing.executed[-1][0] == 'ROLLBACK' and failing.commits == 0
+    assert [s.split('(')[0] for s, _ in failing.executed[-2:]] == ['ROLLBACK', 'SELECT RELEASE_LOCK']
+    assert failing.commits == 0
     monkeypatch.setattr(rt, 'db_cursor', db)
     assert rt.remove_approval(BOARD) == 1
     assert db.executed[-1][1] == (BOARD, 'admin')
@@ -461,10 +547,15 @@ def test_the_writes_say_what_they_mean(monkeypatch):
 
 def test_a_player_over_the_daily_limit_logs_nothing(monkeypatch):
     import routes.four_by_six as rt
-    db = _ScriptedDB(answers={'SELECT COUNT(*)': (rt.BOARDS_PER_PLAYER_PER_DAY,)})
+    db = _ScriptedDB(answers=dict(FREE, **{'SELECT COUNT(*)': (rt.BOARDS_PER_PLAYER_PER_DAY,)}))
     monkeypatch.setattr(rt, 'db_cursor', db)
     rt.store_board(DAY, 'v' * 32, None, BOARD, 'typed')
     assert not db.statements('INSERT INTO four_by_six_boards')
+    # Let go of all the same. And the count leaves this board out, so one
+    # already logged can still be updated at the limit.
+    assert db.executed[-1][0].startswith('SELECT RELEASE_LOCK')
+    [(sql, params)] = db.statements('SELECT COUNT(*)')
+    assert 'board <> %s' in sql and params[-1] == BOARD
 
 
 def test_a_failed_log_or_read_alerts_and_the_page_carries_on(client, capsys, monkeypatch):
@@ -512,7 +603,7 @@ _STORED_BOARD = re.compile('[' + fbs.COLORS + ']{24}')
 @pytest.mark.parametrize('field', ['board', 'moves', 'action', 'source', 'played_on', 'first_solve'])
 def test_hostile_values_never_reach_the_sql_or_crash(client, monkeypatch, field):
     import routes.four_by_six as rt
-    db = _ScriptedDB(answers={'SELECT COUNT(*)': (0,)})
+    db = _ScriptedDB(answers=dict(FREE))
     monkeypatch.setattr(rt, 'db_cursor', db)
     monkeypatch.setattr(rt, '_pacific_today', lambda: DAY)
     monkeypatch.setattr(rt, 'BOARDS_CACHE_SECONDS', 0)
@@ -526,6 +617,8 @@ def test_hostile_values_never_reach_the_sql_or_crash(client, monkeypatch, field)
         assert sql.count('%s') == len(params) and "'" not in sql and ';' not in sql, sql
         for value in params:
             assert value not in HOSTILE, (sql, value)
+    # The two fields a log doesn't read leave it as it was; in the others, every value here is refused.
+    assert bool(db.statements('INSERT INTO four_by_six_boards')) == (field in ('moves', 'first_solve'))
     for _sql, params in db.statements('INSERT INTO four_by_six_boards'):
         assert _STORED_BOARD.fullmatch(params[3]) and params[4] in rt.BOARD_SOURCES
 
@@ -533,7 +626,7 @@ def test_hostile_values_never_reach_the_sql_or_crash(client, monkeypatch, field)
 @pytest.mark.parametrize('path', ['approve_typed_board', 'unapprove_board', 'remove_board'])
 def test_hostile_admin_forms_never_reach_the_sql_text(client, monkeypatch, path):
     import routes.four_by_six as rt
-    db = _ScriptedDB()
+    db = _ScriptedDB(answers=dict(FREE))
     monkeypatch.setattr(rt, 'db_cursor', db)
     auth = _admin_headers(monkeypatch)
     for board in HOSTILE + [BOARD]:

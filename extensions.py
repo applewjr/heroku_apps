@@ -11,6 +11,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime
+from urllib.parse import urlsplit
 
 import mysql.connector
 import mysql.connector.pooling
@@ -104,6 +105,17 @@ def verify_password(username, password):
         # A log line, not an alert - the cap doing its job needs no action.
         print(f"admin login locked for {ip} after repeated wrong passwords", flush=True)
     return False
+
+def from_another_site():
+    """Did a browser send this request from another site's page? Browsers say
+    so themselves: Sec-Fetch-Site, or the Origin they put on every post. A
+    page can't set either. False when neither is there (not a browser)."""
+    site = request.headers.get('Sec-Fetch-Site')
+    if site:
+        return site not in ('same-origin', 'none')
+    origin = request.headers.get('Origin')
+    return bool(origin) and urlsplit(origin).netloc.lower() != request.host.lower()
+
 
 @auth.error_handler
 def custom_error():
