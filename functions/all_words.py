@@ -297,14 +297,31 @@ def length_score(word_length):
     else:
         return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
 
+# The mark on a row Blossom is likely to reject (see filter_words_blossom_revamp).
+# It never names the word: Helper Mode masks the words, and a label would give
+# one away. The page's script reads the word from the row when it's tapped.
+BLOSSOM_RARE_FLAG = (
+    '<button type="button" class="rare-flag" title="Rare word - Blossom may reject it" '
+    'aria-label="Rare word, Blossom may reject it, tap for details">⚠</button>'
+)
+
+
 def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None,
-                                invalid_words=None):
+                                invalid_words=None, pop=None, known=()):
     """
     Enhanced version that includes checkbox column for session-based word tracking
     and supports load more functionality with hyperlinked words.
 
     invalid_words are the words this player flagged as rejected by Blossom; they
     render with the Invalid box ticked.
+
+    With pop (word -> popularity, data.word_pop), a word missing from it gets
+    BLOSSOM_RARE_FLAG in the 🌸 column, unless it is in `known`: words added
+    to Blossom's list, which it has accepted. Over 35 approved boards
+    (2026-10-23 to 11-25), 8.5% of the words this marks in a top 15 were
+    later removed, against 1.1% of the rest, and it marks 38% of those rows.
+    Smush's and Ribbit's "below 2.0" would also mark ordinary words here
+    (timorous, mistrusts).
     """
     if used_words is None:
         used_words = []
@@ -366,6 +383,13 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
         )
     top_df['Invalid'] = invalid_html
 
+    # In the 🌸 column, not beside the word: Helper Mode rewrites the Word cell.
+    if pop is not None:
+        top_df['Pangram'] = [
+            pangram + ('' if word in pop or word in known else BLOSSOM_RARE_FLAG)
+            for word, pangram in zip(top_df['Word'], top_df['Pangram'])
+        ]
+
     # Convert words to hyperlinks that open in new tab
     word_links = []
     for word in top_df['Word']:
@@ -383,11 +407,12 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     rows = blossom_table.split('</tr>')
     processed_rows = []
     for row in rows:
-        if '<td>Yes</td>' in row:
+        # No closing tag in the match: a rare flag may follow in the cell.
+        if '<td>Yes' in row:
             row = row.replace('<tr>', '<tr class="pangram-row">')
-            row = row.replace('<td>Yes</td>', '<td>🌸</td>')
+            row = row.replace('<td>Yes', '<td>🌸')
         else:
-            row = row.replace('<td>No</td>', '<td></td>')
+            row = row.replace('<td>No', '<td>')
         processed_rows.append(row)
     blossom_table = '</tr>'.join(processed_rows)
 

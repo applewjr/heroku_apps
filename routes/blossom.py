@@ -6,7 +6,7 @@ from datetime import timedelta
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 
 import crowd
-from data import words_blossom
+from data import word_pop, words_blossom
 from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
                         limiter, log_page_visit, log_solve, pst_now_str)
 from functions import all_words
@@ -133,7 +133,7 @@ def blossom_solver():
             words_blossom_filtered = get_filtered_blossom_words()
             blossom_table, total_valid_words, show_load_more, pangrams = all_words.filter_words_blossom_revamp(
                 must_have, may_have, petal_letter, current_count, words_blossom_filtered, used_words,
-                invalid_words
+                invalid_words, pop=word_pop, known=_blossom_words.get('added', ())
             )
             valid_word_count = f'Showing {min(current_count, total_valid_words)} of {total_valid_words} words'
 
@@ -366,8 +366,10 @@ def blossom_feedback():
 # solve unpickled the ~1 MB set into ~9 MB of fresh strings (49 ms of CPU,
 # measured 2026-10-10), and that churn fragmented memory: one of the two
 # causes of the dyno's creep. Same pattern as routes/smush.py. Holds no copy
-# of the word list at all while Blossom's corrections are empty.
-_blossom_words = {'value': None, 'expires': 0.0}
+# of the word list at all while Blossom's corrections are empty. 'added' is
+# the added words on their own, kept from the same read: Blossom has accepted
+# those, so they never get the rare mark.
+_blossom_words = {'value': None, 'expires': 0.0, 'added': frozenset()}
 
 
 def _forget_blossom_words():
@@ -386,7 +388,11 @@ def get_filtered_blossom_words():
     list (the raw one if there has never been one) and retries in 5 minutes
     (see crowd.CrowdList.corrected).
     """
-    return BLOSSOM_CROWD.corrected(_blossom_words, crowd.with_corrections(words_blossom))
+    def build(invalid, added):
+        _blossom_words['added'] = added
+        return crowd.with_corrections(words_blossom)(invalid, added)
+
+    return BLOSSOM_CROWD.corrected(_blossom_words, build)
 
 
 ##### crowd corrections #####
