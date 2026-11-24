@@ -86,6 +86,13 @@ four_by_three:
     expect: 'id="fbt-data-ok"'
     sev: warn
 
+# 4x6's page. Its solver has no data to load, so this checks the page renders.
+four_by_six:
+    path: "/4x6"
+    max_ms: 3000
+    expect: 'id="fbs-ok"'
+    sev: warn
+
 wordle:
     path: "/wordle"
     max_ms: 3000

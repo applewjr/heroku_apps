@@ -125,6 +125,25 @@ def no_four_by_three_db(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_four_by_six_db(monkeypatch):
+    """Keep /4x6's today's boards off the database, for every test.
+
+    Boards are logged to and read from four_by_six_boards, and
+    ``secret_pass.py`` points at the production JawsDB. Every cursor in
+    routes/four_by_six.py fails here, as in an outage (the page fails safe),
+    and its memo starts empty. tests/test_four_by_six_boards.py puts a table
+    of its own in place of these.
+    """
+    import routes.four_by_six as fbs_route
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(fbs_route, "db_cursor", down)
+    monkeypatch.setattr(fbs_route, "_boards_cache", {})
+
+
+@pytest.fixture(autouse=True)
 def no_wordiply_db(monkeypatch):
     """Keep /wordiply's today's starter off the database, for every test.
 

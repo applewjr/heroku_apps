@@ -25,7 +25,7 @@ WITH visits AS (
     WHERE submit_time >= pst_now() - INTERVAL 14 DAY
         AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                           'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                          'circuits.html', 'typeshift.html', 'four_by_three.html')
+                          'circuits.html', 'typeshift.html', 'four_by_three.html', 'four_by_six.html')
         AND referrer REGEXP '^https://(www\\.)?jamesapplewhite\\.com([/?#]|$)'
         AND user_agent <> 'jj-healthcheck'
         AND referrer NOT LIKE '%127.0.0.1:5000%'
@@ -40,6 +40,7 @@ moves AS (
         WHEN segment = '' OR segment LIKE '%jamesapplewhite.com%' THEN 'home'
         WHEN segment = 'guess_the_phrase' THEN 'gtp'
         WHEN segment = '4x3' THEN 'four_by_three'
+        WHEN segment = '4x6' THEN 'four_by_six'
         ELSE segment
         END AS from_page
     ,to_page
@@ -54,7 +55,7 @@ SELECT
 ,SUM(recent) - SUM(NOT recent) AS moves_change
 FROM moves
 WHERE from_page IN ('home', 'smush', 'blossom', 'chainle', 'ribbit', 'wordiply', 'gtp',
-                    'wordle', 'antiwordle', 'quordle', 'circuits', 'typeshift', 'four_by_three')
+                    'wordle', 'antiwordle', 'quordle', 'circuits', 'typeshift', 'four_by_three', 'four_by_six')
     AND from_page <> to_page
 GROUP BY from_page, to_page
 ORDER BY moves_7d DESC, prior_7d DESC

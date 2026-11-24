@@ -26,13 +26,14 @@ PAGES = {
     "/circuits": "Play Circuits",
     "/typeshift": "Play Typeshift",
     "/4x3": "Play 4x3",
+    "/4x6": "Play 4x6",
     "/wordle": "Play Wordle",
     "/antiwordle": "Play Antiwordle",
     "/quordle": "Play Quordle",
 }
 # Cards for the busier daily solvers, a line of plain links for the rest
 # (Wordiply and Guess The Phrase moved there 2026-11-22).
-CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3")
+CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3", "/4x6")
 PLAIN = ("/wordiply", "/wordle", "/antiwordle", "/quordle", "/guess_the_phrase")
 
 

@@ -168,6 +168,7 @@ def sitemap():
     pages = [
         '/', '/wordiply', '/wordle', '/antiwordle', '/quordle',
         '/blossom', '/smush', '/ribbit', '/guess_the_phrase', '/chainle', '/circuits', '/typeshift', '/4x3',
+        '/4x6',
         '/any_word',
         '/feedback',
         '/about', '/privacy-policy',

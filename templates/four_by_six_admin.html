@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}4x6 Admin - Boards{% endblock %}
+
+{% block content %}
+{% from '_crowd_admin.html' import styles, flash with context %}
+{{ styles() }}
+<style>
+/* A 4x6 board, small: its six shelves of four, in the page's own colors. */
+.mini-board { display: inline-grid; grid-template-columns: repeat({{ width }}, 18px); gap: 2px; }
+.mini-board span { display: flex; align-items: center; justify-content: center; height: 18px; border-radius: 3px; font-size: 11px; line-height: 1; }
+.t-K { background-color: #d6488a; color: #fff; }
+.t-O { background-color: #d9661f; color: #fff; }
+.t-P { background-color: #7446b8; color: #fff; }
+.t-Y { background-color: #f3c93a; color: #02484d; }
+.t-G { background-color: #2f8f57; color: #fff; }
+.t-B { background-color: #2f6fd0; color: #fff; }
+.board-open { display: inline-block; padding: 4px 6px; border: 1px solid #cdd8d7; border-radius: 6px; color: #02484d; text-decoration: none; }
+.board-open:hover { border-color: #02484d; background-color: #eef4f4; }
+.board-open-label { display: block; margin-top: 3px; font-size: 11px; text-decoration: underline; }
+
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.when { white-space: nowrap; font-size: 12px; }
+.label { font-size: 11px; color: #666; }
+.approve-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px; }
+.approve-entry .btn { margin: 0; padding: 6px 12px; font-size: 13px; }
+</style>
+
+<div class="admin-container">
+    <div class="admin-top">
+        <h1>4x6 Admin - Boards</h1>
+        <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
+            <a href="/4x6" target="_blank" rel="noopener" class="btn btn-primary">Back to 4x6 Solver</a>
+            <a href="https://www.hankgreen.com/4x6/" target="_blank" rel="noopener" class="btn btn-success">Play 4x6</a>
+        </nav>
+    </div>
+
+    {{ flash() }}
+
+    <div class="stats">
+        <strong>Pacific today:</strong> {{ pacific_today.strftime('%a %Y-%m-%d') }} |
+        <strong>Today's boards:</strong> {{ 'live on /4x6' if boards_live else 'logging only; served on /4x6_admin/board' }}
+    </div>
+
+    <details class="admin-help"><summary>How boards are served</summary>
+        <p class="crowd-note">A new 4x6 comes out at each player's own midnight (the game goes by the device's date), so boards are kept by the player's date, and two dates are live at once around the world. This page shows Pacific tomorrow (players ahead of you), today and the two days before.</p>
+        <p class="crowd-note">A board a player enters is logged once they've looked at its solution for a few seconds. It's served once {{ serve_networks }} players enter the same 24 tiles that date; players on one network count as one. A board loaded from today's boards counts only once it's changed. A board with no solution is never logged: the game's always has one. Your approval comes first, then the players' boards, most players first, at most {{ todays_boards_max }}. A board first seen on an earlier date isn't served unless you approve it for that date.</p>
+        <p class="crowd-note">Check a board by its par: 4x6 shows the fewest moves plus {{ par_over }}. Approve is optional, since players' boards serve on their own. One approval a date: a new one takes the old one's place. Undo takes your approval back on every date (the players' boards decide again). Remove deletes that date's entries of the board, approvals too.</p>
+    </details>
+
+    {% if load_error %}
+    <div class="alert alert-error">
+        Couldn't read the boards ({{ load_error }}). Has mysql_tables/four_by_six_boards.sql been run?
+    </div>
+    {% endif %}
+
+    <div class="approve-entry">
+        <strong>Approve your game's board:</strong>
+        <a href="/4x6_admin/board" class="btn btn-success">Enter your board</a>
+        <span class="crowd-note">or Approve one below.</span>
+    </div>
+
+    {% for d in days %}
+    <h3>{{ d.day.strftime('%a %Y-%m-%d') }}{% if d.day == pacific_today %} (today){% endif %}</h3>
+    <div class="table-wrap">
+    <table class="words-table">
+        <thead>
+            <tr>
+                <th>Board</th>
+                <th>Your approval</th>
+                <th>Solves in</th>
+                <th>Players</th>
+                <th>Status</th>
+                <th>First seen / last update</th>
+                <th>Remove</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in d.groups %}
+            <tr>
+                <td><a class="board-open" href="/4x6_admin/board?board={{ g.board | urlencode }}&amp;day={{ d.day.strftime('%Y-%m-%d') }}"
+                       title="Open this board in the board editor to check it, fix it or approve it"><span class="mini-board">{% for c in g.board %}<span class="t-{{ c }}" title="{{ names.get(c, c) }}">{{ symbols.get(c, '?') }}</span>{% endfor %}</span><span class="board-open-label">Open in editor</span></a></td>
+                <td>
+                    {% if g.approved %}
+                    <span class="status-served">Approved</span>
+                    <form method="POST" action="/4x6_admin/unapprove_board" class="remove-form"
+                          onsubmit="return confirm('Undo your approval of this board? It comes off every date you approved it for.')">
+                        <input type="hidden" name="board" value="{{ g.board }}">
+                        <button type="submit" class="btn btn-secondary">Undo</button>
+                    </form>
+                    {% elif g.fewest is not none %}
+                    <form method="POST" action="/4x6_admin/approve_typed_board" class="remove-form">
+                        <input type="hidden" name="board" value="{{ g.board }}">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-success">Approve</button>
+                    </form>
+                    {% endif %}
+                </td>
+                <td>{% if g.fewest is not none %}{{ g.fewest }} moves<br><strong>Par {{ g.fewest + par_over }}</strong>{% else %}<span class="status-waiting">no solution</span>{% endif %}</td>
+                <td>{{ g.players }}</td>
+                <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                <td class="when">
+                    {{ g.first_seen.strftime('%m-%d') }}<br>
+                    {{ g.last_update.strftime('%m-%d %H:%M') }}
+                </td>
+                <td>
+                    <form method="POST" action="/4x6_admin/remove_board" class="remove-form"
+                          onsubmit="return confirm('Delete every entry of this board on {{ d.day.strftime('%Y-%m-%d') }}, approvals too?')">
+                        <input type="hidden" name="board" value="{{ g.board }}">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    {% if not load_error %}<p>No boards logged in the last few days.</p>{% endif %}
+    {% endfor %}
+</div>
+
+<script>
+// Back from Approve on the board entry page (templates/four_by_six.html): its
+// draft goes only once the approval worked, so a failed one can be retried.
+try {
+    if (sessionStorage.getItem('fourBySixApprovePending_v1')) {
+        sessionStorage.removeItem('fourBySixApprovePending_v1');
+        if (new URLSearchParams(location.search).has('success')) localStorage.removeItem('fourBySixApproveState_v1');
+    }
+} catch (_) {}
+</script>
+
+{% endblock %}

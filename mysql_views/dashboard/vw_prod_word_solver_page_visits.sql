@@ -30,18 +30,19 @@ SELECT
     SUM(page_name = 'circuits.html') AS circuits,
     SUM(page_name = 'typeshift.html') AS typeshift,
     SUM(page_name = 'four_by_three.html') AS four_by_three,
+    SUM(page_name = 'four_by_six.html') AS four_by_six,
     COUNT(*) AS total
 FROM app_visits
 WHERE submit_time >= DATE(pst_now()) - INTERVAL 13 DAY
     AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                       'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                      'circuits.html', 'typeshift.html', 'four_by_three.html')
+                      'circuits.html', 'typeshift.html', 'four_by_three.html', 'four_by_six.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'
     AND referrer NOT LIKE '%apple-apps-staging%'
     -- run_checks fetches /blossom, /smush, /wordle, /guess_the_phrase,
-    -- /chainle, /circuits, /typeshift and /4x3 every hour, and those GETs write
-    -- app_visits rows like any other. Counting them would add 24 a day to
-    -- seven of these columns and quietly overstate real usage.
+    -- /chainle, /circuits, /typeshift, /4x3 and /4x6 every hour, and those GETs
+    -- write app_visits rows like any other. Counting them would add 24 a day to
+    -- nine of these columns and quietly overstate real usage.
     AND user_agent <> 'jj-healthcheck'
     -- Crawlers, link previews and scripts aren't people either.
     AND NOT (LOWER(user_agent) REGEXP 'bot|spider|crawl|slurp|headless|python|curl|wget|httpclient|facebookexternalhit|preview|monitor|lighthouse')
