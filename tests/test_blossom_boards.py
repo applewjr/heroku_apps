@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 import routes.blossom as blossom
-from test_ad_slots import LIVE, slots  # noqa: F401
+from test_ads import LIVE, LOADER
 from test_blossom import _admin_headers, _ScriptedDB
 
 # The real reader: conftest.py stands in an empty table for every test.
@@ -555,10 +555,10 @@ def test_with_the_switch_on_blossom_shows_the_board(client, boards):
     assert 'const POST_URL = "/blossom";' in html
 
 
-def test_blossom_logs_solver_clicks_and_visits_and_shows_the_ad(client, boards, slots):
+def test_blossom_logs_solver_clicks_and_visits_and_loads_adsense(client, boards):
     import extensions
     form = {"must_have": "e", "may_have": "lction", "petal_letter": "l"}
-    assert 'id="jj-ad"' in client.post("/blossom", base_url=LIVE, data=form).get_data(as_text=True)
+    assert LOADER in client.post("/blossom", base_url=LIVE, data=form).get_data(as_text=True)
     client.get("/blossom")
     assert extensions._log_queue.qsize() == 2  # a solver click and a page visit
 

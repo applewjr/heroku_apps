@@ -58,7 +58,7 @@
       "name": "How accurate is it?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess."
+        "text": "It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess. A word marked Checked is the exception: it was entered by hand, by someone who had played the round."
       }
     },
     {
@@ -264,6 +264,18 @@ button.chn-word { background: none; border: none; padding: 0; text-align: left; 
 button.chn-word, button.chn-pattern { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; text-underline-offset: 3px; }
 .chn-why { flex-basis: 100%; font-size: 12px; color: #6b7280; line-height: 1.4; }
+/* A confirmed word (routes/chainle.py): in place of its bar, and in the hint. */
+.chn-checked {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: #e3f1e6;
+    color: #1e6b34;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+}
 .chn-bar { width: 52px; height: 6px; border-radius: 3px; background-color: #e9ecef; overflow: hidden; flex-shrink: 0; }
 .chn-bar span { display: block; height: 100%; background-color: #e0a800; }
 .chn-row-btn {
@@ -499,8 +511,6 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
     </div>
 </div>
 
-{% with ad_page='chainle', ad_gate='#chn-results:not([hidden])' %}{% include '_ad_slot.html' %}{% endwith %}
-
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
     <a href="https://chainle.io/" target="_blank" rel="noopener noreferrer" class="action-btn">&#128279; Play Chainle</a>
@@ -533,7 +543,7 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How accurate is it?</p>
-      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess.</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">It suggests, it does not know the answer. Chainle has its own list of accepted answers for each round and scores other words by how close they are, so the top pick is often, but not always, the one the game wants. A word close to every clue scores well, and one tied strongly to only one clue scores poorly. Look at the next few picks as well, because you only get one guess. A word marked Checked is the exception: it was entered by hand, by someone who had played the round.</p>
     </div>
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What if Chainle refuses a word?</p>
@@ -552,7 +562,7 @@ button.chn-word:hover, button.chn-pattern:hover { text-decoration: underline; te
 
 <section id="chn-sources" style="max-width: 700px; margin: 24px auto 10px; padding: 0 20px; text-align: left;">
   <h2 style="font-size: 16px; color: #333; margin-bottom: 12px; text-align: center;">Data sources and licences</h2>
-  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Chainle. Its suggestions come from the public sources below, never from Chainle's puzzles or answers.</p>
+  <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;">This helper is not affiliated with, endorsed by or sponsored by Chainle. Its suggestions come from the public sources below, never from Chainle's puzzles or answers. A word marked Checked is the exception: it was entered by hand, by someone who had played the round.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Word vectors.</strong> This data contains semantic vectors from <a href="https://github.com/commonsense/conceptnet-numberbatch" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">ConceptNet Numberbatch</a> 19.08, by Luminoso Technologies, Inc. (Robyn Speer, Joshua Chin, Catherine Havasi and Joanna Lowry-Duda), used under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>. Numberbatch is built from <a href="https://conceptnet.io" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">ConceptNet</a>, which contains data from Wiktionary, WordNet and contributors to Open Mind Common Sense projects; GloVe, by Jeffrey Pennington, Richard Socher and Christopher D. Manning; word2vec, by Tomas Mikolov and Google Research; and parallel text from OpenSubtitles 2016, by Pierre Lison and Jörg Tiedemann, analyzed with fastText, by Piotr Bojanowski, Edouard Grave, Armand Joulin and Tomas Mikolov.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Synonyms, opposites and word forms.</strong> <a href="https://wordnet.princeton.edu" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet 3.0</a>: WordNet 3.0 Copyright 2006 by Princeton University, used under the <a href="https://wordnet.princeton.edu/license-and-commercial-use" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">WordNet licence</a>.</p>
   <p style="font-size: 13px; color: #555; margin: 0 0 8px; line-height: 1.6;"><strong>Compound words and phrases.</strong> Compound words from the public-domain ENABLE word list. Two-word phrases from <a href="https://en.wiktionary.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wiktionary</a>, by Wiktionary contributors, under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC BY-SA 4.0</a>, from WordNet 3.0, and from <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">Wikidata</a> (<a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer" style="color: #02484d; text-decoration: underline;">CC0</a>).</p>
@@ -666,6 +676,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.addEventListener('resize', fitClues);
 
+    // The mark on a confirmed word: in the hint, and on its row.
+    const CHECKED = '<span class="chn-checked" title="Entered by hand, by someone who had played the round">Checked</span>';
+
     function hintHtml() {
         const r = round();
         const top = last.suggestions[0];
@@ -686,10 +699,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const word = top.word;
         const count = Math.min(r.reveals[word] || 0, word.length);
         const done = count >= word.length;
-        html += '<div class="chn-hint"><span class="chn-hint-label">Top pick</span>' + (done
+        html += '<div class="chn-hint"><span class="chn-hint-label">' + (top.checked ? 'Best word' : 'Top pick') + '</span>' + (done
             ? '<button type="button" class="chn-pattern" data-copy="' + esc(word) + '" title="Copy ' + esc(word) + '">' + esc(word) + '</button>'
             : '<span class="chn-pattern">' + esc(masked(word, count)) + '</span>') +
-            '<span class="chn-note" style="margin: 0;">' + word.length + ' letters</span></div>';
+            '<span class="chn-note" style="margin: 0;">' + word.length + ' letters</span>' + (top.checked ? CHECKED : '') + '</div>';
         html += '<div class="chn-actions">' + (done
             ? '<button type="button" class="chn-btn" data-copy="' + esc(word) + '">&#128203; Copy ' + esc(word) + '</button>'
             : '<button type="button" class="chn-btn" id="chn-next-letter">&#128161; ' +
@@ -702,6 +715,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function why(s) {
+        if (s.checked) {
+            return 'Entered by hand, by someone who had played the round' +
+                (s.type === 'link' ? '. Makes ' + s.phrases.filter(Boolean).join(' and ') : '');
+        }
         if (s.type === 'link') return 'Makes ' + s.phrases.filter(Boolean).join(' and ');
         if (s.type === 'synonym') return 'A dictionary synonym';
         if (s.type === 'related') return 'A related word in the dictionary';
@@ -726,8 +743,8 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '<div class="chn-row' + (done ? ' revealed' : '') + '">' + (done
                 ? '<button type="button" class="chn-word" data-copy="' + esc(s.word) + '" title="Copy ' + esc(s.word) + '">' + esc(s.word) + '</button>'
                 : '<span class="chn-word">' + esc(masked(s.word, count)) + '</span>') +
-                '<span class="chn-bar" title="How strongly it links the clues, compared with the best"><span style="width:' +
-                Math.max(4, Math.round(s.strength * 100)) + '%"></span></span>';
+                (s.checked ? CHECKED : '<span class="chn-bar" title="How strongly it links the clues, compared with the best"><span style="width:' +
+                Math.max(4, Math.round(s.strength * 100)) + '%"></span></span>');
             if (!done) {
                 html += '<button type="button" class="chn-row-btn" data-act="letter" data-idx="' + idx + '">Show letter</button>' +
                     '<button type="button" class="chn-row-btn" data-act="all" data-idx="' + idx + '">Reveal</button>';

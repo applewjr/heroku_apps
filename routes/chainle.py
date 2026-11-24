@@ -9,8 +9,9 @@ handle_vote.
 Self-contained: the word data ships in datasets/ (see datasets/CHAINLE_DATA.md)
 and nothing is fetched at runtime. The solver never contacts any Chainle site.
 
-/chainle_admin has today's rounds to approve, the players' reports, and the
-words taken off or kept on the solver's list.
+/chainle_admin has today's rounds to approve, the #1 words James confirms on
+them, the players' reports, and the words taken off or kept on the solver's
+list.
 """
 
 import hashlib
@@ -131,7 +132,127 @@ def solve_request(data):
     if solver is None:
         return jsonify(error='The solver is unavailable right now.'), 503
     removed, kept = get_corrections()
-    return jsonify(ch.solve(solver, clues, kind, removed=removed, kept=kept))
+    return jsonify(ch.solve(solver, clues, kind, removed=removed, kept=kept, best=best_word(clues, kind)))
+
+
+##### confirmed words #####
+
+# The best word for a round, which James enters on /chainle_admin after he has
+# played it (James, 2026-11-24: players wouldn't enter it). Anyone who enters
+# those clues gets it at the top of the list, marked Checked, hidden until
+# they reveal it like any other. Keyed by the clues in any order, not by
+# date: the same clues have the same best word whenever they're played. His
+# word wins over the Removed list, the -s filter and players' reports.
+
+# How long the confirmed words are reused before they are read again
+# (straight away after a save), and how long a failed read waits before the
+# next try, the last words serving meanwhile. One gunicorn worker, so this
+# memo is the only copy.
+BEST_CACHE_SECONDS = 600
+BEST_RETRY_SECONDS = 300
+_best = {'value': None, 'expires': 0.0, 'gen': 0}
+_best_lock = threading.Lock()
+
+
+def _forget_best():
+    """After a save: the next solve reads the confirmed words again."""
+    with _best_lock:
+        _best['gen'] += 1
+        _best['expires'] = 0.0
+
+
+def get_best():
+    """{(kind, clue_key): the confirmed word}, upper case. From the memo while
+    fresh; when it goes stale the first request pushes it out 15 seconds
+    before reading, and the others keep the old words meanwhile. Never
+    raises: a failed read keeps the last words, or none."""
+    with _best_lock:
+        now = time.monotonic()
+        value = _best['value']
+        if value is not None and now < _best['expires']:
+            return value
+        _best['expires'] = now + 15
+        gen = _best['gen']
+    try:
+        fresh = {(kind, key): word for kind, key, word in
+                 _fetch("SELECT kind, clue_key, word FROM chainle_best", ())}
+        expires = time.monotonic() + BEST_CACHE_SECONDS
+    except Exception as e:
+        alerts.alert_throttled('chainle_best_read_failed', exc=type(e).__name__, msg=e)
+        fresh = value if value is not None else {}
+        expires = time.monotonic() + BEST_RETRY_SECONDS
+    with _best_lock:
+        if _best['gen'] == gen:
+            _best['value'], _best['expires'] = fresh, expires
+    return fresh
+
+
+def best_word(clues, kind):
+    """The word confirmed for this round, upper case, or None."""
+    return get_best().get((kind, clue_key(clue_text(clues))))
+
+
+def kind_of(clues):
+    """'meaning' for a round of one clue word, else 'bridge'."""
+    return 'meaning' if len(clues) == 1 else 'bridge'
+
+
+def _solver_had(clues, kind, word):
+    """(the solver's own first pick, where it has `word`) for a round, as the
+    solver stands, before the confirmed word: for the admin to read, and to
+    tune on later. (None, None) without the word data."""
+    solver = get_data()
+    if solver is None:
+        return None, None
+    removed, kept = get_corrections()
+    rated = ch.assess(solver, clues, kind, [word], removed=removed, kept=kept)
+    return (rated['top'], rated['ranks'].get(word)) if rated else (None, None)
+
+
+def save_best(day, rounds):
+    """Save the confirmed words of some rounds, [(clues, word or None)]: None
+    takes a round's word back. All of them are saved or none. Returns
+    (saved, taken back, how many the solver had first). Raises, so the admin
+    page says whether it worked."""
+    now = pst_now_str()
+    saved = cleared = first = 0
+    # Before the transaction, which shouldn't wait on the solver.
+    version = solver_version()
+    had = [_solver_had(clues, kind_of(clues), word) if word else (None, None) for clues, word in rounds]
+    with db_cursor() as (conn, cursor):
+        # The Heroku pool runs with autocommit on (config.py), so several
+        # writes need a transaction of their own to be one change.
+        cursor.execute("START TRANSACTION")
+        try:
+            for (clues, word), (top, rank) in zip(rounds, had):
+                kind, key = kind_of(clues), clue_key(clue_text(clues))
+                if word is None:
+                    cursor.execute("DELETE FROM chainle_best WHERE kind = %s AND clue_key = %s", (kind, key))
+                    cleared += cursor.rowcount
+                    continue
+                # The same word saved again keeps the rank it was first
+                # saved with: what the solver said before it was told.
+                cursor.execute(
+                    """INSERT INTO chainle_best (kind, clue_key, word, played_on, solver_top, solver_rank,
+                           solver_version, created_at, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) AS new
+                       ON DUPLICATE KEY UPDATE
+                           solver_top = IF(chainle_best.word = new.word, chainle_best.solver_top, new.solver_top),
+                           solver_rank = IF(chainle_best.word = new.word, chainle_best.solver_rank, new.solver_rank),
+                           solver_version = IF(chainle_best.word = new.word, chainle_best.solver_version,
+                                               new.solver_version),
+                           word = new.word, updated_at = new.updated_at""",
+                    (kind, key, word, day, top, rank, version, now, now))
+                saved += 1
+                first += rank == 1
+            conn.commit()
+        except Exception:
+            try:
+                cursor.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+    return saved, cleared, first
 
 
 ##### word corrections #####
@@ -211,7 +332,9 @@ def handle_vote(data):
         raise ValidationError('word must be one word, letters only')
     word = word.strip().lower()
     removed, _kept = get_corrections()
-    if word in removed:
+    # A confirmed word is James's own call, which reports can't reverse: the
+    # usual thanks, and no vote.
+    if word in removed or word.upper() == best_word(clues, kind):
         return jsonify(status='success', result='recorded')
     if word not in _offered(clues, kind):
         return jsonify(status='success', result='not_suggested')
@@ -736,8 +859,10 @@ def chainle_admin():
         view = CHAINLE_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'rounds')
         crowd_error = f'{type(e).__name__}: {e}'
     rounds_days, rounds_error = _admin_rounds()
+    best, best_error = _admin_best(rounds_days)
     return render_template('chainle_admin.html', **view, crowd_error=crowd_error,
                            data_ok=get_data() is not None, round_clues=ROUND_CLUES,
+                           best=best, best_error=best_error, max_word=MAX_WORD_LEN,
                            rounds_days=rounds_days, rounds_error=rounds_error,
                            rounds_live=CHAINLE_ROUNDS_LIVE, board_sites=BOARD_SITES,
                            serve_crowd=SERVE_CROWD, link_min=LINK_MIN,
@@ -822,6 +947,81 @@ def _admin_rounds():
             days.append({'day': day, 'sets': sets, 'typed': typed, 'groups': groups})
         day -= timedelta(days=1)
     return days, None
+
+
+def _admin_best(days):
+    """(best, error). best is what the tab shows in the #1 boxes: {clue text:
+    {'word', 'rank', 'top'}} for the rounds of the sets on it that have a
+    confirmed word. With an error the words couldn't be read, so the boxes
+    are empty for another reason than having none: the tab then shows no
+    Save, which would take every word back."""
+    texts = {text for d in days for s in d['sets'] for text in s['rounds'].values()}
+    if not texts:
+        return {}, None
+    try:
+        rows = _fetch("SELECT kind, clue_key, word, solver_rank, solver_top FROM chainle_best "
+                      f"WHERE clue_key IN ({', '.join(['%s'] * len(texts))})",
+                      tuple(sorted(clue_key(t) for t in texts)))
+    except Exception as e:
+        print(f"Error loading chainle confirmed words: {e}")
+        return {}, f'{type(e).__name__}: {e}'
+    by_round = {(kind, key): {'word': word, 'rank': rank, 'top': top} for kind, key, word, rank, top in rows}
+    found = {t: by_round.get((kind_of(t.split()), clue_key(t))) for t in texts}
+    return {t: row for t, row in found.items() if row}, None
+
+
+def _best_from_form():
+    """[(clues, word or None)] from a set's Save: each round's hidden clue
+    words (round<n>_<m>) and its #1 box (best<n>), None for an empty box.
+    Raises ValidationError."""
+    rounds = []
+    for n in ROUND_SLOTS:
+        words = [w for w in (request.form.get(f'round{n}_{m}', '').strip() for m in (1, 2, 3)) if w]
+        if not words:
+            continue
+        try:
+            clues = _any_clues(words)
+        except ValidationError as e:
+            raise ValidationError(f'Round {n}: {e}')
+        word = request.form.get(f'best{n}', '').strip().upper()
+        if not word:
+            rounds.append((clues, None))
+            continue
+        if not _WORD.fullmatch(word):
+            raise ValidationError(f'Round {n}: the #1 word is one word, letters only')
+        if word.lower() in clues:
+            raise ValidationError(f'Round {n}: {word} is one of its clues')
+        rounds.append((clues, word))
+    if not rounds:
+        raise ValidationError('Not a set')
+    return rounds
+
+
+@bp.route(ADMIN + '/save_best', methods=['POST'])
+@auth.login_required
+def chainle_save_best():
+    """Save the #1 words of one set's rounds: each is served at the top of
+    the list to anyone who enters its clues. An empty box takes a round's
+    word back."""
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if day is None:
+        return _back(error='Not a date')
+    try:
+        rounds = _best_from_form()
+    except ValidationError as e:
+        return _back(error=str(e))
+    try:
+        saved, cleared, first = save_best(day, rounds)
+    except Exception as e:
+        print(f"Error saving chainle confirmed words: {e}")
+        return _back(error='Database error')
+    _forget_best()
+    if not saved and not cleared:
+        return _back(error='Type at least one #1 word')
+    said = [f"Saved {saved} #1 word{'' if saved == 1 else 's'} for {day:%m-%d} (the solver had {first} of them first)"] if saved else []
+    if cleared:
+        said.append(f"took {cleared} back")
+    return _back(success=', '.join(said))
 
 
 def _form_set():

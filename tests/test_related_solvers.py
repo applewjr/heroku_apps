@@ -1,7 +1,7 @@
 """The cross-links between solvers (templates/_related_solvers.html), and the
 www address every solver page hands to search engines and link previews.
 
-Pages are rendered as the live site, as tests/test_ad_slots.py does. Nothing
+Pages are rendered as the live site, as tests/test_ads.py does. Nothing
 here reaches a database.
 """
 
@@ -10,12 +10,13 @@ import re
 
 import pytest
 
-from test_ad_slots import FAQ, LIVE, UNIT, slots  # noqa: F401
+from test_ads import LIVE
 from test_blossom import blossom_client  # noqa: F401
 
 STRIP = 'class="jj-more"'
-# Every solver page, with its own Play link: the button row that comes after
-# the page's ad unit and before the strip.
+FAQ = "Frequently Asked Questions"
+# Every solver page, with its own Play link: the button row that comes before
+# the strip.
 PAGES = {
     "/smush": "Play Smush",
     "/blossom": "Play Blossom",
@@ -35,6 +36,16 @@ PAGES = {
 # (Wordiply and Guess The Phrase moved there 2026-11-22).
 CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3", "/4x6")
 PLAIN = ("/wordiply", "/wordle", "/antiwordle", "/quordle", "/guess_the_phrase")
+# Sister games, shown first under a heading of their own (James, 2026-11-24).
+FAMILIES = {"Hank Green": ("/smush", "/4x3", "/4x6"),
+            "Puzzmo": ("/ribbit", "/circuits", "/typeshift"),
+            "Merriam-Webster": ("/blossom", "/quordle")}
+SISTERS = {path: [p for p in paths if p != path] for paths in FAMILIES.values() for path in paths}
+MORE = "More daily puzzle solvers"
+
+
+def _hrefs(html):
+    return re.findall(r'href="(/[^"]*)"', html)
 
 
 def _page(client, path):
@@ -58,30 +69,44 @@ def test_every_solver_links_every_other_solver_once(client, path):
         if other != path:
             assert strip.count(f'href="{other}"') == 1, other
     # The busier daily solvers are cards; the rest a line of links, in order.
-    assert strip.count('class="jj-more-tile"') == len(CARDS) - (path in CARDS)
-    line = strip[strip.index('class="jj-more-also"'):]
-    shown = [p for p in PLAIN if p != path]
-    assert sorted(shown, key=lambda p: line.index(f'href="{p}"')) == shown
+    sisters = SISTERS.get(path, [])
+    top, rest = strip.split(MORE)
+    grid, line = rest.split('class="jj-more-also"')
+    assert _hrefs(top) == sisters
+    assert _hrefs(grid) == [p for p in CARDS if p != path and p not in sisters]
+    assert _hrefs(line) == [p for p in PLAIN if p != path and p not in sisters]
+    assert strip.count('class="jj-more-tile"') == len(_hrefs(top)) + len(_hrefs(grid))
     # Links only: on /blossom the strip sits inside form1, where a button
     # would submit it. And no click logging: /log-click stores nothing.
     assert "<button" not in strip and "tracked-link" not in strip
 
 
 @pytest.mark.parametrize("path", sorted(PAGES))
-def test_the_strip_comes_after_the_tool_its_ad_and_play_links(client, slots, path):
+def test_sister_games_come_first_under_their_publisher(client, path):
+    strip = _strip(_page(client, path))
+    titles = re.findall(r"<h2[^>]*>([^<]*)</h2>", strip)
+    names = [name for name, paths in FAMILIES.items() if path in paths]
+    assert titles == [f"{name}'s other games" for name in names] + [MORE]
+
+
+def test_sister_cards_keep_their_tags(client):
+    top = _strip(_page(client, "/smush")).split(MORE)[0]
+    assert top.count("jj-more-beta") == 2      # 4x3 and 4x6, while they're Beta
+
+
+@pytest.mark.parametrize("path", sorted(PAGES))
+def test_the_strip_comes_after_the_tool_and_play_links(client, path):
     html = _page(client, path)
     marks = [PAGES[path], STRIP, FAQ]
-    if UNIT in html:
-        marks.insert(0, UNIT)
     spots = [html.index(mark) for mark in marks]
     assert spots == sorted(spots), marks
 
 
-def test_blossom_result_pages_keep_the_strip_after_the_ad(blossom_client, slots):
+def test_blossom_result_pages_keep_the_strip_after_the_results(blossom_client):
     html = blossom_client.post("/blossom", base_url=LIVE, data={
         "must_have": "t", "may_have": "raine", "petal_letter": "s"}).get_data(as_text=True)
     spots = [html.index(mark) for mark in
-             ('class="word-results-container"', UNIT, "Play Blossom", STRIP, FAQ)]
+             ('class="word-results-container"', "Play Blossom", STRIP, FAQ)]
     assert spots == sorted(spots)
     assert html.count(STRIP) == 1
 

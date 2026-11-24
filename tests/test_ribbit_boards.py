@@ -851,7 +851,7 @@ def test_board_entry_is_the_ribbit_editor_with_an_approve_bar(client, boards, mo
     # A board picked here stays in the editor to check and approve.
     assert "Solved straight away" not in html and "Not the board in your game?" not in html
     assert "then approve it, or ↩ Not my board if it doesn't." in html
-    for gone in ("Frequently Asked Questions", "💬 Give Feedback", 'class="jj-ad"',
+    for gone in ("Frequently Asked Questions", "💬 Give Feedback",
                  "Ribbit Solver &amp; Answers"):
         assert gone not in html, f"the board entry shows {gone!r}"
     assert "<title>Approve your Ribbit board</title>" in html

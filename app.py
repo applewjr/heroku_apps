@@ -37,7 +37,8 @@ from helpers import ValidationError, is_beta, is_new, pin_malloc_thresholds
 
 pin_malloc_thresholds()
 
-from extensions import NOT_FOUND_LIMITS, ad_slot, cache, limiter, log_page_visit, show_ads
+from extensions import (NOT_FOUND_LIMITS, cache, keep_admin_out_of_frames, limiter, log_page_visit,
+                        show_ads)
 from monitoring import alerts
 from routes import (blossom, chainle, circuits, dashboards, espresso, four_by_six, four_by_three,
                     guess_the_phrase, misc, ribbit, smush, typeshift, wordgames, wordiply)
@@ -71,6 +72,8 @@ def redirect_non_www():
     if host == 'jamesapplewhite.com':
         return redirect(request.url.replace('://jamesapplewhite.com', '://www.jamesapplewhite.com'), code=301)
 
+app.after_request(keep_admin_out_of_frames)
+
 ##### blueprints #####
 
 app.register_blueprint(misc.bp)
@@ -94,10 +97,8 @@ app.register_blueprint(dashboards.bp)
 # and the Beta tag pages wear until James takes it off (helpers.BETA_PAGES).
 app.add_template_global(is_new)
 app.add_template_global(is_beta)
-# Whether a page loads AdSense (base.html), and its deliberate ad unit
-# (templates/_ad_slot.html).
+# Whether a page loads AdSense (base.html).
 app.add_template_global(show_ads)
-app.add_template_global(ad_slot)
 
 ##### error handlers #####
 

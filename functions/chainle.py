@@ -431,6 +431,19 @@ def _phrase(clue, word, form):
     return (word + sep + clue).upper(), (hidden + sep + clue).upper()
 
 
+def _link_phrases(data, clue_ids, j):
+    """(phrases, patterns, linked) for word j with each clue: the phrase they
+    make and the same with the word hidden (None where there's no link), and
+    whether every clue has one."""
+    phrases, patterns = [], []
+    for c in clue_ids:
+        found = data.link(c, j)
+        shown, hidden = _phrase(data.word(c), data.word(j), found[1]) if found else (None, None)
+        phrases.append(shown)
+        patterns.append(hidden)
+    return phrases, patterns, all(p is not None for p in phrases)
+
+
 def bridge(data, clue_ids, top=TOP, removed=(), kept=()):
     """Best words joining every clue: [{word, type, score, phrases, patterns}].
 
@@ -440,7 +453,6 @@ def bridge(data, clue_ids, top=TOP, removed=(), kept=()):
     there's no link). removed / kept are word ids (see solve).
     """
     score, link, allowed = _bridge_scores(data, clue_ids, removed, kept)
-    clues = [data.word(c) for c in clue_ids]
     forms = _forms(data, clue_ids)
     out, seen = [], set()
     for i in _ranked(score, allowed, top * 20):
@@ -450,14 +462,8 @@ def bridge(data, clue_ids, top=TOP, removed=(), kept=()):
         # only close in meaning shows in its base form if that scores about
         # as well.
         j = i if link[i] > 0 else _shown(data, i, allowed, score)
-        word = data.word(j)
-        phrases, patterns = [], []
-        for c, clue in zip(clue_ids, clues):
-            found = data.link(c, j)
-            shown, hidden = _phrase(clue, word, found[1]) if found else (None, None)
-            phrases.append(shown)
-            patterns.append(hidden)
-        out.append({'word': word.upper(), 'type': 'link' if link[i] > 0 else 'meaning',
+        phrases, patterns, _linked = _link_phrases(data, clue_ids, j)
+        out.append({'word': data.word(j).upper(), 'type': 'link' if link[i] > 0 else 'meaning',
                     'score': float(score[i]), 'phrases': phrases, 'patterns': patterns})
         if len(out) >= top:
             break
@@ -485,17 +491,46 @@ def closest(data, clue_id, top=TOP, removed=(), kept=()):
     return out
 
 
+def _best_first(data, clue_ids, kind, rows, best):
+    """The suggestions with a confirmed word (`best`) on top, marked
+    'checked'. Its own forms come off the list (the game counts them as one
+    answer), and the list stays as long as it was. A word the solver doesn't
+    know goes on top too, with nothing to say about it."""
+    word = best.upper()
+    i = data.id(best)
+    same = {word}
+    if i >= 0:
+        same |= {data.word(b).upper() for b in data.bases(i)}
+    row = next((r for r in rows if r['word'] == word), None)
+    if row is None:
+        row = {'word': word, 'type': 'meaning', 'score': 0.0, 'phrases': [], 'patterns': []}
+        if kind == 'bridge':
+            row['phrases'] = row['patterns'] = [None] * len(clue_ids)
+            if i >= 0:
+                phrases, patterns, linked = _link_phrases(data, clue_ids, i)
+                row.update(phrases=phrases, patterns=patterns, type='link' if linked else 'meaning')
+
+    def another_form(r):
+        j = data.id(r['word'])
+        return r['word'] in same or (j >= 0 and any(data.word(b).upper() in same for b in data.bases(j)))
+
+    rest = [r for r in rows if r is not row and not another_form(r)]
+    return [dict(row, checked=True)] + rest[:max(len(rows) - 1, 0)]
+
+
 def _known(data, words):
     """The ids of the words the solver knows."""
     return {i for i in map(data.id, words) if i >= 0}
 
 
-def solve(data, clues, kind, top=TOP, removed=(), kept=()):
+def solve(data, clues, kind, top=TOP, removed=(), kept=(), best=None):
     """What the page needs for one round.
 
     clues   -- the clue words (two or three for 'bridge', one for 'meaning')
     removed -- words players or the admin took off the list: never suggested
     kept    -- words the admin keeps on it, -s form or not (PHYSICS)
+    best    -- the word confirmed as this round's best, if there is one: it
+               goes first, marked 'checked', whatever the lists above say
     Returns {'kind', 'clues', 'unknown', 'suggestions'}. Each suggestion
     carries 'strength', its score relative to the best (0-1): the scores
     aren't calibrated to the game's points yet, so the page shows them as
@@ -509,9 +544,14 @@ def solve(data, clues, kind, top=TOP, removed=(), kept=()):
     removed, kept = _known(data, removed), _known(data, kept)
     rows = (bridge(data, ids, top, removed, kept) if kind == 'bridge'
             else closest(data, ids[0], top, removed, kept))
-    best = rows[0]['score'] if rows else 0.0
+    top_score = rows[0]['score'] if rows else 0.0
+    if best:
+        rows = _best_first(data, ids, kind, rows, best)
     for r in rows:
-        r['strength'] = round(max(r.pop('score'), 0.0) / best, 3) if best > 0 else 0.0
+        score = max(r.pop('score'), 0.0)
+        r['strength'] = round(score / top_score, 3) if top_score > 0 else 0.0
+        if r.get('checked'):
+            r['strength'] = 1.0
     result['suggestions'] = rows
     return result
 

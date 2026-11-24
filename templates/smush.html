@@ -350,8 +350,6 @@
     <div class="we-status" id="suggest-status" aria-live="polite"></div>
 </div>
 
-{% with ad_page='smush', ad_gate='#results-container .word-result' %}{% include '_ad_slot.html' %}{% endwith %}
-
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
     <a href="https://www.hankgreen.com/smush/" target="_blank" rel="noopener noreferrer" class="action-btn">🥞 Play Smush</a>
@@ -434,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_USES = 5;
     // Rows a list shows at first, and how many more each Show more adds. All 8
     // always shows its whole plan: renderPlan() doesn't use these.
-    const WORDS_FIRST = 10;
+    const WORDS_FIRST = 25;
     const WORDS_STEP = 25;
     const STORAGE_KEY = 'smushSolverState_v1';
     // The chosen sort/filter is a UI preference, not game state, so it lives

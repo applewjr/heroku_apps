@@ -16,8 +16,10 @@ data_folder = os.path.join(APP_ROOT, 'datasets')
 # in functions/wordle.py.
 df = pd.read_csv(os.path.join(data_folder, 'wordle_words.csv'))
 
-word_df = pd.read_csv(os.path.join(data_folder, 'all_words_blossom.csv')) # changed to main "word_df" on 8/24/2024
-words = set(word_df['0'].to_list())
+# keep_default_na=False: pandas otherwise reads the words "null" and "nan" as
+# missing values.
+word_df = pd.read_csv(os.path.join(data_folder, 'all_words_blossom.csv'), keep_default_na=False) # changed to main "word_df" on 8/24/2024
+words = set(word_df['word'].to_list())
 words_blossom = all_words.filter_words_for_blossom(words)
 
 # word -> Zipf popularity (log10 frequency per billion words, ~1 rare .. ~7.6
@@ -27,7 +29,7 @@ words_blossom = all_words.filter_words_for_blossom(words)
 # The gap-fills only ADD low-frequency words and never change a Norvig value,
 # so the Smush solver's popularity tier floors stay calibrated. Dictionary
 # words still absent (genuinely obscure) aren't listed: treat as 0.
-_pop_df = pd.read_csv(os.path.join(data_folder, 'word_popularity.csv'))
+_pop_df = pd.read_csv(os.path.join(data_folder, 'word_popularity.csv'), keep_default_na=False)
 word_pop = dict(zip(_pop_df['word'], _pop_df['zipf']))
 
 with open(os.path.join(data_folder, 'espresso_brew_points.json'), 'r') as json_file:

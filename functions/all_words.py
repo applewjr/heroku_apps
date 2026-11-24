@@ -414,27 +414,27 @@ def filter_words_for_blossom(words):
 
     return set(filtered_words)
 
-def wordiply_solver(search_string, words, list_len=15):
-
+def wordiply_solver(search_string, words, list_len=15, removed=(), added=()):
+    """The longest words holding search_string, longest first, at most
+    list_len. Never the string itself: Wordiply refuses its starter word on
+    its own. `removed` words are left out and `added` ones join in as the
+    list is searched, so no corrected copy of it is held in memory."""
     search_string = search_string.lower().strip()
-    
+
     # Return empty list if no search string
     if not search_string:
         return []
-    
-    valid_words = []
-    
+
+    valid_words = {w for w in added if search_string in w}
     for word in words:
         word_str = str(word).lower()
         # Check if the search string appears in the word
-        if search_string in word_str:
-            valid_words.append(word_str)
-    
-    # Sort by length (longest first), then alphabetically for ties
-    valid_words.sort(key=lambda x: (-len(x), x))
-    
-    # Return top results
-    return valid_words[:list_len]
+        if search_string in word_str and word_str not in removed:
+            valid_words.add(word_str)
+    valid_words.discard(search_string)
+
+    # Longest first, then alphabetically for ties
+    return sorted(valid_words, key=lambda x: (-len(x), x))[:list_len]
 
 # Letter values used by Smush (hankgreen.com/smush) - Scrabble-style points.
 SMUSH_LETTER_VALUES = {

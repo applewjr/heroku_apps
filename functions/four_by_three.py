@@ -467,6 +467,10 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None, colors
     mark that contradicts the ones before it is ignored and reported in
     'dropped' (its index in marks). Returns a dict for the page (see the
     end of this function); positions are the board's, words as tiles.
+    hub's 'proven' is the hub the player's own marks settle, with nothing
+    from James or other players: every answer those marks allow has it. Two
+    right groups always do. None until then, and None if it isn't the hub
+    shown (James's answer says another): one of the two is a mistake.
     'plan' is the game for the most points (_plan): 'order' (indexes into
     'groups', the player's solved ones first), 'colors' ('checked' when
     James's colors set the order, else 'guess'), 'points' (what it scores
@@ -490,6 +494,21 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None, colors
             return True
         return False
 
+    # What the player's marks say on their own, for hub 'proven': the same
+    # marks, with none of James's groups under them, so one that contradicts
+    # his answer still counts here.
+    own = np.ones(ANSWERS, dtype=bool)
+    own_solved = set()
+
+    def apply_own(verdict, mask):
+        nonlocal own
+        kind = 'group' if verdict == 'right' else verdict
+        allowed = own & _fits(kind, mask, frozenset(own_solved))
+        if allowed.any():
+            own = allowed
+            if verdict == 'right':
+                own_solved.add(mask)
+
     checked = {m for m, label in fixed.items() if label == 'checked'}
     for mask in checked:
         apply('group', mask)
@@ -499,6 +518,7 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None, colors
     solved_order, misses_at, missed, called = [], [], set(), False
     for n, (positions, verdict) in enumerate(marks):
         mask = mask_of(positions)
+        apply_own(verdict, mask)
         if verdict == 'right':
             ok = apply('group', mask)
             if ok:
@@ -584,13 +604,15 @@ def solve(signals, weights, marks=(), fixed=None, refused=(), names=None, colors
         hub_label = 'players'
     else:
         hub_label = _label(hub_p[hub])
+    own_hubs = np.unique(ANSWER_HUB[own])
+    proven = tiles[hub] if own_hubs.tolist() == [hub] else None
     order = sorted(range(TILES), key=lambda i: -hub_p[i])
     candidates = [[tiles[i], round(float(hub_p[i]), 3)] for i in order[:HUB_CANDIDATES]]
     return {
         'tiles': list(tiles),
         'known': list(signals.known),
         'hub': {'tile': tiles[hub], 'p': round(float(hub_p[hub]), 3), 'label': hub_label,
-                'candidates': candidates},
+                'candidates': candidates, 'proven': proven},
         'groups': out_groups,
         'plan': plan,
         'answer_p': round(float(p[top]), 3),

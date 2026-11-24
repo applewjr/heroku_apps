@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 import routes.smush as smush
-from test_ad_slots import LIVE, slots  # noqa: F401
+from test_ads import LIVE, LOADER
 from test_blossom import _admin_headers, _ScriptedDB
 
 # The real reader: conftest.py stands in an empty table for every test.
@@ -434,9 +434,9 @@ def test_with_the_switch_on_smush_shows_the_board(client, boards):
     assert 'const POST_URL = "/smush";' in html
 
 
-def test_smush_is_a_page_visit_and_carries_the_ad(client, boards, slots):
+def test_smush_is_a_page_visit_and_loads_adsense(client, boards):
     import extensions
-    assert 'id="jj-ad"' in client.get("/smush", base_url=LIVE).get_data(as_text=True)
+    assert LOADER in client.get("/smush", base_url=LIVE).get_data(as_text=True)
     assert extensions._log_queue.qsize() == 1
 
 

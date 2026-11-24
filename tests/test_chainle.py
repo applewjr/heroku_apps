@@ -315,7 +315,7 @@ def test_the_page_has_the_refused_word_box(client, tiny):
                  'The last word you copied fills in here'):
         assert hook in html, f'chainle.html lost {hook}'
     # Under the answers, inside the results, so it only shows with them.
-    results = html.split('id="chn-results"')[1].split('_ad_slot')[0]
+    results = html.split('id="chn-results"')[1].split('Play Chainle')[0]
     assert results.index('id="chn-answers"') < results.index('id="chn-report"')
 
 

@@ -178,7 +178,7 @@ def load_enable():
     with open(os.path.join(DATA, 'all_words_blossom.csv'), encoding='utf-8-sig') as fh:
         rows = csv.reader(fh)
         next(rows)
-        return {row[1] for row in rows if WORD.fullmatch(row[1])}
+        return {row[0] for row in rows if WORD.fullmatch(row[0])}
 
 
 def load_zipf():

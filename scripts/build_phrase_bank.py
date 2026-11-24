@@ -470,7 +470,7 @@ def build(out_dir):
     import pandas as pd
 
     # The ENABLE word list (public domain).
-    dict_words = set(pd.read_csv(os.path.join(DATA, 'all_words_blossom.csv'))['0'].astype(str))
+    dict_words = set(pd.read_csv(os.path.join(DATA, 'all_words_blossom.csv'), keep_default_na=False)['word'])
     log('wordfreq...')
     word_pop, pair_pop = make_pop(load_zipf())
     bad = load_badwords()

@@ -54,6 +54,28 @@
 #rounds-tab .set-card-head b { color: #02484d; font-size: 14px; }
 #rounds-tab .set-round { display: grid; grid-template-columns: 1.4em minmax(0, 1fr); gap: 6px; padding: 4px 0; border-top: 1px solid #f1f3f5; font-size: 14px; }
 #rounds-tab .set-round > b { color: #6b7280; font-weight: 600; }
+/* A round's #1 word, beside its clues: typed after playing it. */
+#rounds-tab .set-round.with-best { grid-template-columns: 1.4em minmax(0, 1fr) 9.5em; align-items: center; }
+#rounds-tab .best-cell { display: flex; flex-direction: column; gap: 2px; }
+/* An id selector, to beat base.html's input[type=text] padding. */
+#rounds-tab .best-cell input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 34px;
+    padding: 4px 8px;
+    border: 1px solid #cdd8d7;
+    border-radius: 6px;
+    background-color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+#rounds-tab .best-had { font-size: 11px; color: #6b7280; }
+#rounds-tab .best-had.first { color: #218838; }
+#rounds-tab .best-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }
+#rounds-tab .best-actions .btn { margin: 0; padding: 4px 10px; font-size: 12px; }
 #rounds-tab .clues { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; letter-spacing: 1px; color: #1f2937; overflow-wrap: anywhere; }
 #rounds-tab .from { font-size: 11px; color: #6b7280; }
 #rounds-tab .set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
@@ -154,12 +176,18 @@
                 <p class="crowd-note">A player's round is logged on their own date when they use it (a hint, a reveal, a copy, a report) or leave it solved. A round they loaded and left as it is never is. Players never say which site they play on: under an empty round they see the clues each of the day's sets has for it, tap the one in their game, and every empty round of that set fills in.</p>
                 <p class="crowd-note">A round counts once {{ serve_crowd }} players have typed the same clue words, one per network (an IPv6 /48, or one IPv4 address). Two rounds belong to one day's set once {{ link_min }} players typed both. Within a set, a round needs more than half of that round's players; a tie leaves it blank. A players' set is offered only once all five of its rounds are settled; one with fewer isn't shown here. Which round it is: three words make round 4 and one word round 5; a two-word round goes in the latest of tabs 1-3 that at least two of its players used (players who come in mid-game type a later round into tab 1).</p>
                 <p class="crowd-note">Your approvals come first, with their site's name on the button, and the players' set that shares a round with one fills its blank rounds. At most {{ todays_sets_max }} sets a day: your approvals, then the players' sets, most players first.</p>
+                <p class="crowd-note">#1 words: after you play a round, type its best word in the #1 box beside its clues and press Save. /chainle puts that word at the top of the list, marked Checked, for anyone who enters those clues, in any order and on any day. It wins over the Removed list, the -s filter and players' reports. Empty a box and Save to take its word back. The note under a saved word is where the solver had it before you said.</p>
                 <p class="crowd-note">An approval is a whole set: approving a site's set replaces whatever you approved for it that day, and a round you leave blank is just not in it. You can approve your own typing, a set the players settled, or a set players typed, even one player. Sets players typed lists only players who typed all five rounds. Undo takes the site's set back. Remove on a set the players settled deletes every player entry of its rounds that day; on a set players typed, only those players' entries. Use it for junk, or staging tests (staging writes the prod table).</p>
             </details>
         </div>
         {% if rounds_error %}
         <div class="alert alert-error">
             Couldn't read the rounds ({{ rounds_error }}). Has mysql_tables/chainle_boards.sql been run?
+        </div>
+        {% endif %}
+        {% if best_error %}
+        <div class="alert alert-error">
+            Couldn't read the #1 words ({{ best_error }}), so they can't be changed right now. Has mysql_tables/chainle_best.sql been run?
         </div>
         {% endif %}
 
@@ -197,11 +225,26 @@
                     <span><b>Set {{ loop.index }}</b> &middot; {% if s.site %}your {{ s.site }}{% else %}{{ s.players }} players{% endif %}</span>
                     <span class="{{ 'status-served' if rounds_live else 'status-waiting' }}">{{ 'Offered' if rounds_live else 'Would be offered' }}</span>
                 </div>
+                {% set best_form = 'best-' ~ day_iso ~ '-' ~ loop.index %}
                 {% for n in range(1, 6) %}
-                <div class="set-round"><b>{{ n }}</b>
+                {% set found = best.get(s.rounds[n]) if s.rounds[n] else none %}
+                <div class="set-round{% if s.rounds[n] %} with-best{% endif %}"><b>{{ n }}</b>
                     <span>{% if s.rounds[n] %}<span class="clues">{{ s.rounds[n].replace(' ', ' + ') }}</span>{% if s.site and s['from'][n] == 'players' %} <span class="from">from players</span>{% endif %}{% else %}<span class="from">-</span>{% endif %}</span>
+                    {% if s.rounds[n] %}
+                    <span class="best-cell">
+                        <input type="text" name="best{{ n }}" form="{{ best_form }}" maxlength="{{ max_word }}" value="{{ found.word if found else '' }}"
+                               placeholder="{{ 'not loaded' if best_error else '#1 word' }}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Round {{ n }}, the #1 word"{% if best_error %} disabled{% endif %}>
+                        {% if found %}<span class="best-had{% if found.rank == 1 %} first{% endif %}">{% if found.rank %}solver had it #{{ found.rank }}{% else %}solver didn't have it{% endif %}</span>{% endif %}
+                    </span>
+                    {% endif %}
                 </div>
                 {% endfor %}
+                <form method="POST" action="/chainle_admin/save_best" class="best-actions" id="{{ best_form }}">
+                    <input type="hidden" name="played_on" value="{{ day_iso }}">
+                    {% for n in range(1, 6) %}{% for w in (s.rounds[n] or '').split() %}<input type="hidden" name="round{{ n }}_{{ loop.index }}" value="{{ w }}">{% endfor %}{% endfor %}
+                    {{ keep_view() }}
+                    <button type="submit" class="btn btn-primary"{% if best_error %} disabled{% endif %}>Save #1 words</button>
+                </form>
                 <div class="set-actions">
                     {% if s.site %}
                     <form method="POST" action="/chainle_admin/unapprove_rounds"

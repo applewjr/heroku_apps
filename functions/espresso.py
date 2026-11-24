@@ -1,5 +1,3 @@
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import json
 import numpy as np
@@ -35,6 +33,11 @@ def get_naive_espresso_points(roast, dose, espresso_points):
     return naive_espresso_data
 
 def google_sheets_base(GOOGLE_SHEETS_JSON):
+    # Imported here, not at the top of the file: only the espresso pages use
+    # Google Sheets, so the app boots without the libraries and loads them on
+    # the first espresso visit (2026-11-24, to keep the memory they take).
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     credentials_dict = json.loads(GOOGLE_SHEETS_JSON, strict=False)
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
