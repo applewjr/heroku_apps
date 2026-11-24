@@ -1462,20 +1462,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Logs the board the player is using, once per board, category and
-    // puzzle.
+    // puzzle. Only one the server took counts as logged: if it never got
+    // there (no connection, too many requests), the next use sends it again.
+    let logPending = '';
     function noteUse() {
         try {
             if (boardSource === 'loaded' || phase !== 'fill' || !lengths.length) return;
             const sig = lengths.join('-') + '|' + category + '|' + offerDay;
-            if (sig === loggedSig) return;
-            loggedSig = sig;
-            save();
+            if (sig === loggedSig || sig === logPending) return;
+            logPending = sig;
             fetch('/guess_the_phrase', {
                 method: 'POST',
                 keepalive: true,
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: 'log_board', lengths, category, source: boardSource})
-            }).catch(() => {});
+            }).then(r => {
+                // A board it won't take (any other 4xx) isn't worth sending again.
+                if (r.ok || (r.status >= 400 && r.status < 500 && r.status !== 429)) {
+                    loggedSig = sig;
+                    save();
+                }
+            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
         } catch (_) {}
     }
 

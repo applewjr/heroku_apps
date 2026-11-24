@@ -18,6 +18,7 @@ anyone gaming this would want. Admin pages and the daily digest show them.
 
 import hashlib
 import hmac
+import threading
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
@@ -330,6 +331,10 @@ class CrowdList:
         self.added_table = f'{game}_added_words'
         self.log_table = f'{game}_vote_log'
         self.on_change = on_change
+        # Bumped by every change (_changed), so a read of the lists that was
+        # under way is used once and not kept (see corrected).
+        self._changes = 0
+        self._changes_lock = threading.Lock()
         # The list a crowd decision lands in, and the list it takes the word out of.
         self.tables = {
             'invalid': (self.invalid_table, self.added_table),
@@ -348,6 +353,12 @@ class CrowdList:
         """Who is voting (see player_hash)."""
         return player_hash(self.game)
 
+    def _changed(self):
+        """After any change to the two word tables is committed."""
+        with self._changes_lock:
+            self._changes += 1
+        self.on_change()
+
     def corrected(self, memo, build, case=str.lower):
         """build(invalid, added) over this game's two word tables, memoized
         in `memo` ({'value', 'expires'}: a module attribute of the game's,
@@ -358,9 +369,15 @@ class CrowdList:
         one) and retries after CORRECTIONS_RETRY_SECONDS, so a database blip
         at refresh time can't evict the corrections for hours. Callers share
         the value, so they must only read it.
+
+        A read that a change overtook may predate it, so its own caller gets
+        it and the memo doesn't: kept, it would hide the change until the
+        next refresh.
         """
         if memo['value'] is not None and time.time() < memo['expires']:
             return memo['value']
+        with self._changes_lock:
+            changes = self._changes
         try:
             with db_cursor() as (conn, cursor):
                 cursor.execute(f"SELECT word FROM {self.invalid_table}")
@@ -371,11 +388,19 @@ class CrowdList:
             print(f"Error fetching {self.game} word corrections: {e}")
             if memo['value'] is None:
                 memo['value'] = build(set(), set())
-            memo['expires'] = time.time() + CORRECTIONS_RETRY_SECONDS
-            return memo['value']
-        memo['value'] = build(invalid, added)
-        memo['expires'] = time.time() + CORRECTIONS_REFRESH_SECONDS
-        return memo['value']
+            with self._changes_lock:
+                if self._changes == changes:
+                    memo['expires'] = time.time() + CORRECTIONS_RETRY_SECONDS
+                return memo['value']
+        value = build(invalid, added)
+        with self._changes_lock:
+            if self._changes == changes:
+                memo['value'] = value
+                memo['expires'] = time.time() + CORRECTIONS_REFRESH_SECONDS
+            elif memo['value'] is None:
+                # Something to fall back on if the next read fails.
+                memo['value'] = value
+        return value
 
     def _count_players(self, cursor, word, kind):
         """Distinct players behind a change to this word, inside the vote window.
@@ -522,7 +547,7 @@ class CrowdList:
             alerts.alert_throttled(f'{self.game}_vote_failed', exc=type(e).__name__, msg=e)
             return False
         if applied or put_back:
-            self.on_change()
+            self._changed()
         return applied
 
     def retract_vote(self, word, kind, puzzle=None, mode=None):
@@ -557,7 +582,7 @@ class CrowdList:
             alerts.alert_throttled(f'{self.game}_vote_failed', exc=type(e).__name__, msg=e)
             return
         if reverted:
-            self.on_change()
+            self._changed()
 
     ##### admin #####
 
@@ -582,7 +607,7 @@ class CrowdList:
             # just deleted were the only other record of them.
             self._log(cursor, 'admin_set', word, kind, detail=str(cursor.rowcount))
             conn.commit()
-        self.on_change()
+        self._changed()
 
     def admin_remove(self, word, kind):
         """Take the word out of the list for `kind`.
@@ -597,7 +622,7 @@ class CrowdList:
             cursor.execute(f"DELETE FROM {self.votes_table} WHERE word = %s", (word,))
             self._log(cursor, 'admin_remove', word, kind, detail=str(cursor.rowcount))
             conn.commit()
-        self.on_change()
+        self._changed()
 
     def list_rows(self):
         """(invalid rows, added rows), each (word, added_date, source), newest first."""

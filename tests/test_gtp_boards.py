@@ -462,6 +462,13 @@ def test_the_offer_comes_down_on_time_and_old_replies_are_dropped(client, boards
     assert 'toDateString() ' not in html.split('function noteUse()')[1].split('function ')[0]
 
 
+def test_a_board_counts_as_logged_only_once_the_server_has_it(client, boards):
+    html = client.get('/guess_the_phrase').get_data(as_text=True)
+    note = html.split('function noteUse()')[1].split('} catch (_) {}')[0]
+    assert note.index('logPending = sig;') < note.index("fetch('/guess_the_phrase'") < note.index('loggedSig = sig;')
+    assert 'r.status !== 429' in note
+
+
 def test_faq_names_the_board_and_matches_its_structured_data(client, boards):
     html = client.get('/guess_the_phrase').get_data(as_text=True)
     blocks = [json.loads(b) for b in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)]

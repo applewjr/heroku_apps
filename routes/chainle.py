@@ -147,10 +147,11 @@ def solve_request(data):
 # How long the confirmed words are reused before they are read again
 # (straight away after a save), and how long a failed read waits before the
 # next try, the last words serving meanwhile. One gunicorn worker, so this
-# memo is the only copy.
+# memo is the only copy. reads counts the reads as they start, and read is the
+# one the value came from (0: none yet).
 BEST_CACHE_SECONDS = 600
 BEST_RETRY_SECONDS = 300
-_best = {'value': None, 'expires': 0.0, 'gen': 0}
+_best = {'value': None, 'expires': 0.0, 'gen': 0, 'reads': 0, 'read': 0}
 _best_lock = threading.Lock()
 
 
@@ -165,26 +166,40 @@ def get_best():
     """{(kind, clue_key): the confirmed word}, upper case. From the memo while
     fresh; when it goes stale the first request pushes it out 15 seconds
     before reading, and the others keep the old words meanwhile. Never
-    raises: a failed read keeps the last words, or none."""
+    raises: a failed read keeps the last words, or none.
+
+    Reads that overlap anyway (nothing known yet, or one slower than the 15
+    seconds) can finish in any order: the one that started last is kept, and
+    a failed one never replaces another's words (as in
+    routes/guess_the_phrase.py _board_for)."""
     with _best_lock:
         now = time.monotonic()
-        value = _best['value']
+        value, came_from = _best['value'], _best['read']
         if value is not None and now < _best['expires']:
             return value
         _best['expires'] = now + 15
         gen = _best['gen']
+        _best['reads'] += 1
+        read = _best['reads']
     try:
         fresh = {(kind, key): word for kind, key, word in
                  _fetch("SELECT kind, clue_key, word FROM chainle_best", ())}
-        expires = time.monotonic() + BEST_CACHE_SECONDS
     except Exception as e:
         alerts.alert_throttled('chainle_best_read_failed', exc=type(e).__name__, msg=e)
-        fresh = value if value is not None else {}
-        expires = time.monotonic() + BEST_RETRY_SECONDS
+        fresh = None
     with _best_lock:
+        now = time.monotonic()
+        if fresh is not None:
+            if _best['gen'] == gen and _best['read'] < read:
+                _best.update(value=fresh, expires=now + BEST_CACHE_SECONDS, read=read)
+            return fresh
+        if _best['read'] != came_from:
+            # Another request got through meanwhile: serve what it found.
+            return _best['value']
+        fresh = value if value is not None else {}
         if _best['gen'] == gen:
-            _best['value'], _best['expires'] = fresh, expires
-    return fresh
+            _best.update(value=fresh, expires=now + BEST_RETRY_SECONDS)
+        return fresh
 
 
 def best_word(clues, kind):

@@ -9,6 +9,7 @@ the tiny test vocabulary (test_chainle_solver), never a real round.
 
 import json
 import re
+import threading
 import time
 from datetime import date
 from urllib.parse import unquote_plus
@@ -69,7 +70,7 @@ def best(monkeypatch):
     table = MemoryBest()
     monkeypatch.setattr(rc, '_fetch', table.fetch)
     monkeypatch.setattr(rc, 'save_best', table.save)
-    monkeypatch.setattr(rc, '_best', {'value': None, 'expires': 0.0, 'gen': 0})
+    monkeypatch.setattr(rc, '_best', {'value': None, 'expires': 0.0, 'gen': 0, 'reads': 0, 'read': 0})
     return table
 
 
@@ -205,6 +206,71 @@ def test_a_save_during_a_read_is_not_lost(best, monkeypatch):
     monkeypatch.setattr(rc, '_fetch', slow)
     assert rc.get_best() == {}
     assert rc._best['value'] is None and rc._best['expires'] <= time.monotonic()
+
+
+WORDS = {('bridge', 'FOOT SNOW'): 'SHOE'}
+
+
+def _overlapping(monkeypatch, slow_outcome, meanwhile=lambda: None):
+    """Two reads of the words at once: the first to start finishes last, as
+    slow_outcome does. `meanwhile` runs once it has started. Returns what
+    each request was given."""
+    monkeypatch.setattr(rc.alerts, 'alert_throttled', lambda *a, **kw: None)
+    started, go, given, calls = threading.Event(), threading.Event(), {}, []
+
+    def fetch(sql, params):
+        calls.append(1)
+        if len(calls) == 1:
+            started.set()
+            assert go.wait(10)
+            return slow_outcome()
+        return [key + (word,) for key, word in WORDS.items()]
+    monkeypatch.setattr(rc, '_fetch', fetch)
+    thread = threading.Thread(target=lambda: given.update(slow=rc.get_best()))
+    thread.start()
+    assert started.wait(10)
+    meanwhile()
+    given['fast'] = rc.get_best()
+    go.set()
+    thread.join(10)
+    return given
+
+
+def _down():
+    raise RuntimeError('database down')
+
+
+def test_a_failed_read_never_wipes_another_requests_words(best, monkeypatch):
+    given = _overlapping(monkeypatch, _down)
+    assert given == {'fast': WORDS, 'slow': WORDS}
+    assert rc.get_best() == WORDS
+    assert rc._best['expires'] > time.monotonic() + rc.BEST_RETRY_SECONDS      # and isn't cut short
+
+
+def test_the_same_once_the_words_are_known_and_a_refresh_is_slow(best, monkeypatch):
+    # A refresh slower than the 15 seconds it keeps the others waiting.
+    rc._best.update(value={('meaning', 'BIG'): 'HUGE'}, expires=0.0)
+    given = _overlapping(monkeypatch, _down, meanwhile=lambda: rc._best.update(expires=0.0))
+    assert given == {'fast': WORDS, 'slow': WORDS} and rc.get_best() == WORDS
+
+
+def test_an_older_read_that_lands_late_is_not_kept(best, monkeypatch):
+    given = _overlapping(monkeypatch, lambda: [])
+    assert given == {'fast': WORDS, 'slow': {}} and rc.get_best() == WORDS
+
+
+def test_a_read_that_works_is_kept_after_one_that_failed(best, monkeypatch):
+    monkeypatch.setattr(rc.alerts, 'alert_throttled', lambda *a, **kw: None)
+    calls = []
+
+    def fetch(sql, params):
+        calls.append(1)
+        if len(calls) == 1:
+            assert rc.get_best() == {}                 # a second request comes and fails
+            return [key + (word,) for key, word in WORDS.items()]
+        raise RuntimeError('database down')
+    monkeypatch.setattr(rc, '_fetch', fetch)
+    assert rc.get_best() == WORDS and rc.get_best() == WORDS and len(calls) == 2
 
 
 def test_a_refusal_report_never_votes_a_confirmed_word_off(client, tiny, best, monkeypatch):

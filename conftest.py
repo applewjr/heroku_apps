@@ -154,7 +154,7 @@ def no_chainle_best_db(monkeypatch):
     """
     import routes.chainle as chainle
 
-    monkeypatch.setattr(chainle, "_best", {"value": {}, "expires": float("inf"), "gen": 0})
+    monkeypatch.setattr(chainle, "_best", {"value": {}, "expires": float("inf"), "gen": 0, "reads": 0, "read": 0})
 
 
 @pytest.fixture(autouse=True)
