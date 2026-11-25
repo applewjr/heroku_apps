@@ -1,19 +1,20 @@
 """Wrapper that turns a silently-failing scheduled job into a loud one.
 
-Every live scheduled task sends its success email as the last unguarded
-statement in the file, and none of them has a main() or an
-``if __name__ == "__main__"`` guard. An exception anywhere earlier kills the
-process before that line, so the only evidence a job failed is an email that
-never arrives - which a human has to notice. That is the gap this closes.
+The scheduled tasks are plain scripts, with no main() and no
+``if __name__ == "__main__"`` guard. Run bare, one that raises prints a
+traceback into the log and exits, and nobody is told. (Until 2026-11-25 most
+sent a success email as their last line, so the evidence was an email that
+never arrived - which a human had to notice.) That is the gap this closes.
 
-Rather than restructure eight working scripts, run them through here:
+Rather than restructure the scripts, run them through here:
 
     python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_v2.py
 
 runpy executes the script byte-for-byte the way ``python <path>`` does, so
-every existing behaviour - the success email included - is unchanged. What is
-added is a JJ_ALERT plus a non-zero exit on failure, and a JJ_PULSE on
-success.
+every existing behaviour is unchanged. What is added is a JJ_ALERT plus a
+non-zero exit on failure, and a JJ_PULSE on success. A script's part is to
+raise when its work didn't get done: an error it catches and prints is a
+success here.
 """
 
 import os

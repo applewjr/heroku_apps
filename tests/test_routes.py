@@ -27,7 +27,6 @@ GET_OK = [
     "/4x6",
     "/any_word",
     "/fixer",
-    "/common_denominator",
     "/blossom",
     "/umbra",
     "/tiltconnect4",
@@ -237,12 +236,6 @@ ANY_WORD_JSON = {
     "sort_order": "Max-Min", "min_length": "1", "max_length": "100",
 }
 
-COMMON_DENOM_FORM = {
-    "min_match_len": "3", "min_match_rate": "0.5", "beg_end_str_char": "|",
-    "value_split_char": ",", "user_match_entry": "alpha, alphabet",
-    "user_nope_match_entry": "",
-}
-
 
 def test_antiwordle_post_returns_picks(client):
     # the page posts every box; one played row, all gray
@@ -290,14 +283,12 @@ def test_any_word_post_junk_numeric_returns_400(client, field):
     assert resp.status_code == 400
 
 
-def test_common_denominator_post_valid_returns_200(client):
-    assert client.post("/common_denominator", data=COMMON_DENOM_FORM).status_code == 200
-
-
-@pytest.mark.parametrize("field", ["min_match_len", "min_match_rate"])
-def test_common_denominator_post_junk_numeric_returns_400(client, field):
-    resp = client.post("/common_denominator", data={**COMMON_DENOM_FORM, field: "abc'--"})
-    assert resp.status_code == 400
+def test_common_denominator_is_gone(client):
+    # Decommissioned 2026-11-25 (James): a plain 404, and nothing links to it.
+    assert client.get("/common_denominator").status_code == 404
+    # The menu is on every page; the cards are on the home page.
+    for page in ("/", "/any_word"):
+        assert "common_denominator" not in client.get(page).get_data(as_text=True)
 
 
 ESPRESSO_PAGES = ["/espresso", "/espresso/home/", "/espresso/recommendation/",
@@ -596,12 +587,12 @@ def test_smush_json_null_body_returns_400(client):
 
 # ---------- Ribbit ----------
 
-# A fully connected 5-tile board (letters a r e t s); any distinct-letter
-# sequence is traceable, so it yields plenty of common 4-5 letter words.
-_RIBBIT_LETTERS = {1: "a", 2: "r", 3: "e", 4: "t", 5: "s"}
+# Five tiles in a corner of the 4x4 grid, every neighbour linked: plenty of
+# common 4-5 letter words. Cells 0 1 2 are the top row, 4 and 5 under 0 and 1.
+_RIBBIT_LETTERS = {0: "a", 1: "r", 2: "t", 4: "e", 5: "s"}
 RIBBIT_BODY = {
     "nodes": [{"id": i, "letter": l} for i, l in _RIBBIT_LETTERS.items()],
-    "edges": [[i, j] for i in range(1, 6) for j in range(i + 1, 6)],
+    "edges": [[0, 1], [0, 4], [0, 5], [1, 2], [1, 4], [1, 5], [2, 5], [4, 5]],
 }
 
 
@@ -669,6 +660,67 @@ def test_ribbit_junk_input_returns_400(ribbit_client, patch):
     assert ribbit_client.post("/ribbit", json=body).status_code == 400
 
 
+def _ribbit_grid(cells=16, letter="e"):
+    """`cells` tiles numbered from 0, each linked to the next."""
+    return {"nodes": [{"id": i, "letter": letter} for i in range(cells)],
+            "edges": [[i, i + 1] for i in range(cells - 1)]}
+
+
+@pytest.mark.parametrize("patch", [
+    _ribbit_grid(64),                                            # more tiles than the grid has
+    _ribbit_grid(17),
+    {"nodes": [{"id": 16, "letter": "a"}], "edges": []},         # off the grid
+    {"nodes": [{"id": -1, "letter": "a"}], "edges": []},
+    {"edges": [[0, 2]]},                                         # two cells apart
+    {"edges": [[4, 2]]},                                         # a knight's move
+    {"edges": [[0, 0]]},                                         # a tile with itself
+], ids=["64tiles", "17tiles", "offgrid", "negative", "apart", "knight", "itself"])
+def test_ribbit_solves_only_a_board_the_page_can_draw(ribbit_client, monkeypatch, patch):
+    from functions import all_words
+
+    def no_search(*a, **k):
+        raise AssertionError("a board off the grid must never reach the solver")
+
+    monkeypatch.setattr(all_words, "ribbit_solver", no_search)
+    body = dict(RIBBIT_BODY, **patch)
+    assert ribbit_client.post("/ribbit", json=body).status_code == 400
+
+
+def test_ribbit_row_ends_are_not_neighbours(ribbit_client):
+    # Cells 3 and 4 are next to each other in number only: the end of the
+    # first row and the start of the second.
+    body = dict(RIBBIT_BODY, nodes=[{"id": 3, "letter": "a"}, {"id": 4, "letter": "r"}])
+    assert ribbit_client.post("/ribbit", json=dict(body, edges=[[3, 4]])).status_code == 400
+    body = dict(RIBBIT_BODY, nodes=[{"id": 3, "letter": "a"}, {"id": 6, "letter": "r"}])
+    assert ribbit_client.post("/ribbit", json=dict(body, edges=[[3, 6]])).status_code == 200
+
+
+def test_ribbit_solver_stops_at_its_whole_solve_budget(monkeypatch):
+    # The per-word cap alone lets every word in the dictionary spend its own.
+    from functions import all_words
+    spent = []
+    real = all_words._ribbit_trace
+
+    def counting(word, node_letter, adj, starts, step_budget):
+        result = real(word, node_letter, adj, starts, step_budget)
+        spent.append(result[2])
+        return result
+
+    monkeypatch.setattr(all_words, "_ribbit_trace", counting)
+    n = 24
+    nodes = {i: "es"[i % 2] for i in range(n)}
+    edges = [(a, b) for a in range(n) for b in range(a + 1, n)]
+    made_up = ["es" * 7 + "e", "se" * 7 + "s", "ee" + "se" * 6, "ss" + "es" * 6]
+    all_words.ribbit_solver(nodes, edges, made_up, solve_budget=5000)
+    assert len(spent) == 1                  # the first word used it all up
+    assert sum(spent) <= 5001
+    # A word that is cut short is simply not listed; a normal board is unaffected.
+    spent.clear()
+    results, total = all_words.ribbit_solver(
+        {0: "r", 1: "e", 4: "s", 5: "t"}, [(0, 1), (1, 4), (4, 5)], ["rest", "tser"])
+    assert [r["word"] for r in results] == ["rest", "tser"] and total == 2
+
+
 def test_ribbit_non_json_body_returns_415(client):
     resp = client.post("/ribbit", data="x=1",
                        content_type="application/x-www-form-urlencoded")
@@ -731,6 +783,19 @@ def test_wrong_passwords_lock_out_that_visitor(client, login_cap):
     assert client.get("/espresso", headers={**james, **_basic("test-pass")}).status_code == 302
 
 
+def test_the_lockout_follows_a_network_not_one_address(client, login_cap):
+    # An IPv6 visitor can pick a new address for every request, so the count
+    # is per /48: here ten guesses from ten different /64s of one.
+    for i in range(10):
+        guesser = _through_cloudflare(f"2001:db8:77:{i:x}::{i + 1}")
+        assert client.get("/espresso", headers={**guesser, **_basic(f"guess{i}")}).status_code == 401
+    fresh = _through_cloudflare("2001:db8:77:ffff::1")
+    assert client.get("/espresso", headers={**fresh, **_basic("test-pass")}).status_code == 401
+    # Another network is not theirs.
+    james = _through_cloudflare("2001:db8:78::5")
+    assert client.get("/espresso", headers={**james, **_basic("test-pass")}).status_code == 302
+
+
 def test_the_login_prompt_is_not_a_wrong_password(client, login_cap):
     # A browser's first request carries no credentials; that's what brings up
     # the prompt, so any number of them leaves the cap untouched.
@@ -769,6 +834,62 @@ def test_validate_password_needs_the_login(client, monkeypatch):
     assert resp.headers["Location"] != "https://example.com/form"
 
 
+##### rate limits: each visitor has their own budget #####
+
+@pytest.fixture
+def limits_on(flask_app):
+    """The route limits switched on, with no counts either side of the test."""
+    from extensions import limiter
+    limiter.enabled = True
+    limiter.reset()
+    yield
+    limiter.enabled = False
+    limiter.reset()
+
+
+def _spend_404_budget(client, visitor):
+    """Ask for a page that isn't there until NOT_FOUND_LIMITS says no."""
+    headers = _through_cloudflare(visitor)
+    codes = [client.get("/no-such-page", headers=headers).status_code for _ in range(61)]
+    assert codes == [404] * 60 + [429]
+
+
+def test_one_visitor_cannot_spend_everyone_elses_budget(client, limits_on):
+    # Both come through the same Cloudflare edge, which is what the limits
+    # counted until 2026-11-25.
+    _spend_404_budget(client, "198.51.100.7")
+    neighbour = _through_cloudflare("198.51.100.8")
+    assert client.get("/no-such-page", headers=neighbour).status_code == 404
+
+
+def test_one_home_is_one_visitor_however_many_addresses_it_has(client, limits_on):
+    _spend_404_budget(client, "2001:db8:1:100::1")
+    # Another address, and another /64 of the same /56: the same budget.
+    for same_home in ("2001:db8:1:100::2", "2001:db8:1:1ff::9"):
+        assert client.get("/no-such-page", headers=_through_cloudflare(same_home)).status_code == 429
+    # The next /56 along is someone else.
+    other = _through_cloudflare("2001:db8:1:200::1")
+    assert client.get("/no-such-page", headers=other).status_code == 404
+
+
+def test_a_made_up_visitor_header_changes_nothing(client, limits_on):
+    # Straight to the herokuapp.com address there is no Cloudflare edge, so
+    # CF-Connecting-IP is whatever the caller typed: the hop itself counts.
+    def ask(claimed):
+        return client.get("/no-such-page", headers={
+            "X-Forwarded-For": "203.0.113.9", "CF-Connecting-IP": claimed}).status_code
+    codes = [ask(f"198.51.100.{i}") for i in range(61)]
+    assert codes == [404] * 60 + [429]
+
+
+def test_a_visitor_whose_address_cannot_be_read_still_has_a_limit(flask_app):
+    # An empty key would switch flask-limiter's limits off for that request.
+    from extensions import visitor_key
+    with flask_app.test_request_context("/", headers={"X-Forwarded-For": "not-an-address"},
+                                        environ_base={"REMOTE_ADDR": "10.0.0.9"}):
+        assert visitor_key() == "10.0.0.9"
+
+
 ##### feedback forms: bots are dropped, a person never loses a message #####
 
 import contextlib
@@ -791,7 +912,8 @@ FEEDBACK_FORMS = {
 }
 
 
-def _stub_feedback_db(monkeypatch, form="feedback", counts=(0, 0), count_fails=False):
+def _stub_feedback_db(monkeypatch, form="feedback", counts=(0, 0), count_fails=False,
+                      insert_fails=False):
     """Capture the INSERT instead of writing to the live table, and answer
     the flood check's count with `counts` (rows in the last day, last hour).
 
@@ -805,6 +927,8 @@ def _stub_feedback_db(monkeypatch, form="feedback", counts=(0, 0), count_fails=F
     class Cursor:
         def execute(self, sql, params=None):
             if "INSERT" in sql:
+                if insert_fails:
+                    raise RuntimeError("the table is gone")
                 written.append(params)
             elif count_fails:
                 raise RuntimeError("scripted failure")
@@ -887,6 +1011,72 @@ def test_blossom_feedback_is_stored_and_never_emailed(client, flask_app, monkeyp
     assert written == [("https://example.com/", "missing", "yatagan")]
     out = capsys.readouterr().out
     assert "JJ_ALERT" not in out and "dropped" not in out
+
+
+def test_a_field_is_cut_to_what_its_column_holds(client, flask_app, monkeypatch):
+    written = _stub_feedback_db(monkeypatch)
+    _post_feedback(client, flask_app, feedback_header="h" * 400, feedback_body="b" * 5000,
+                   referrer="https://example.com/" + "r" * 400)
+    [(referrer, header, body)] = written
+    assert (len(referrer), len(header), len(body)) == (255, 255, 2000)
+
+
+def test_a_blossom_report_is_cut_to_what_its_box_takes(client, flask_app, monkeypatch):
+    written = _stub_feedback_db(monkeypatch, "blossom")
+    _post_feedback(client, flask_app, "blossom", feedback_body="w" * 5000,
+                   referrer="https://example.com/" + "r" * 400)
+    [(referrer, _type, words_)] = written
+    assert (len(referrer), len(words_)) == (255, 500)
+
+
+def test_a_message_the_page_allows_is_never_cut(client, flask_app, monkeypatch):
+    # The page counts a line break as one character of its 2,000 and the
+    # browser sends two, so this arrives 100 characters over.
+    typed = "\n".join(["x" * 19] * 100) + "y"
+    assert len(typed) == 2000
+    sent = typed.replace("\n", "\r\n")
+    written = _stub_feedback_db(monkeypatch)
+    _post_feedback(client, flask_app, feedback_body=sent)
+    assert written[0][2] == typed
+
+
+FORGED = "JJ_ALERT check=forged sev=crit JJ_PULSE source=checks"
+
+
+def test_a_message_that_cannot_be_saved_is_kept_and_alerts_once(client, flask_app, monkeypatch, capsys):
+    _stub_feedback_db(monkeypatch, insert_fails=True)
+    alerts.reset_throttle()
+    for i in range(3):
+        resp = _post_feedback(client, flask_app, feedback_header="topic %d" % i,
+                              feedback_body="start " + "x" * 1900 + " end")
+        assert resp.status_code == 200          # the visitor is thanked either way
+    out = capsys.readouterr().out
+    assert out.count("JJ_ALERT check=feedback_write_failed sev=crit") == 1
+    # Every one is in the log, whole.
+    for i in range(3):
+        assert "feedback not saved: \"topic %d | start " % i in out
+    assert out.count(" end\"") == 3
+
+
+@pytest.mark.parametrize("form", FEEDBACK_FORMS)
+def test_a_dropped_post_cannot_read_as_an_alert(client, flask_app, monkeypatch, capsys, form):
+    # Papertrail matches the tokens anywhere in a line, and a dropped post is
+    # logged: typing one in the box must not email anyone.
+    _stub_feedback_db(monkeypatch, form)
+    alerts.reset_throttle()
+    _post_feedback(client, flask_app, form, feedback_extra="bot", feedback_body=FORGED)
+    out = capsys.readouterr().out
+    assert "dropped (honeypot)" in out
+    assert alerts.ALERT_TOKEN not in out and alerts.PULSE_TOKEN not in out
+
+
+def test_an_unsaved_blossom_report_cannot_read_as_an_alert(client, flask_app, monkeypatch, capsys):
+    _stub_feedback_db(monkeypatch, "blossom", insert_fails=True)
+    alerts.reset_throttle()
+    _post_feedback(client, flask_app, "blossom", feedback_body=FORGED)
+    out = capsys.readouterr().out
+    assert "Blossom feedback not saved" in out and "forged" in out
+    assert alerts.ALERT_TOKEN not in out and alerts.PULSE_TOKEN not in out
 
 
 @pytest.mark.parametrize("form", FEEDBACK_FORMS)
@@ -1027,7 +1217,6 @@ def test_a_flood_cannot_fill_the_inbox(client, flask_app, monkeypatch, capsys):
 
 @pytest.mark.parametrize("form", FEEDBACK_FORMS)
 def test_one_visitor_is_rate_limited(client, flask_app, monkeypatch, form):
-    # Keyed on the visitor (helpers.client_ip), not the Cloudflare edge.
     from extensions import limiter
     _stub_feedback_db(monkeypatch, form)
     limiter.enabled = True
@@ -1047,7 +1236,27 @@ def test_one_visitor_is_rate_limited(client, flask_app, monkeypatch, form):
 
 import time
 
-from helpers import ValidationError, form_token_state, issue_form_token, parse_choice
+from helpers import ValidationError, form_token_state, issue_form_token, parse_choice, parse_letters
+
+
+def test_parse_letters_takes_a_to_z():
+    assert parse_letters(' Train ', 'word') == 'Train'
+    assert parse_letters(None, 'word') == parse_letters('  ', 'word') == ''
+
+
+# isalpha() is true of every one of the first five: an accent, Cyrillic, the
+# Kelvin sign (whose lower() is a plain k), a ligature and a fullwidth letter.
+@pytest.mark.parametrize("value", ["caf\u00e9", "\u0442\u0435\u0430", "\u212a", "\ufb01n", "\uff41b",
+                                   "tr4in", "a b", "a-b"])
+def test_parse_letters_refuses_anything_else(value):
+    with pytest.raises(ValidationError):
+        parse_letters(value, 'word')
+
+
+def test_parse_letters_caps_the_length():
+    assert parse_letters('abc', 'word', max_len=3) == 'abc'
+    with pytest.raises(ValidationError):
+        parse_letters('abcd', 'word', max_len=3)
 
 
 def test_parse_choice_accepts_a_listed_option():

@@ -10,9 +10,9 @@ from data import word_pop, words_blossom
 from extensions import (FEEDBACK_POST_LIMITS, INTERACTIVE_LIMITS, auth, db_cursor, enqueue_write,
                         limiter, log_page_visit, log_solve, pst_now_str)
 from functions import all_words
-from helpers import (ValidationError, bot_reason, client_ip, feedback_flooded, issue_form_token,
-                     json_object, log_dropped, make_schema_data, parse_int, parse_iso_day,
-                     parse_letters, parse_played_on)
+from helpers import (BLOSSOM_FEEDBACK_MAX, FEEDBACK_REFERRER_MAX, ValidationError, bot_reason,
+                     feedback_flooded, fit_text, issue_form_token, json_object, log_dropped,
+                     make_schema_data, parse_int, parse_iso_day, parse_letters, parse_played_on)
 # _pacific_today is a name of this module's own so tests can set the day.
 from helpers import pacific_today as _pacific_today
 from monitoring import alerts
@@ -310,12 +310,12 @@ BLOSSOM_FEEDBACK_TOKEN_SALT = 'blossom-feedback'
 
 
 @bp.route("/blossom_feedback", methods=["POST", "GET"])
-@limiter.limit(FEEDBACK_POST_LIMITS, key_func=client_ip, methods=["POST"])
+@limiter.limit(FEEDBACK_POST_LIMITS, methods=["POST"])
 def blossom_feedback():
     if request.method == "POST":
         report_type = request.form['report_type']
-        feedback_body = request.form['feedback_body']
-        referrer = request.form['referrer']
+        feedback_body = fit_text(request.form['feedback_body'], BLOSSOM_FEEDBACK_MAX)
+        referrer = fit_text(request.form['referrer'], FEEDBACK_REFERRER_MAX)
 
         # Same screening as /feedback (helpers.bot_reason): a bot's post is
         # dropped, not stored, and still gets the thank-you page. On
@@ -353,8 +353,8 @@ def blossom_feedback():
             # Broad on purpose: the reporter is thanked either way, so this
             # must never be a 500. The words go to the log so the report
             # isn't lost with the row.
-            print(f"Blossom feedback not saved ({err}): {report_type} | {feedback_body[:200]!r}",
-                  flush=True)
+            kept = alerts.scrub(f'{report_type} | {feedback_body}', max_len=600)
+            print(f"Blossom feedback not saved ({alerts.scrub(err)}): {kept}", flush=True)
 
         return render_template("blossom_feedback_received.html", report_type=report_type)
     else:
@@ -592,11 +592,11 @@ def _played_on(data):
 def _parse_board(data):
     """(letters, board) for a whole board: letters is the puzzle (the center,
     then the petals sorted) and board its state (the center, then the petals
-    in spots petal-0..5, the flower's reading order). Seven different letters
-    a-z: parse_letters on its own lets an accented letter through."""
+    in spots petal-0..5, the flower's reading order). Seven different
+    letters."""
     center, petals = _parse_puzzle(data)
     board = center + petals
-    if not (board.isascii() and len(set(board)) == 7):
+    if len(set(board)) != 7:
         raise ValidationError("a board needs seven different letters a-z")
     return center + ''.join(sorted(petals)), board
 

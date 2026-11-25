@@ -77,11 +77,14 @@ def test_blossom_solver_filtering_invariants():
         assert REQUIRED.issubset(set(word)), f"{word} is not a real pangram"
 
 
-def test_unused_letters_revamp():
-    (result,) = all_words.unused_letters_revamp(MUST, MAY, PETAL)
-    # Order is set-dependent (varies by run), so compare as a set.
-    assert set(result) == FORBIDDEN
-    assert len(result) == len(FORBIDDEN)
+def test_the_results_hold_only_words_made_of_the_boards_letters():
+    # Whatever the list holds: a letter of another alphabet is not one of the
+    # board's seven, however it looks.
+    odd = ["t\u0435\u0430r", "t" + "\u0436" * 9, "tr\u00e4in"]
+    table, total, _more, pangrams = all_words.filter_words_blossom_revamp(
+        MUST, MAY, PETAL, 25, ["train", "strain"] + odd)
+    assert re.findall(r"/dictionary/([^\"]+)\"", table) == ["strain", "train"]
+    assert total == 2 and pangrams == []
 
 
 def test_filter_words_for_blossom_keeps_only_valid():
@@ -793,9 +796,9 @@ def test_unticking_a_vote_that_never_counted_changes_nothing(client, crowd_db, f
     ("tazzt", 0, "not_in_puzzle", False),     # z isn't on this board
     ("rain", 0, "not_in_puzzle", False),      # no center letter
     ("nastier", 0, "already_listed", False),
-    (NOT_LISTED, 1, "recorded", False),
+    (NOT_LISTED, 2, "recorded", False),
     # The vote that adds the word gets the same reply as one that doesn't.
-    (NOT_LISTED, 2, "recorded", True),
+    (NOT_LISTED, 3, "recorded", True),
 ])
 def test_suggest_missing_outcomes(client, crowd_db, fresh_word_cache, word, players, expected, adds):
     assert NOT_LISTED not in words_blossom
@@ -806,8 +809,8 @@ def test_suggest_missing_outcomes(client, crowd_db, fresh_word_cache, word, play
     assert bool(db.statements("INSERT INTO blossom_added_words")) == adds
 
 
-def test_second_player_adds_a_missing_word(client, crowd_db, fresh_word_cache):
-    db = crowd_db(_votes(players=2))
+def test_third_player_adds_a_missing_word(client, crowd_db, fresh_word_cache):
+    db = crowd_db(_votes(players=3))
     assert _suggest(client, NOT_LISTED).get_json()["result"] == "recorded"
     [(sql, params)] = db.statements("INSERT INTO blossom_added_words")
     assert "'crowd'" in sql and params[0] == NOT_LISTED
@@ -837,6 +840,12 @@ def test_json_that_is_not_an_object_is_a_400_not_a_500(client):
     {"action": "toggle_invalid", "word": "nastier", "center": 7, "petals": "raines"},
     {"action": "suggest_missing", "word": "nast1er", "center": "t", "petals": "raines"},
     {"action": "suggest_missing", "word": ["nastier"], "center": "t", "petals": "raines"},
+    # Letters of other alphabets: in the word, the petals or the center.
+    {"action": "suggest_missing", "word": "t\u0436\u0436\u0436", "center": "t",
+     "petals": "\u0436\u0437\u0438\u0439\u043a\u043b"},
+    {"action": "suggest_missing", "word": "nasti\u00e9r", "center": "t", "petals": "raines"},
+    {"action": "toggle_invalid", "word": "nastier", "center": "\u0442", "petals": "raines"},
+    {"action": "toggle_invalid", "word": "nastier", "center": "t", "petals": "raine\u0455"},
 ])
 def test_malformed_votes_are_a_400_and_touch_nothing(client, crowd_db, payload):
     db = crowd_db()

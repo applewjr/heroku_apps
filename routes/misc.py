@@ -5,7 +5,8 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 
 from data import etl_dash_queries
 from extensions import FEEDBACK_POST_LIMITS, NOT_FOUND_LIMITS, auth, db_cursor, limiter, log_page_visit
-from helpers import bot_reason, client_ip, feedback_flooded, issue_form_token, log_dropped
+from helpers import (FEEDBACK_BODY_MAX, FEEDBACK_HEADER_MAX, FEEDBACK_REFERRER_MAX, bot_reason,
+                     feedback_flooded, fit_text, issue_form_token, log_dropped)
 from monitoring import alerts
 from routes.dashboards import etl_round_name
 
@@ -87,13 +88,13 @@ def privacy_policy():
 
 
 @bp.route("/feedback", methods=["POST", "GET"])
-@limiter.limit(FEEDBACK_POST_LIMITS, key_func=client_ip, methods=["POST"])
+@limiter.limit(FEEDBACK_POST_LIMITS, methods=["POST"])
 def feedback():
     if request.method == "POST":
 
-        feedback_header = request.form['feedback_header']
-        feedback_body = request.form['feedback_body']
-        referrer = request.form['referrer']
+        feedback_header = fit_text(request.form['feedback_header'], FEEDBACK_HEADER_MAX)
+        feedback_body = fit_text(request.form['feedback_body'], FEEDBACK_BODY_MAX)
+        referrer = fit_text(request.form['referrer'], FEEDBACK_REFERRER_MAX)
 
         # A bot's post is dropped, not stored (helpers.bot_reason has the
         # checks and the 2026-10-13 scanner that prompted them). It still
@@ -130,10 +131,13 @@ def feedback():
             # connection failures, but the visitor is told their feedback was
             # received either way, so nothing here may turn into a 500.
             print("Error:", err)
-            # The row is gone, so the alert has to carry the content itself or
-            # the feedback is lost - the visitor is told it was received.
-            alerts.alert('feedback_write_failed', sev='crit',
-                         header=feedback_header, body=feedback_body, msg=err)
+            # The row is gone and the visitor is told it was received, so the
+            # whole message goes to the log. The alert is throttled: one email
+            # says saving is broken, and the log has the rest.
+            kept = alerts.scrub(f'{feedback_header} | {feedback_body}', max_len=3000)
+            print(f"feedback not saved: {kept}", flush=True)
+            alerts.alert_throttled('feedback_write_failed', sev='crit',
+                                   header=feedback_header, body=feedback_body, msg=err)
         else:
             # Notify on write rather than by polling the table: instant, and
             # with no "which rows have I already seen" bookkeeping to get wrong.
@@ -228,9 +232,9 @@ def catch_all(path):
     # lands: returning the status code never invokes the handler.
     #
     # Only referred 404s are logged. Unreferred ones are scanner traffic, and
-    # NOT_FOUND_LIMITS permits 600/hour per rate-limit key - at ~196 bytes a
-    # row that is most of a gigabyte a year into a 1 GB database, with nothing
-    # pruning it. A referrer means a real link led somewhere broken, which is
+    # NOT_FOUND_LIMITS permits 600/hour per visitor - at ~196 bytes a row that
+    # is most of a gigabyte a year into a 1 GB database, with nothing pruning
+    # it. A referrer means a real link led somewhere broken, which is
     # the only version of this worth keeping; vw_prod_blossom_errors filters
     # on referrer anyway, so unreferred rows could never satisfy it.
     if request.headers.get('Referer'):

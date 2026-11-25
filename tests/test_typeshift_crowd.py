@@ -98,9 +98,9 @@ def test_restore_takes_the_vote_back(client, crowd_db):
 @pytest.mark.parametrize('word, players, expected, adds', [
     (ELSEWHERE, 0, 'not_on_board', False),
     (LISTED, 0, 'already_listed', False),
-    (NOT_LISTED, 1, 'recorded', False),
+    (NOT_LISTED, 2, 'recorded', False),
     # The vote that adds the word gets the same reply as one that doesn't.
-    (NOT_LISTED, 2, 'recorded', True),
+    (NOT_LISTED, 3, 'recorded', True),
 ])
 def test_suggest_missing_outcomes(client, crowd_db, word, players, expected, adds):
     db = crowd_db(_votes(players=players))

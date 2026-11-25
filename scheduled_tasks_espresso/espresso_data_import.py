@@ -1,8 +1,11 @@
 import mysql.connector
 import os
-import smtplib
-from email.mime.text import MIMEText
 import sys
+
+# Copies the three espresso sheets into MySQL. No email since 2026-11-25: any
+# error raises, which run_job turns into an alert and which leaves yesterday's
+# tables as they were, and a run that never happened is caught by the
+# espresso_import check in datasets/health_checks.yaml.
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 functions_path = os.path.join(project_path, 'functions')
@@ -19,7 +22,6 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
-    GMAIL_PASS = os.environ.get('GMAIL_PASS')
     GOOGLE_SHEETS_JSON = os.environ.get('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = os.environ.get('GOOGLE_SHEETS_URL_ESPRESSO')
     GOOGLE_SHEETS_URL_BEAN = os.environ.get('GOOGLE_SHEETS_URL_BEAN')
@@ -38,26 +40,26 @@ else:
         'database': secret_pass.mysql_db,
         'raise_on_warnings': True
         }
-    GMAIL_PASS = secret_pass.GMAIL_PASS
     GOOGLE_SHEETS_JSON = secret_pass.GOOGLE_SHEETS_JSON
     GOOGLE_SHEETS_URL_ESPRESSO = secret_pass.GOOGLE_SHEETS_URL_ESPRESSO
     GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
     GOOGLE_SHEETS_URL_PROFILE = secret_pass.GOOGLE_SHEETS_URL_PROFILE
 
-gmail_sender_email = 'james.r.applewhite@gmail.com'
-gmail_receiver_email = ['james.r.applewhite@gmail.com']
-gmail_subject = 'espresso_data_import.py'
-gmail_list = []
+def drop_leftover(cursor, table_name):
+    """Drop one of this script's own working tables, if a run that failed
+    partway left it behind. Looked up first: DROP TABLE IF EXISTS on a missing
+    table is a warning, which raise_on_warnings makes an error."""
+    cursor.execute("SELECT COUNT(*) FROM information_schema.tables "
+                   "WHERE table_schema = DATABASE() AND table_name = %s", (table_name,))
+    if cursor.fetchone()[0]:
+        cursor.execute(f"DROP TABLE {table_name}")
 
-def print_and_append(statement):
-    print(statement)
-    gmail_list.append(statement)
 
 def write_df_to_mysql(df, config, temp_table_name):
-    connection = None
+    connection = mysql.connector.connect(**config)
     try:
-        connection = mysql.connector.connect(**config)
         cursor = connection.cursor()
+        drop_leftover(cursor, temp_table_name)
 
         # Define columns and create temp table
         columns = ", ".join([f"`{col}` VARCHAR(255)" for col in df.columns])
@@ -71,61 +73,43 @@ def write_df_to_mysql(df, config, temp_table_name):
             cursor.execute(insert_query, tuple(row))
 
         connection.commit()
-        print_and_append(f"Data written to {temp_table_name} successfully.")
-    except mysql.connector.Error as e:
-        print_and_append(f"Error: {e}")
+        print(f"Data written to {temp_table_name} successfully.")
     finally:
-        if connection:
-            cursor.close()
-            connection.close()
+        connection.close()
+
 
 def replace_mysql_table(config, table_name, temp_table_name):
-    connection = None
+    connection = mysql.connector.connect(**config)
     try:
-        connection = mysql.connector.connect(**config)
         cursor = connection.cursor()
 
-        # Backup old table and replace with temp table
+        # Swap the new table in with one statement, so there is never a moment
+        # (or a half-failed run) with no table, then drop the old one.
         backup_table_name = f"{table_name}_backup"
-        cursor.execute(f"RENAME TABLE {table_name} TO {backup_table_name}")
-        cursor.execute(f"RENAME TABLE {temp_table_name} TO {table_name}")
-        cursor.execute(f"DROP TABLE IF EXISTS {backup_table_name}")
+        drop_leftover(cursor, backup_table_name)
+        cursor.execute(f"RENAME TABLE {table_name} TO {backup_table_name}, "
+                       f"{temp_table_name} TO {table_name}")
+        cursor.execute(f"DROP TABLE {backup_table_name}")
 
         connection.commit()
-        print_and_append(f"{table_name} replaced with {temp_table_name} successfully.")
-    except mysql.connector.Error as e:
-        print_and_append(f"Error: {e}")
+        print(f"{table_name} replaced with {temp_table_name} successfully.")
     finally:
-        if connection:
-            cursor.close()
-            connection.close()
+        connection.close()
 
 
 google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
 
 df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
-print_and_append(f'pull espresso data to df complete. {len(df_espresso_initial) = }')
+print(f'pull espresso data to df complete. {len(df_espresso_initial) = }')
 write_df_to_mysql(df_espresso_initial, config, "temp_espresso_data")
 replace_mysql_table(config, "espresso_data", "temp_espresso_data")
 
 df_bean = espresso.get_google_sheets_bean(google_credentials, GOOGLE_SHEETS_URL_BEAN)
-print_and_append(f'pull bean data to df complete. {len(df_bean) = }')
+print(f'pull bean data to df complete. {len(df_bean) = }')
 write_df_to_mysql(df_bean, config, "temp_espresso_bean")
 replace_mysql_table(config, "espresso_bean", "temp_espresso_bean")
 
 df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
-print_and_append(f'pull profile data to df complete. {len(df_profile) = }')
+print(f'pull profile data to df complete. {len(df_profile) = }')
 write_df_to_mysql(df_profile, config, "temp_espresso_profile")
 replace_mysql_table(config, "espresso_profile", "temp_espresso_profile")
-
-
-gmail_message = '\n'.join(gmail_list)
-msg = MIMEText(gmail_message)
-msg['Subject'] = gmail_subject
-msg['From'] = gmail_sender_email
-msg['To'] = ', '.join(gmail_receiver_email)
-with smtplib.SMTP('smtp.gmail.com', 587) as server:
-    server.starttls()
-    server.login(gmail_sender_email, GMAIL_PASS)
-    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-    print('email sent')

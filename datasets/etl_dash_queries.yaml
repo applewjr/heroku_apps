@@ -1,6 +1,5 @@
-# The /etl_dash panels, one page per round, in file order. The daily digest
-# (monitoring/daily_digest.py) mails every panel too. Each query must be a
-# SELECT; the views live in mysql_views/dashboard/. Round names are in
+# The /etl_dash panels, one page per round, in file order. Each query must be
+# a SELECT; the views live in mysql_views/dashboard/. Round names are in
 # data.py (ETL_ROUND_NAMES), because every key in this file is read as a panel.
 
 Traffic Today:

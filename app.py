@@ -23,13 +23,12 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
+from monitoring import alerts
 
 if config.IS_HEROKU:
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s: %(message)s',
-        stream=sys.stdout
-    )
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setFormatter(alerts.LogFormatter('%(asctime)s %(levelname)s: %(message)s'))
+    logging.basicConfig(level=logging.INFO, handlers=[log_handler])
 
 # First, before data.py and pandas load: stops glibc holding freed memory,
 # the cause of the dyno's +9-13 MB/hour staircase (helpers.py has the detail).
@@ -39,7 +38,6 @@ pin_malloc_thresholds()
 
 from extensions import (NOT_FOUND_LIMITS, cache, keep_admin_out_of_frames, limiter, log_page_visit,
                         show_ads)
-from monitoring import alerts
 from routes import (blossom, chainle, circuits, dashboards, espresso, four_by_six, four_by_three,
                     guess_the_phrase, misc, ribbit, smush, typeshift, wordgames, wordiply)
 

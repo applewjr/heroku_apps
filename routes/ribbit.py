@@ -44,26 +44,37 @@ from monitoring import alerts
 bp = Blueprint('ribbit', __name__)
 
 
+# The board: a fixed 4x4 grid, its cells numbered row by row. A link joins two
+# neighbouring cells, diagonals included.
+N = 4
+CELLS = N * N
+
+
+def _adjacent(a, b):
+    (ra, ca), (rb, cb) = divmod(a, N), divmod(b, N)
+    return max(abs(ra - rb), abs(ca - cb)) == 1
+
+
 def parse_ribbit_board(data):
     """Validate the Ribbit board (tiles + connections + cleared tiles) in the
     POST body and return (nodes, edges, disabled).
 
-    nodes    -- {node_id: letter} for every tile placed on the board
-    edges    -- list of (id_a, id_b) connection pairs
-    disabled -- set of node ids the player marked cleared (frogged)
-    Board size is capped so the path search can never be handed a runaway
-    graph: <=64 tiles and <=1024 connections.
+    nodes    -- {cell: letter} for every tile placed on the board
+    edges    -- list of (cell, cell) connection pairs
+    disabled -- set of cells the player marked cleared (frogged)
+    Only a board the page can draw: cells of the grid, and links between
+    neighbours. That keeps every path search small.
     """
     raw_nodes = data.get('nodes')
-    if not (isinstance(raw_nodes, list) and 1 <= len(raw_nodes) <= 64):
-        raise ValidationError('nodes must be a list of 1 to 64 tiles')
+    if not (isinstance(raw_nodes, list) and 1 <= len(raw_nodes) <= CELLS):
+        raise ValidationError(f'nodes must be a list of 1 to {CELLS} tiles')
     nodes = {}
     for n in raw_nodes:
         if not isinstance(n, dict):
             raise ValidationError('each node must be an object')
         nid, letter = n.get('id'), n.get('letter')
-        if not (isinstance(nid, int) and not isinstance(nid, bool) and 0 <= nid <= 100000):
-            raise ValidationError('node id must be a non-negative integer')
+        if not (isinstance(nid, int) and not isinstance(nid, bool) and 0 <= nid < CELLS):
+            raise ValidationError('cells must be on the 4x4 grid')
         if not (isinstance(letter, str) and len(letter) == 1 and 'a' <= letter.lower() <= 'z'):
             raise ValidationError('node letter must be a single letter a-z')
         if nid in nodes:
@@ -82,11 +93,13 @@ def parse_ribbit_board(data):
             raise ValidationError('edge endpoints must be integers')
         if a not in nodes or b not in nodes:
             raise ValidationError('edge endpoints must reference placed tiles')
+        if not _adjacent(a, b):
+            raise ValidationError('links must join neighbouring cells')
         edges.append((a, b))
 
     raw_disabled = data.get('disabled', [])
     if not (isinstance(raw_disabled, list) and len(raw_disabled) <= 64):
-        raise ValidationError('disabled must be a list of at most 64 node ids')
+        raise ValidationError('disabled must be a list of at most 64 cells')
     disabled = set()
     for d in raw_disabled:
         if not (isinstance(d, int) and not isinstance(d, bool) and d in nodes):
@@ -159,9 +172,6 @@ SHARED_BOARDS_LIVE = True
 # it never counts as a player.
 APPROVAL = 'admin'
 
-N = 4
-CELLS = N * N
-
 
 def _perm(move):
     """Where each cell lands under `move`, a (row, col) -> (row, col) map."""
@@ -231,11 +241,6 @@ def _every_tile_linked(links):
     """What a finished Ribbit board looks like: each tile is in some word,
     so each has a link. A board short of that is still being drawn."""
     return len({cell for pair in links for cell in pair}) == CELLS
-
-
-def _adjacent(a, b):
-    (ra, ca), (rb, cb) = divmod(a, N), divmod(b, N)
-    return max(abs(ra - rb), abs(ca - cb)) == 1
 
 
 # The columns every read of ribbit_boards returns, in this order. prefix_hash
@@ -463,20 +468,14 @@ def _played_on(data):
 
 
 def _grid_board(data, whole=True):
-    """(letters, links) for a board on the page's 4x4 grid, in the player's
-    view: 16 letters with '.' for an empty cell, and links between
-    neighbouring cells only. `whole` needs all 16 cells filled."""
+    """(letters, links) for a board (see parse_ribbit_board), in the player's
+    view: 16 letters with '.' for an empty cell, and each link once. `whole`
+    needs all 16 cells filled."""
     nodes, edges, _disabled = parse_ribbit_board(data)
-    if not set(nodes) <= set(range(CELLS)):
-        raise ValidationError('cells must be on the 4x4 grid')
     if whole and len(nodes) != CELLS:
         raise ValidationError('a shared board needs all 16 cells of the 4x4 grid')
     letters = ''.join(nodes.get(i, '.') for i in range(CELLS))
-    links = set()
-    for a, b in edges:
-        if not _adjacent(a, b):
-            raise ValidationError('links must join neighbouring cells')
-        links.add((a, b) if a < b else (b, a))
+    links = {(a, b) if a < b else (b, a) for a, b in edges}
     return letters, tuple(sorted(links))
 
 

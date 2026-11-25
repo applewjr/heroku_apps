@@ -40,7 +40,7 @@ step 6.
 | 10 | Update the dashboard views, **including the two probe-traffic exclusions** | Workbench | [Dashboard views](#7-dashboard-views) |
 | 11 | Test the dead-man's switch | Heroku Scheduler | [Dead-man's switch](#8-test-the-dead-mans-switch) |
 | 12 | Add the **Heroku error code** alert | Papertrail | [Papertrail](#4-papertrail---two-alerts) |
-| 13 | Add **`daily_digest`** at 14:00 UTC | Heroku Scheduler | [The digest](#3b-the-daily-digest) |
+| 13 | Add **`daily_digest`** at 12:00 and 22:00 UTC | Heroku Scheduler | [The digest](#3b-the-daily-digest) |
 
 ### Why that order
 
@@ -99,7 +99,7 @@ manual dispatch, so it can run the moment prod is verified.
 | `monitoring/` | New package. Alert emission, the job wrapper, and the hourly checks. |
 | `datasets/health_checks.yaml` | The checks themselves. SQL inline rather than in views, so a check deploys atomically with the code and needs no manual DDL step. |
 | `app.py` | The 500 handler calls `log_page_visit` and emits a throttled `http_500` alert. The 404 handler deliberately does not log - see `routes/misc.py`. |
-| `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the alert carries the feedback text so it is not lost. Since 2026-10-13 a bot's post is dropped, not stored: it leaves a plain `feedback dropped (<reason>)` log line (`blossom feedback dropped` for /blossom_feedback), and `feedback_flood` / `blossom_feedback_flood` fires if a form reaches its hourly or daily cap (`helpers.FEEDBACK_MAX_PER_*`). |
+| `routes/misc.py` | New feedback emits `feedback_new` on write - instant, and with no "which rows have I seen" bookkeeping. If the insert fails, the whole message goes to the log and a throttled alert says so. Since 2026-10-13 a bot's post is dropped, not stored: it leaves a plain `feedback dropped (<reason>)` log line (`blossom feedback dropped` for /blossom_feedback), and `feedback_flood` / `blossom_feedback_flood` fires if a form reaches its hourly or daily cap (`helpers.FEEDBACK_MAX_PER_*`). |
 | `routes/wordgames.py` | `log_page_visit` on the GET branch of wordle, antiwordle, quordle, smush, ribbit, wordiply. Since 2026-10-31 each solve branch also calls `log_solve`: see [Visitor ids and uses](#visitor-ids-and-uses-in-app_visits). |
 
 Three alerts come out of the write-behind path itself, none of them in the
@@ -178,7 +178,7 @@ idle checks depend on.
 | `alerts.py` | `alert()`, `pulse()`, `alert_throttled()`. Scrubbing and rate limiting. No import side effects. |
 | `run_job.py` | Runs an existing scheduled script under `runpy`, adding a failure alert. No edits to the script. |
 | `run_checks.py` | Hourly checks against JawsDB, Redis and the live site. Refuses any check SQL that is not a SELECT. |
-| `daily_digest.py` | Daily email: /etl_dash, every check value, latency, storage, feedback. A second notification channel that does not depend on Papertrail. |
+| `daily_digest.py` | Email, twice a day: every check value, latency, storage, feedback, what players changed in the word lists. A second notification channel that does not depend on Papertrail. |
 | `../datasets/health_checks.yaml` | The SQL checks: SQL, threshold, severity, active window. |
 | `../datasets/health_web.yaml` | The web probes: path, latency ceiling, expected content. |
 
@@ -239,19 +239,33 @@ serves is the signature of a pool problem rather than a deploy problem.
 
 ### 2. Heroku Scheduler - wrap the existing jobs
 
-The four YouTube scripts and `espresso_data_import.py` send their success
-email as the last unguarded statement in the file, so any exception before it
-kills the job with **no email at all** - a signal whose absence you have to
-notice.
+Most of the scripts have no error handling of their own: run bare, one that
+raises prints a traceback into the log and nobody is told. The wrapper turns that into
+an alert.
 
-Two are already better and are wrapped for consistency rather than rescue:
-`mtg_prices_bsky.py` sends its own `FAILED:`/`WARNING:` emails and re-raises,
-and `redis_wordle.py` sends two emails with `try`/`except` between them, so a
-failure in its second half still produces the first.
+Until 2026-11-25 six of them also emailed after every run, and a missing email
+was the only sign of a job that never started. Those emails are off. What took
+their place:
 
-Re-point each command through the wrapper; the scripts themselves are
-untouched. Every entry already carries a `timeout 600` prefix: keep it, insert
-`-s INT -k 60` after `timeout`, and `-m monitoring.run_job` after `python`.
+| Job | It fails | It never ran, or did only part of its work |
+|---|---|---|
+| youtube_trending_v2 | `job:youtube_trending_v2` | `youtube_trending_today` |
+| youtube_trending_revamp_v3 | `job:youtube_trending_revamp_v3` | `youtube_grouped_today` |
+| youtube_backup_v2 | `job:youtube_backup_v2` | `youtube_backup` |
+| youtube_backup_revamp_v3 | `job:youtube_backup_revamp_v3` | `youtube_revamp_backup` |
+| espresso_data_import | `job:espresso_data_import` | `espresso_import` |
+| redis_wordle | `job:redis_wordle` | `redis_drain` |
+| mtg_prices_bsky | its own `FAILED:` / `WARNING:` email, and `job:mtg_prices_bsky` | its daily email, which it still sends |
+
+For the middle column to work a script has to **raise** when its work didn't
+get done. The espresso import and the Redis drain used to catch their errors,
+print them and finish, and the YouTube loads called every insert error a
+duplicate; all of them raise now. A test runs each script with fakes and checks
+both halves (`tests/test_scheduled_tasks.py`).
+
+Re-point each command through the wrapper. Every entry already carries a
+`timeout 600` prefix: keep it, insert `-s INT -k 60` after `timeout`, and
+`-m monitoring.run_job` after `python`.
 
 Commands are entered unquoted in the Scheduler UI - it takes the whole field
 as the command, so there is no flag-parsing ambiguity to protect against. (The
@@ -280,7 +294,7 @@ mode the wrapper exists to eliminate. `-s INT` sends SIGINT, which arrives as
 
 `-k 60` follows up with an unblockable SIGKILL sixty seconds later, because
 SIGINT is not guaranteed to land: `youtube_trending_v2.py` and
-`youtube_trending_revamp_v3.py` each contain **seven bare `except:`
+`youtube_trending_revamp_v3.py` each contain **six bare `except:`
 clauses**, and a bare `except:` catches `BaseException`, `KeyboardInterrupt`
 included. A SIGINT arriving inside one of those blocks is swallowed and the
 script carries on, past the timeout, holding its database connection. Order:
@@ -302,12 +316,13 @@ cannot overlap the next run.
 | Command | Frequency |
 |---|---|
 | `timeout -s INT -k 60 600 python -m monitoring.run_checks` | Hourly |
-| `timeout -s INT -k 60 600 python -m monitoring.daily_digest` | Daily, 14:00 UTC |
+| `timeout -s INT -k 60 600 python -m monitoring.daily_digest` | Daily, 12:00 UTC |
+| `timeout -s INT -k 60 600 python -m monitoring.daily_digest` | Daily, 22:00 UTC |
 
-14:00 UTC is 6am PST in winter and 7am PDT in summer. Heroku Scheduler only
-speaks UTC, so the digest drifts an hour with daylight saving. 13:00 UTC is the
-other reasonable choice if 6am year-round matters more than never arriving at
-5am. Cost measured 2026-09-28: **6.2 s of work, 24.5 KB of email.**
+12:00 and 22:00 UTC are 4am and 2pm PST, 5am and 3pm PDT: Heroku Scheduler only
+speaks UTC, so the digest drifts an hour with daylight saving. Cost measured
+2026-09-28, with the dashboard panels it carried until 2026-11-25: **6.2 s of
+work, 24.5 KB of email.**
 
 The cost of `run_checks` grew with the web probes - five HTTP fetches rather
 than one - from 157 ms to roughly 3.6 s. Still trivial against the 1.4 s of
@@ -343,11 +358,14 @@ conservative). At 720 runs a month this is well under an hour of dyno time.
 
 ### 3b. The daily digest
 
-`monitoring/daily_digest.py` emails the whole of `/etl_dash` once a day, plus
-every health check value, current page latency, storage against the plan, and
-the full text of any feedback from the last 24 hours. The summary is in the
-subject line - `JJ daily 2026-09-28 - 16 ok, 0 alerts, 330 MB` - because on
+`monitoring/daily_digest.py` emails every health check value, current page
+latency, storage against the plan, the full text of any feedback from the last
+24 hours, and what players changed in each game's word list. The summary is in
+the subject line - `JJ daily 2026-09-28 - 16 ok, 0 alerts, 330 MB` - because on
 most days the phone notification is the entire report.
+
+It carried every `/etl_dash` panel too until 2026-11-25. Nobody read them there;
+the page is for those.
 
 **Its second job is the one that matters.** Every alert in this system ends the
 same way: a log line, a Heroku drain, Papertrail, an email. That is a single
@@ -370,17 +388,10 @@ It deliberately does **not** alert on a breached check. `run_checks` already
 owns that decision hourly; a second process emitting the same `JJ_ALERT` lines
 would double every email.
 
-Two details worth knowing:
-
-* **A panel that fails is reported, not dropped.** `routes/dashboards.py`
-  swallows a broken panel with a `print` and renders the page without it, so a
-  broken panel looks exactly like a panel that was never there. The digest
-  prints `panel failed: <error>` instead, which surfaces a class of failure
-  that is currently invisible on the dashboard itself.
-* **Rows per panel are capped** at `MAX_ROWS_PER_PANEL` (40) and the digest
-  says when it truncated. Gmail clips a message past ~102 KB behind a "view
-  entire message" link, which would otherwise quietly hide the bottom of the
-  email as a panel grew.
+**Rows per table are capped** at `MAX_ROWS_PER_TABLE` (40) and the digest says
+when it truncated. Gmail clips a message past ~102 KB behind a "view entire
+message" link, which would otherwise quietly hide the bottom of the email as a
+table grew.
 
 Preview it without sending, or send one on demand:
 
@@ -439,8 +450,8 @@ read-only - the runner refuses any check SQL that is not a `SELECT`, and
 touches Redis only through `ping()` and `xlen()` - so it is safe to run
 against prod as often as you like.
 
-Expect `16 ok, 0 alerts, 1 skip` on a healthy system. The skip is `db_size_mb`
-outside its 09:00-10:00 PST window.
+Expect no alerts and a few skips on a healthy system: `db_size_mb` runs only at
+09:00-10:00 PST, and the nightly-job checks only at 04:00-05:00.
 
 Every `ok` line now carries what was measured, not just the fact that the check
 ran:
@@ -469,9 +480,10 @@ trivially until error rows accumulate.
 
 #### What gets checked
 
-Nine checks come from `datasets/health_checks.yaml`: `youtube_trending_today`,
-`youtube_grouped_today`, `blossom_idle`, `site_idle`, `blossom_errors_today`,
-`db_size_mb`, `db_connections`, `wordle_drain_fresh`, `antiwordle_drain_fresh`.
+Ten checks come from `datasets/health_checks.yaml`: `youtube_trending_today`,
+`youtube_grouped_today`, `youtube_backup`, `youtube_revamp_backup`,
+`espresso_import`, `blossom_idle`, `site_idle`, `blossom_errors_today`,
+`db_size_mb`, `db_connections`.
 
 Eleven are web probes from `datasets/health_web.yaml`, reported as `web:<name>`:
 `home`, `blossom`, `smush`, `guess_the_phrase`, `chainle`, `circuits`, `typeshift`,
@@ -490,27 +502,30 @@ at least daily (and on every deploy) and the first request after a boot pays
 for `data.py` loading its CSVs, so one slow sample is a cold start rather than
 evidence.
 
-Three more are Python rather than SQL, so they live in `run_checks.py` and are
+Four more are Python rather than SQL, so they live in `run_checks.py` and are
 easy to miss when reading the YAML:
 
 | Check | What it proves |
 |---|---|
 | `redis_up` | Redis answers `ping()`. Wordle and antiwordle logging goes through it, so silence there is silent data loss. |
-| `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` stopped reconciling and is no longer draining. |
+| `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` is no longer draining. |
+| `redis_drain` | Each stream's oldest entry is at most `REDIS_OLDEST_MAX_HOURS` (12) old, judged at 04:00-05:00 PST, after the nightly drain. Older means the drain did not run or left the stream uncleared, long before the backlog would show it. |
 | `checks_slow` | The whole run exceeded `RUN_BUDGET_MS` (30s) **while every other check passed**. Silent when anything else failed, since a probe timing out costs 15 seconds on its own and already explains the time. Probe attempts that were thrown away and tried again are left out of the budget: on 2026-10-29 a few responses lost at Cloudflare (15s timeout + 2s pause each, all recovered) pushed passing runs to ~70s and emailed twice while the site served normally. |
 
 The SELECT-only guard on YAML checks is a literal prefix test, not a parser: a
 check written to start with a comment or a `WITH` CTE would be rejected as
-non-SELECT.
+non-SELECT. Nothing can follow the SELECT either: the app's connections take one
+statement per query (`config.MYSQL_CLIENT_FLAGS`), so MySQL refuses the rest.
 
 ### 4. Papertrail - two alerts
 
-1. Search `JJ_ALERT` -> alert, **at least 1** event in 10 minutes -> email.
+1. Search `"JJ_ALERT check="` -> alert, **at least 1** event in 10 minutes -> email.
 2. Search `"JJ_PULSE source=checks"` -> alert,
    **"Trigger when ... no new events match"**, 90 minutes -> email.
 
-The second search must be the **quoted phrase**, not bare `JJ_PULSE`.
-`run_job` also emits pulses - `JJ_PULSE source=job:youtube_trending_v2` - so a
+Both searches must be the **quoted phrase**. The first is how every alert line
+starts, so nothing else in the logs matches it. The second must not be bare
+`JJ_PULSE`: `run_job` also emits pulses - `JJ_PULSE source=job:youtube_trending_v2` - so a
 bare match would let any wrapped nightly job reset the inactivity clock and
 mask a dead `run_checks` for hours. Only `source=checks` is the hourly
 heartbeat.
@@ -523,7 +538,7 @@ limit, but Papertrail's own free plan is reported to cap saved searches at 2,
 and two already exist. If you hit a cap:
 
 - Fold the platform-error alert into the first search:
-  `"JJ_ALERT" OR "error code=H" OR "Error R"`, threshold 1 over 10 minutes.
+  `"JJ_ALERT check=" OR "error code=H" OR "Error R"`, threshold 1 over 10 minutes.
 - If still capped, retire the "5 x 500 in 10 minutes" rule. The new
   `check=http_500` emitter supersedes it and reports the *first* 500.
 
@@ -604,7 +619,7 @@ Worth being explicit about, because each covers the others' blind spot:
 |---|---|---|
 | `JJ_ALERT` -> Papertrail | Anything the app is alive to see | The app being dead; Papertrail being dead or over quota |
 | `JJ_PULSE` inactivity | The app, the dyno or the scheduler dying | Papertrail being dead or over quota |
-| Daily digest -> SMTP | Papertrail being dead or over quota | Anything in the 24h between digests |
+| Daily digest -> SMTP | Papertrail being dead or over quota | Anything in the hours between digests |
 
 The first two share a single point of failure - Papertrail - which is exactly
 what the digest was added to cover.
