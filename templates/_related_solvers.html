@@ -2,7 +2,7 @@
    every solver page, so a new solver is added here once. Set `current` to the
    page's own path to leave it out:
      {% with current='/ribbit' %}{% include '_related_solvers.html' %}{% endwith %}
-   One per page, after the page's whole tool, its results, its ad unit and its
+   One per page, after the page's whole tool, its results and its
    Play buttons, and before the FAQ: never between a tool and its results.
 
    Links only, no <button>: on /blossom this sits inside form1, where a button
@@ -11,6 +11,12 @@
    (vw_prod_internal_flow) counts what these links do, from app_visits
    referrers.
 
+   A page whose game has sister games (families, by publisher) shows those
+   first, under a heading of their own, then everything else (James,
+   2026-11-24). In the week before, 4x3 was Smush's third most clicked solver
+   from sixth place in the list, and Circuits and Typeshift were each
+   other's first.
+
    The busier daily solvers are cards: the emoji on that page's own Play
    button, its name, and a hook. Hooks say "today", "answers" and "hints",
    the words people search for, but never promise a ready-made list. The
@@ -18,7 +24,8 @@
    and Guess The Phrase (moved there 2026-11-22, James's call: they draw
    the fewest visits of the daily solvers), and Wordle, Antiwordle and
    Quordle, which help with guesses rather than today's answers. Every
-   solver page still links to all the others.
+   solver page still links to all the others, each of them once: Quordle is
+   a card only under Blossom's sister games.
 
    is_new (helpers.NEW_UNTIL) tags a solver NEW until a set day, and is_beta
    (helpers.BETA_PAGES) tags one Beta until James takes it off, on a card or
@@ -36,18 +43,36 @@
                 ('/4x6', '🗂️', '4x6', "Hints and answers for today's board")] %}
 {% set plain = [('/wordiply', 'Wordiply'), ('/wordle', 'Wordle'), ('/antiwordle', 'Antiwordle'),
                 ('/quordle', 'Quordle'), ('/guess_the_phrase', 'Guess The Phrase')] %}
-<section class="jj-more" aria-labelledby="jj-more-title">
-    <h2 class="jj-more-title" id="jj-more-title">More daily puzzle solvers</h2>
-    <div class="jj-more-grid">
-        {% for path, icon, name, hook in cards if path != current %}
+{# The card a plain-line solver gets among a page's sister games. #}
+{% set extra_cards = [('/quordle', '🎮', 'Quordle', 'Best next guesses for all four words')] %}
+{% set families = [('Hank Green', ('/smush', '/4x3', '/4x6')),
+                   ('Puzzmo', ('/ribbit', '/circuits', '/typeshift')),
+                   ('Merriam-Webster', ('/blossom', '/quordle'))] %}
+{% macro tile(path, icon, name, hook) -%}
         <a class="jj-more-tile" href="{{ path }}">
             <span class="jj-more-name"><span class="jj-more-icon" aria-hidden="true">{{ icon }}</span>{{ name }}</span>
             <span class="jj-more-hook">{{ hook }}</span>
             {%- if is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% elif is_beta(path) %}<span class="jj-more-tag jj-more-beta">Beta</span>{% endif %}
         </a>
+{%- endmacro %}
+{% set sister = namespace(of='', paths=()) %}
+{% for publisher, paths in families if current in paths %}{% set sister.of = publisher %}{% set sister.paths = paths %}{% endfor %}
+<section class="jj-more" aria-labelledby="jj-more-title">
+    {% if sister.of %}
+    <h2 class="jj-more-title">{{ sister.of }}'s other games</h2>
+    <div class="jj-more-grid jj-more-sisters">
+        {% for path, icon, name, hook in cards + extra_cards if path in sister.paths and path != current %}
+        {{ tile(path, icon, name, hook) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+    <h2 class="jj-more-title" id="jj-more-title">More daily puzzle solvers</h2>
+    <div class="jj-more-grid">
+        {% for path, icon, name, hook in cards if path != current and path not in sister.paths %}
+        {{ tile(path, icon, name, hook) }}
         {% endfor %}
     </div>
     <p class="jj-more-also">More solvers:
-        {% for path, name in plain if path != current %}{% if not loop.first %} · {% endif %}<a href="{{ path }}">{{ name }}{% if path == '/wordle' %}<span class="jj-more-tag jj-more-old">OLD</span>{% elif is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% elif is_beta(path) %}<span class="jj-more-tag jj-more-beta">Beta</span>{% endif %}</a>{% endfor %}
+        {% for path, name in plain if path != current and path not in sister.paths %}{% if not loop.first %} · {% endif %}<a href="{{ path }}">{{ name }}{% if path == '/wordle' %}<span class="jj-more-tag jj-more-old">OLD</span>{% elif is_new(path) %}<span class="jj-more-tag jj-more-new">NEW</span>{% elif is_beta(path) %}<span class="jj-more-tag jj-more-beta">Beta</span>{% endif %}</a>{% endfor %}
     </p>
 </section>

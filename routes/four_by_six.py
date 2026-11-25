@@ -28,11 +28,11 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import timedelta
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request
+from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
-from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, from_another_site, limiter, log_page_visit,
-                        log_solve, pst_now_str)
+from extensions import (INTERACTIVE_LIMITS, auth, db_cursor, limiter, log_page_visit, log_solve,
+                        pst_now_str)
 from functions import four_by_six as fbs
 # _pacific_today is a name of this module's own so tests can set the day.
 from helpers import ISO_DATE as _DATE
@@ -481,14 +481,6 @@ ADMIN = '/4x6_admin'
 # The dates the page shows: Pacific's last three, and tomorrow for players
 # whose date is already ahead.
 ADMIN_DAYS_BACK = 2
-
-
-@bp.before_request
-def _admin_posts_from_this_site():
-    """A browser sends the saved admin password with a form another site
-    posts here, so the password alone doesn't say James sent it."""
-    if request.method == 'POST' and request.path.startswith(ADMIN) and from_another_site():
-        abort(403)
 
 
 def _back(**message):

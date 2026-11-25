@@ -841,10 +841,6 @@
     <div class="we-status" id="suggest-status" aria-live="polite"></div>
 </div>
 
-{% if not approve %}
-{% with ad_page='ribbit', ad_gate='#results-container .word-result' %}{% include '_ad_slot.html' %}{% endwith %}
-{% endif %}
-
 <br>
 <div style="margin: 20px 0; text-align: center; min-height: 51px;">
     {% if not approve %}

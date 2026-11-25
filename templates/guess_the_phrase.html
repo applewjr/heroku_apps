@@ -45,7 +45,15 @@
         "text": "Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it."
       }
     },
-    {
+    {% if boards_on %}{
+      "@type": "Question",
+      "name": "Do I have to enter today's board?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Often not. Players enter each day's board into this solver as they play, so once today's has been entered, it's offered above the category: check its rows match your game and tap Load it. Only the shape and the category fill in. The letters, and the answer, stay yours to find. If it isn't the board in your game, tap ↩ Not my board and build yours."
+      }
+    },
+    {% endif %}{
       "@type": "Question",
       "name": "Which letter should I call first?",
       "acceptedAnswer": {
@@ -450,6 +458,46 @@ button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px
 .instructions.collapsed .instructions-body { display: none; }
 .instructions.collapsed .instructions-toggle-icon { transform: rotate(-90deg); }
 
+/* Today's board, offered while there's no board (routes/guess_the_phrase.py). */
+.gtp-today {
+    width: min(92vw, 460px);
+    box-sizing: border-box;
+    margin: 14px auto;
+    padding: 10px 12px;
+    background-color: #fffbe6;
+    border: 1px solid #f0d97a;
+    border-radius: 10px;
+    text-align: center;
+}
+.gtp-today[hidden], .gtp-loaded-note[hidden] { display: none; }
+.gtp-today-text { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #02484d; line-height: 1.4; }
+.gtp-today-shape { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; margin: 0 0 10px; }
+.gtp-today-word { display: inline-flex; gap: 2px; }
+.gtp-today-word span { width: 12px; height: 16px; border: 1px solid #02484d; border-radius: 2px; background-color: #fff; }
+.gtp-today-btn, .gtp-not-mine {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+    cursor: pointer;
+}
+.gtp-today-btn { border: none; background-color: #02484d; color: #fff; }
+.gtp-today-btn:hover { background-color: #03595f; }
+.gtp-loaded-note {
+    width: min(92vw, 460px);
+    box-sizing: border-box;
+    margin: 10px auto 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #02484d;
+}
+.gtp-not-mine { display: inline-block; margin-top: 6px; border: 1px solid #02484d; background-color: #fff; color: #02484d; white-space: nowrap; }
+.gtp-not-mine:hover { background-color: #eef4f4; }
+
 .gtp-toast {
     position: fixed;
     top: 70px;
@@ -502,7 +550,8 @@ button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px
         3 and 4 letters, tap <strong>3</strong>, <strong>3</strong>, <strong>4</strong>. The board
         wraps into rows like the game's, so you can check yours matches. Tap a word to change it,
         <strong>⌫</strong> removes one, then tap <strong>Done</strong>. Count letter tiles only:
-        skip apostrophes and other punctuation.
+        skip apostrophes and other punctuation.{% if boards_on %} Once other players have entered today's
+        board, you can skip this: check it matches your game and tap <strong>Load it</strong>.{% endif %}
         <br><br>
         <strong>3. Copy what the game shows.</strong> Tap a tile, then a letter. A called letter
         shows up everywhere it is in the answer, so fill in <strong>every</strong> tile that shows
@@ -515,6 +564,47 @@ button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px
         then paste it into the game. Works for older puzzles too.
     </div>
 </div>
+
+{% if boards_on %}
+<div class="gtp-today" id="gtp-today" hidden>
+    <p class="gtp-today-text" id="gtp-today-text"></p>
+    <div class="gtp-today-shape" id="gtp-today-shape" role="img"></div>
+    <button type="button" class="gtp-today-btn" id="gtp-load">Load it</button>
+</div>
+<script>
+/* Today's board, drawn here while the page is still arriving, from what the
+   server last looked up (routes/guess_the_phrase.py first_paint_board), so
+   it's in the first paint: drawn later, it would push the page down, a layout
+   shift. The main script draws the offer with this same function, and still
+   asks for the newest board. */
+function gtpShowOffer(board, categoryName) {
+    document.getElementById('gtp-today-text').textContent = "Today's board" +
+        (categoryName ? ' (' + categoryName + ')' : '') + ', entered by other players. Check it matches your game:';
+    const shape = document.getElementById('gtp-today-shape');
+    shape.setAttribute('aria-label', 'Words of ' + board.lengths.join(', ') + ' letters');
+    shape.replaceChildren(...board.lengths.map(n => {
+        const word = document.createElement('span');
+        word.className = 'gtp-today-word';
+        for (let k = 0; k < n; k++) word.appendChild(document.createElement('span'));
+        return word;
+    }));
+    document.getElementById('gtp-today').hidden = false;
+}
+(function () {
+    const board = {{ first_board | default(none) | tojson }};
+    const names = {{ dict(categories) | tojson }};
+    // A page kept since an earlier puzzle: the script asks for today's.
+    if (!board || !Array.isArray(board.lengths) || Date.now() >= {{ board_until | default(0) }}) return;
+    // A saved board of the player's own comes back instead (restore). One
+    // from an earlier day is cleared there, and the offer then comes late.
+    try {
+        const s = JSON.parse(localStorage.getItem('gtpSolverState_v1'));
+        if (s && Array.isArray(s.lengths) && s.lengths.length) return;
+    } catch (_) {}
+    gtpShowOffer(board, board.category === 'any' ? '' : names[board.category] || '');
+})();
+</script>
+{% endif %}
 
 <div class="gtp-setup">
     <div class="gtp-field">
@@ -529,6 +619,10 @@ button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px
 
 <div id="gtp-board" class="gtp-board" aria-label="Puzzle board"></div>
 <p class="gtp-empty" id="gtp-empty">Your board builds here as you tap, in rows like the game's.</p>
+{% if boards_on %}
+<p class="gtp-loaded-note" id="gtp-loaded-note" hidden>Loaded today's board, entered by other players. Check it matches your game.
+    <button type="button" class="gtp-not-mine" id="gtp-not-mine">↩ Not my board</button></p>
+{% endif %}
 
 <div id="gtp-build">
     <p class="gtp-hint" id="gtp-build-hint"></p>
@@ -611,6 +705,12 @@ button.gtp-masked:hover { text-decoration: underline; text-underline-offset: 3px
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">How do I enter the board?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tap each word's length in order: for a board of 3, 3 and 4 letters, tap 3, 3 and 4. The board builds as you tap and wraps into rows the way the game's does, so you can check it matches. Count letter tiles only and skip apostrophes and other punctuation. On a computer you can type the board as it looks instead, with a ? for each blank. Then tap Done, tap a tile and a letter to fill in each letter the game shows, and switch to Mark misses to tap the letters it said are not in the phrase. A called letter appears everywhere it occurs in the answer, so fill in every tile that shows it.</p>
     </div>
+    {% if boards_on %}
+    <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+      <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Do I have to enter today's board?</p>
+      <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players enter each day's board into this solver as they play, so once today's has been entered, it's offered above the category: check its rows match your game and tap Load it. Only the shape and the category fill in. The letters, and the answer, stay yours to find. If it isn't the board in your game, tap ↩ Not my board and build yours.</p>
+    </div>
+    {% endif %}
     <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
       <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Which letter should I call first?</p>
       <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">The classic opening is R, S, T, L, N and E, the most common letters in English phrases. The solver does better than a fixed order: it checks every known phrase that fits your word lengths and category, and suggests the consonant most likely to be in yours, along with how many tiles it should uncover.</p>
@@ -679,6 +779,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Marks this page load's first solve, so the server logs one use of it
     // however many solves follow (extensions.log_solve).
     let firstSolve = true;
+    // How the board came: 'typed', 'loaded' (today's board) or 'edited'
+    // (loaded, then its shape changed), and the shape it was loaded with. The
+    // board last logged.
+    let boardSource = 'typed';
+    let loadedShape = '';
+    let loggedSig = '';
 
     const boardEl = document.getElementById('gtp-board');
     const emptyEl = document.getElementById('gtp-empty');
@@ -748,6 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lengths = parts.map(p => p.length);
         letters = parts.flat();
         if (!lengths.length) last = null;
+        noteShapeChange();
         reveals = {};
         rowsShown = ROWS_STEP;
         wordTab = -1;
@@ -835,6 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         lengths = shape.lengths;
         letters = shape.letters;
+        noteShapeChange();
         onBoard().forEach(c => misses.delete(c));
         reveals = {};
         rowsShown = ROWS_STEP;
@@ -850,6 +958,8 @@ document.addEventListener('DOMContentLoaded', () => {
         category = 'any'; categoryEl.value = 'any';
         selected = -1; reveals = {}; rowsShown = ROWS_STEP; wordTab = -1;
         last = null; tab = 'phrases';
+        boardSource = 'typed';
+        loadedShape = '';
         document.getElementById('gtp-add-input').value = '';
         setMode('fill');
         setPhase('build');
@@ -925,6 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newBtn.hidden = !has;
         resultsEl.hidden = !has || !last;
         renderKeys();
+        renderOffer();
     }
 
     function renderKeys() {
@@ -1082,11 +1193,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!row) return;
         const [text, known] = row;
         reveals[text] = btn.dataset.act === 'all' ? hiddenCount(text, known) : (reveals[text] || 0) + 1;
+        noteUse();
         renderAnswers();
         save();
     });
 
     async function copyAnswer(text) {
+        noteUse();
         let ok = false;
         try {
             await navigator.clipboard.writeText(text);
@@ -1124,12 +1237,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selected < 0) selected = Math.max(0, letters.indexOf(''));
         letters[selected] = L;
         if (selected < letters.length - 1) selected++;
+        noteUse();
         changed();
     }
 
     function toggleMiss(L) {
         if (onBoard().has(L)) { toast(L + ' is on the board, so it is in the answer.', true); return; }
         misses.has(L) ? misses.delete(L) : misses.add(L);
+        noteUse();
         changed();
     }
 
@@ -1250,6 +1365,137 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /* ---------- today's board ---------- */
+    // routes/guess_the_phrase.py: once James approves the day's board, or
+    // enough players have entered the same one, it's offered while there's no
+    // board here. Load it fills in the shape and the category, never a
+    // letter. A board the player built is logged once they use it (noteUse);
+    // one loaded and left as it is never is, so the offer can't vote for
+    // itself. Nothing in here may stop the page working.
+    const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
+    const CATEGORY_NAMES = {{ dict(categories) | tojson }};
+    const todayEl = document.getElementById('gtp-today');
+    const loadedNote = document.getElementById('gtp-loaded-note');
+    const isOffer = b => !!b && Array.isArray(b.lengths) && b.lengths.length >= 1 && b.lengths.length <= MAX_WORDS &&
+        b.lengths.every(n => Number.isInteger(n) && n >= 1 && n <= MAX_WORD_LEN) &&
+        b.lengths.reduce((x, n) => x + n, 0) <= MAX_TILES;
+    let offer = {{ first_board | default(none) | tojson }};
+    // The puzzle's date, and when the next one goes live (the server says
+    // both): an offer from before then is never shown or loaded.
+    let offerDay = {{ board_day | default('') | tojson }};
+    let offerUntil = {{ board_until | default(0) }};
+    // When it was last asked for, the newest request (an older one's reply is
+    // dropped), and the timer that takes the offer down when it expires.
+    let offerAt = 0, offerSeq = 0, offerTimer = null;
+
+    const offerLive = () => BOARDS_ON && isOffer(offer) && Date.now() < offerUntil;
+
+    function renderOffer() {
+        if (!todayEl) return;
+        if (offerLive() && !lengths.length) {
+            gtpShowOffer(offer, offer.category === 'any' ? '' : CATEGORY_NAMES[offer.category] || '');
+        } else {
+            todayEl.hidden = true;
+            // Back to no board after the next puzzle went live: ask for it.
+            if (!lengths.length && Date.now() >= offerUntil && Date.now() - offerAt > 60000) fetchOffer();
+        }
+        if (loadedNote) loadedNote.hidden = boardSource !== 'loaded' || !lengths.length;
+    }
+
+    // Takes the offer down when the next puzzle goes live, and asks for that
+    // one's if there's still no board.
+    function watchExpiry() {
+        clearTimeout(offerTimer);
+        const left = offerUntil - Date.now();
+        if (!BOARDS_ON || left <= 0) return;
+        offerTimer = setTimeout(() => {
+            renderOffer();
+            if (!lengths.length) fetchOffer();
+        }, left + 50);
+    }
+
+    function fetchOffer() {
+        if (!BOARDS_ON) return;
+        offerAt = Date.now();
+        const seq = ++offerSeq;
+        fetch('/guess_the_phrase', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'todays_board'})
+        })
+            .then(r => { if (!r.ok) throw new Error('board failed: ' + r.status); return r.json(); })
+            .then(data => {
+                if (seq !== offerSeq) return;
+                offer = data && isOffer(data.board) ? data.board : null;
+                offerDay = data && typeof data.day === 'string' ? data.day : '';
+                offerUntil = data && Number(data.until) || 0;
+                renderOffer();
+                watchExpiry();
+            })
+            .catch(() => {});
+    }
+
+    function loadOffer() {
+        // One from before the next puzzle went live is yesterday's: ask again.
+        if (!offerLive()) { renderOffer(); fetchOffer(); return; }
+        lengths = offer.lengths.slice();
+        letters = lengths.flatMap(n => Array(n).fill(''));
+        misses = new Set();
+        if ([...categoryEl.options].some(o => o.value === offer.category)) {
+            category = offer.category;
+            categoryEl.value = category;
+        }
+        reveals = {}; rowsShown = ROWS_STEP; wordTab = -1; last = null;
+        boardSource = 'loaded';
+        loadedShape = lengths.join('-');
+        setMode('fill');
+        setPhase('fill');
+        schedule();
+    }
+
+    // A word added, resized or removed: a loaded board is the player's own
+    // edit now, until it's back to the shape it was loaded with (whatever is
+    // on offer by then), and an empty one starts over.
+    function noteShapeChange() {
+        if (!lengths.length) { boardSource = 'typed'; loadedShape = ''; }
+        else if (boardSource !== 'typed') boardSource = lengths.join('-') === loadedShape ? 'loaded' : 'edited';
+    }
+
+    // Logs the board the player is using, once per board, category and
+    // puzzle. Only one the server took counts as logged: if it never got
+    // there (no connection, too many requests), the next use sends it again.
+    let logPending = '';
+    function noteUse() {
+        try {
+            if (boardSource === 'loaded' || phase !== 'fill' || !lengths.length) return;
+            const sig = lengths.join('-') + '|' + category + '|' + offerDay;
+            if (sig === loggedSig || sig === logPending) return;
+            logPending = sig;
+            fetch('/guess_the_phrase', {
+                method: 'POST',
+                keepalive: true,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'log_board', lengths, category, source: boardSource})
+            }).then(r => {
+                // A board it won't take (any other 4xx) isn't worth sending again.
+                if (r.ok || (r.status >= 400 && r.status < 500 && r.status !== 429)) {
+                    loggedSig = sig;
+                    save();
+                }
+            }).catch(() => {}).finally(() => { if (logPending === sig) logPending = ''; });
+        } catch (_) {}
+    }
+
+    if (todayEl) document.getElementById('gtp-load').addEventListener('click', loadOffer);
+    if (loadedNote) document.getElementById('gtp-not-mine').addEventListener('click', newPuzzle);
+    // Players switch to the game and back: log a board in use on the way out,
+    // and ask for today's again on the way back.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') { if (last) noteUse(); return; }
+        renderOffer();    // one that expired while the page slept goes
+        if (!lengths.length && Date.now() - offerAt > 60000) fetchOffer();
+    });
+
     /* ---------- adding a missing answer ---------- */
     function fitsBoard(text) {
         const words = text.toUpperCase().replace(/['’.,!:;"?]/g, '').split(/[\s\-&\/]+/).filter(Boolean);
@@ -1264,6 +1510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const phrase = input.value.trim();
         if (!phrase || !lengths.length) return;
         if (!fitsBoard(phrase)) { toast("That doesn't fit the board as entered", true); return; }
+        noteUse();
         try {
             const resp = await fetch('/guess_the_phrase', {
                 method: 'POST',
@@ -1289,7 +1536,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                lengths, letters, misses: [...misses], category, reveals, phase, savedAt: Date.now()
+                lengths, letters, misses: [...misses], category, reveals, phase, boardSource, loadedShape, loggedSig,
+                savedAt: Date.now()
             }));
         } catch (_) {}
     }
@@ -1327,6 +1575,9 @@ document.addEventListener('DOMContentLoaded', () => {
             category = s.category;
         }
         reveals = (s.reveals && typeof s.reveals === 'object') ? s.reveals : {};
+        boardSource = ['typed', 'loaded', 'edited'].includes(s.boardSource) ? s.boardSource : 'typed';
+        loadedShape = typeof s.loadedShape === 'string' && /^[0-9-]{1,40}$/.test(s.loadedShape) ? s.loadedShape : '';
+        loggedSig = typeof s.loggedSig === 'string' ? s.loggedSig.slice(0, 120) : '';
         // Saves from before the keypad have no phase: they were filling.
         phase = s.phase === 'build' ? 'build' : 'fill';
         selected = phase === 'fill' ? letters.indexOf('') : -1;
@@ -1369,6 +1620,8 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
     renderBuild();
     schedule();
+    watchExpiry();
+    if (!offerAt) fetchOffer();
 });
 </script>
 

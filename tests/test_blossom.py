@@ -490,6 +490,82 @@ def _suggest(client, word):
         "action": "suggest_missing", "word": word, "center": CENTER, "petals": PETALS})
 
 
+def _rows(table):
+    """{word: its results row} for a rendered table."""
+    return {re.search(r'data-word="([a-z]+)"', row).group(1): row
+            for row in table.split("</tr>") if "data-word=" in row}
+
+
+def _rare_rows(words, pop, known=()):
+    table, *_ = all_words.filter_words_blossom_revamp(
+        MUST, MAY, PETAL, 25, words, pop=pop, known=known)
+    return _rows(table)
+
+
+def test_a_word_missing_from_the_popularity_list_is_marked_rare():
+    rows = _rare_rows({"retains", "stainer", "tarns"}, pop={"retains": 3.0, "tarns": 0.4})
+    assert "rare-flag" in rows["stainer"]
+    # Any listed word is unmarked, however low its popularity.
+    assert "rare-flag" not in rows["retains"] and "rare-flag" not in rows["tarns"]
+
+
+def test_a_word_blossom_is_known_to_take_is_never_marked_rare():
+    rows = _rare_rows({"retains", "stainer"}, pop={}, known={"stainer"})
+    assert "rare-flag" in rows["retains"] and "rare-flag" not in rows["stainer"]
+
+
+def test_a_rare_pangram_keeps_its_flower_and_its_row_style():
+    rows = _rare_rows({"retains", "tarns"}, pop={})
+    assert "<td>🌸" in rows["retains"] and "rare-flag" in rows["retains"]
+    assert 'class="pangram-row"' in rows["retains"]
+    assert "🌸" not in rows["tarns"] and "pangram-row" not in rows["tarns"]
+    for row in rows.values():
+        assert ">Yes" not in row and ">No" not in row
+
+
+def test_the_rare_mark_never_names_the_word():
+    # Helper Mode masks the words, and leaves this cell alone.
+    assert "{" not in all_words.BLOSSOM_RARE_FLAG
+    for word, row in _rare_rows({"retains", "stainer"}, pop={}).items():
+        flag = re.search(r'<button[^>]*class="rare-flag".*?</button>', row).group(0)
+        assert flag == all_words.BLOSSOM_RARE_FLAG and word not in flag.lower()
+        # Inside form1: anything but type="button" would submit it.
+        assert 'type="button"' in flag
+
+
+def test_without_popularity_nothing_is_marked():
+    table, *_ = all_words.filter_words_blossom_revamp(MUST, MAY, PETAL, 25, {"stainer"})
+    assert "rare-flag" not in table
+
+
+def test_the_page_marks_rare_words_but_not_added_ones(client, monkeypatch, fresh_word_cache):
+    # "tserins" isn't a word at all, so it can only be on the page because it
+    # was added, and "stainer" is made unlisted here.
+    import crowd
+
+    class Cursor(_FakeCursor):
+        def execute(self, sql, params=None):
+            self.sql = sql
+
+        def fetchall(self):
+            return [("tserins",)] if "_added_words" in self.sql else []
+
+    @contextmanager
+    def db():
+        yield _FakeConn(), Cursor()
+
+    monkeypatch.setattr(fresh_word_cache, "db_cursor", _fake_db_cursor)
+    monkeypatch.setattr(crowd, "db_cursor", db)
+    monkeypatch.setattr(fresh_word_cache, "words_blossom", {"stainer", "retains"})
+    monkeypatch.setattr(fresh_word_cache, "word_pop", {"retains": 3.0})
+    html = client.post("/blossom", data={
+        "must_have": "t", "may_have": "raine", "petal_letter": "s"}).get_data(as_text=True)
+    rows = _rows(html[html.index("<table"):html.index("</table>")])
+    assert {w: "rare-flag" in row for w, row in rows.items()} == {
+        "stainer": True, "retains": False, "tserins": False}
+    assert "⚠ marks rare words" in html
+
+
 def test_results_table_has_an_invalid_box_on_every_row(blossom_client):
     resp = blossom_client.post(
         "/blossom",

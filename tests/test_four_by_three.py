@@ -598,3 +598,81 @@ def test_without_circuits_pairs_it_still_solves(client, monkeypatch):
     import routes.four_by_three as rt
     monkeypatch.setattr(rt, 'get_pairs', lambda: None)
     assert client.post('/4x3', json={'tiles': PAGE_BOARD}).get_json()['hub']['tile'] == 'BAT'
+
+
+# --- the hub the player's marks prove -----------------------------------------------
+
+def _proven(result):
+    return result['hub']['proven']
+
+
+def _marks(signals, *said):
+    at = {t: i for i, t in enumerate(signals.tiles)}
+    return [(tuple(at[w] for w in group), verdict) for group, verdict in said]
+
+
+def test_two_right_groups_prove_the_hub_and_one_does_not(words):
+    s = _signals(words)
+    one = ((HUB,) + PAIRS[0], 'right')
+    two = (PAIRS[1] + (HUB,), 'right')
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS)) is None
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, one))) is None
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, one, two))) == HUB
+    # Undo either and it isn't proved any more.
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, two))) is None
+
+
+def test_misses_can_prove_the_hub_with_one_right_group(words):
+    # HUB ANT BEE is a group, so the hub is one of the three. "Not even
+    # close" on guesses holding ANT and BEE leaves only HUB.
+    s = _signals(words)
+    said = [((HUB, 'ANT', 'BEE'), 'right'),
+            (('ANT', 'CAT', 'ELM'), 'not_close'), (('BEE', 'CAT', 'GAS'), 'not_close')]
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, *said[:2]))) is None
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, *said))) == HUB
+
+
+def test_proof_comes_only_from_the_players_own_marks(words):
+    s = _signals(words)
+    at = {t: i for i, t in enumerate(s.tiles)}
+    fixed = {fbt.mask_of(at[w] for w in (HUB,) + p): label
+             for p in PAIRS for label in ['checked']}
+    known = fbt.solve(s, fbt.DEFAULT_WEIGHTS, fixed=fixed)
+    assert known['hub']['tile'] == HUB and _proven(known) is None
+    players = fbt.solve(s, fbt.DEFAULT_WEIGHTS, fixed={m: 'players' for m in fixed})
+    assert players['hub']['tile'] == HUB and _proven(players) is None
+    marks = _marks(s, ((HUB,) + PAIRS[0], 'right'), ((HUB,) + PAIRS[1], 'right'))
+    # On a checked board too, once the player's marks settle it.
+    both = fbt.solve(s, fbt.DEFAULT_WEIGHTS, marks, fixed=fixed)
+    assert both['hub']['label'] == 'checked' and _proven(both) == HUB
+
+
+def test_marks_that_contradict_prove_nothing_wrong(words):
+    s = _signals(words)
+    right = [((HUB,) + PAIRS[0], 'right'), ((HUB,) + PAIRS[1], 'right')]
+    # A third group with another shared word doesn't fit the first two, so
+    # it's dropped and the proof stands.
+    result = fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, *right, (('ANT', 'ELM', 'GAS'), 'right')))
+    assert result['dropped'] == [2] and _proven(result) == HUB
+    # Marks that prove another hub than James's answer: nothing is proved.
+    at = {t: i for i, t in enumerate(s.tiles)}
+    fixed = {fbt.mask_of(at[w] for w in (HUB,) + p): 'checked' for p in PAIRS}
+    other = _marks(s, (('ANT', 'CAT', 'ELM'), 'right'), (('ANT', 'DOG', 'FIR'), 'right'))
+    assert _proven(fbt.solve(s, fbt.DEFAULT_WEIGHTS, other)) == 'ANT'
+    against = fbt.solve(s, fbt.DEFAULT_WEIGHTS, other, fixed=fixed)
+    assert against['hub']['tile'] == HUB and _proven(against) is None
+
+
+def test_a_proven_hub_leaves_scoring_alone(words):
+    s = _signals(words)
+    result = fbt.solve(s, fbt.DEFAULT_WEIGHTS, _marks(s, ((HUB,) + PAIRS[0], 'right'), ((HUB,) + PAIRS[1], 'right')))
+    assert result['hub']['label'] == 'yours' and _groups(result) == TRUTH
+
+
+def test_the_page_moves_a_proven_hub_to_the_middle(client):
+    html = client.get('/4x3').get_data(as_text=True)
+    assert "setProvenHub(data.hub && isTile(data.hub.proven) ? data.hub.proven : '')" in html
+    assert "boardEl.replaceChildren(...shownWords().map(" in html
+    assert "is the hub: it's in all four groups." in html
+    assert 'it moves to the middle, as it does in the game.' in html
+    assert "prefers-reduced-motion" in html

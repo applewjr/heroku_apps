@@ -1,7 +1,8 @@
-"""Wordiply's today's starter word, and /wordiply_admin.
+"""Wordiply's today's starter word, its word corrections, and /wordiply_admin.
 
-The /wordiply page and its searches are in routes/wordgames.py; its JSON
-actions (a starter to log, today's starter to fetch) come here.
+The /wordiply page is in routes/wordgames.py; its searches (search) and JSON
+actions (a starter to log, today's starter to fetch, a word Wordiply refused)
+come here.
 
 Wordiply gives every player the same starter word each day, so the first
 players each day do the typing for the players after them, as on /blossom:
@@ -30,7 +31,9 @@ import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
+from data import words
 from extensions import auth, db_cursor, pst_now_str
+from functions import all_words
 from helpers import ValidationError, parse_iso_day
 from monitoring import alerts
 
@@ -79,7 +82,9 @@ ADMIN_DAYS_BACK = 2
 # What a starter can be: letters a-z, this many.
 MIN_LEN, MAX_LEN = 2, 15
 # What a JSON body to /wordiply asks for here, not a search.
-ACTIONS = ('log_starter', 'todays_starter')
+ACTIONS = ('log_starter', 'todays_starter', 'reject', 'restore')
+# How many words a search lists.
+LIST_LEN = 90
 
 # The columns every read of wordiply_boards returns, in this order.
 # prefix_hash (crowd.prefix_hash) is NULL on approvals.
@@ -347,6 +352,69 @@ def page_context():
             'starter_day': _game_today().isoformat()}
 
 
+##### word corrections #####
+
+# Players flag a word Wordiply refused with the ✗ on its row, which asks
+# first, as on /ribbit and /smush (James asked, 2026-11-24). The mechanics,
+# the thresholds (fewer players for a rarer word) and the rule that players
+# are never told the counts live in crowd.py, shared with the other word
+# games; only Wordiply's own tables are touched here. Players can't suggest
+# missing words. /wordiply_admin's Add ('missing' in crowd.py) puts a word in
+# the list, or keeps one there whatever players say.
+
+# (removed, added) word sets, memoized in the module. Not a corrected copy of
+# the word list: the search applies them as it goes (memory).
+_corrections = {'value': None, 'expires': 0.0}
+
+
+def _forget_corrections():
+    """Make the next get_corrections() re-read the lists."""
+    _corrections['expires'] = 0.0
+
+
+def get_corrections():
+    """(removed, added): the words players or /wordiply_admin took off the
+    list, and the ones the admin put on it, lower case. Refreshed every 12
+    hours, or straight away after a change; none while the DB has never been
+    reachable (see crowd.CrowdList.corrected)."""
+    return WORDIPLY_CROWD.corrected(
+        _corrections, lambda removed, added: (frozenset(removed) - frozenset(added), frozenset(added)))
+
+
+WORDIPLY_CROWD = crowd.CrowdList('wordiply', on_change=_forget_corrections)
+
+
+def search(search_string):
+    """The words a search lists, longest first."""
+    removed, added = get_corrections()
+    return all_words.wordiply_solver(search_string, words, LIST_LEN, removed, added)
+
+
+def _puzzle_tag(letters):
+    """The starter a report came from, with a colon so the admin's board
+    search finds it."""
+    return f'starter:{letters}'
+
+
+def handle_vote(data):
+    """A ✗ on a word Wordiply refused ('reject'), or that ✗ taken back
+    ('restore'). Every reply is the same whether or not it counted (see
+    crowd.py). It only counts for a word this starter lists."""
+    letters = parse_starter(data.get('letters'))
+    word = data.get('word')
+    if not isinstance(word, str) or len(word) > 50 or not (word.isascii() and word.isalpha()):
+        raise ValidationError('word must be one word, letters only')
+    word = word.lower()
+    if data.get('action') == 'restore':
+        WORDIPLY_CROWD.retract_vote(word, 'invalid', _puzzle_tag(letters))
+        return jsonify(status='success')
+    removed, added = get_corrections()
+    listed = (word in words or word in added) and word not in removed
+    if listed and letters in word and word != letters:
+        WORDIPLY_CROWD.record_vote(word, 'invalid', _puzzle_tag(letters))
+    return jsonify(status='success')
+
+
 ##### the page's actions #####
 
 def log_starter(data):
@@ -367,9 +435,11 @@ def log_starter(data):
 
 def handle_action(data):
     """A JSON body posted to /wordiply with an `action`: a starter to log,
-    or today's starter. Today's starter is null while it is dark, even to a
-    direct call."""
+    today's starter, or a word report. Today's starter is null while it is
+    dark, even to a direct call."""
     action = data.get('action')
+    if action in ('reject', 'restore'):
+        return handle_vote(data)
     if action == 'log_starter':
         return log_starter(data)
     if action == 'todays_starter':
@@ -382,6 +452,7 @@ def handle_action(data):
 ##### admin #####
 
 ADMIN = '/wordiply_admin'
+ADMIN_TABS = ('starter', 'reports', 'invalid', 'added')
 
 
 def _back(**message):
@@ -412,10 +483,20 @@ def _admin_days():
 @bp.route(ADMIN)
 @auth.login_required
 def wordiply_admin():
-    """The recent days' starter words: what players entered, what is served,
-    and James's approvals."""
+    """The recent days' starter words (what players entered, what is served,
+    and James's approvals), what players reported, and the removed and added
+    words. Each half still shows if the other's tables can't be read."""
+    args = request.args.to_dict()
+    args.setdefault('tab', 'starter')
+    try:
+        view, crowd_error = WORDIPLY_CROWD.admin_view(args, request.path, tabs=ADMIN_TABS), None
+    except Exception as e:
+        print(f"Error loading wordiply admin word lists: {e}")
+        view = WORDIPLY_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'starter')
+        crowd_error = f'{type(e).__name__}: {e}'
     days, load_error = _admin_days()
-    return render_template('wordiply_admin.html', days=days, load_error=load_error,
+    return render_template('wordiply_admin.html', **view, crowd_error=crowd_error,
+                           days=days, load_error=load_error,
                            starter_live=WORDIPLY_STARTER_LIVE, game_today=_game_today(),
                            serve_crowd=SERVE_CROWD, min_len=MIN_LEN, max_len=MAX_LEN)
 
@@ -486,3 +567,18 @@ def wordiply_remove():
     _forget_starters()
     return _back(success=f"Removed {removed} entr{'y' if removed == 1 else 'ies'} "
                          f"of {letters.upper()} on {day:%m-%d}")
+
+
+@bp.route(ADMIN + '/add_word', methods=['POST'])
+@auth.login_required
+def wordiply_add_word():
+    """Remove a word from Wordiply's list ('invalid') or add one, or keep one
+    there ('missing')."""
+    return crowd.admin_add_word(WORDIPLY_CROWD, _back)
+
+
+@bp.route(ADMIN + '/remove_word', methods=['POST'])
+@auth.login_required
+def wordiply_remove_word():
+    """Undo an entry in either list, and reset that word's votes."""
+    return crowd.admin_undo_word(WORDIPLY_CROWD, _back)

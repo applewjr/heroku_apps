@@ -17,7 +17,7 @@ import mysql.connector
 import mysql.connector.pooling
 from mysql.connector import Error
 import redis
-from flask import Response, has_request_context, request
+from flask import Response, abort, has_request_context, request
 from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
@@ -87,6 +87,11 @@ def _login_locked(ip):
 
 @auth.verify_password
 def verify_password(username, password):
+    # Before the password: a browser sends the saved one with a form another
+    # site posts here, so the password alone doesn't say James sent it. Not
+    # counted as a wrong password. Covers every password-only route.
+    if request.method not in ('GET', 'HEAD', 'OPTIONS') and from_another_site():
+        abort(403)
     if not password:
         # The browser's first request carries no credentials. That's what
         # brings up the login prompt, not a guess, so it isn't counted.
@@ -106,6 +111,7 @@ def verify_password(username, password):
         print(f"admin login locked for {ip} after repeated wrong passwords", flush=True)
     return False
 
+
 def from_another_site():
     """Did a browser send this request from another site's page? Browsers say
     so themselves: Sec-Fetch-Site, or the Origin they put on every post. A
@@ -115,6 +121,15 @@ def from_another_site():
         return site not in ('same-origin', 'none')
     origin = request.headers.get('Origin')
     return bool(origin) and urlsplit(origin).netloc.lower() != request.host.lower()
+
+
+def keep_admin_out_of_frames(response):
+    """After a request (app.py): a password-only page can't be shown inside
+    another site's page, where it could be dressed up for James to click on.
+    Public pages can: ad previews show the site in a frame."""
+    if auth.current_user() is not None:
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
 
 
 @auth.error_handler
@@ -140,19 +155,6 @@ def show_ads():
     Auto ads is set in AdSense itself."""
     return has_request_context() and real_site() and auth.current_user() is None
 
-
-def ad_slot(page):
-    """What templates/_ad_slot.html needs for `page`'s unit: enabled (it has
-    a slot ID in config.AD_SLOT_IDS, isn't in AD_SLOTS_DISABLED, and the page
-    isn't password-only), real (the live site, where the real ad is
-    requested; anywhere else gets a placeholder) and slot_id."""
-    slot_id = config.AD_SLOT_IDS.get(page, '')
-    return {
-        'enabled': (bool(slot_id) and page not in config.AD_SLOTS_DISABLED
-                    and auth.current_user() is None),
-        'real': real_site(),
-        'slot_id': slot_id,
-    }
 
 ##### MySQL #####
 

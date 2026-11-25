@@ -8,8 +8,20 @@ touch no external services.
 import numpy as np
 
 import helpers
-from data import df, words
+from data import df, word_pop, words, words_blossom
 from functions import all_words, wordle
+
+
+# --- the word lists --------------------------------------------------------
+
+def test_null_and_nan_are_words_not_missing_values():
+    # pandas reads both as missing unless told not to (data.py).
+    assert all(type(w) is str for w in words) and all(type(w) is str for w in word_pop)
+    for word in ("null", "nan", "na", "none", "true", "false"):
+        assert word in words and word_pop[word] > 0, word
+    assert "null" in words_blossom
+    with open("datasets/all_words_blossom.csv", encoding="utf-8") as fh:
+        assert words == set(fh.read().split()[1:])
 
 
 # --- all_words -------------------------------------------------------------

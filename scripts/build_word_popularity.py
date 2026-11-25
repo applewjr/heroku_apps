@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, os.pardir, 'datasets')
 POP_PATH = os.path.join(DATA, 'word_popularity.csv')
 
-words = set(pd.read_csv(os.path.join(DATA, 'all_words_blossom.csv'))['0'].astype(str))
+words = set(pd.read_csv(os.path.join(DATA, 'all_words_blossom.csv'), keep_default_na=False)['word'])
 
 # Keep existing rows as raw text so their values stay byte-identical.
 with open(POP_PATH, encoding='utf-8') as fh:

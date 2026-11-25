@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Guess The Phrase Admin - Phrase List{% endblock %}
+{% block title %}Guess The Phrase Admin - Board and Phrases{% endblock %}
 
 {% block content %}
 {% from '_crowd_admin.html' import styles, pager, keep_view, flash, search_form, reports_head with context %}
@@ -39,12 +39,33 @@
     padding: 6px 12px;
     margin-left: 8px;
 }
+
+/* ---------- the Today's Board tab ---------- */
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.when { white-space: nowrap; font-size: 12px; }
+/* A board: its word lengths over a row of tiles per word. */
+.shape-text { font-family: monospace; font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+.shape-tiles { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
+.shape-tiles > span { display: inline-flex; gap: 1px; }
+.shape-tiles i { width: 8px; height: 11px; border: 1px solid #02484d; border-radius: 1px; background-color: #fff; }
+/* Approve your game's board: one line above the days. */
+.approve-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px; }
+.approve-entry input[type=text].approve-lengths {
+    width: 11em;
+    padding: 6px 8px;
+    font-family: monospace;
+    font-size: 15px;
+    letter-spacing: 1px;
+}
+.approve-entry input[type=date], .approve-entry select { padding: 5px 6px; max-width: 100%; }
+.approve-entry .btn { margin: 0; padding: 6px 12px; font-size: 13px; }
 </style>
 
 
 <div class="admin-container">
     <div class="admin-top">
-        <h1>Guess The Phrase Admin - Phrase List</h1>
+        <h1>Guess The Phrase Admin - Board and Phrases</h1>
         <nav class="top-nav">
             <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
             <a href="/guess_the_phrase" target="_blank" rel="noopener" class="btn btn-primary">Back to Guess The Phrase Solver</a>
@@ -53,6 +74,12 @@
     </div>
 
     {{ flash() }}
+
+    {% if crowd_error %}
+    <div class="alert alert-error">
+        Couldn't read the phrase lists ({{ crowd_error }}). Has mysql_tables/gtp_crowd.sql been run?
+    </div>
+    {% endif %}
 
     {% if in_both %}
     <div class="alert alert-error">
@@ -63,7 +90,9 @@
     <div class="stats">
         <strong>Open reports ({{ crowd_window_days }} days):</strong> {{ open_count }} |
         <strong>Removed phrases:</strong> {{ invalid_total }} |
-        <strong>Added phrases:</strong> {{ added_total }}
+        <strong>Added phrases:</strong> {{ added_total }} |
+        <strong>Today's puzzle:</strong> {{ game_today.strftime('%m-%d') }} |
+        <strong>Today's board:</strong> {{ 'live on /guess_the_phrase' if boards_live else 'logging only, served nowhere' }}
     </div>
 
     <div class="admin-tools">
@@ -107,9 +136,111 @@
     {% endif %}
 
     <div class="tab-container">
+        <div class="tab-button{% if active_tab == 'board' %} active{% endif %}" onclick="showTab(event, 'board')">Today's Board</div>
         <div class="tab-button{% if active_tab == 'reports' %} active{% endif %}" onclick="showTab(event, 'reports')">Player Reports</div>
         <div class="tab-button{% if active_tab == 'invalid' %} active{% endif %}" onclick="showTab(event, 'invalid')">Removed Phrases</div>
         <div class="tab-button{% if active_tab == 'added' %} active{% endif %}" onclick="showTab(event, 'added')">Added Phrases</div>
+    </div>
+
+    <!-- Today's Board Tab -->
+    <div id="board-tab" class="tab-content{% if active_tab == 'board' %} active{% endif %}">
+        <div class="tab-head">
+            <h2>Today's Board</h2>
+            <details class="admin-help"><summary>How boards are served</summary>
+                <p class="crowd-note">A board is its word lengths and the category. No letters are ever stored, and never the phrase. The day is the game's, for every player, from the server's clock: a new puzzle goes live at 23:30 in Vilnius, 1:30pm Pacific most of the year. So until 1:30pm your date here is yesterday's, and that's the puzzle that is live.</p>
+                <p class="crowd-note">Your approval is served straight away, whatever the players entered, and there's one a day: approving another board that day replaces it. Without one, a board is served once {{ serve_crowd }} players, one per network, enter the same lengths that day; then whichever has the most players, a tie going to the first to get there. Its category is the one most of them chose. The first words of a longer board at least as many entered are never served (half-typed), nor a board first seen on an earlier day in the last {{ past_days }} (players catch up on older puzzles); approving one serves it anyway.</p>
+                <p class="crowd-note">A player's board is logged when they use it (a letter, a miss, a reveal, a copy) or leave with hints on screen. One loaded from the offer counts only once its shape is changed. Approve takes a board players entered. Undo takes the day's approval back and leaves the players' boards alone. Remove deletes the players' entries of that board on that day.</p>
+            </details>
+        </div>
+        {% if load_error %}
+        <div class="alert alert-error">
+            Couldn't read the boards ({{ load_error }}). Has mysql_tables/gtp_boards.sql been run?
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/guess_the_phrase_admin/approve_board" class="approve-entry" id="approve-entry">
+            <strong>Approve your game's board:</strong>
+            <input type="text" name="lengths" class="approve-lengths" maxlength="80" placeholder="3 3 4" autocomplete="off"
+                   spellcheck="false" aria-label="Word lengths, in order" required>
+            <select name="category" aria-label="Category">
+                {% for cid, label in categories %}<option value="{{ cid }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <input type="date" name="played_on" value="{{ game_today.strftime('%Y-%m-%d') }}" aria-label="The puzzle's date" required>
+            {{ keep_view() }}
+            <button type="submit" class="btn btn-success">Approve</button>
+        </form>
+
+        {% for d in days %}
+        {% set day_iso = d.day.strftime('%Y-%m-%d') %}
+        <h3>{{ day_iso }}{% if d.day == game_today %} (live now){% endif %}
+            - {% if d.board %}{{ 'serving' if boards_live else 'would serve' }} <span class="shape-text">{{ d.board.lengths|join(' ') }}</span>{% else %}<span class="status-waiting">nothing served</span>{% endif %}</h3>
+        <div class="table-wrap">
+        <table class="words-table">
+            <thead>
+                <tr>
+                    <th>Board</th>
+                    <th>Category</th>
+                    <th>Players</th>
+                    <th>Status</th>
+                    <th>First / last</th>
+                    <th>Approve</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in d.groups %}
+                {% set text = g.lengths|join(' ') %}
+                <tr>
+                    <td><span class="shape-text">{{ text }}</span>
+                        <span class="shape-tiles" aria-hidden="true">{% for n in g.lengths %}<span>{% for _ in range(n) %}<i></i>{% endfor %}</span>{% endfor %}</span></td>
+                    <td>{{ category_names.get(g.category, g.category) }}</td>
+                    <td>{{ g.players }}</td>
+                    <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ ('Served' if boards_live else 'Would be served') if g.served else g.why }}</td>
+                    <td class="when">
+                        {{ g.first_at.strftime('%m-%d %H:%M') }}<br>
+                        {{ g.last_at.strftime('%m-%d %H:%M') }}
+                    </td>
+                    <td>
+                        {% if g.approved %}
+                        <span class="status-served">Approved</span><br>
+                        <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span><br>
+                        <form method="POST" action="/guess_the_phrase_admin/unapprove_board" class="remove-form"
+                              onsubmit="return confirm('Undo your approval for {{ day_iso }}? Then the boards players entered decide again.')">
+                            <input type="hidden" name="played_on" value="{{ day_iso }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-secondary">Undo</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="/guess_the_phrase_admin/approve_board" class="remove-form"
+                              onsubmit="return confirm('Serve {{ text }} to every player on {{ day_iso }}?')">
+                            <input type="hidden" name="lengths" value="{{ text }}">
+                            <input type="hidden" name="category" value="{{ g.category }}">
+                            <input type="hidden" name="played_on" value="{{ day_iso }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-success">Approve</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if g.players %}
+                        <form method="POST" action="/guess_the_phrase_admin/remove_board" class="remove-form"
+                              onsubmit="return confirm('Delete every player entry of {{ text }} on {{ day_iso }}?')">
+                            <input type="hidden" name="lengths" value="{{ text }}">
+                            <input type="hidden" name="played_on" value="{{ day_iso }}">
+                            {{ keep_view() }}
+                            <button type="submit" class="btn btn-danger">Remove</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        {% if not load_error %}<p>No boards logged in the last few days.</p>{% endif %}
+        {% endfor %}
     </div>
 
     <!-- Player Reports Tab -->

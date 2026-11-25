@@ -452,7 +452,11 @@ def run_guess_the_phrase():
 
     if request.method == "POST":
         data = json_object()
+        # A board to log or today's board to fetch, or a player's added
+        # phrase: not a board to solve.
         if 'action' in data:
+            if data.get('action') in gtp.BOARD_ACTIONS:
+                return gtp.handle_board_action(data)
             return gtp.handle_vote(data)
         response = gtp.solve_request(data)
         log_solve('guess_the_phrase.html', data)
@@ -505,15 +509,15 @@ def run_wordiply():
         # HTTPException handling); a JSON `null` body or a non-dict payload
         # would 500 on .get, so guard the shape here too.
         data = request.get_json()
-        # A starter to log, or today's starter to fetch (routes/wordiply.py):
-        # not a search.
+        # A starter to log, today's starter to fetch, or a word report
+        # (routes/wordiply.py): not a search.
         if isinstance(data, dict) and 'action' in data:
             return wordiply.handle_action(data)
         search_string = data.get('search_string', '') if isinstance(data, dict) else ''
         if not isinstance(search_string, str) or len(search_string) > 100:
             raise ValidationError('search_string must be a string of at most 100 characters')
 
-        results = all_words.wordiply_solver(search_string, words, 90)
+        results = wordiply.search(search_string)
 
         log_solve('wordiply.html', data)
         return jsonify(results=results)

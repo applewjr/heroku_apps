@@ -56,7 +56,7 @@
       "name": "Why are some words missing from the results?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list. You can also use the Report Invalid/Missing Word button."
+        "text": "This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. Words marked ⚠ are rare, the ones Blossom is most likely to reject. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we do not list, type it into the box under the results. We take every report into account when updating the list. You can also use the Report Invalid/Missing Word button."
       }
     },
     {
@@ -915,7 +915,22 @@ table.blossom-results td.show-letter-cell { width: 80px; }
     accent-color: #e55555;
 }
 
-/* "Tried a word and Blossom rejected it?" line above the table */
+/* The mark on a rare word, in the 🌸 column (all_words.BLOSSOM_RARE_FLAG) */
+.rare-flag {
+    background: none;
+    border: none;
+    color: #b7791f;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1;
+    min-width: 24px;
+    min-height: 24px;
+    margin: -4px;   /* the 24px tap target must not make its row taller */
+    padding: 0;
+    cursor: pointer;
+}
+
+/* "⚠ marks rare words" line above the table */
 .invalid-hint {
     margin: 0 auto 4px auto;
     padding: 0 16px;
@@ -1330,7 +1345,7 @@ table.blossom-results tr.reject-confirm-row:hover {
     <!-- Read before the first tap, not after: a third of the top-listed words
          look made-up, and a tick for "looks fake" is a vote against a word
          Blossom accepts. -->
-    <p class="invalid-hint">Tried a word and Blossom rejected it? Tick its Invalid box.</p>
+    <p class="invalid-hint">⚠ marks rare words, the ones Blossom is most likely to reject. Tried a word and Blossom rejected it? Tick its Invalid box.</p>
     {% endif %}
     <!-- data-center / data-petals: the letters this table was built from, so a
          vote describes the board its word came from even if the petals have
@@ -1365,10 +1380,6 @@ table.blossom-results tr.reject-confirm-row:hover {
     {% endif %}
   </div>
 
-  {% if blossom_table %}
-  {% with ad_page='blossom' %}{% include '_ad_slot.html' %}{% endwith %}
-  {% endif %}
-
   <br>
 
   <div style="margin: 20px 0; text-align: center;">
@@ -1402,7 +1413,7 @@ table.blossom-results tr.reject-confirm-row:hover {
       {% endif %}
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Why are some words missing from the results?</p>
-        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list. You can also use the "Report Invalid/Missing Word" button.</p>
+        <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">This solver uses an open-source word list that may not perfectly match Merriam-Webster's official game word list, so players help correct it. Words marked ⚠ are rare, the ones Blossom is most likely to reject. If Blossom rejects a word we list, tick its Invalid box. If Blossom accepts a word we don't list, type it into the box under the results. We take every report into account when updating the list. You can also use the "Report Invalid/Missing Word" button.</p>
       </div>
       <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
         <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">About this tool</p>
@@ -2474,6 +2485,17 @@ function initializeBlossomApp() {
     checkbox.addEventListener('change', function() {
       handleInvalidChange(this);
     });
+  });
+
+  // The rare mark explains itself on tap: phones have no hover. Delegated, so
+  // it never depends on when the rows were drawn. Helper Mode masks the word,
+  // so the message doesn't name it there.
+  document.querySelector('.word-results-container').addEventListener('click', function(e) {
+    const flag = e.target.closest('.rare-flag');
+    if (!flag) return;
+    const word = flag.closest('tr').querySelector('.word-checkbox').getAttribute('data-word');
+    showToast((isHelperMode ? 'This' : word.toUpperCase()) +
+      ' is a rare word. Blossom may reject it. If it does, tick Invalid.', 5000);
   });
 
   setupMissingWordBox();

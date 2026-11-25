@@ -407,32 +407,6 @@ li { margin-bottom: 10px; }
     text-decoration: none !important;
 }
 .jj-overlay-footer a:hover { color: rgba(255,255,255,0.6); }
-/* A deliberate ad unit (templates/_ad_slot.html): a fixed 300x250 with its
-   height held, so nothing moves when it fills, 40px clear of what's above
-   and below. It folds away if AdSense has nothing to show. line-height 0
-   keeps the inline ad from growing the box by a text descender. */
-.jj-ad { width: 300px; margin: 40px auto; }
-.jj-ad[hidden], .jj-ad:has(ins[data-ad-status="unfilled"]) { display: none; }
-.jj-ad-label {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #6b7280;
-    margin-bottom: 4px;
-}
-.jj-ad-box { width: 300px; height: 250px; line-height: 0; }
-.jj-ad-placeholder {
-    box-sizing: border-box;
-    width: 300px;
-    height: 250px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px dashed #9ca3af;
-    color: #6b7280;
-    font-size: 13px;
-    line-height: 1.4;
-}
 /* The cross-links to the other solvers (templates/_related_solvers.html):
    cards in the home page's .app-card style, two to a row on a phone and
    three on a wider screen, all the same width (no flex-grow), with a lone
@@ -457,6 +431,8 @@ li { margin-bottom: 10px; }
     justify-content: center;
     gap: 10px;
 }
+/* A page's sister games, above the rest. */
+.jj-more-sisters { margin-bottom: 24px; }
 .jj-more a.jj-more-tile {
     position: relative;
     box-sizing: border-box;

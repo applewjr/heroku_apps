@@ -391,7 +391,8 @@
         <strong>3. Tell it what the game said.</strong> After you try a guess in 4x3, tap the same three words
         on the board here and pick what the game said: Right, One away or Not even close (or Not sure which,
         if you didn't catch it). The solver keeps everything you mark and works out the rest
-        again, and your marks help other players with the same board.
+        again, and your marks help other players with the same board. Once they prove which word is the hub,
+        it moves to the middle, as it does in the game.
     </div>
 </div>
 
@@ -796,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (boardSource === 'shared') boardSource = 'edited';
         picked = picked.filter(w => words().includes(w));
+        provenHub = '';
         renderBoxes();
         renderEditor();
         renderBoard();
@@ -820,10 +822,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // players) stays hidden until the player asks: only what they found
     // themselves shows on its own.
     function knownHub() {
+        if (provenHub) return provenHub;
         if (!last || lastSig !== sigOf()) return '';
         const h = last.hub;
         if (mode === 'solve' || APPROVE || hubReveal >= 2 || h.label === 'yours') return h.tile;
         return '';
+    }
+
+    // The hub the player's marks have proved ('' until then), from the newest
+    // solve (its hub.proven). Kept while the next solve is on its way, so the
+    // tile doesn't jump back and forth; a changed board starts over.
+    let provenHub = '';
+
+    // The words as the board shows them: in the player's order, with a proven
+    // hub in the middle box, as in the game, and the word that was there in
+    // the hub's. Display only: the boxes keep their order.
+    function shownWords() {
+        const w = words().slice();
+        const at = w.indexOf(provenHub);
+        if (provenHub && at >= 0) [w[at], w[4]] = [w[4], w[at]];
+        return w;
+    }
+
+    function setProvenHub(hub) {
+        if (hub === provenHub) return;
+        const from = tileSpots();
+        provenHub = hub;
+        renderBoard();
+        slideFrom(from);
+        renderHint();
+    }
+
+    // Where each word's tile is now, and a slide from there to where it is
+    // after a redraw.
+    const tileSpots = () => new Map([...boardEl.querySelectorAll('.fbt-tile')].map(t => [t.dataset.word, t.getBoundingClientRect()]));
+    function slideFrom(from) {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        boardEl.querySelectorAll('.fbt-tile').forEach(t => {
+            const a = from.get(t.dataset.word), b = t.getBoundingClientRect();
+            if (!a || !t.animate || (a.left === b.left && a.top === b.top)) return;
+            t.animate([{transform: 'translate(' + (a.left - b.left) + 'px, ' + (a.top - b.top) + 'px)'},
+                       {transform: 'none'}], {duration: 450, easing: 'ease-in-out'});
+        });
     }
 
     function renderBoard() {
@@ -837,7 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
             last.tiles.forEach((t, i) => { if (!last.known[i]) unknown.add(t); });
         }
         const had = boardEl.contains(document.activeElement) ? document.activeElement.dataset.word : null;
-        boardEl.replaceChildren(...words().map(w => {
+        boardEl.replaceChildren(...shownWords().map(w => {
             const tile = document.createElement('button');
             tile.type = 'button';
             tile.className = 'fbt-tile';
@@ -1010,6 +1050,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             last = data;
             lastSig = sig;
+            if (!APPROVE) setProvenHub(data.hub && isTile(data.hub.proven) ? data.hub.proven : '');
             renderBoard();
             renderMarks();
             renderResults();
@@ -1058,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function helpHtml(r) {
         const h = r.hub;
-        const hubShown = hubReveal >= 2 || h.label === 'yours';
+        const hubShown = hubReveal >= 2 || h.label === 'yours' || !!h.proven;
         let html = '<div class="fbt-card' + (['checked', 'yours', 'players'].includes(h.label) ? ' known' : '') + '">' +
             '<p class="fbt-card-title">The hub ' + chip(h.label, HUB_LABELS) + '</p>';
         if (hubShown) {
@@ -1236,6 +1277,8 @@ document.addEventListener('DOMContentLoaded', () => {
             isWarn = true;
         } else if (filled && filled < TILES) {
             text = (TILES - filled) + ' more word' + (TILES - filled === 1 ? '' : 's') + ' to go.';
+        } else if (provenHub) {
+            text = provenHub + " is the hub: it's in all four groups.";
         }
         hintEl.textContent = text;
         hintEl.classList.toggle('warn', isWarn);
@@ -1332,7 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadBoard(list, source, day) {
         tiles = list.map(t => clean(t)).concat(Array(TILES).fill('')).slice(0, TILES);
         marks = []; reveal = {}; hubReveal = 0; picked = [];
-        last = null; lastSig = '';
+        last = null; lastSig = ''; provenHub = '';
         boardSource = source;
         boardDay = day || localDay();
         sharedBoards = [];
@@ -1701,7 +1744,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tiles = Array(TILES).fill('');
         marks = []; reveal = {}; hubReveal = 0; picked = [];
         boardSource = 'typed'; loggedSig = ''; marksSig = ''; boardDay = '';
-        last = null; lastSig = '';
+        last = null; lastSig = ''; provenHub = '';
         editorOpen = true;
         {% if approve %}groups = []; finished = false; finishedEl.checked = false;{% endif %}
         try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}

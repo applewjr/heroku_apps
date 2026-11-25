@@ -47,6 +47,14 @@
     },{% endif %}
     {
       "@type": "Question",
+      "name": "What if Wordiply refuses a word?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tap the ✗ on its row and say Wordiply refused it. The word leaves your list, and we take every report into account when updating the word list. Tapped it by mistake? Tap the word under Hidden words to bring it back."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Is this Wordiply solver free?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -214,6 +222,85 @@
     background-color: transparent;
 }
 
+/* The ✗ on a row, and the question it asks before it reports anything,
+   tucked under the row (as on /ribbit and /smush). */
+.reject-btn {
+    flex-shrink: 0;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 4px 10px;
+    border: 1px solid #e0d5d5;
+    border-radius: 6px;
+    background-color: #fff;
+    color: #a55;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.reject-btn:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.word-result.copied .reject-btn {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.7);
+    background-color: transparent;
+}
+.reject-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: -4px 0 8px;
+    padding: 8px 10px;
+    background-color: #fbf0f0;
+    border: 1px solid #ecd3d3;
+    border-radius: 8px;
+    text-align: left;
+}
+.reject-confirm-q { flex: 0 0 100%; font-size: 13px; font-weight: 600; color: #a55; overflow-wrap: anywhere; }
+.confirm-refused, .confirm-played, .confirm-cancel {
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background-color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.confirm-refused { border: 1px solid #e0d5d5; color: #a55; }
+.confirm-refused:hover { background-color: #e55555; border-color: #e55555; color: #fff; }
+.confirm-played { border: 1px solid #cdd8d7; color: #02484d; }
+.confirm-played:hover { background-color: #6aaa64; border-color: #6aaa64; color: #fff; }
+.confirm-cancel { border: none; background: none; color: #6b7280; text-decoration: underline; text-decoration-style: dotted; }
+.confirm-cancel:hover { color: #02484d; }
+/* The words the player has hidden for this starter. */
+.wp-hidden {
+    max-width: 600px;
+    margin: 16px auto 0;
+    padding: 0 12px;
+    box-sizing: border-box;
+    text-align: left;
+}
+.wp-hidden[hidden] { display: none; }
+.wp-hidden-label { display: block; margin-bottom: 6px; font-size: 13px; color: #6b7280; }
+.wp-hidden-chip {
+    min-height: 40px;
+    max-width: 100%;
+    margin: 0 6px 6px 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.wp-hidden-chip.refused { border: 1px solid #ecd3d3; background-color: #fbf0f0; color: #a55; text-decoration: line-through; }
+.wp-hidden-chip.played { border: 1px solid #cfe0e0; background-color: #eef4f4; color: #02484d; }
+
 .copy-feedback {
     position: absolute;
     right: 50%;
@@ -370,6 +457,8 @@
         font-size: 12px;
         padding: 3px 8px;
     }
+    /* Just the number on a phone, so the word has room beside its buttons. */
+    .word-length-unit { display: none; }
 
     .define-link {
         font-size: 11px;
@@ -435,15 +524,18 @@
         <button type="button" class="wp-not-mine" id="wp-not-mine">↩ Not my starter</button></p>
     {% endif %}
 
+    <div class="wp-hidden" id="wp-hidden" hidden>
+        <span class="wp-hidden-label">Hidden words (tap one to bring it back):</span>
+        <span id="wp-hidden-chips"></span>
+    </div>
+
     <div id="results-container" class="results-container">
         <!-- Results will be displayed here -->
     </div>
     
     <div class="copy-hint" id="copy-hint" style="display: none;">
-        Click a word to copy it · Use “Define ↗” to look it up
+        Click a word to copy it · Use “Define ↗” to look it up · ✗ if Wordiply refused it
     </div>
-
-    {% with ad_page='wordiply', ad_gate='#results-container .word-result' %}{% include '_ad_slot.html' %}{% endwith %}
 
     <br>
     <div style="margin: 20px 0; text-align: center;">
@@ -470,6 +562,10 @@
           <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Often not. Players type their starter words into this solver as they play, so once other players have entered today's, it's offered above the box. Tap Load it and its longest words show straight away. If it isn't the starter in your game, tap ↩ Not my starter and type yours.</p>
         </div>
         {% endif %}
+        <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
+          <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">What if Wordiply refuses a word?</p>
+          <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Tap the ✗ on its row and say Wordiply refused it. The word leaves your list, and we take every report into account when updating the word list. Tapped it by mistake? Tap the word under Hidden words to bring it back.</p>
+        </div>
         <div style="padding: 14px 0; border-bottom: 1px solid #e9ecef;">
           <p style="font-weight: 600; font-size: 14px; color: #333; margin: 0 0 6px;">Is this Wordiply solver free?</p>
           <p style="font-size: 14px; color: #555; margin: 0; line-height: 1.6;">Yes, this Wordiply solver is completely free to use with no signup or account required.</p>
@@ -685,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allResults = [];
         if (loadedNote) loadedNote.hidden = true;
         resultsContainer.innerHTML = '';
+        document.getElementById('wp-hidden').hidden = true;
         document.getElementById('copy-hint').style.display = 'none';
         showOffer();
         searchInput.focus();
@@ -700,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (searchString.trim() === '') {
             resultsContainer.innerHTML = '';
+            document.getElementById('wp-hidden').hidden = true;
             return;
         }
 
@@ -741,26 +839,131 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWords();
     }
 
+    // ---- Words Wordiply refused (routes/wordiply.py handle_vote) ----
+    // The ✗ on a row asks first: "refused" reports the word and hides it, "I
+    // played it" only hides it. Hidden words wait as chips above the list,
+    // and a tap brings one back (and takes its report back). They're kept in
+    // this tab, per starter, for the game's day. Players are never told what
+    // a report does to the list.
+    const HIDDEN_KEY = 'wordiplyHidden_v1';
+    let hiddenWords = { day: '', by: {} };
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(HIDDEN_KEY));
+        if (saved && typeof saved.day === 'string' && saved.by && typeof saved.by === 'object') hiddenWords = saved;
+    } catch (_) {}
+
+    // The starter the words on screen are for, or '' (one letter, or not a
+    // starter: those rows have no ✗).
+    function shownStarter() {
+        const letters = shownFor.trim().toLowerCase();
+        return isStarter(letters) ? letters : '';
+    }
+
+    // {word: 'refused' or 'played'} for the starter on screen.
+    function hiddenHere() {
+        if (hiddenWords.day !== gameDay()) hiddenWords = { day: gameDay(), by: {} };
+        const letters = shownStarter();
+        const here = letters && hiddenWords.by[letters];
+        return here && typeof here === 'object' ? here : {};
+    }
+
+    function setHidden(word, how) {
+        const letters = shownStarter();
+        if (!letters) return;
+        const here = Object.assign({}, hiddenHere());
+        if (how) here[word] = how; else delete here[word];
+        hiddenWords.by[letters] = here;
+        try { sessionStorage.setItem(HIDDEN_KEY, JSON.stringify(hiddenWords)); } catch (_) {}
+        renderWords();
+    }
+
+    function sendReport(action, word) {
+        fetch('/wordiply', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: action, word: word, letters: shownStarter() }),
+        }).catch(() => {});   // best-effort, like the server side
+    }
+
+    function renderHidden() {
+        const here = hiddenHere();
+        const list = Object.keys(here).filter(w => /^[a-z]+$/.test(w) && (here[w] === 'refused' || here[w] === 'played'));
+        const box = document.getElementById('wp-hidden');
+        box.hidden = !list.length || !allResults.length;
+        document.getElementById('wp-hidden-chips').replaceChildren(...list.map(w => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'wp-hidden-chip ' + here[w];
+            chip.dataset.word = w;
+            chip.textContent = w.toUpperCase();
+            chip.setAttribute('aria-label', 'Bring back ' + w.toUpperCase());
+            chip.addEventListener('click', () => {
+                if (here[w] === 'refused') sendReport('restore', w);
+                setHidden(w, '');
+            });
+            return chip;
+        }));
+    }
+
+    function askRejected(btn) {
+        const word = btn.dataset.reject;
+        const open = resultsContainer.querySelector('.reject-confirm');
+        if (open) {
+            open.remove();
+            if (open.dataset.word === word) return;
+        }
+        const row = btn.closest('.word-result');
+        const upper = word.toUpperCase();
+        row.insertAdjacentHTML('afterend',
+            '<div class="reject-confirm" data-word="' + word + '" role="group" aria-label="Did Wordiply refuse ' + upper + '?">' +
+            '<span class="reject-confirm-q">Did Wordiply refuse ' + upper + '?</span>' +
+            '<button type="button" class="confirm-refused">✗ Wordiply refused it</button>' +
+            '<button type="button" class="confirm-played">✓ I played it</button>' +
+            '<button type="button" class="confirm-cancel">Cancel</button>' +
+            '</div>');
+        const strip = row.nextElementSibling;
+        strip.addEventListener('click', e => {
+            const answer = e.target.closest('button');
+            if (!answer) return;
+            strip.remove();
+            if (answer.classList.contains('confirm-refused')) {
+                sendReport('reject', word);
+                setHidden(word, 'refused');
+            } else if (answer.classList.contains('confirm-played')) {
+                setHidden(word, 'played');
+            }
+        });
+    }
+
     function renderWords() {
+        renderHidden();
         if (allResults.length === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No words found containing those letters</div>';
             document.getElementById('copy-hint').style.display = 'none';
             return;
         }
 
-        const shown = allResults.slice(0, visibleCount);
+        const here = hiddenHere();
+        const canReject = shownStarter() !== '';
+        // By value, never "is it there": every object has a "constructor", and
+        // so does the word list.
+        const listed = allResults.filter(word => here[word] !== 'refused' && here[word] !== 'played');
+        const shown = listed.slice(0, visibleCount);
         let html = '';
         shown.forEach((word) => {
             html += `
                 <div class="word-result" data-word="${word}">
                     <span class="word-text">${word.toUpperCase()}</span>
-                    <span class="word-length">${word.length} letters</span>
+                    <span class="word-length">${word.length}<span class="word-length-unit"> letters</span></span>
                     <a class="define-link"
                        href="https://en.wiktionary.org/wiki/${word.toLowerCase()}"
                        target="_blank" rel="noopener noreferrer"
                        title="View definition"
                        aria-label="View definition of ${word.toUpperCase()}"
                        onclick="event.stopPropagation()">Define ↗</a>
+                    ${canReject ? `<button type="button" class="reject-btn" data-reject="${word}"
+                       title="Wordiply refused this word: hide it and let us know"
+                       aria-label="Wordiply refused ${word.toUpperCase()}">✗</button>` : ''}
                     <div class="copy-feedback">Copied!</div>
                 </div>
             `;
@@ -778,10 +981,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const define = element.querySelector('.define-link');
             if (define) define.addEventListener('click', maybeLogStarter);
+            const reject = element.querySelector('.reject-btn');
+            if (reject) reject.addEventListener('click', e => {
+                e.stopPropagation();
+                maybeLogStarter();
+                askRejected(reject);
+            });
         });
 
         // "Show more" button when results remain
-        const remaining = allResults.length - visibleCount;
+        const remaining = listed.length - visibleCount;
         if (remaining > 0) {
             const more = Math.min(WORDS_STEP, remaining);
             const btn = document.createElement('button');

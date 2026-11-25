@@ -297,14 +297,31 @@ def length_score(word_length):
     else:
         return 12 + (word_length - 7) * 3  # 3 points per letter beyond 7
 
+# The mark on a row Blossom is likely to reject (see filter_words_blossom_revamp).
+# It never names the word: Helper Mode masks the words, and a label would give
+# one away. The page's script reads the word from the row when it's tapped.
+BLOSSOM_RARE_FLAG = (
+    '<button type="button" class="rare-flag" title="Rare word - Blossom may reject it" '
+    'aria-label="Rare word, Blossom may reject it, tap for details">⚠</button>'
+)
+
+
 def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, used_words=None,
-                                invalid_words=None):
+                                invalid_words=None, pop=None, known=()):
     """
     Enhanced version that includes checkbox column for session-based word tracking
     and supports load more functionality with hyperlinked words.
 
     invalid_words are the words this player flagged as rejected by Blossom; they
     render with the Invalid box ticked.
+
+    With pop (word -> popularity, data.word_pop), a word missing from it gets
+    BLOSSOM_RARE_FLAG in the 🌸 column, unless it is in `known`: words added
+    to Blossom's list, which it has accepted. Over 35 approved boards
+    (2026-10-23 to 11-25), 8.5% of the words this marks in a top 15 were
+    later removed, against 1.1% of the rest, and it marks 38% of those rows.
+    Smush's and Ribbit's "below 2.0" would also mark ordinary words here
+    (timorous, mistrusts).
     """
     if used_words is None:
         used_words = []
@@ -366,6 +383,13 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
         )
     top_df['Invalid'] = invalid_html
 
+    # In the 🌸 column, not beside the word: Helper Mode rewrites the Word cell.
+    if pop is not None:
+        top_df['Pangram'] = [
+            pangram + ('' if word in pop or word in known else BLOSSOM_RARE_FLAG)
+            for word, pangram in zip(top_df['Word'], top_df['Pangram'])
+        ]
+
     # Convert words to hyperlinks that open in new tab
     word_links = []
     for word in top_df['Word']:
@@ -383,11 +407,12 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
     rows = blossom_table.split('</tr>')
     processed_rows = []
     for row in rows:
-        if '<td>Yes</td>' in row:
+        # No closing tag in the match: a rare flag may follow in the cell.
+        if '<td>Yes' in row:
             row = row.replace('<tr>', '<tr class="pangram-row">')
-            row = row.replace('<td>Yes</td>', '<td>🌸</td>')
+            row = row.replace('<td>Yes', '<td>🌸')
         else:
-            row = row.replace('<td>No</td>', '<td></td>')
+            row = row.replace('<td>No', '<td>')
         processed_rows.append(row)
     blossom_table = '</tr>'.join(processed_rows)
 
@@ -414,27 +439,27 @@ def filter_words_for_blossom(words):
 
     return set(filtered_words)
 
-def wordiply_solver(search_string, words, list_len=15):
-
+def wordiply_solver(search_string, words, list_len=15, removed=(), added=()):
+    """The longest words holding search_string, longest first, at most
+    list_len. Never the string itself: Wordiply refuses its starter word on
+    its own. `removed` words are left out and `added` ones join in as the
+    list is searched, so no corrected copy of it is held in memory."""
     search_string = search_string.lower().strip()
-    
+
     # Return empty list if no search string
     if not search_string:
         return []
-    
-    valid_words = []
-    
+
+    valid_words = {w for w in added if search_string in w}
     for word in words:
         word_str = str(word).lower()
         # Check if the search string appears in the word
-        if search_string in word_str:
-            valid_words.append(word_str)
-    
-    # Sort by length (longest first), then alphabetically for ties
-    valid_words.sort(key=lambda x: (-len(x), x))
-    
-    # Return top results
-    return valid_words[:list_len]
+        if search_string in word_str and word_str not in removed:
+            valid_words.add(word_str)
+    valid_words.discard(search_string)
+
+    # Longest first, then alphabetically for ties
+    return sorted(valid_words, key=lambda x: (-len(x), x))[:list_len]
 
 # Letter values used by Smush (hankgreen.com/smush) - Scrabble-style points.
 SMUSH_LETTER_VALUES = {

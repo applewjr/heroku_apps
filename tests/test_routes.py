@@ -558,13 +558,13 @@ def test_smush_page_ships_the_played_word_entry_box(smush_client):
     assert 'class="word-entry" id="word-entry"' in html, "entry panel starts expanded"
 
 
-def test_smush_lists_start_short_but_all8_stays_whole(smush_client):
+def test_smush_lists_show_rows_in_steps_but_all8_stays_whole(smush_client):
     # A sorted list shows WORDS_FIRST rows, and every reset (new results, a
     # new sort) goes back to that; Show more adds WORDS_STEP. The All 8 plan
     # is the exception, always shown whole: renderPlan never reads the count.
     import re
     html = smush_client.get("/smush").get_data(as_text=True)
-    assert "const WORDS_FIRST = 10;" in html
+    assert "const WORDS_FIRST = 25;" in html
     assert "const WORDS_STEP = 25;" in html
     resets = re.findall(r"visibleCount = (\w+);", html)
     assert resets and set(resets) == {"WORDS_FIRST"}

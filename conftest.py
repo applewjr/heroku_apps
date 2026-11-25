@@ -144,14 +144,50 @@ def no_four_by_six_db(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def no_wordiply_db(monkeypatch):
-    """Keep /wordiply's today's starter off the database, for every test.
+def no_chainle_best_db(monkeypatch):
+    """Keep /chainle's confirmed words off the database, for every test.
 
-    Starters are logged to and read from wordiply_boards, and
-    ``secret_pass.py`` points at the production JawsDB. Every cursor in
-    routes/wordiply.py fails here, as in an outage (the page fails safe),
-    and its memo starts empty. tests/test_wordiply_boards.py puts a table
+    Every solve looks up its round in the memo of chainle_best, and
+    ``secret_pass.py`` points at the production JawsDB. The memo starts
+    read and empty here. tests/test_chainle_best.py fills it, or lets it
+    read a table of its own.
+    """
+    import routes.chainle as chainle
+
+    monkeypatch.setattr(chainle, "_best", {"value": {}, "expires": float("inf"), "gen": 0, "reads": 0, "read": 0})
+
+
+@pytest.fixture(autouse=True)
+def no_gtp_boards_db(monkeypatch):
+    """Keep /guess_the_phrase's today's board off the database, for every
+    test.
+
+    Boards are logged to and read from gtp_boards, and ``secret_pass.py``
+    points at the production JawsDB. Every cursor in
+    routes/guess_the_phrase.py fails here, as in an outage (the page fails
+    safe), and its memo starts empty. tests/test_gtp_boards.py puts a table
     of its own in place of these.
+    """
+    import routes.guess_the_phrase as gtp
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(gtp, "db_cursor", down)
+    monkeypatch.setattr(gtp, "_board_cache", {})
+
+
+@pytest.fixture(autouse=True)
+def no_wordiply_db(monkeypatch):
+    """Keep /wordiply off the database, for every test.
+
+    Starters are logged to and read from wordiply_boards, every search reads
+    Wordiply's word corrections (through crowd.py), and ``secret_pass.py``
+    points at the production JawsDB. Every cursor in routes/wordiply.py fails
+    here, as in an outage (the page fails safe), its starter memo starts
+    empty, and there are no corrections to read. tests/test_wordiply_boards.py
+    and tests/test_wordiply_crowd.py put tables of their own in place of
+    these.
     """
     import routes.wordiply as wordiply
 
@@ -160,6 +196,7 @@ def no_wordiply_db(monkeypatch):
 
     monkeypatch.setattr(wordiply, "db_cursor", down)
     monkeypatch.setattr(wordiply, "_starter_cache", {})
+    monkeypatch.setattr(wordiply, "_corrections", {"value": (frozenset(), frozenset()), "expires": float("inf")})
 
 
 @pytest.fixture(autouse=True)
