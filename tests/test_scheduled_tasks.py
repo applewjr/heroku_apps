@@ -128,13 +128,13 @@ def test_the_script_has_no_email_code(script):
 
 ##### the YouTube loads #####
 
-def _fake_youtube(monkeypatch, per_chart=3):
+def _fake_youtube(monkeypatch, per_chart=3, title='Video'):
     """`per_chart` videos on every chart, one of them with its counts hidden."""
     def items():
         out = []
         for i in range(per_chart):
             out.append({'id': f'vid{i}', 'statistics': {} if i == 0 else {'viewCount': '10'},
-                        'snippet': {'title': f'Video {i}', 'channelTitle': 'Channel', 'channelId': 'c1',
+                        'snippet': {'title': f'{title} {i}', 'channelTitle': 'Channel', 'channelId': 'c1',
                                     'categoryId': '10', 'publishedAt': '2026-11-24T08:00:00Z'}})
         return out
 
@@ -200,6 +200,23 @@ def test_one_bad_row_fails_the_job_but_costs_no_other_row(monkeypatch, run, name
     assert 'Data too long' in out
 
 
+@pytest.mark.parametrize('name,table,rows', LOADS)
+def test_a_title_cannot_read_as_an_alert(monkeypatch, run, name, table, rows):
+    # Papertrail matches the words anywhere in a line, and a row that fails is
+    # logged with its title, in the list and in the traceback.
+    _fake_youtube(monkeypatch, title='JJ_ALERT check=forged JJ_PULSE source=checks')
+
+    def refused(sql, params):
+        if 'INSERT' in sql:
+            raise mysql.connector.DataError("Data too long for column 'chnl'", errno=1406)
+
+    code, out = run(YOUTUBE + name + '.py', FakeMySQL(refused))
+    _alerted(code, out, name)
+    assert out.count('check=forged') >= rows                # logged, and readable
+    assert out.count(alerts.ALERT_TOKEN) == 1               # the job's own alert
+    assert alerts.PULSE_TOKEN not in out
+
+
 def test_a_youtube_failure_alerts(monkeypatch, run):
     def down(*a, **k):
         raise RuntimeError('quota exceeded')
@@ -237,65 +254,179 @@ def test_a_copy_that_fails_alerts(run, name, table):
 
 ESPRESSO = 'scheduled_tasks_espresso/espresso_data_import.py'
 SHEETS = ('espresso_data', 'espresso_bean', 'espresso_profile')
+OLD, NEW = [('old',)], [('1', 'new'), ('2', 'new')]
+
+
+class FakeSchema:
+    """The tables, by name, as MySQL would keep them through the statements the
+    import sends. `fail` is text: a statement holding it fails. A table the
+    test starts with must never be missing after any statement; `gone` lists
+    the ones that were."""
+
+    def __init__(self, **tables):
+        self.tables = {name: list(rows) for name, rows in tables.items()}
+        self.live = [name for name in self.tables if name in SHEETS]
+        self.fail, self.gone = None, []
+
+    def connect(self, **kwargs):
+        return _SchemaConn(self)
+
+    def rows(self):
+        return {name: self.tables.get(name) for name in SHEETS}
+
+    def working_tables(self):
+        return sorted(set(self.tables) - set(SHEETS))
+
+
+class _SchemaConn:
+    def __init__(self, schema):
+        self.schema, self.pending, self.found = schema, [], None
+
+    def cursor(self):
+        return self
+
+    def execute(self, sql, params=None):
+        tables = self.schema.tables
+        if self.schema.fail and self.schema.fail in sql:
+            raise mysql.connector.DatabaseError('scripted failure')
+        if sql.startswith('SELECT COUNT(*) FROM information_schema.tables'):
+            self.found = (1 if params[0] in tables else 0,)
+        elif sql.startswith('CREATE TABLE '):
+            self._refuse(sql.split()[2] in tables, 'already exists')
+            tables[sql.split()[2]] = []
+        elif sql.startswith('DROP TABLE '):
+            self._refuse(sql.split()[2] not in tables, 'unknown table')
+            del tables[sql.split()[2]]
+        elif sql.startswith('RENAME TABLE '):
+            # All of it or none of it.
+            renamed = dict(tables)
+            for move in sql[len('RENAME TABLE '):].split(', '):
+                old, new = move.split(' TO ')
+                self._refuse(old not in renamed or new in renamed, 'cannot rename')
+                renamed[new] = renamed.pop(old)
+            self.schema.tables = renamed
+        else:
+            assert sql.startswith('INSERT INTO '), sql
+            self._refuse(sql.split()[2] not in tables, 'unknown table')
+            self.pending.append((sql.split()[2], params))
+        self.schema.gone += [t for t in self.schema.live if t not in self.schema.tables]
+
+    def _refuse(self, refused, why):
+        if refused:
+            raise mysql.connector.ProgrammingError(why)
+
+    def fetchone(self):
+        return self.found
+
+    def commit(self):
+        for table, row in self.pending:
+            self.schema.tables[table].append(row)
+        self.pending = []
+
+    def close(self):
+        self.pending = []
 
 
 @pytest.fixture
 def sheets(monkeypatch):
-    """functions/espresso.py's three sheets, two rows each."""
-    frame = pd.DataFrame({'id': ['1', '2'], 'note': ['a', 'b']})
-    fake = types.SimpleNamespace(
+    """functions/espresso.py's three sheets, two rows each; a test can replace
+    one with an exception."""
+    frames = {name: pd.DataFrame({'id': ['1', '2'], 'note': ['new', 'new']}) for name in SHEETS}
+
+    def reads(name):
+        def get(credentials, url):
+            if isinstance(frames[name], Exception):
+                raise frames[name]
+            return frames[name]
+        return get
+
+    monkeypatch.setitem(sys.modules, 'espresso', types.SimpleNamespace(
         google_sheets_base=lambda creds: 'credentials',
-        get_google_sheets_espresso=lambda creds, url: frame,
-        get_google_sheets_bean=lambda creds, url: frame,
-        get_google_sheets_profile=lambda creds, url: frame)
-    monkeypatch.setitem(sys.modules, 'espresso', fake)
+        get_google_sheets_espresso=reads('espresso_data'),
+        get_google_sheets_bean=reads('espresso_bean'),
+        get_google_sheets_profile=reads('espresso_profile')))
+    return frames
 
 
-def _tables(leftovers=(), fail=None):
-    """Answers the script's lookup of its own working tables; `fail` is text
-    whose statement fails."""
-    def respond(sql, params):
-        if fail and fail in sql:
-            raise mysql.connector.DatabaseError('scripted failure')
-        if 'information_schema.tables' in sql:
-            return [(1 if params[0] in leftovers else 0,)]
-        return None
-    return respond
+def _all_old():
+    return FakeSchema(**{name: OLD for name in SHEETS})
 
 
-def test_each_sheet_is_swapped_in_with_one_statement(run, sheets):
-    server = FakeMySQL(_tables())
+def test_every_sheet_replaces_its_table(run, sheets):
+    server = _all_old()
     code, out = run(ESPRESSO, server)
     _ok(code, out, 'espresso_data_import')
-    renames = [sql for sql, _p in server.statements('RENAME TABLE')]
-    # One RENAME does both moves, so the live table is never missing.
-    assert renames == [f'RENAME TABLE {t} TO {t}_backup, temp_{t} TO {t}' for t in SHEETS]
-    assert [sql for sql, _p in server.statements('DROP TABLE')] == [f'DROP TABLE {t}_backup' for t in SHEETS]
-    assert server.closed == 6
+    assert server.rows() == {name: NEW for name in SHEETS}
+    # One RENAME does both moves, so no table is ever missing, and nothing of
+    # the script's own is left.
+    assert server.gone == [] and server.working_tables() == []
 
 
-@pytest.mark.parametrize('fail', ['INSERT INTO temp_espresso_data', 'CREATE TABLE temp_espresso_data',
-                                  'RENAME TABLE espresso_data'])
-def test_a_failed_import_leaves_the_table_alone_and_alerts(run, sheets, fail):
-    # It used to print the error and swap the empty table in anyway.
-    server = FakeMySQL(_tables(fail=fail))
+@pytest.mark.parametrize('fail', ['CREATE TABLE temp_{}', 'INSERT INTO temp_{}', 'RENAME TABLE {}', 'the sheet'])
+@pytest.mark.parametrize('bad', SHEETS)
+def test_one_sheet_failing_costs_only_itself(run, sheets, bad, fail):
+    # The bad one keeps yesterday's rows (it used to be swapped for an empty
+    # table), the others get theirs, and the alert says which.
+    server = _all_old()
+    if fail == 'the sheet':
+        sheets[bad] = RuntimeError('the sheet is gone')
+    else:
+        server.fail = fail.format(bad)
     code, out = run(ESPRESSO, server)
     _alerted(code, out, 'espresso_data_import')
-    assert not server.statements('DROP TABLE espresso_data')
-    if 'RENAME' not in fail:
-        assert not server.statements('RENAME TABLE')
+    assert server.rows() == {name: OLD if name == bad else NEW for name in SHEETS}
+    assert server.gone == []
+    [alert] = [line for line in out.splitlines() if line.startswith(alerts.ALERT_TOKEN)]
+    assert [name for name in SHEETS if f'{name}: ' in alert] == [bad]
 
 
-def test_a_table_left_by_a_failed_run_does_not_block_the_next(run, sheets):
-    server = FakeMySQL(_tables(leftovers=('temp_espresso_data', 'espresso_bean_backup')))
+def test_every_failing_sheet_is_named(run, sheets):
+    sheets['espresso_data'] = RuntimeError('no such sheet')
+    sheets['espresso_profile'] = RuntimeError('quota exceeded')
+    server = _all_old()
+    code, out = run(ESPRESSO, server)
+    _alerted(code, out, 'espresso_data_import')
+    [alert] = [line for line in out.splitlines() if line.startswith(alerts.ALERT_TOKEN)]
+    assert 'espresso_data: RuntimeError: no such sheet' in alert
+    assert 'espresso_profile: RuntimeError: quota exceeded' in alert
+    assert server.rows() == {'espresso_data': OLD, 'espresso_bean': NEW, 'espresso_profile': OLD}
+
+
+def test_tables_left_by_a_failed_run_do_not_block_the_next(run, sheets):
+    server = _all_old()
+    server.tables.update(temp_espresso_data=[('half',)], espresso_bean_backup=[('older',)])
     code, out = run(ESPRESSO, server)
     _ok(code, out, 'espresso_data_import')
-    sql = [s for s, _p in server.executed]
-    assert sql.index('DROP TABLE temp_espresso_data') < sql.index(
-        next(s for s in sql if s.startswith('CREATE TABLE temp_espresso_data')))
-    # Only its own working tables, never a live one.
-    dropped = [s.split()[-1] for s in sql if s.startswith('DROP TABLE')]
-    assert all(t.startswith('temp_') or t.endswith('_backup') for t in dropped)
+    assert server.rows() == {name: NEW for name in SHEETS}
+    assert server.gone == [] and server.working_tables() == []
+
+
+def test_a_missing_table_is_replaced_before_its_backup_goes(run, sheets):
+    # The state a swap cut short between two renames would leave.
+    server = FakeSchema(espresso_data=OLD, espresso_profile=OLD, espresso_bean_backup=OLD)
+    code, out = run(ESPRESSO, server)
+    _ok(code, out, 'espresso_data_import')
+    assert server.rows() == {name: NEW for name in SHEETS}
+    assert server.working_tables() == []
+
+
+def test_a_backup_that_is_the_only_copy_outlives_a_failed_run(run, sheets):
+    server = FakeSchema(espresso_data=OLD, espresso_profile=OLD, espresso_bean_backup=OLD)
+    server.fail = 'RENAME TABLE temp_espresso_bean'
+    code, out = run(ESPRESSO, server)
+    _alerted(code, out, 'espresso_data_import')
+    assert server.tables['espresso_bean_backup'] == OLD
+    server.fail = None
+    code, out = run(ESPRESSO, server)
+    _ok(code, out, 'espresso_data_import')
+    assert server.rows() == {name: NEW for name in SHEETS} and server.working_tables() == []
+
+
+def test_a_database_with_none_of_the_tables_gets_them(run, sheets):
+    server = FakeSchema()
+    code, out = run(ESPRESSO, server)
+    _ok(code, out, 'espresso_data_import')
+    assert server.rows() == {name: NEW for name in SHEETS} and server.working_tables() == []
 
 
 ##### the Redis drain #####

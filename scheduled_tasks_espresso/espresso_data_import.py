@@ -1,11 +1,12 @@
 import mysql.connector
 import os
 import sys
+import traceback
 
-# Copies the three espresso sheets into MySQL. No email since 2026-11-25: any
-# error raises, which run_job turns into an alert and which leaves yesterday's
-# tables as they were, and a run that never happened is caught by the
-# espresso_import check in datasets/health_checks.yaml.
+# Copies the three espresso sheets into MySQL. No email since 2026-11-25: an
+# error leaves that sheet's table as it was and, once the others have had their
+# turn, raises, which run_job turns into an alert. A run that never happened is
+# caught by the espresso_import check in datasets/health_checks.yaml.
 
 project_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 functions_path = os.path.join(project_path, 'functions')
@@ -45,13 +46,17 @@ else:
     GOOGLE_SHEETS_URL_BEAN = secret_pass.GOOGLE_SHEETS_URL_BEAN
     GOOGLE_SHEETS_URL_PROFILE = secret_pass.GOOGLE_SHEETS_URL_PROFILE
 
-def drop_leftover(cursor, table_name):
-    """Drop one of this script's own working tables, if a run that failed
-    partway left it behind. Looked up first: DROP TABLE IF EXISTS on a missing
-    table is a warning, which raise_on_warnings makes an error."""
+def table_exists(cursor, table_name):
     cursor.execute("SELECT COUNT(*) FROM information_schema.tables "
                    "WHERE table_schema = DATABASE() AND table_name = %s", (table_name,))
-    if cursor.fetchone()[0]:
+    return bool(cursor.fetchone()[0])
+
+
+def drop_leftover(cursor, table_name):
+    """Drop one of this script's own working tables, if it is there. Looked up
+    first: DROP TABLE IF EXISTS on a missing table is a warning, which
+    raise_on_warnings makes an error."""
+    if table_exists(cursor, table_name):
         cursor.execute(f"DROP TABLE {table_name}")
 
 
@@ -83,13 +88,18 @@ def replace_mysql_table(config, table_name, temp_table_name):
     try:
         cursor = connection.cursor()
 
-        # Swap the new table in with one statement, so there is never a moment
-        # (or a half-failed run) with no table, then drop the old one.
         backup_table_name = f"{table_name}_backup"
+        if table_exists(cursor, table_name):
+            # Swap the new table in with one statement, so there is never a
+            # moment (or a half-failed run) with no table.
+            drop_leftover(cursor, backup_table_name)
+            cursor.execute(f"RENAME TABLE {table_name} TO {backup_table_name}, "
+                           f"{temp_table_name} TO {table_name}")
+        else:
+            # No table to swap out, so any backup is the only copy there is:
+            # it stays until the new one is in place.
+            cursor.execute(f"RENAME TABLE {temp_table_name} TO {table_name}")
         drop_leftover(cursor, backup_table_name)
-        cursor.execute(f"RENAME TABLE {table_name} TO {backup_table_name}, "
-                       f"{temp_table_name} TO {table_name}")
-        cursor.execute(f"DROP TABLE {backup_table_name}")
 
         connection.commit()
         print(f"{table_name} replaced with {temp_table_name} successfully.")
@@ -99,17 +109,23 @@ def replace_mysql_table(config, table_name, temp_table_name):
 
 google_credentials = espresso.google_sheets_base(GOOGLE_SHEETS_JSON)
 
-df_espresso_initial = espresso.get_google_sheets_espresso(google_credentials, GOOGLE_SHEETS_URL_ESPRESSO)
-print(f'pull espresso data to df complete. {len(df_espresso_initial) = }')
-write_df_to_mysql(df_espresso_initial, config, "temp_espresso_data")
-replace_mysql_table(config, "espresso_data", "temp_espresso_data")
+# (sheet, how it is read, where it is, the table it replaces)
+SHEETS = (
+    ('espresso', espresso.get_google_sheets_espresso, GOOGLE_SHEETS_URL_ESPRESSO, 'espresso_data'),
+    ('bean', espresso.get_google_sheets_bean, GOOGLE_SHEETS_URL_BEAN, 'espresso_bean'),
+    ('profile', espresso.get_google_sheets_profile, GOOGLE_SHEETS_URL_PROFILE, 'espresso_profile'),
+)
 
-df_bean = espresso.get_google_sheets_bean(google_credentials, GOOGLE_SHEETS_URL_BEAN)
-print(f'pull bean data to df complete. {len(df_bean) = }')
-write_df_to_mysql(df_bean, config, "temp_espresso_bean")
-replace_mysql_table(config, "espresso_bean", "temp_espresso_bean")
-
-df_profile = espresso.get_google_sheets_profile(google_credentials, GOOGLE_SHEETS_URL_PROFILE)
-print(f'pull profile data to df complete. {len(df_profile) = }')
-write_df_to_mysql(df_profile, config, "temp_espresso_profile")
-replace_mysql_table(config, "espresso_profile", "temp_espresso_profile")
+errors = []
+for sheet, get_sheet, url, table in SHEETS:
+    # One sheet's trouble doesn't cost the others their copy.
+    try:
+        df = get_sheet(google_credentials, url)
+        print(f'pull {sheet} data to df complete. {len(df) = }')
+        write_df_to_mysql(df, config, f"temp_{table}")
+        replace_mysql_table(config, table, f"temp_{table}")
+    except Exception as e:
+        traceback.print_exc()
+        errors.append(f'{table}: {type(e).__name__}: {e}')
+if errors:
+    raise RuntimeError('; '.join(errors))

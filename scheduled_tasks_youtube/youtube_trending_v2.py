@@ -164,7 +164,9 @@ for r in videos_df.itertuples(index=False):
         if e.errno == errorcode.ER_DUP_ENTRY:
             duplicates += 1
         else:
-            failed.append(f"rank {r.vid_rank} - {r.video}: {e}")
+            # Logged below, and a title is anyone's text: the alert words are
+            # broken in it, as monitoring/alerts.py breaks them.
+            failed.append(f"rank {r.vid_rank} - {r.video}: {e}".replace("JJ_", "JJ."))
 
 # Close the cursor and the database connection
 cursor.close()
