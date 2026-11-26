@@ -76,6 +76,41 @@
     font-size: 11px;
     text-decoration: underline;
 }
+
+/* The Yahoo repeat: last month's boards, one tap to approve for the day. */
+.repeat-card {
+    margin: 6px 0 10px;
+    padding: 6px 10px;
+    border: 1px solid #cdd8d7;
+    border-left: 4px solid #218838;
+    border-radius: 6px;
+    text-align: left;
+}
+
+.repeat-boards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 6px 0 2px;
+}
+
+.repeat-board {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.repeat-board .btn {
+    margin: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.repeat-of {
+    font-size: 12px;
+    color: #02484d;
+    font-weight: normal;
+}
 </style>
 
 
@@ -136,7 +171,7 @@
                 <p class="crowd-note">Puzzmo and Yahoo Games (powered by Puzzmo) each have their own daily board - both are linked at the top. Players use both, and fan clones too, so a day can have more than one real board.</p>
                 <p class="crowd-note">Boards players entered themselves, logged when they solve one they typed, or one they loaded from other players and then changed. A board is served once {{ serve_majority }} players enter the same letters (each link kept if more than half of them drew it), or as soon as {{ serve_identical }} players' boards match exactly. Only finished boards count: every tile linked. A player's board only ever gains links: links they erase later (keeping up with their game) are kept, and a loaded board that only lost links isn't logged. Players on one network (an IPv6 /48, or one IPv4 address) count as one. Turned or mirrored entries are the same board, shown here and served the way you approved it, or else the way most of its players entered it. Click a board to open it in the board editor, where you can check it, fix any link and approve it.</p>
                 <p class="crowd-note">Each day lists the boards logged on players' own dates; Served are the boards offered to players on that date{% if not shared_live %} (on /ribbit_admin/board only, until it goes live){% endif %}, for each to pick the one that matches their game, since more than one can be real on a day: your approval first, then any board the players settled on their own, most players first, at most {{ todays_boards_max }}. Players counts each player once, across every day the board was entered (for a board first seen earlier, only that day's). Remove deletes that day's entries of the board.</p>
-                <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add on a board you entered yourself on /ribbit (Add serves the most recently updated board for those letters, its time under the button, and approves nothing if a newer board came in before you pressed it). Either way the board is served to every player straight away, first of the day's boards, whatever players drew for those letters. Boards the players settled on their own are still offered next to it. Every board you approve for a day is served, in the order you approved them, so you can approve both Puzzmo's and Yahoo's. Undo takes the approval back and leaves the players' boards alone. Ribbit reuses boards, so a board first seen on an earlier day is judged on that day's entries alone: your approval for that day, or that day's players settling it as above. One player replaying an archive puzzle doesn't serve it, and typing its letters still fills in its links.</p>
+                <p class="crowd-note">Approve: enter your game's board with Enter your board below, or press Add on a board you entered yourself on /ribbit (Add serves the most recently updated board for those letters, its time under the button, and approves nothing if a newer board came in before you pressed it). Either way the board is served to every player straight away, first of the day's boards, whatever players drew for those letters. Boards the players settled on their own are still offered next to it. Every board you approve for a day is served, in the order you approved them, so you can approve both Puzzmo's and Yahoo's. Undo takes back that day's approval and leaves the players' boards alone, and the same board's approvals on other days. Ribbit reuses boards, so a board first seen on an earlier day is judged on that day's entries alone: your approval for that day, or that day's players settling it as above. One player replaying an archive puzzle doesn't serve it, and typing its letters still fills in its links.</p>
                 <p class="crowd-note">Enter your board opens Ribbit's own board, the solver's editor: type the letters, drag the links across a row or one tile at a time, rotate it to match. Approve is under the board, and it comes back here when it's done.</p>
             </details>
         </div>
@@ -151,6 +186,33 @@
             <a href="/ribbit_admin/board" class="btn btn-success">Enter your board</a>
             <span class="crowd-note">or click a board below to start from it.</span>
         </div>
+
+        {% for card in repeat_cards %}
+        <div class="repeat-card">
+            <div class="repeat-head">
+                <strong>Likely Yahoo board for {{ card.day.strftime('%m-%d') }}:</strong>
+                one of the boards you approved on {{ card.from.strftime('%m-%d') }}
+                <span class="crowd-note">(came back {{ repeat_record }} of the last {{ repeat_record_window }} days)</span>
+            </div>
+            <div class="repeat-boards">
+                {% for b in card.boards %}
+                <div class="repeat-board">
+                    <a class="board-open" href="/ribbit_admin/board?letters={{ b.letters }}&amp;day={{ card.day.strftime('%Y-%m-%d') }}"
+                       title="Open this board in the board editor to check it"><span class="mini-grid">{% for row in b.grid %}{{ row }}<br>{% endfor %}</span><span class="board-open-label">Open in editor</span></a>
+                    <form method="POST" action="/ribbit_admin/approve_repeat" class="remove-form">
+                        <input type="hidden" name="letters" value="{{ b.letters }}">
+                        <input type="hidden" name="played_on" value="{{ card.day.strftime('%Y-%m-%d') }}">
+                        {{ keep_view() }}
+                        <button type="submit" class="btn btn-success">Approve for {{ card.day.strftime('%m-%d') }}</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            <details class="admin-help"><summary>Why these boards</summary>
+                <p class="crowd-note">Yahoo's Ribbit serves old boards again: since 11-18, one of each day's boards has been exactly a board you approved {{ repeat_lag }} days before. Which of that day's boards comes back isn't known, so both are here. Approve the one your Yahoo game shows; it's served at once, as you approved it then, and this card goes. Nothing is served until you do. The card shows only while a board came back on at least one of the last {{ repeat_record_window }} days.</p>
+            </details>
+        </div>
+        {% endfor %}
 
         {% for d in days %}
         <h3>{{ d.day.strftime('%Y-%m-%d') }}</h3>
@@ -176,7 +238,7 @@
                     <td>{{ g.players }}</td>
                     <td>{{ g.half_drawn }}</td>
                     <td>{{ g.agreed }} / {{ g.tied }}</td>
-                    <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                    <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}{% if g.repeat_of %}<br><span class="repeat-of">Yahoo repeat of {{ g.repeat_of.strftime('%m-%d') }}</span>{% endif %}</td>
                     <td class="when">
                         {{ g.first_seen.strftime('%m-%d') }}<br>
                         {{ g.last_update.strftime('%m-%d %H:%M') }}
@@ -187,6 +249,7 @@
                         <span class="when">{{ g.approved_at.strftime('%m-%d %H:%M') }}</span><br>
                         <form method="POST" action="/ribbit_admin/unapprove_board" class="remove-form">
                             <input type="hidden" name="letters" value="{{ g.letters }}">
+                            <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
                             {{ keep_view() }}
                             <button type="submit" class="btn btn-secondary">Undo</button>
                         </form>

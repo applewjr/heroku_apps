@@ -177,7 +177,7 @@ idle checks depend on.
 |---|---|
 | `alerts.py` | `alert()`, `pulse()`, `alert_throttled()`. Scrubbing and rate limiting. No import side effects. |
 | `run_job.py` | Runs an existing scheduled script under `runpy`, adding a failure alert. No edits to the script. |
-| `run_checks.py` | Hourly checks against JawsDB, Redis and the live site. Refuses any check SQL that is not a SELECT. |
+| `run_checks.py` | Hourly checks against JawsDB and the live site. Refuses any check SQL that is not a SELECT. |
 | `daily_digest.py` | Email, twice a day: every check value, latency, storage, feedback, what players changed in the word lists. A second notification channel that does not depend on Papertrail. |
 | `../datasets/health_checks.yaml` | The SQL checks: SQL, threshold, severity, active window. |
 | `../datasets/health_web.yaml` | The web probes: path, latency ceiling, expected content. |
@@ -254,13 +254,12 @@ their place:
 | youtube_backup_v2 | `job:youtube_backup_v2` | `youtube_backup` |
 | youtube_backup_revamp_v3 | `job:youtube_backup_revamp_v3` | `youtube_revamp_backup` |
 | espresso_data_import | `job:espresso_data_import` | `espresso_import` |
-| redis_wordle | `job:redis_wordle` | `redis_drain` |
 | mtg_prices_bsky | its own `FAILED:` / `WARNING:` email, and `job:mtg_prices_bsky` | its daily email, which it still sends |
 
 For the middle column to work a script has to **raise** when its work didn't
-get done. The espresso import and the Redis drain used to catch their errors,
-print them and finish, and the YouTube loads called every insert error a
-duplicate; all of them raise now. A test runs each script with fakes and checks
+get done. The espresso import and the Redis drain (retired 2026-11-26) used to
+catch their errors, print them and finish, and the YouTube loads called every
+insert error a duplicate; all of them raise now. A test runs each script with fakes and checks
 both halves (`tests/test_scheduled_tasks.py`).
 
 Re-point each command through the wrapper. Every entry already carries a
@@ -277,7 +276,6 @@ as the command, so there is no flag-parsing ambiguity to protect against. (The
 | youtube_trending_revamp_v3 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_trending_revamp_v3.py` |
 | youtube_backup_v2 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_v2.py` |
 | youtube_backup_revamp_v3 | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_youtube/youtube_backup_revamp_v3.py` |
-| redis_wordle | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_redis/redis_wordle.py` |
 | espresso_data_import | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_espresso/espresso_data_import.py` |
 | mtg_prices_bsky | `timeout -s INT -k 60 600 python -m monitoring.run_job scheduled_tasks_mtg/mtg_prices_bsky.py` |
 
@@ -348,9 +346,9 @@ What `-s INT` buys on top of that is diagnosis and cleanup:
 `-k 60` is cheaper insurance here than it is for the YouTube scripts: nothing
 in `run_checks` uses a bare `except:`, every handler is `except Exception`,
 and `KeyboardInterrupt` is not an `Exception` subclass, so SIGINT always
-lands. It guards only against a third-party library (mysql-connector, redis,
+lands. It guards only against a third-party library (mysql-connector,
 requests) swallowing the interrupt internally, and it keeps one convention
-across all eight Scheduler entries for 40 seconds of worst-case runtime.
+across every Scheduler entry for 40 seconds of worst-case runtime.
 
 Cost, measured on 2026-09-26: **157 ms of work, 1.4 s of dyno lifecycle**
 start to finish (an earlier ~20 s-per-run estimate here was about 15x
@@ -446,8 +444,7 @@ flag.
 
 That prints the same `ok`/`skip` lines and closing `JJ_PULSE` a scheduled run
 would, through the same log drain, so it satisfies step 7 in seconds. It is
-read-only - the runner refuses any check SQL that is not a `SELECT`, and
-touches Redis only through `ping()` and `xlen()` - so it is safe to run
+read-only - the runner refuses any check SQL that is not a `SELECT` - so it is safe to run
 against prod as often as you like.
 
 Expect no alerts and a few skips on a healthy system: `db_size_mb` runs only at
@@ -502,14 +499,11 @@ at least daily (and on every deploy) and the first request after a boot pays
 for `data.py` loading its CSVs, so one slow sample is a cold start rather than
 evidence.
 
-Four more are Python rather than SQL, so they live in `run_checks.py` and are
+One more is Python rather than SQL, so it lives in `run_checks.py` and is
 easy to miss when reading the YAML:
 
 | Check | What it proves |
 |---|---|
-| `redis_up` | Redis answers `ping()`. Wordle and antiwordle logging goes through it, so silence there is silent data loss. |
-| `redis_backlog` | `XLEN` on `wordle_logging` and `antiwordle_logging` is under `REDIS_BACKLOG_MAX` (20000). A growing backlog means `redis_wordle.py` is no longer draining. |
-| `redis_drain` | Each stream's oldest entry is at most `REDIS_OLDEST_MAX_HOURS` (12) old, judged at 04:00-05:00 PST, after the nightly drain. Older means the drain did not run or left the stream uncleared, long before the backlog would show it. |
 | `checks_slow` | The whole run exceeded `RUN_BUDGET_MS` (30s) **while every other check passed**. Silent when anything else failed, since a probe timing out costs 15 seconds on its own and already explains the time. Probe attempts that were thrown away and tried again are left out of the budget: on 2026-10-29 a few responses lost at Cloudflare (15s timeout + 2s pause each, all recovered) pushed passing runs to ~70s and emailed twice while the site served normally. |
 
 The SELECT-only guard on YAML checks is a literal prefix test, not a parser: a
@@ -626,6 +620,11 @@ what the digest was added to cover.
 
 ### 5. Storage - the numbers as of 2026-09-23
 
+`wordle_revamp_clicks` and `antiwordle_revamp_clicks` were retired on
+2026-11-26 with the Wordle/Antiwordle logging
+(`mysql_tables/wordle_logging_retire.sql`). They stay in the notes below as
+history: the purge lessons hold for any table.
+
 **330.1 MB of the plan's 1024 MB**, so 693.9 MB of headroom - down from 56% of
 quota to 32%. Three cleanups got it there:
 
@@ -645,8 +644,6 @@ the windows a purge can use without breaking a dashboard, worked out on
 |---|---|---|
 | `app_visits` | 90 days | Deepest view lookback is 28 days (`vw_prod_blossom_search_source`) |
 | `blossom_solver_clicks` | 180 days | Views look back 28-29 days; the margin preserves trend comparisons |
-| `wordle_revamp_clicks` | 180 days | No view reads this today |
-| `antiwordle_revamp_clicks` | 180 days | No view reads this today |
 
 `youtube_trending` and `youtube_trending_revamp` are deliberately absent: they
 are the actual analytics dataset, `functions/youtube_stats.py` does 30-day
@@ -735,8 +732,8 @@ Three advantages over `DELETE` then `OPTIMIZE`: the old data survives until
 the explicit `DROP`, so there is a rollback point; the `DROP` frees space
 instantly with no rebuild and no stats-cache ambiguity; and it only writes the
 rows being kept. `CREATE TABLE ... LIKE` copies indexes but not foreign keys
-or triggers - neither exists on this table. Run it outside
-`redis_wordle.py`'s nightly window so an insert cannot land in the old table.
+or triggers - neither exists on this table. Run it when nothing is writing
+to the table, so an insert cannot land in the old one.
 
 #### Dead archived tables: 37.6 MB left
 
@@ -923,17 +920,15 @@ separately and neither of which is the code.
 | **Dropped archived tables** | **Not reversible.** Restore from the mysqldump. `spotify_playlists` was dropped 2026-09-23. |
 
 Nothing in `monitoring/` writes. `run_checks.py` refuses any check SQL that is
-not a `SELECT`, and it touches Redis only through `ping()` and `xlen()`. There
-is no delete path anywhere in the package.
+not a `SELECT`. There is no delete path anywhere in the package.
 
 ## Tuning
 
 **Every threshold lives in a YAML file, so changing one is a deploy.** SQL
 check thresholds are in `datasets/health_checks.yaml`; web probe paths,
 latency ceilings and expected content are in `datasets/health_web.yaml`. Only
-two settings are `heroku config:set`-tunable: `HEALTH_WEB_URL` and
-`REDIS_BACKLOG_MAX` (default 20000). Nothing else in `config.py` feeds a
-threshold.
+one setting is `heroku config:set`-tunable: `HEALTH_WEB_URL`. Nothing else in
+`config.py` feeds a threshold.
 
 **The latency ceilings in `health_web.yaml` are not baselined.** There was no
 latency measurement anywhere before 2026-09-28, so they were set generously to
@@ -1386,12 +1381,6 @@ view work is not future - it applies to the current deploy, and lives in
 Nothing here is scheduled or required. Recorded so the reasoning does not have
 to be redone.
 
-- **Shrink what `scheduled_tasks_redis/redis_wordle.py` serialises into
-  `data_dict`.** ~9.4 KB per antiwordle click is a lot, and
-  `wordle_revamp_clicks` - written by the same job - is only 36.6 MB, so
-  whatever grew grew only on the antiwordle side. Capping it at source would
-  end the growth in `antiwordle_revamp_clicks` rather than managing it with
-  retention forever.
 - **Add POST probes to `health_web.yaml`.** The GET probes assert a page
   rendered; they cannot see `/smush` rendering fine while the solver returns
   garbage. A probe that POSTs a known board and asserts a known word comes back

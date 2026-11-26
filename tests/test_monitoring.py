@@ -1,6 +1,6 @@
 """Tests for the alerting and health-check machinery.
 
-Nothing here may touch real MySQL, Redis or SMTP. conftest's autouse
+Nothing here may touch real MySQL or SMTP. conftest's autouse
 no_write_behind fixture keeps the drain thread from starting, so queued rows
 can be inspected directly instead of being written somewhere.
 """
@@ -162,7 +162,7 @@ def test_shipped_checks_are_well_formed():
 ##### jobs that send no email #####
 
 # The jobs whose daily email stopped on 2026-11-25, and the check that says so
-# when one of them never ran. redis_wordle.py's is redis_drain, below.
+# when one of them never ran.
 NIGHTLY_CHECKS = {
     'youtube_trending_v2': 'youtube_trending_today',
     'youtube_trending_revamp_v3': 'youtube_grouped_today',
@@ -199,74 +199,6 @@ def test_the_nightly_checks_wait_for_the_jobs_and_meet_the_digest(name):
     spec = run_checks.load_checks()[name]
     assert not any(run_checks.in_active_window(spec, h) for h in (0, 1, 2, 3))
     assert all(run_checks.in_active_window(spec, h) for h in (4, 5))
-
-
-class _FakeRedis:
-    """Just enough of a client for check_redis. `oldest` is each stream's
-    oldest entry's age in hours, None for an empty stream."""
-
-    def __init__(self, oldest, now_ms):
-        self.oldest, self.now_ms = oldest, now_ms
-
-    def ping(self):
-        return True
-
-    def xlen(self, stream):
-        return 0 if self.oldest.get(stream) is None else 5
-
-    def xrange(self, stream, count=None):
-        hours = self.oldest.get(stream)
-        if hours is None:
-            return []
-        if isinstance(hours, Exception):
-            raise hours
-        return [('{}-0'.format(int(self.now_ms - hours * 3_600_000)), {'json': '[]'})]
-
-
-def _run_redis_checks(monkeypatch, oldest, hour_pst):
-    now_s = 1_800_000_000.0
-    client = _FakeRedis(oldest, now_s * 1000)
-    monkeypatch.setattr(run_checks.redis, 'Redis', lambda **kw: client)
-    monkeypatch.setattr(run_checks.time, 'time', lambda: now_s)
-    results = run_checks.Results()
-    run_checks.check_redis(results, hour_pst)
-    return results
-
-
-def test_a_stream_the_drain_left_behind_alerts(monkeypatch, capsys):
-    results = _run_redis_checks(
-        monkeypatch, {'wordle_logging': 26.5, 'antiwordle_logging': 1.2}, hour_pst=4)
-    assert results.failed == 1
-    out = capsys.readouterr().out
-    assert "JJ_ALERT check=redis_drain" in out
-    assert "stream=wordle_logging actual=26" in out
-    assert "redis_drain:antiwordle_logging actual=1" in out
-
-
-def test_drained_and_empty_streams_pass(monkeypatch, capsys):
-    results = _run_redis_checks(
-        monkeypatch, {'wordle_logging': None, 'antiwordle_logging': 12.9}, hour_pst=5)
-    assert results.failed == 0
-    out = capsys.readouterr().out
-    assert "redis_drain:wordle_logging actual=0" in out
-    assert "redis_drain:antiwordle_logging actual=12" in out
-
-
-@pytest.mark.parametrize("hour_pst", [0, 3, 6, 14, 23])
-def test_the_drain_is_judged_only_after_it_has_run(monkeypatch, capsys, hour_pst):
-    # A day's entries are still there until 2am PST, and a breach should email
-    # twice a day, not every hour.
-    results = _run_redis_checks(monkeypatch, {'wordle_logging': 99, 'antiwordle_logging': 99},
-                                hour_pst=hour_pst)
-    assert results.failed == 0 and results.skipped == 1
-    assert "redis_drain" in capsys.readouterr().out
-
-
-def test_a_stream_that_cannot_be_read_costs_only_itself(monkeypatch, capsys):
-    results = _run_redis_checks(
-        monkeypatch, {'wordle_logging': RuntimeError("gone"), 'antiwordle_logging': 1}, hour_pst=4)
-    assert results.failed == 1
-    assert "redis_drain:antiwordle_logging actual=1" in capsys.readouterr().out
 
 
 ##### the job wrapper #####
@@ -881,14 +813,14 @@ def test_state_line_values_are_scrubbed(capsys):
 
 def test_long_check_names_stay_readable(capsys):
     # ljust alone runs the name straight into the detail once the name outgrows
-    # the column, which redis_backlog:antiwordle_logging does.
-    run_checks.Results().ok('redis_backlog:antiwordle_logging', actual=36)
-    assert "logging actual=36" in capsys.readouterr().out
+    # the column.
+    run_checks.Results().ok('a_check_name_past_the_column', actual=36)
+    assert "column actual=36" in capsys.readouterr().out
 
 
 def test_ok_without_fields_stays_bare(capsys):
-    run_checks.Results().ok('redis_up')
-    assert capsys.readouterr().out.strip() == "ok    redis_up"
+    run_checks.Results().ok('checks_db')
+    assert capsys.readouterr().out.strip() == "ok    checks_db"
 
 
 ##### web probes #####
@@ -1011,7 +943,6 @@ def test_web_probe_ok_line_has_no_retried_field_on_first_try(capsys, monkeypatch
 def _run_main_with_probes(monkeypatch, probes, fetches):
     """run_checks.main() with only the web probes, on the fake clock."""
     monkeypatch.setattr(run_checks, 'load_checks', lambda: {})
-    monkeypatch.setattr(run_checks, 'check_redis', lambda results, hour_pst: None)
     monkeypatch.setattr(run_checks, 'load_web_checks', lambda: probes)
     _script_fetches(monkeypatch, fetches)
     run_checks.main()

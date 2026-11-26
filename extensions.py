@@ -1,11 +1,10 @@
-"""Shared app services: cache, rate limiter, basic auth, MySQL pool, Redis.
+"""Shared app services: cache, rate limiter, basic auth, MySQL pool.
 
 cache and limiter use the init_app pattern; app.py binds them to the Flask app.
 """
 
 import atexit
 import hmac
-import json
 import queue
 import threading
 import time
@@ -16,7 +15,6 @@ from urllib.parse import urlsplit
 import mysql.connector
 import mysql.connector.pooling
 from mysql.connector import Error
-import redis
 from flask import Response, abort, has_request_context, request
 from flask_caching import Cache
 from flask_httpauth import HTTPBasicAuth
@@ -526,25 +524,3 @@ def log_solve(page_name, data):
     """
     if isinstance(data, dict) and data.get('first_solve') in (True, '1'):
         log_page_visit(f'{page_name} (solve)')
-
-##### redis #####
-
-max_retries = 5
-retry_delay = 2 # seconds
-
-for attempt in range(max_retries):
-    try:
-        r = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, password=config.REDIS_PASS, decode_responses=True, socket_timeout=10)
-        print(r.ping())  # Test the connection
-        break  # Connection was successful, exit the loop
-    except Exception as e:
-        print(f"Attempt {attempt+1}: Error connecting to Redis: {e}")
-        if attempt < max_retries - 1:
-            print(f"Retrying in {retry_delay} seconds...")
-            time.sleep(retry_delay)
-        else:
-            print("Failed to connect after several attempts.")
-
-def add_data_to_stream(stream_name, data):
-    # Add data to Redis stream with auto-generated ID
-    r.xadd(stream_name, {'datetime': pst_now_str(), 'json': json.dumps(data)})

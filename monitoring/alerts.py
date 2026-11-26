@@ -22,8 +22,8 @@ so it is what makes running unattended safe. Everything else can only report
 problems it is alive to see.
 
 This module must stay side-effect free on import: it is imported by the web
-app and by one-off scheduler dynos alike, so it must not touch the database,
-Redis, or the network.
+app and by one-off scheduler dynos alike, so it must not touch the database
+or the network.
 """
 
 import logging

@@ -57,8 +57,9 @@ class MemoryBoards:
         import routes.ribbit as ribbit
         self.store(day, ribbit.APPROVAL, None, letters, links, orientation, ribbit.APPROVAL)
 
-    def unapprove(self, letters):
-        gone = [key for key, row in self.rows.items() if row[0] == letters and self._approval(row)]
+    def unapprove(self, letters, day):
+        gone = [key for key, row in self.rows.items()
+                if row[0] == letters and row[5] == day and self._approval(row)]
         for key in gone:
             del self.rows[key]
         return len(gone)
@@ -78,6 +79,9 @@ class MemoryBoards:
         seen = {row[0] for row in self.rows.values() if first <= row[5] <= last}
         return [row for row in self.rows.values() if row[0] in seen]
 
+    def approved_between(self, first, last):
+        return [row for row in self.approvals() if first <= row[5] <= last]
+
 
 @pytest.fixture
 def boards(monkeypatch):
@@ -94,6 +98,7 @@ def boards(monkeypatch):
     monkeypatch.setattr(ribbit, "remove_approval", memory.unapprove)
     monkeypatch.setattr(ribbit, "rows_with_letters", memory.with_letters)
     monkeypatch.setattr(ribbit, "rows_logged_between", memory.logged_between)
+    monkeypatch.setattr(ribbit, "approvals_between", memory.approved_between)
     monkeypatch.setattr(ribbit, "_pacific_today", lambda: DAY)
     monkeypatch.setattr(ribbit, "SHARED_BOARDS_LIVE", True)
     return memory
@@ -553,7 +558,8 @@ def test_the_readers_ask_for_the_right_rows(client, board_db):
 
 def test_admin_needs_the_password(client, boards):
     assert client.get("/ribbit_admin").status_code == 401
-    for action in ("remove_board", "approve_board", "approve_typed_board", "unapprove_board"):
+    for action in ("remove_board", "approve_board", "approve_typed_board", "unapprove_board",
+                   "approve_repeat"):
         assert client.post(f"/ribbit_admin/{action}", data={}).status_code == 401
 
 
@@ -702,12 +708,12 @@ def test_undo_hands_the_board_back_to_the_players(client, boards, monkeypatch):
     _log(client, 1)
     _approve(client, monkeypatch, boards)
     resp = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
-                       data={"letters": ribbit.canonical(LETTERS)[0]})
+                       data={"letters": ribbit.canonical(LETTERS)[0], "played_on": DAY.isoformat()})
     assert resp.status_code == 302 and "success=Approval+undone" in resp.headers["Location"]
     assert _todays(client) == []                   # one player's board again
     assert len(boards.rows) == 1                     # and that board is still there
     again = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
-                        data={"letters": ribbit.canonical(LETTERS)[0]})
+                        data={"letters": ribbit.canonical(LETTERS)[0], "played_on": DAY.isoformat()})
     assert "error=" in again.headers["Location"]
 
 
@@ -740,9 +746,10 @@ def test_the_approval_sql(client, board_db, monkeypatch):
     assert params[:6] == (DAY, "admin", canon_letters, ribbit._links_text(canon_links), t, "admin")
     assert "ON DUPLICATE KEY UPDATE" in sql and db.commits == 1
     client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
-                data={"letters": canon_letters})
+                data={"letters": canon_letters, "played_on": "2026-10-17"})
     assert db.statements("DELETE FROM ribbit_boards") == [
-        ("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s", (canon_letters, "admin"))]
+        ("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s AND played_on = %s",
+         (canon_letters, "admin", DAY))]
 
 
 # ---------------------------------------------------------------------------
@@ -943,6 +950,148 @@ def test_an_old_approval_does_not_serve_an_archive_replay(client, boards, monkey
 
 
 # ---------------------------------------------------------------------------
+# The Yahoo repeat: a board approved 25 days before comes back, and the
+# Shared boards tab offers last month's boards for today, one tap each
+# (James, 2026-11-26)
+# ---------------------------------------------------------------------------
+
+OTHER = "abcdefghijklmnop"
+THIRD = "zebracowsdognewt"
+
+
+def _ago(days):
+    return DAY - timedelta(days=days)
+
+
+def _lag():
+    import routes.ribbit as ribbit
+    return ribbit.REPEAT_LAG_DAYS
+
+
+def _admin_html(client, monkeypatch):
+    return client.get("/ribbit_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
+
+
+def _approve_repeat(client, monkeypatch, letters, played_on=DAY):
+    import routes.ribbit as ribbit
+    return client.post("/ribbit_admin/approve_repeat", headers=_admin_headers(monkeypatch),
+                       data={"letters": ribbit.canonical(letters)[0],
+                             "played_on": played_on.isoformat(), "tab": "boards"})
+
+
+def _pattern_holds(client, monkeypatch, day=_ago(1)):
+    """A board approved on `day` that was approved 25 days before it too."""
+    _typed(client, monkeypatch, cells=THIRD, played_on=(day - timedelta(days=_lag())).isoformat())
+    _typed(client, monkeypatch, cells=THIRD, played_on=day.isoformat())
+
+
+def test_the_record_counts_the_days_a_board_came_back():
+    import routes.ribbit as ribbit
+    lag = timedelta(days=ribbit.REPEAT_LAG_DAYS)
+    approval = dict(voter="admin", source="admin")
+    rows = [_row(played_on=_ago(2) - lag, **approval), _row(played_on=_ago(2), **approval),
+            _row(played_on=_ago(3) - lag, letters=OTHER, **approval),      # never came back
+            _row(played_on=DAY - lag, letters=THIRD, **approval),          # today's: not yet counted
+            _row(played_on=DAY, letters=THIRD, **approval),
+            _row(played_on=_ago(8) - lag, letters=THIRD, **approval),      # past the window
+            _row(played_on=_ago(8), letters=THIRD, **approval)]
+    assert ribbit.repeat_record(ribbit.approved_by_day(rows), DAY) == 1
+
+
+def test_the_card_offers_last_months_boards_for_today(client, boards, monkeypatch):
+    _pattern_holds(client, monkeypatch)
+    _typed(client, monkeypatch, cells=LETTERS, played_on=_ago(_lag()).isoformat())
+    _typed(client, monkeypatch, cells=OTHER, played_on=_ago(_lag()).isoformat())
+    html = _admin_html(client, monkeypatch)
+    assert "Likely Yahoo board for 10-17:" in html
+    assert f"one of the boards you approved on {_ago(_lag()):%m-%d}" in html
+    assert "came back 1 of the last 7 days" in html
+    assert html.count('action="/ribbit_admin/approve_repeat"') == 2
+    assert html.count("Approve for 10-17") == 2
+    # Oldest approval first, each the way it was approved.
+    assert html.index("RIBB<br>ITFR<br>OGSL<br>ILYP<br>") < html.index("ABCD<br>EFGH<br>IJKL<br>MNOP<br>")
+    # Yesterday's repeat is labelled where it's listed.
+    assert f"Yahoo repeat of {_ago(1) - timedelta(days=_lag()):%m-%d}" in html
+    # Nothing is served until James picks one.
+    assert _todays(client) == []
+
+
+def test_without_a_recent_repeat_there_is_no_card(client, boards, monkeypatch):
+    _typed(client, monkeypatch, cells=LETTERS, played_on=_ago(_lag()).isoformat())
+    assert "Likely Yahoo board" not in _admin_html(client, monkeypatch)
+    # A repeat a week and more ago is past the window: the pattern stopped.
+    _pattern_holds(client, monkeypatch, day=_ago(8))
+    assert "Likely Yahoo board" not in _admin_html(client, monkeypatch)
+    _pattern_holds(client, monkeypatch, day=_ago(7))
+    assert "Likely Yahoo board" in _admin_html(client, monkeypatch)
+
+
+def test_approving_a_repeat_serves_it_as_approved_then(client, boards, monkeypatch):
+    _pattern_holds(client, monkeypatch)
+    letters, links = _turned(LETTERS, LINKS)                    # James had it turned
+    _typed(client, monkeypatch, cells=letters, links=links, played_on=_ago(_lag()).isoformat())
+    _typed(client, monkeypatch, cells=OTHER, played_on=_ago(_lag()).isoformat())
+    resp = _approve_repeat(client, monkeypatch, LETTERS)
+    assert resp.status_code == 302
+    assert f"success=Approved+the+{_ago(_lag()):%m-%d}+board+for+10-17" in resp.headers["Location"]
+    assert _todays(client) == [_as_board(letters, links)]
+    html = _admin_html(client, monkeypatch)
+    assert "Likely Yahoo board for 10-17" not in html              # only one comes back a day
+    assert f"Yahoo repeat of {_ago(_lag()):%m-%d}" in html
+
+
+def test_a_repeat_must_have_been_approved_25_days_before(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _typed(client, monkeypatch, cells=LETTERS, played_on=_ago(_lag() - 1).isoformat())
+    canon_letters, canon_links, t = ribbit.canonical(LETTERS, tuple(LINKS))
+    boards.store(_ago(_lag()), "then-a", None, canon_letters, canon_links, t, "typed")  # a player's
+    before = len(boards.approvals())
+    resp = _approve_repeat(client, monkeypatch, LETTERS)
+    assert f"error=That+board+was+not+approved+on+{_ago(_lag()):%m-%d}" in resp.headers["Location"]
+    assert len(boards.approvals()) == before
+    for form in ({"letters": "short", "played_on": "2026-10-17"},
+                 {"letters": "ribbitfrogslilyp", "played_on": "2026-02-30"}):
+        resp = client.post("/ribbit_admin/approve_repeat", headers=_admin_headers(monkeypatch), data=form)
+        assert "error=Not+a+board" in resp.headers["Location"]
+
+
+def test_undo_takes_back_only_that_days_approval(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _typed(client, monkeypatch, cells=LETTERS, played_on=_ago(_lag()).isoformat())
+    _approve_repeat(client, monkeypatch, LETTERS)
+    resp = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
+                       data={"letters": ribbit.canonical(LETTERS)[0], "played_on": DAY.isoformat()})
+    assert "success=Approval+undone" in resp.headers["Location"]
+    assert _todays(client) == []
+    [kept] = boards.approvals()                                     # last month's stays
+    assert kept[ribbit.PLAYED_ON] == _ago(_lag())
+    missing = client.post("/ribbit_admin/unapprove_board", headers=_admin_headers(monkeypatch),
+                          data={"letters": ribbit.canonical(LETTERS)[0]})
+    assert "error=Not+a+board" in missing.headers["Location"]
+
+
+def test_the_repeat_card_sql(client, board_db, monkeypatch):
+    import routes.ribbit as ribbit
+    db = board_db()
+    assert "Likely Yahoo board" not in _admin_html(client, monkeypatch)
+    [(sql, params)] = [(s, p) for s, p in db.executed if "WHERE source = %s" in s]
+    assert sql.endswith("FROM ribbit_boards WHERE source = %s AND played_on BETWEEN %s AND %s")
+    assert params == ("admin", _ago(ribbit.REPEAT_RECORD_DAYS + _lag()), DAY + timedelta(days=1))
+
+
+def test_the_tab_still_loads_when_the_approvals_cannot_be_read(client, boards, monkeypatch):
+    import routes.ribbit as ribbit
+    _log(client, 1)
+
+    def broken(first, last):
+        raise RuntimeError("gone")
+
+    monkeypatch.setattr(ribbit, "approvals_between", broken)
+    html = _admin_html(client, monkeypatch)
+    assert "RIBB<br>ITFR<br>OGSL<br>ILYP<br>" in html and "Likely Yahoo board" not in html
+
+
+# ---------------------------------------------------------------------------
 # Served as approved, and a board from the admin tab opened in the editor
 # (James asked, 2026-10-25)
 # ---------------------------------------------------------------------------
@@ -960,7 +1109,7 @@ def test_an_approval_is_served_the_way_it_was_entered(client, boards, monkeypatc
     assert "".join(letters[r * 4:r * 4 + 4].upper() + "<br>" for r in range(4)) in html
     # Without the approval the players' way round is back.
     import routes.ribbit as ribbit
-    boards.unapprove(ribbit.canonical(LETTERS)[0])
+    boards.unapprove(ribbit.canonical(LETTERS)[0], DAY)
     assert _todays(client) == [_as_board(LETTERS, LINKS)]
 
 

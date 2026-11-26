@@ -2,8 +2,8 @@
 
 Shared by the admin pages (crowd.py) and the daily digest, so both say the
 same thing. Lives here, with no imports, because the digest must not import
-crowd.py: that pulls in `extensions`, which builds a connection pool and pings
-Redis (see the daily_digest docstring).
+crowd.py: that pulls in `extensions` and Flask (see the daily_digest
+docstring).
 
 Each crowd game has the same three tables: <game>_word_votes,
 <game>_invalid_words and <game>_added_words.
