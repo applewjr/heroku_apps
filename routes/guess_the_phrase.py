@@ -30,10 +30,10 @@ from monitoring import alerts
 
 bp = Blueprint('guess_the_phrase', __name__)
 
-# How long a player's added phrase keeps counting toward the two players it
-# needs. Not crowd.py's 7 days: players work through old puzzles, so two who
-# solve the same one can be weeks apart. monitoring/daily_digest.py repeats
-# this number; a test keeps the two equal.
+# How long a player's added phrase keeps counting toward the players it needs
+# (crowd.CROWD_ADD_VOTES). Not crowd.py's 7 days: players work through old
+# puzzles, so two who solve the same one can be weeks apart.
+# monitoring/daily_digest.py repeats this number; a test keeps the two equal.
 GTP_WINDOW_DAYS = 30
 
 # Request limits. Bored Panda's longest answer so far is 10 words and 37
@@ -172,7 +172,7 @@ def solve_request(data):
 
 ##### players' added phrases #####
 
-# "Solved it and we didn't list the phrase? Add it." Two different players
+# "Solved it and we didn't list the phrase? Add it." Enough different players
 # typing the same phrase adds it (crowd.py, shared with /blossom and /smush;
 # never told to players). There is no player flag the other way: phrases are
 # only removed by the admin page.

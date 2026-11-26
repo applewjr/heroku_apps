@@ -25,36 +25,51 @@ from flask_limiter.util import get_remote_address
 from limits import parse_many
 
 import config
-from helpers import PACIFIC, client_ip, visitor_hash
+from helpers import PACIFIC, client_ip, hashable_ip, visitor_hash
 from monitoring import alerts
 
 ##### cache / rate limiter #####
 
 cache = Cache()  # SimpleCache is fine for single-process environments
 
+# How much of an IPv6 address the limits count as one visitor: a /56, about
+# one home. A home is often handed one whole, and every /64 in it (what a
+# phone or one home network uses) would otherwise have budgets of its own.
+LIMIT_V6_BITS = 56
+# The same for wrong admin passwords: a /48, the widest block one person is
+# usually handed. Nobody else needs to log in from James's network.
+LOGIN_V6_BITS = 48
+
+
+def visitor_key(v6_bits=LIMIT_V6_BITS):
+    """Whose budget a request counts against: the visitor's own address
+    (helpers.client_ip), or whoever connected if that can't be read. Kept in
+    memory only."""
+    return hashable_ip(v6_bits) or get_remote_address()
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=visitor_key,
     default_limits=["2000 per day", "500 per hour"],
     storage_uri="memory://"  # Use in-memory storage
 )
 
-# Limits are keyed on the Cloudflare edge IP, not the visitor: gunicorn takes
-# the last X-Forwarded-For hop and ProxyFix doesn't rewrite it. So every budget
-# below is shared by all visitors behind the same Cloudflare POP, and the
-# solver pages POST once per keystroke (~45/min for one active player), which
-# the 500/hour default can't cover. Note flask-limiter's override_defaults is
-# True by default: a decorated limit replaces the defaults rather than adding
-# to them, so these strings carry their own daily backstop.
+# Every limit counts each visitor on their own (visitor_key). Until 2026-11-25
+# it counted the Cloudflare edge they came through, so everyone in a region
+# shared each budget, and these numbers were sized for that.
+#
+# The solver pages POST once per keystroke (~45/min for one active player),
+# which the 500/hour default can't cover. Note flask-limiter's
+# override_defaults is True by default: a decorated limit replaces the defaults
+# rather than adding to them, so these strings carry their own daily backstop.
 INTERACTIVE_LIMITS = "120 per minute; 1500 per hour; 6000 per day"
 
-# 404s are mostly scanner traffic that shares a key with real visitors, and
-# Googlebot arrives through the same POP - answering a crawl with 429 instead
-# of 404 keeps dead URLs alive in the index, so keep this loose.
+# 404s are mostly scanner traffic. Loose all the same: answering a search
+# engine's crawl with 429 instead of 404 keeps dead URLs alive in its index.
 NOT_FOUND_LIMITS = "60 per minute; 600 per hour"
 
-# POSTs to the two feedback forms, per visitor: keyed on helpers.client_ip,
-# not the shared edge IP above, so one scanner can't spend everyone's budget.
-# The busiest genuine minute on record had 2 submissions.
+# POSTs to the two feedback forms. The busiest genuine minute on record had 2
+# submissions.
 FEEDBACK_POST_LIMITS = "3 per minute; 10 per day"
 
 ##### logins #####
@@ -64,10 +79,10 @@ auth = HTTPBasicAuth()
 # Wrong admin passwords, per visitor. Every protected page shares the one
 # password and the username is ignored, so before this a guesser had each
 # route's default budget to spend - roughly 80,000 tries a day across the ~40
-# protected routes. Keyed on helpers.client_ip like FEEDBACK_POST_LIMITS, so a
-# scanner locks out only itself. Past the cap even the right password is
-# refused, so further guesses learn nothing. 30 a day is far more than anyone
-# mistypes.
+# protected routes. Counted per visitor, so a scanner locks out only itself
+# (LOGIN_V6_BITS: not once per address it can pick from). Past the cap even
+# the right password is refused, so further guesses learn nothing. 30 a day is
+# far more than anyone mistypes.
 ADMIN_LOGIN_FAILURE_LIMITS = parse_many("10 per minute; 30 per day")
 
 
@@ -80,8 +95,8 @@ def password_matches(value):
     return hmac.compare_digest(value.encode('utf-8'), expected.encode('utf-8'))
 
 
-def _login_locked(ip):
-    return not all(limiter.limiter.test(item, 'admin_login', ip)
+def _login_locked(key):
+    return not all(limiter.limiter.test(item, 'admin_login', key)
                    for item in ADMIN_LOGIN_FAILURE_LIMITS)
 
 
@@ -98,17 +113,17 @@ def verify_password(username, password):
         return False
     if not limiter.enabled:  # the test suite (conftest.py)
         return password_matches(password)
-    ip = client_ip()
-    if _login_locked(ip):
+    key = visitor_key(LOGIN_V6_BITS)
+    if _login_locked(key):
         return False
     if password_matches(password):
         return True
     for item in ADMIN_LOGIN_FAILURE_LIMITS:
-        limiter.limiter.hit(item, 'admin_login', ip)
-    if _login_locked(ip):
+        limiter.limiter.hit(item, 'admin_login', key)
+    if _login_locked(key):
         # Once per lockout: later attempts return above without counting.
         # A log line, not an alert - the cap doing its job needs no action.
-        print(f"admin login locked for {ip} after repeated wrong passwords", flush=True)
+        print(f"admin login locked for {client_ip()} after repeated wrong passwords", flush=True)
     return False
 
 

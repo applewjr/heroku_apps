@@ -41,9 +41,10 @@ from monitoring.crowd_report import CROWD_GAMES, report_sql
 # more likely right. Not below 3: replaying the first week of Smush votes, 4
 # of the 6 rare words with exactly 2 flags were ones James had checked and
 # added by hand, and 3 of those were flagged by the same pair within seconds.
-# Two to add because the word has to be typed and has to fit the puzzle
-# letters - but not one, because long words score highest and one player's
-# typo ("unfulfiling") would otherwise land at the top of everyone's list.
+# Three to add (raised from two on 2026-11-25, James's call). Fewer than for a
+# common word's removal, because the word has to be typed and has to fit the
+# puzzle letters - but long words score highest, so one player's typo
+# ("unfulfiling") must never land at the top of everyone's list.
 CROWD_REMOVE_VOTES = 5
 # (lowest Zipf popularity, players needed to remove), most common first. The
 # floors are two of the Smush solver's tier floors (functions/all_words.py
@@ -51,7 +52,7 @@ CROWD_REMOVE_VOTES = 5
 # floor, or missing from data.word_pop, needs CROWD_REMOVE_VOTES_RARE.
 CROWD_REMOVE_VOTES_BY_POP = ((3.3, CROWD_REMOVE_VOTES), (2.0, 4))
 CROWD_REMOVE_VOTES_RARE = 3
-CROWD_ADD_VOTES = 2
+CROWD_ADD_VOTES = 3
 # A player who flags more than this many words Invalid in one day (Pacific,
 # midnight to midnight) is crossing words off, not reporting rejections:
 # genuine Blossom ones run 1-2 per puzzle (9/29 hinnying and yatagan, 9/30

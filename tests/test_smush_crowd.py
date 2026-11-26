@@ -226,9 +226,9 @@ def test_votes_past_the_daily_cap_are_ignored(client, smush_db):
     ("zebra", 0, "not_in_puzzle", False),
     ("mug", 0, "not_in_puzzle", False),         # no gold L
     (LISTED, 0, "already_listed", False),
-    (NOT_LISTED, 1, "recorded", False),
+    (NOT_LISTED, 2, "recorded", False),
     # The vote that adds the word gets the same reply as one that doesn't.
-    (NOT_LISTED, 2, "recorded", True),
+    (NOT_LISTED, 3, "recorded", True),
 ])
 def test_suggest_missing_outcomes(client, smush_db, word, players, expected, adds):
     db = smush_db(_votes(players=players))
@@ -264,6 +264,8 @@ def test_smush_votes_never_touch_blossom_tables(client, smush_db):
     {"action": "suggest_missing", "word": "fl4g", "center": "l", "outer": OUTER},
     {"action": "suggest_missing", "word": ["flag"], "center": "l", "outer": OUTER},
     {"action": "suggest_missing", "word": "l" * 16, "center": "l", "outer": OUTER},
+    {"action": "suggest_missing", "word": "l\u0436l", "center": "l", "outer": OUTER},
+    {"action": "suggest_missing", "word": "flag", "center": "l", "outer": OUTER[:7] + "\u0436"},
     {"action": "drop_table", "word": LISTED, "center": "l", "outer": OUTER},
 ])
 def test_malformed_votes_are_a_400_and_touch_nothing(client, smush_db, payload):
@@ -373,14 +375,14 @@ def test_admin_needed_column_shows_what_each_word_needs(client, smush_db, monkey
         "FROM smush_word_votes v": [("flagellum", "invalid", 2, when, "waiting", when, None),
                                     ("leaf", "invalid", 1, when, "waiting", when, None),
                                     ("glop", "invalid", 1, when, "waiting", when, None),
-                                    ("glumac", "missing", 1, when, "waiting", when, None),
+                                    ("glumac", "missing", 2, when, "waiting", when, None),
                                     (PANGRAM, "invalid", 3, when, "waiting", when, None)],
     })
     html = client.get("/smush_admin", headers=_admin_headers(monkeypatch)).get_data(as_text=True)
     assert re.search(r"<td>2</td>\s*<td>4</td>", html)     # flagellum
     assert re.search(r"<td>1</td>\s*<td>5</td>", html)     # leaf
     assert re.search(r"<td>1</td>\s*<td>3</td>", html)     # glop, not in the frequency list
-    assert re.search(r"<td>1</td>\s*<td>2</td>", html)     # glumac, a suggestion
+    assert re.search(r"<td>2</td>\s*<td>3</td>", html)     # glumac, a suggestion
     assert re.search(r"<td>3</td>\s*<td>5</td>", html)     # camouflage, a rare pangram
     assert "<th>Players</th>" in html and "<th>Needed</th>" in html
     assert "5 at popularity 3.3 or above, 4 at popularity 2.0 or above, 3 below that or none" in html

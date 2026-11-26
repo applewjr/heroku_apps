@@ -4,7 +4,15 @@ production or secret_pass.py locally."""
 import os
 import secrets
 
+from mysql.connector.constants import ClientFlag
+
 IS_HEROKU = 'IS_HEROKU' in os.environ
+
+# One statement per query. The driver's default lets MySQL run several, so a
+# "SELECT ...; DELETE ..." would get past a check that a query starts with
+# SELECT (the health checks, and the /etl_dash panels). With this off MySQL
+# refuses the whole text as a syntax error; a closing semicolon is still fine.
+MYSQL_CLIENT_FLAGS = [-ClientFlag.MULTI_STATEMENTS]
 
 if IS_HEROKU:
     # Running on Heroku, load values from Heroku Config Vars
@@ -22,6 +30,7 @@ if IS_HEROKU:
         # extensions._POOL_RETRY_SECONDS is the other half of this: it stops
         # each request paying the 5s again once the pool is known to be down.
         "connection_timeout": 5,
+        "client_flags": MYSQL_CLIENT_FLAGS,
         "pool_name": "mypool",
         # 5 covers the 8-thread worker's realistic concurrency while keeping
         # prod + staging + Workbench under the 15-connection JawsDB cap.
@@ -62,6 +71,7 @@ else:
         "password": _secret('mysql_pass'),
         "host": _secret('mysql_host'),
         "connection_timeout": 5,
+        "client_flags": MYSQL_CLIENT_FLAGS,
     }
     GOOGLE_SHEETS_JSON = _secret('GOOGLE_SHEETS_JSON')
     GOOGLE_SHEETS_URL_ESPRESSO = _secret('GOOGLE_SHEETS_URL_ESPRESSO')

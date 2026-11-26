@@ -39,7 +39,7 @@ A personal tool for dialing in espresso. I log each shot in a Google Form, and a
 The site is also its own data source.
 
 - **Visit logging:** page views go onto an in-memory queue, and a background thread writes them to MySQL in batches, so a slow database never slows a page down. Wordle and Antiwordle solver requests go to Redis streams, and a scheduled job loads them into MySQL.
-- **Dashboards:** SQL views in [mysql_views/dashboard/](mysql_views/dashboard/) feed a password-protected ops dashboard whose panels are defined in one YAML file. A daily digest email carries the same panels.
+- **Dashboards:** SQL views in [mysql_views/dashboard/](mysql_views/dashboard/) feed a password-protected ops dashboard whose panels are defined in one YAML file. A digest email twice a day carries the health checks, page timings, storage and what players sent.
 - **Monitoring:** hourly health checks, also defined in YAML, cover data freshness, database health, and page responses. A problem prints an alert line that Papertrail turns into a notification, and a heartbeat line raises an alert if the checks themselves stop running. Scheduled jobs run through a wrapper that turns a failure into an alert. Details are in [monitoring/README.md](monitoring/README.md).
 
 ### Crowd-sourced word lists

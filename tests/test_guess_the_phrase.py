@@ -245,9 +245,16 @@ def test_a_missing_answer_records_a_vote_for_this_puzzle(client, gtp_db):
     assert not db.statements('INSERT INTO gtp_added_words')
 
 
-def test_the_second_player_adds_it(client, gtp_db):
-    import routes.guess_the_phrase as g
+def test_two_players_are_not_enough(client, gtp_db):
     db = gtp_db(_votes(2))
+    _add(client, 'MOTEL CALIFORNIA')
+    assert db.statements('INSERT INTO gtp_word_votes')
+    assert not db.statements('INSERT INTO gtp_added_words')
+
+
+def test_the_third_player_adds_it(client, gtp_db):
+    import routes.guess_the_phrase as g
+    db = gtp_db(_votes(3))
     _solve(client)                      # caches the corrections
     assert g._overlay['expires'] > 0
     _add(client, 'MOTEL CALIFORNIA')

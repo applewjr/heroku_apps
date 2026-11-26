@@ -1969,7 +1969,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // (a truthy non-array has no .filter) and the range of each index: an
         // out-of-range id survives rotation as undefined and draws NaN edges.
         edges = (Array.isArray(s.edges) ? s.edges : [])
-            .filter(e => e && inGrid(e.a) && inGrid(e.b));
+            .filter(e => e && inGrid(e.a) && inGrid(e.b) && areAdjacent(e.a, e.b));
         disabled = new Set((Array.isArray(s.disabled) ? s.disabled : []).filter(inGrid));
         // renderPiles() calls .toUpperCase() on these, so entries need types too.
         played = (Array.isArray(s.played) ? s.played : [])

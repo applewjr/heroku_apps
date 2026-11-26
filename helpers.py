@@ -12,6 +12,8 @@ import pytz
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
 
+from monitoring import alerts
+
 
 # glibc mallopt parameter numbers (malloc.h).
 _M_TRIM_THRESHOLD = -1
@@ -246,10 +248,27 @@ def feedback_flooded(db_cursor, table):
     return hour >= FEEDBACK_MAX_PER_HOUR or day >= FEEDBACK_MAX_PER_DAY
 
 
+# The most of each field a feedback form stores: the columns of `feedback`
+# (two VARCHAR(255), one VARCHAR(2000)), and what Blossom's box takes. The
+# pages' own maxlength keeps a person inside them.
+FEEDBACK_REFERRER_MAX = 255
+FEEDBACK_HEADER_MAX = 255
+FEEDBACK_BODY_MAX = 2000
+BLOSSOM_FEEDBACK_MAX = 500
+
+
+def fit_text(value, max_len):
+    """A form value cut to `max_len` characters. A browser sends each line
+    break as two characters but counts it as one toward maxlength, so they
+    are made one first and a person's message is never cut."""
+    return value.replace('\r\n', '\n')[:max_len]
+
+
 def log_dropped(form_name, reason, text):
-    """One plain log line per dropped post (no JJ_ALERT, so no email), with
-    enough of it to recover a person's message from Papertrail."""
-    print(f"{form_name} dropped ({reason}): {text[:60]!r}", flush=True)
+    """One plain log line per dropped post (scrubbed, so nothing in it can
+    read as an alert), with enough of it to recover a person's message from
+    Papertrail."""
+    print(f"{form_name} dropped ({reason}): {alerts.scrub(text[:60])}", flush=True)
 
 
 def parse_choice(value, field, options, default):
@@ -296,15 +315,17 @@ def json_object(silent=False):
 
 
 def parse_letters(value, field, max_len=25, default=''):
-    """Parse a form value that should be a short run of letters (solver
-    inputs). Blank input returns ``default``; anything non-alphabetic or
-    over ``max_len`` raises ValidationError (-> 400)."""
+    """Parse a form value that should be a short run of letters a-z (solver
+    inputs, voted words). Blank input returns ``default``; anything else, a
+    letter of another alphabet included, or a run over ``max_len`` raises
+    ValidationError (-> 400)."""
     if value is None:
         return default
     value = str(value).strip()
     if value == '':
         return default
-    if not value.isalpha():
+    # isalpha() alone is true of any alphabet's letters.
+    if not (value.isascii() and value.isalpha()):
         raise ValidationError(f"{field} must contain letters only")
     if len(value) > max_len:
         raise ValidationError(f"{field} must be at most {max_len} letters")
@@ -449,8 +470,9 @@ def _parse_ip(value):
 def client_ip():
     """The visitor's real IP address as a string, or '' if it can't be read.
 
-    request.remote_addr is not the visitor on Heroku - ProxyFix runs without
-    x_for (see app.py and the note above extensions.INTERACTIVE_LIMITS).
+    request.remote_addr is not the visitor on Heroku: gunicorn takes the last
+    X-Forwarded-For hop, which is the Cloudflare edge, and ProxyFix runs
+    without x_for (see app.py).
 
     The last X-Forwarded-For hop is whoever connected to Heroku's router.
     Heroku appends it, so a client cannot forge it. When that hop is a
@@ -477,8 +499,8 @@ def client_ip():
 def hashable_ip(v6_bits):
     """client_ip() as the visitor HMACs key on it: an IPv6 address cut to its
     first `v6_bits`, an IPv4-mapped one read as the IPv4 address, IPv4 whole,
-    and '' if it can't be read. Only ever an HMAC's input: never store or log
-    it."""
+    and '' if it can't be read. Only ever an HMAC's input, or a key of the
+    in-memory rate limiter (extensions.visitor_key): never store or log it."""
     ip = client_ip()
     parsed = _parse_ip(ip)
     if parsed is not None and parsed.version == 6:

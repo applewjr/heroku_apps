@@ -366,11 +366,8 @@ def _parse_spicy(value, outer):
 
 def _parse_whole_board(data):
     """(letters, spicy) for a board a page or form sends: letters is the
-    puzzle, the gold center and then the other eight sorted, all a-z
-    (parse_letters on its own lets an accented letter through)."""
+    puzzle, the gold center and then the other eight sorted."""
     center, outer = _parse_board(data)
-    if not (center + outer).isascii():
-        raise ValidationError("a board's letters must be a-z")
     return center + ''.join(sorted(outer)), _parse_spicy(data.get('spicy'), outer)
 
 

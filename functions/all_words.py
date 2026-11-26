@@ -1,144 +1,7 @@
 import random
 import pandas as pd
-import math
 import time
 
-# common denominator
-def common_denominator(min_match_len: int, min_match_rate: float, beg_end_str_char: str, value_split_char: str, user_match_entry: str, user_nope_match_entry: str):
-
-    min_match_len = int(min_match_len)
-    min_match_rate = float(min_match_rate)
-
-
-    # process user_match_entry
-    var_list = user_match_entry.split(value_split_char)
-    var_list = list(map(lambda x: x.strip(), var_list))
-    for ind, val in enumerate(var_list):
-        var_list[ind] = beg_end_str_char + var_list[ind] + beg_end_str_char
-    var_list = list(map(lambda x: x.lower().strip(), var_list))
-
-    # process user_no_match_entry
-    var_nope_list = user_nope_match_entry.split(value_split_char)
-    var_nope_list = list(map(lambda x: x.strip(), var_nope_list))
-    for ind, val in enumerate(var_nope_list):
-        var_nope_list[ind] = beg_end_str_char + var_nope_list[ind] + beg_end_str_char
-    var_nope_list = list(map(lambda x: x.lower().strip(), var_nope_list))
-
-    # create the dict of all word segments
-    # and a master list of all segments from all words
-    var_dict = {}
-    master_ref_list = set()
-
-    for word in var_list:
-        test_set = set()
-        for start in range(len(word)):
-            for end in range(1, len(word)+1):
-                if len(word[start:end]) >= min_match_len:
-                    test_set.add((word[start:end].strip()))
-                    master_ref_list.add((word[start:end].strip()))
-        var_dict[word] = test_set
-
-    # create the dict of all word segments - for nope list
-    # and a master list of all segments from all words - for nope list
-    var_nope_dict = {}
-    master_nope_ref_list = set()
-
-    for word in var_nope_list:
-        test_set = set()
-        for start in range(len(word)):
-            for end in range(1, len(word)+1):
-                if len(word[start:end]) >= min_match_len:
-                    test_set.add((word[start:end].strip()))
-                    master_nope_ref_list.add((word[start:end].strip()))
-        var_nope_dict[word] = test_set
-
-    triangle_dict = {}
-    for ind, val in enumerate(var_list):
-        triangle_dict[ind+1] = (ind)*(ind+1)//2
-
-    triangle_dict_reverse = {}
-    for ind, val in enumerate(var_list):
-        triangle_dict_reverse[(ind)*(ind+1)//2] = ind+1
-
-    min_match_number = triangle_dict[math.ceil(len(var_list)*min_match_rate)]
-
-    # # pass 3: everything compared against the previous
-    # # this should make the final full dict ranking better
-
-    final_match_dict = {}
-    for i in master_ref_list:
-        final_match_dict[i] = 0
-    x = 0
-
-    for first_ind, first_val in enumerate(var_list):
-        for second_ind, second_val in enumerate(var_list):
-            if first_ind <= second_ind:
-                pass
-            else:
-                for first in var_dict[var_list[first_ind]]:
-                    for second in var_dict[var_list[second_ind]]:
-                        x+=1
-                        if first == second:
-                            try:
-                                final_match_dict[first] += 1
-                            except:
-                                pass
-    comparisons = f'{x:,}'
-
-    final_match_list = []
-    for key, value in final_match_dict.items():
-        if value >= min_match_number:
-            final_match_list.append(key)
-
-    final_match_list = sorted(final_match_list, key=len, reverse=True)
-
-    # remove values found in the nope list
-    final_match_list_temp = list(final_match_list)
-    for val in final_match_list_temp:
-        for nope_val in master_nope_ref_list:
-            if val == nope_val:
-                try:
-                    final_match_list.remove(val)
-                except:
-                    pass
-    # remove values found in the nope list
-    final_match_dict_temp = final_match_dict.copy()
-    for val in final_match_dict_temp:
-        for nope_val in master_nope_ref_list:
-            if val == nope_val:
-                try:
-                    del final_match_dict[val]
-                except:
-                    pass
-
-    # cut out the smaller findings when there is a bigger chunk of text found
-    final_match_list_temp = final_match_list.copy()
-    for pri in final_match_list_temp:
-        for sec in final_match_list_temp:
-            if pri.find(sec) > -1 and pri != sec:
-                try:
-                    final_match_list.remove(sec)
-                except:
-                    pass
-
-    # first main return
-    # list of string parts that
-        # have a match rate greater than the set minimum
-        # are not part of a larger, also included string (e.g. if 'dog' is already included, 'og' will be excluded)
-    # a bigger word part will however knock off a smaller word part with a higher match rate
-
-
-    final_out = dict()
-    for (key, value) in final_match_dict.items():
-        if value >= min_match_number:
-            final_out[key] = round(triangle_dict_reverse[value]/len(var_list),4)
-
-    # second main return
-    # dictionary/df with all valid string parts and how often they match
-
-    num_words_entered = int(len(var_list))
-
-    return final_match_list, final_out, num_words_entered, comparisons
 
 def normalize_wildcard(pattern):
     """Normalize a user wildcard pattern to the tokens ``wildcard_match`` uses.
@@ -277,11 +140,6 @@ def search_words(words, starts_with='', ends_with='', contains='',
 
     return results[:list_len], total
 
-def unused_letters_revamp(must_have, may_have, petal):
-    called_out = (must_have + may_have + petal).lower()
-    unused = set('abcdefghijklmnopqrstuvwxyz') - set(called_out)
-    return [''.join(unused)]
-
 def is_pangram_revamp(word, required_letters):
     return 7 if set(word.lower()) >= required_letters else 0
 
@@ -329,7 +187,6 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
         invalid_words = []
 
     required_letters = set((must_have + may_have + petal).lower())
-    forbidden_letters = set(unused_letters_revamp(must_have, may_have, petal)[0])
     must_have_set = set(must_have.lower())
         
     # Create a list of tuples with word, score, and pangram status
@@ -340,8 +197,8 @@ def filter_words_blossom_revamp(must_have, may_have, petal, list_len, words, use
             'Yes' if is_pangram_revamp(str(word), required_letters) > 0 else 'No'
         )
         for word in words
-        if must_have_set.issubset(str(word).lower()) 
-        and not set(str(word).lower()) & forbidden_letters 
+        if must_have_set.issubset(str(word).lower())
+        and set(str(word).lower()) <= required_letters
         and len(str(word)) >= 4
     ]
 
@@ -791,10 +648,11 @@ def _ribbit_trace(word, node_letter, adj, starts, step_budget):
     """Walk `word` along the board graph, stepping only between connected
     tiles and never reusing a tile within the word.
 
-    Returns (rep_path, used_nodes, capped): the first complete path found (a
+    Returns (rep_path, used_nodes, steps): the first complete path found (a
     list of node ids, or None if the word can't be traced), the union of node
     ids over every complete path explored (which tiles the word can route
-    through), and whether the per-word step budget cut the search short.
+    through), and how many steps the search took (more than step_budget if it
+    was cut short).
     """
     rep = {'path': None}
     used = set()
@@ -827,12 +685,18 @@ def _ribbit_trace(word, node_letter, adj, starts, step_budget):
         dfs(s, 0, [s], {s})
         if capped[0]:
             break
-    return rep['path'], used, capped[0]
+    return rep['path'], used, steps[0]
+
+
+# The most path steps one Ribbit solve takes, over all its words. No 4x4 board
+# comes close: the costliest one a search could find took 140,563 (0.2 s,
+# 2026-11-25).
+RIBBIT_SOLVE_STEPS = 500_000
 
 
 def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
                   disabled=None, popularity=None, list_len=None,
-                  step_budget=30000):
+                  step_budget=30000, solve_budget=RIBBIT_SOLVE_STEPS):
     """Find every dictionary word playable on a Ribbit board.
 
     Ribbit gives you a graph of letter tiles joined by drawn connections. A
@@ -854,6 +718,8 @@ def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
     list_len    -- cap on returned words (None returns every playable word)
     step_budget -- per-word DFS step cap; guards against a pathologically
                    dense board blowing up the path search
+    solve_budget -- the same for the whole solve: past it, the words not yet
+                   searched are left out
 
     Returns (results, total_playable). Each result is a dict:
       {'word', 'len', 'pop', 'path': [node ids], 'nodes': [node ids]}
@@ -888,7 +754,10 @@ def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
     exclude = {str(w).lower() for w in exclude} if exclude else set()
 
     results = []
+    steps_left = solve_budget
     for word in words:
+        if steps_left <= 0:
+            break
         w = str(word).lower()
         n = len(w)
         if n < min_len or n > 15 or w in exclude:
@@ -897,8 +766,9 @@ def ribbit_solver(nodes, edges, words, min_len=4, exclude=None,
         # and every letter must be somewhere on the board.
         if w[0] not in starts or not set(w) <= board_letters:
             continue
-        rep_path, used_nodes, _capped = _ribbit_trace(
-            w, node_letter, adj, starts, step_budget)
+        rep_path, used_nodes, steps = _ribbit_trace(
+            w, node_letter, adj, starts, min(step_budget, steps_left))
+        steps_left -= steps
         if rep_path is None:
             continue
         results.append({

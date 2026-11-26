@@ -105,6 +105,18 @@ def test_long_text_wraps_and_empty_panels_say_so(client, monkeypatch, dash_db):
     assert 'No rows.' in html
 
 
+def test_shipped_panels_are_read_only():
+    # One SELECT each. A connection takes one statement a query
+    # (test_a_connection_takes_one_statement_a_query in test_monitoring.py), so
+    # one that starts with SELECT can't write anything after it either.
+    from data import etl_dash_queries
+    assert etl_dash_queries
+    for name, details in etl_dash_queries.items():
+        sql = (details.get('query') or '').strip()
+        assert sql.upper().startswith('SELECT'), name
+        assert ';' not in sql.rstrip(';'), name
+
+
 def test_unknown_round_is_refused(client, monkeypatch, dash_db):
     dash_db()
     status, _ = _get(client, monkeypatch, '/etl_dash/99')

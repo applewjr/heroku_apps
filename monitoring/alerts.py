@@ -26,6 +26,7 @@ app and by one-off scheduler dynos alike, so it must not touch the database,
 Redis, or the network.
 """
 
+import logging
 import sys
 import threading
 import time
@@ -46,7 +47,7 @@ _last_emit = {}
 _last_emit_lock = threading.Lock()
 
 
-def scrub(value):
+def scrub(value, max_len=MAX_VALUE_LEN):
     """Make an arbitrary value safe to interpolate into a log line.
 
     Values routinely carry user input: exception messages built from form
@@ -67,14 +68,24 @@ def scrub(value):
     # prefix is enough - and leaves the text readable, which redaction would not.
     text = text.replace("JJ_", "JJ.")
 
-    if len(text) > MAX_VALUE_LEN:
-        text = text[:MAX_VALUE_LEN - 3] + "..."
+    if len(text) > max_len:
+        text = text[:max_len - 3] + "..."
 
     # k=v is only legible if v has no bare spaces.
     if " " in text:
         text = '"{}"'.format(text.replace('"', "'"))
 
     return text
+
+
+class LogFormatter(logging.Formatter):
+    """For the app's own log lines (app.py). They can hold text a visitor sent:
+    a malformed form, or an exception built from one. Both tokens are broken
+    in them, as scrub() breaks them in a value, so only this module's prints
+    can read as an alert or a pulse."""
+
+    def format(self, record):
+        return super().format(record).replace("JJ_", "JJ.")
 
 
 def _emit(token, **fields):

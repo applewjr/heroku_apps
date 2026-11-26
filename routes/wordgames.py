@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, render_template, request
 from data import df, word_pop, words
 from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit, log_solve
 from functions import all_words, wordle
-from helpers import ValidationError, json_object, make_schema_data, parse_float, parse_int
+from helpers import ValidationError, json_object, make_schema_data, parse_int
 from routes import chainle
 from routes import guess_the_phrase as gtp
 from routes import ribbit
@@ -186,29 +186,6 @@ def run_wordle_fixer():
         return render_template("fixer.html", final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, must_be_present=must_be_present)
     else:
         return render_template("fixer.html")
-
-
-@bp.route("/common_denominator", methods=["POST", "GET"])
-def run_common_denominator():
-    if request.method == "POST":
-        # Parsed here (not just downstream) so junk input 400s instead of
-        # 500ing on the int()/float() casts inside common_denominator.
-        min_match_len = parse_int(request.form["min_match_len"], "min_match_len",
-                                  default=3, min_value=1, max_value=100)
-        min_match_rate = parse_float(request.form["min_match_rate"], "min_match_rate",
-                                     default=0.5, min_value=0.0, max_value=1.0)
-        beg_end_str_char = request.form["beg_end_str_char"]
-        value_split_char = request.form["value_split_char"]
-        user_match_entry = request.form["user_match_entry"]
-        user_nope_match_entry = request.form["user_nope_match_entry"]
-        final_match_list, final_out, num_words_entered, comparisons = all_words.common_denominator(min_match_len, min_match_rate, beg_end_str_char, value_split_char, user_match_entry, user_nope_match_entry)
-        return render_template("common_denominator.html", min_match_len_val=min_match_len, min_match_rate_val=min_match_rate, beg_end_str_char_val=beg_end_str_char, value_split_char_val=value_split_char, \
-            user_match_entry_val=user_match_entry, user_nope_match_entry_val=user_nope_match_entry, \
-            final_match_list=final_match_list, final_out=final_out, num_words_entered=num_words_entered, comparisons=comparisons, \
-            num_word_count="Number of entries submitted: ", num_run_count="Number of comparisons run: ", top="Top values(s): ", all="All values meeting min match rate: ")
-    else:
-        return render_template("common_denominator.html", min_match_len_val=3, min_match_rate_val=0.5, beg_end_str_char_val="|", value_split_char_val=",", \
-            user_match_entry_val="Discectomy, Laminectomy, Foraminotomy, Corpectomy, Spinal (Lumbar) Fusion, Spinal Cord Stimulation", example=" (example set provided)")
 
 
 ANY_WORD_SORTS = {'Max-Min', 'Min-Max', 'A-Z', 'Z-A', 'Random',

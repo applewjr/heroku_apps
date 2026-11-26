@@ -1,12 +1,15 @@
-"""Daily digest email: the whole dashboard, pushed rather than visited.
+"""Daily digest email: is everything running, and what did players send.
 
-Run by Heroku Scheduler:
+Run by Heroku Scheduler, twice a day:
 
     python -m monitoring.daily_digest
 
 Two jobs, and the second is the important one.
 
-The obvious job is replacing a daily visit to /etl_dash with an email.
+The obvious job is one place to read every health check, page latency,
+storage, feedback and what players changed in the word lists. It carried every
+/etl_dash panel as well until 2026-11-25 (James: hardly looked at); that page
+is for those.
 
 The less obvious job is being a *second, independent* notification channel.
 Every alert in this application ends the same way: a log line, a Heroku drain,
@@ -23,12 +26,10 @@ alerting path cannot suppress.
 
 Imports stay lean for the same reason run_checks' do: this runs on a metered
 one-off dyno. `data.py` is avoided in particular - importing it loads four CSV
-and JSON datasets plus pandas - so the dashboard queries are read straight out
-of their YAML, and `extensions` is avoided because importing it builds a
-connection pool and pings Redis through a five-attempt retry loop.
+and JSON datasets plus pandas - and so is `extensions`, because importing it
+builds a connection pool and pings Redis through a five-attempt retry loop.
 """
 
-import os
 import smtplib
 import sys
 import time
@@ -37,20 +38,16 @@ from email.mime.text import MIMEText
 
 import mysql.connector
 import pytz
-import yaml
 
 import config
 from monitoring import alerts, run_checks
 from monitoring.crowd_report import report_sql
 
-APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DASH_PATH = os.path.join(APP_ROOT, 'datasets', 'etl_dash_queries.yaml')
-
 # Gmail clips a message past ~102 KB and hides the rest behind a "view entire
 # message" link, which would quietly truncate the bottom of the digest. Cap
-# what any one panel can contribute and say so in the output rather than
-# letting a panel that grew silently push everything below it out of view.
-MAX_ROWS_PER_PANEL = 40
+# what any one table can contribute and say so in the output rather than
+# letting one that grew silently push everything below it out of view.
+MAX_ROWS_PER_TABLE = 40
 
 # Largest tables, for the storage section. There is nowhere to record history,
 # so a size trend is not available here - the `ok db_size_mb` lines in
@@ -59,11 +56,6 @@ MAX_ROWS_PER_PANEL = 40
 TOP_TABLES = 10
 
 PLAN_LIMIT_MB = 1024
-
-
-def load_dash_queries(path=DASH_PATH):
-    with open(path, 'r') as handle:
-        return yaml.safe_load(handle) or {}
 
 
 def _connect():
@@ -102,10 +94,10 @@ def gather_health(cursor, hour_pst):
 
     Every check is evaluated, including ones outside their `only_between_pst`
     window. That window is a repeat-rate control for the *alerting* path - it
-    exists so a slow-moving breach emails once a day instead of hourly - and a
-    report that sends exactly once a day has no such problem. Obeying it here
-    would mean the digest never showed `db_size_mb` at all, since it runs at
-    6am and that check only opens at 9am.
+    exists so a slow-moving breach emails once or twice a day instead of
+    hourly - and a report that sends twice a day has no such problem. Obeying
+    it here would mean the digest never showed `db_size_mb` at all, since it
+    runs at 4am and 2pm and that check only opens at 9am.
 
     A breach outside its window is reported as `info` rather than `FAIL`, and
     does not count toward the subject line. Some windows mean "do not email so
@@ -272,30 +264,6 @@ def gather_wordiply_crowd(cursor):
     return gather_crowd(cursor, 'wordiply')
 
 
-def gather_dashboard(cursor):
-    """Every /etl_dash panel, every round, in file order.
-
-    Unlike the route, a panel that fails is reported rather than dropped.
-    routes/dashboards.py swallows the exception with a print and renders the
-    page without that table, so a broken panel looks exactly like a panel that
-    was never there. In an email nobody is looking at the shape of, that is
-    the difference between noticing and not.
-    """
-    panels = []
-    for name, details in load_dash_queries().items():
-        sql = (details.get('query') or '').strip()
-        try:
-            if not sql.upper().startswith('SELECT'):
-                raise ValueError('panel SQL must be a SELECT')
-            columns, rows = _rows(cursor, sql)
-            panels.append((name, details.get('description', ''),
-                           columns, rows, None))
-        except Exception as e:
-            panels.append((name, details.get('description', ''), [], [],
-                           '{}: {}'.format(type(e).__name__, e)))
-    return panels
-
-
 ##### rendering #####
 
 CSS = """
@@ -326,7 +294,7 @@ def _esc(value):
                       .replace('>', '&gt;'))
 
 
-def _table(columns, rows, limit=MAX_ROWS_PER_PANEL):
+def _table(columns, rows, limit=MAX_ROWS_PER_TABLE):
     if not rows:
         return '<p class="muted">no rows</p>'
     head = ''.join('<th>{}</th>'.format(_esc(c)) for c in columns)
@@ -341,7 +309,7 @@ def _table(columns, rows, limit=MAX_ROWS_PER_PANEL):
     return '<table><tr>{}</tr>{}</table>{}'.format(head, ''.join(body), extra)
 
 
-def render(now, health, latency, storage, feedback, panels, blossom=((), (), None),
+def render(now, health, latency, storage, feedback, blossom=((), (), None),
            smush=((), (), None), gtp=((), (), None), ribbit=((), (), None),
            chainle=((), (), None), typeshift=((), (), None), wordiply=((), (), None)):
     total_mb, tables = storage
@@ -420,18 +388,6 @@ def render(now, health, latency, storage, feedback, panels, blossom=((), (), Non
         else:
             h.append(_table(cr_cols, cr_rows))
 
-    h.append('<h2>ETL dashboard</h2>')
-    h.append('<p class="sub">Every panel from /etl_dash, every round. A panel '
-             'that fails is shown as an error, here and on the page.</p>')
-    for name, description, columns, rows, error in panels:
-        h.append('<h3>{}</h3>'.format(_esc(name)))
-        if description:
-            h.append('<p class="sub">{}</p>'.format(_esc(description)))
-        if error:
-            h.append('<p class="note">panel failed: {}</p>'.format(_esc(error)))
-        else:
-            h.append(_table(columns, rows))
-
     h.append('</body></html>')
     return ''.join(h), ok, bad, total_mb
 
@@ -455,7 +411,6 @@ def build(now):
         health = gather_health(cursor, now.hour)
         storage = gather_storage(cursor)
         feedback = gather_feedback(cursor)
-        panels = gather_dashboard(cursor)
         # Last, so a failure here can't leave the cursor in a state that
         # costs a section gathered after it. Each guards itself.
         blossom = gather_blossom_crowd(cursor)
@@ -473,7 +428,7 @@ def build(now):
     # holding one of fifteen JawsDB connections open across them is rude.
     latency = gather_latency()
 
-    html, ok, bad, total_mb = render(now, health, latency, storage, feedback, panels,
+    html, ok, bad, total_mb = render(now, health, latency, storage, feedback,
                                      blossom, smush, gtp, ribbit, chainle, typeshift, wordiply)
     # The summary goes in the subject so the phone notification is the report.
     # Most days that is the only part read, and it should be enough.

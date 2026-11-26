@@ -1,14 +1,15 @@
 import pandas as pd
 from datetime import datetime
 import mysql.connector
+from mysql.connector import errorcode
 import os
 from googleapiclient.discovery import build
-import pandas as pd
-from datetime import datetime
 import pytz
-import smtplib
-from email.mime.text import MIMEText
 # import logging
+
+# No email since 2026-11-25. A run that fails raises, which run_job turns into
+# an alert; a run that never happened, or that landed too few rows, is caught
+# by the load checks in datasets/health_checks.yaml.
 
 
 if 'IS_HEROKU' in os.environ:
@@ -21,7 +22,6 @@ if 'IS_HEROKU' in os.environ:
         'raise_on_warnings': True
         }
     YOUTUBE_API = os.environ.get('YOUTUBE_API')
-    GMAIL_PASS = os.environ.get('GMAIL_PASS')
 else:
     # Running locally, load values from secret_pass.py
     import sys
@@ -37,16 +37,6 @@ else:
         'raise_on_warnings': True
         }
     YOUTUBE_API = secret_pass.YOUTUBE_API
-    GMAIL_PASS = secret_pass.GMAIL_PASS
-
-gmail_sender_email = 'james.r.applewhite@gmail.com'
-gmail_receiver_email = 'james.r.applewhite@gmail.com'
-gmail_subject = 'youtube_trending_v2.py'
-gmail_list = []
-
-def print_and_append(statement):
-    print(statement)
-    gmail_list.append(statement)
 
 
 
@@ -136,7 +126,7 @@ def get_trending_videos(YOUTUBE_API):
 
 
 videos_df = get_trending_videos(YOUTUBE_API)
-print_and_append(f"df created: {len(videos_df) = }")
+print(f"df created: {len(videos_df) = }")
 
 
 
@@ -157,7 +147,11 @@ insert_query = """
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """.format(table_name)
 
-# Iterate over the rows of the DataFrame and insert the data
+# Iterate over the rows of the DataFrame and insert the data. A row that is
+# already there is a second run on the same day, which is fine. Any other
+# failure is kept for the end, so one bad row doesn't cost the rest.
+inserted = duplicates = 0
+failed = []
 for r in videos_df.itertuples(index=False):
     values = (r.video, r.chnl, r.vid_rank, r.vid_views, r.vid_likes, r.vid_comments, r.vid_cat_id, \
         r.vid_uploaded_dt, r.chnl_subs, r.chnl_views, r.chnl_video_count, r.collected_dt, r.collected_date, \
@@ -165,23 +159,21 @@ for r in videos_df.itertuples(index=False):
     try:
         cursor.execute(insert_query, values)
         conn.commit()
-    except:
-        print_and_append(f"Duplicate entry. Commit not run on: rank {r.vid_rank} - {r.video}")
+        inserted += 1
+    except mysql.connector.Error as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            duplicates += 1
+        else:
+            # Logged below, and a title is anyone's text: the alert words are
+            # broken in it, as monitoring/alerts.py breaks them.
+            failed.append(f"rank {r.vid_rank} - {r.video}: {e}".replace("JJ_", "JJ."))
 
 # Close the cursor and the database connection
 cursor.close()
 conn.close()
 
-print_and_append("youtube_trending data insert complete")
-
-gmail_message = '\n'.join(gmail_list)
-msg = MIMEText(gmail_message)
-msg['Subject'] = gmail_subject
-msg['From'] = gmail_sender_email
-msg['To'] = gmail_receiver_email
-with smtplib.SMTP('smtp.gmail.com', 587) as server:
-    server.starttls()
-    server.login(gmail_sender_email, GMAIL_PASS)
-    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-    print('email sent')
-
+print(f"youtube_trending: {inserted} rows inserted, {duplicates} already there, {len(failed)} failed")
+for line in failed:
+    print(line)
+if failed:
+    raise RuntimeError(f"{len(failed)} of {len(videos_df)} rows failed. First: {failed[0]}")

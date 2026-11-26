@@ -183,9 +183,9 @@ def test_a_player_crossing_words_off_does_not_count(client, ribbit_db):
 @pytest.mark.parametrize("word, players, expected, adds", [
     (UNTRACEABLE, 0, "not_on_board", False),
     (LISTED, 0, "already_listed", False),
-    (NOT_LISTED, 1, "recorded", False),
+    (NOT_LISTED, 2, "recorded", False),
     # The vote that adds the word gets the same reply as one that doesn't.
-    (NOT_LISTED, 2, "recorded", True),
+    (NOT_LISTED, 3, "recorded", True),
 ])
 def test_suggest_missing_outcomes(client, ribbit_db, word, players, expected, adds):
     db = ribbit_db(_votes(players=players))
@@ -216,13 +216,14 @@ def test_ribbit_votes_touch_only_ribbit_tables(client, ribbit_db):
 @pytest.mark.parametrize("payload", [
     {"action": "reject", "word": "fro", "nodes": _nodes(), "edges": LINKS},          # too short
     {"action": "reject", "word": "fr0g", "nodes": _nodes(), "edges": LINKS},
+    {"action": "suggest_missing", "word": "fr\u043eg", "nodes": _nodes(), "edges": LINKS},
     {"action": "reject", "word": ["frog"], "nodes": _nodes(), "edges": LINKS},
     {"action": "suggest_missing", "word": "f" * 16, "nodes": _nodes(), "edges": LINKS},
     {"action": "reject", "word": LISTED, "nodes": _nodes() + [{"id": 16, "letter": "z"}], "edges": LINKS},
     {"action": "reject", "word": LISTED, "nodes": _nodes(), "edges": [[0, 2]]},     # not neighbours
     {"action": "reject", "word": LISTED, "edges": LINKS},                          # no board
     {"action": "drop_table", "word": LISTED, "nodes": _nodes(), "edges": LINKS},
-], ids=["short", "digit", "list", "long", "offgrid", "farlink", "noboard", "unknown"])
+], ids=["short", "digit", "alphabet", "list", "long", "offgrid", "farlink", "noboard", "unknown"])
 def test_malformed_votes_are_a_400_and_touch_nothing(client, ribbit_db, payload):
     db = ribbit_db()
     assert client.post("/ribbit", json=payload).status_code == 400

@@ -54,6 +54,29 @@ def test_scrub_quotes_values_containing_spaces(capsys):
     assert 'msg="two words"' in capsys.readouterr().out
 
 
+def test_scrub_can_keep_more_than_one_alert_value():
+    long = "word " * 100
+    assert len(alerts.scrub(long)) <= alerts.MAX_VALUE_LEN + 2      # plus its quotes
+    assert alerts.scrub(long, max_len=3000) == '"{}"'.format(long.strip())
+
+
+def test_the_apps_log_lines_cannot_carry_a_token():
+    # They can hold what a visitor sent: a malformed form, or an exception
+    # (and its traceback) built from one.
+    import logging
+    import sys
+
+    formatter = alerts.LogFormatter('%(levelname)s: %(message)s')
+    try:
+        raise KeyError("JJ_ALERT check=forged")
+    except KeyError:
+        record = logging.LogRecord("app", logging.ERROR, __file__, 1,
+                                   "bad form: %r", ("JJ_PULSE source=checks",), sys.exc_info())
+    line = formatter.format(record)
+    assert "bad form" in line and "KeyError" in line
+    assert alerts.ALERT_TOKEN not in line and alerts.PULSE_TOKEN not in line
+
+
 def test_alert_line_shape(capsys):
     alerts.alert('youtube_trending_today', sev='crit', actual=0, threshold=45)
     out = capsys.readouterr().out.strip()
@@ -134,6 +157,116 @@ def test_shipped_checks_are_well_formed():
         assert 'threshold' in spec, name
         assert spec.get('compare', '>=') in run_checks.COMPARATORS, name
         assert spec.get('sev', 'warn') in ('crit', 'warn', 'info'), name
+
+
+##### jobs that send no email #####
+
+# The jobs whose daily email stopped on 2026-11-25, and the check that says so
+# when one of them never ran. redis_wordle.py's is redis_drain, below.
+NIGHTLY_CHECKS = {
+    'youtube_trending_v2': 'youtube_trending_today',
+    'youtube_trending_revamp_v3': 'youtube_grouped_today',
+    'youtube_backup_v2': 'youtube_backup',
+    'youtube_backup_revamp_v3': 'youtube_revamp_backup',
+    'espresso_data_import': 'espresso_import',
+}
+
+
+def test_every_job_that_stopped_emailing_has_a_check():
+    assert set(NIGHTLY_CHECKS.values()) <= set(run_checks.load_checks())
+
+
+@pytest.mark.parametrize("name", ['youtube_backup', 'youtube_revamp_backup'])
+@pytest.mark.parametrize("lacking,expected", [
+    (0, True),
+    (48, False),            # the copy did not run
+    (-63435, False),        # rows gone from the live table
+])
+def test_a_copy_that_differs_from_its_table_is_a_breach(name, lacking, expected):
+    assert run_checks.evaluate(run_checks.load_checks()[name], lacking)[0] is expected
+
+
+@pytest.mark.parametrize("hours,expected", [(2, True), (24, True), (26, False), (99999, False)])
+def test_an_old_espresso_import_is_a_breach(hours, expected):
+    # 26: yesterday's, seen by the 4am run. 99999: a table is missing.
+    assert run_checks.evaluate(run_checks.load_checks()['espresso_import'], hours)[0] is expected
+
+
+@pytest.mark.parametrize("name", ['youtube_backup', 'youtube_revamp_backup', 'espresso_import'])
+def test_the_nightly_checks_wait_for_the_jobs_and_meet_the_digest(name):
+    # The last job starts at 10:00 UTC, 2am PST or 3am PDT. The digest goes out
+    # at 12:00 UTC, 4am PST or 5am PDT, and only counts a breach in the window.
+    spec = run_checks.load_checks()[name]
+    assert not any(run_checks.in_active_window(spec, h) for h in (0, 1, 2, 3))
+    assert all(run_checks.in_active_window(spec, h) for h in (4, 5))
+
+
+class _FakeRedis:
+    """Just enough of a client for check_redis. `oldest` is each stream's
+    oldest entry's age in hours, None for an empty stream."""
+
+    def __init__(self, oldest, now_ms):
+        self.oldest, self.now_ms = oldest, now_ms
+
+    def ping(self):
+        return True
+
+    def xlen(self, stream):
+        return 0 if self.oldest.get(stream) is None else 5
+
+    def xrange(self, stream, count=None):
+        hours = self.oldest.get(stream)
+        if hours is None:
+            return []
+        if isinstance(hours, Exception):
+            raise hours
+        return [('{}-0'.format(int(self.now_ms - hours * 3_600_000)), {'json': '[]'})]
+
+
+def _run_redis_checks(monkeypatch, oldest, hour_pst):
+    now_s = 1_800_000_000.0
+    client = _FakeRedis(oldest, now_s * 1000)
+    monkeypatch.setattr(run_checks.redis, 'Redis', lambda **kw: client)
+    monkeypatch.setattr(run_checks.time, 'time', lambda: now_s)
+    results = run_checks.Results()
+    run_checks.check_redis(results, hour_pst)
+    return results
+
+
+def test_a_stream_the_drain_left_behind_alerts(monkeypatch, capsys):
+    results = _run_redis_checks(
+        monkeypatch, {'wordle_logging': 26.5, 'antiwordle_logging': 1.2}, hour_pst=4)
+    assert results.failed == 1
+    out = capsys.readouterr().out
+    assert "JJ_ALERT check=redis_drain" in out
+    assert "stream=wordle_logging actual=26" in out
+    assert "redis_drain:antiwordle_logging actual=1" in out
+
+
+def test_drained_and_empty_streams_pass(monkeypatch, capsys):
+    results = _run_redis_checks(
+        monkeypatch, {'wordle_logging': None, 'antiwordle_logging': 12.9}, hour_pst=5)
+    assert results.failed == 0
+    out = capsys.readouterr().out
+    assert "redis_drain:wordle_logging actual=0" in out
+    assert "redis_drain:antiwordle_logging actual=12" in out
+
+
+@pytest.mark.parametrize("hour_pst", [0, 3, 6, 14, 23])
+def test_the_drain_is_judged_only_after_it_has_run(monkeypatch, capsys, hour_pst):
+    # A day's entries are still there until 2am PST, and a breach should email
+    # twice a day, not every hour.
+    results = _run_redis_checks(monkeypatch, {'wordle_logging': 99, 'antiwordle_logging': 99},
+                                hour_pst=hour_pst)
+    assert results.failed == 0 and results.skipped == 1
+    assert "redis_drain" in capsys.readouterr().out
+
+
+def test_a_stream_that_cannot_be_read_costs_only_itself(monkeypatch, capsys):
+    results = _run_redis_checks(
+        monkeypatch, {'wordle_logging': RuntimeError("gone"), 'antiwordle_logging': 1}, hour_pst=4)
+    assert results.failed == 1
+    assert "redis_drain:antiwordle_logging actual=1" in capsys.readouterr().out
 
 
 ##### the job wrapper #####
@@ -324,7 +457,53 @@ def test_solver_pages_render_with_the_database_down(client, monkeypatch, quiet_q
 def test_shipped_checks_are_all_read_only():
     # A monitoring run must never be able to modify what it inspects.
     for name, spec in run_checks.load_checks().items():
-        assert spec['sql'].strip().upper().startswith('SELECT'), name
+        sql = spec['sql'].strip()
+        assert sql.upper().startswith('SELECT'), name
+        assert ';' not in sql.rstrip(';'), name
+
+
+def _settings_on_heroku(monkeypatch):
+    """config.py as the dyno runs it, with made-up settings."""
+    import os
+    import runpy
+    import config
+    monkeypatch.setenv('IS_HEROKU', '1')
+    monkeypatch.setenv('SESSION_KEY', 'test')
+    return runpy.run_path(os.path.abspath(config.__file__))
+
+
+def _flags_sent(settings):
+    """The capability flags the driver would open a connection with. Nothing
+    is opened."""
+    from mysql.connector.connection import MySQLConnection
+    cnx = MySQLConnection()
+    cnx.config(client_flags=settings['client_flags'])
+    return cnx._client_flags
+
+
+@pytest.mark.parametrize("where", ["pool", "local", "checks on heroku", "checks locally"])
+def test_a_connection_takes_one_statement_a_query(monkeypatch, where):
+    # What makes "starts with SELECT" mean read-only, here and on /etl_dash:
+    # without it MySQL runs the rest of "SELECT 1; DELETE FROM app_visits" too,
+    # and the driver asks for that by default.
+    import config
+    from mysql.connector.constants import ClientFlag
+    if where == "local":
+        settings = config.MYSQL_CONFIG
+    elif where == "checks locally":
+        settings = run_checks.db_config()
+    else:
+        dyno = _settings_on_heroku(monkeypatch)
+        settings = dyno['MYSQL_POOL_CONFIG']
+        if where == "checks on heroku":
+            monkeypatch.setattr(run_checks.config, 'IS_HEROKU', True)
+            monkeypatch.setattr(run_checks.config, 'MYSQL_POOL_CONFIG', settings, raising=False)
+            settings = run_checks.db_config()
+            assert 'pool_size' not in settings
+    sent = _flags_sent(settings)
+    assert not sent & ClientFlag.MULTI_STATEMENTS
+    # Nothing else is switched off with it.
+    assert sent | ClientFlag.MULTI_STATEMENTS == ClientFlag.get_default() | ClientFlag.MULTI_STATEMENTS
 
 
 def test_runner_refuses_non_select_sql(capsys):
@@ -832,7 +1011,7 @@ def test_web_probe_ok_line_has_no_retried_field_on_first_try(capsys, monkeypatch
 def _run_main_with_probes(monkeypatch, probes, fetches):
     """run_checks.main() with only the web probes, on the fake clock."""
     monkeypatch.setattr(run_checks, 'load_checks', lambda: {})
-    monkeypatch.setattr(run_checks, 'check_redis', lambda results: None)
+    monkeypatch.setattr(run_checks, 'check_redis', lambda results, hour_pst: None)
     monkeypatch.setattr(run_checks, 'load_web_checks', lambda: probes)
     _script_fetches(monkeypatch, fetches)
     run_checks.main()
@@ -901,11 +1080,11 @@ def test_one_broken_probe_costs_one_probe(monkeypatch):
 
 ##### daily digest #####
 
-def _render(health=(), latency=(), storage=(330, []), feedback=((), ()), panels=(),
+def _render(health=(), latency=(), storage=(330, []), feedback=((), ()),
             blossom=((), (), None), smush=((), (), None), ribbit=((), (), None)):
     now = datetime.datetime(2026, 9, 28, 6, 0)
     return daily_digest.render(now, list(health), list(latency), storage,
-                               feedback, list(panels), blossom, smush, ribbit=ribbit)
+                               feedback, blossom, smush, ribbit=ribbit)
 
 
 def test_digest_keeps_the_limit_column_of_a_less_than_check():
@@ -941,16 +1120,14 @@ def test_digest_escapes_content_from_the_database():
     assert 'tea &amp; toast' in html
 
 
-def test_a_failing_panel_is_reported_not_dropped():
-    # routes/dashboards.py swallows a broken panel with a print and renders
-    # the page without it, so a broken panel looks exactly like one that was
-    # never there. In an email nobody inspects the shape of, that is the
-    # difference between noticing and not.
-    html, _o, _b, _m = _render(panels=[
-        ('Blossom', 'clicks', [], [], 'ProgrammingError: table is gone'),
-    ])
-    assert 'panel failed' in html
-    assert 'table is gone' in html
+def test_the_digest_leaves_the_dashboard_to_its_page():
+    # James, 2026-11-25: drop all the ETL dashboard stuff. What he kept: the
+    # checks, latency, storage, feedback and what players changed.
+    html, _o, _b, _m = _render()
+    assert 'ETL dashboard' not in html and '/etl_dash' not in html
+    for kept in ('Health checks', 'Page latency', 'Storage', 'Feedback, last 24 hours',
+                 'Blossom word fixes by players'):
+        assert kept in html
 
 
 def test_digest_lists_blossom_crowd_fixes_escaped():
@@ -983,32 +1160,6 @@ def test_gather_blossom_crowd_never_raises():
     columns, rows, error = daily_digest.gather_blossom_crowd(Broken())
     assert (columns, rows) == ([], [])
     assert 'table is gone' in error
-
-
-def test_digest_refuses_non_select_panel_sql():
-    # The digest reads the same operator-editable YAML the dashboard does, and
-    # must never be able to write through it.
-    class Cur:
-        def execute(self, *a, **k):
-            raise AssertionError("non-SELECT panel SQL must never execute")
-
-    import monitoring.daily_digest as dd
-    original = dd.load_dash_queries
-    dd.load_dash_queries = lambda: {'evil': {'query': 'DELETE FROM app_visits'}}
-    try:
-        panels = dd.gather_dashboard(Cur())
-    finally:
-        dd.load_dash_queries = original
-    assert len(panels) == 1
-    assert 'must be a SELECT' in panels[0][4]
-
-
-def test_shipped_dash_panels_are_read_only():
-    panels = daily_digest.load_dash_queries()
-    assert panels
-    for name, details in panels.items():
-        sql = (details.get('query') or '').strip()
-        assert sql.upper().startswith('SELECT'), name
 
 
 def test_digest_failure_reaches_the_other_channel(capsys):
@@ -1056,9 +1207,9 @@ def _gather_with(checks, value, hour_pst):
 
 def test_digest_evaluates_checks_outside_their_window():
     # only_between_pst is a repeat-rate control for the alerting path. A report
-    # that sends once a day has no such problem, and obeying the window would
-    # mean the digest never showed db_size_mb at all - it runs at 6am and that
-    # check only opens at 9am.
+    # that sends twice a day has no such problem, and obeying the window would
+    # mean the digest never showed db_size_mb at all - it runs at 4am and 2pm
+    # and that check only opens at 9am.
     rows = _gather_with({'db_size_mb': {
         'sql': 'SELECT 1', 'threshold': 700, 'compare': '<=',
         'only_between_pst': [9, 10]}}, 330, hour_pst=6)

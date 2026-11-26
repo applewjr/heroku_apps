@@ -1,12 +1,18 @@
+"""Nightly drain of the two Redis logging streams into MySQL.
+
+No email since 2026-11-25. A run that fails raises, which run_job turns into
+an alert; a run that never happened, or a stream left uncleared, is caught by
+the redis_drain check in monitoring/run_checks.py.
+"""
+
+from collections import Counter
 from datetime import datetime
 import mysql.connector
 import os
-import smtplib
-from email.mime.text import MIMEText
 import redis
 import json
-from datetime import datetime
 import time
+import traceback
 
 if 'IS_HEROKU' in os.environ:
     # Running on Heroku, load values from Heroku Config Vars
@@ -17,7 +23,6 @@ if 'IS_HEROKU' in os.environ:
         'database': os.environ.get('jawsdb_db'),
         'raise_on_warnings': True
         }
-    GMAIL_PASS = os.environ.get('GMAIL_PASS')
     REDIS_HOST = os.environ.get('REDIS_HOST')
     REDIS_PORT = os.environ.get('REDIS_PORT')
     REDIS_PASS = os.environ.get('REDIS_PASS')
@@ -35,20 +40,15 @@ else:
         'database': secret_pass.mysql_db,
         'raise_on_warnings': True
         }
-    GMAIL_PASS = secret_pass.GMAIL_PASS
     REDIS_HOST = secret_pass.REDIS_HOST
     REDIS_PORT = secret_pass.REDIS_PORT
     REDIS_PASS = secret_pass.REDIS_PASS
 
-gmail_sender_email = 'james.r.applewhite@gmail.com'
-gmail_receiver_email = 'james.r.applewhite@gmail.com'
-
-gmail_subject = 'redis_wordle.py'
-gmail_list = []
-
-def print_and_append(statement):
-    print(statement)
-    gmail_list.append(statement)
+# (Redis stream, MySQL table it drains into)
+STREAMS = (
+    ('wordle_logging', 'wordle_revamp_clicks'),
+    ('antiwordle_logging', 'antiwordle_revamp_clicks'),
+)
 
 max_retries = 5
 retry_delay = 2  # seconds
@@ -65,206 +65,77 @@ for attempt in range(max_retries):
             time.sleep(retry_delay)
         else:
             print("Failed to connect after several attempts.")
+            raise
 
 
-##### pull the data from redis #####
-
-stream_name = 'wordle_logging'
-
-stream_entries = r.xrevrange(stream_name)
-
+def as_value(data):
+    """JSON text in one form, for comparing: MySQL hands it back with its keys
+    in an order of its own."""
+    return json.dumps(json.loads(data), sort_keys=True) if data else data
 
 
-##### transform the data #####
+def drain(stream_name, table):
+    """Move one stream's entries into its MySQL table, then take those entries
+    out of the stream. Raises if anything goes wrong, and is safe to run again:
+    an entry stays in Redis until its row is committed, and a row committed by
+    a run that then couldn't clear the stream is not stored a second time."""
 
-parsed_data_list = []
+    ##### pull the data from redis #####
 
-for entry in stream_entries:
-    entry_id, entry_data = entry  # Unpack the tuple
-    
-    datetime_value = entry_data['datetime']
-    json_value = entry_data['json']
-    json_parsed = json.loads(json_value)
-    
-    parsed_data_list.append({
-        'datetime': datetime_value,
-        'data': json_parsed
-    })
+    entries = r.xrevrange(stream_name)
+    rows = [(datetime.strptime(entry_data['datetime'], "%Y-%m-%d %H:%M:%S"),
+             json.dumps(json.loads(entry_data['json'])))
+            for _entry_id, entry_data in entries]
+    print(f'{stream_name}: {len(rows)} entries in redis')
+    if not rows:
+        return
 
-wordle_redis_insert_count = len(parsed_data_list)
-print_and_append(f'{wordle_redis_insert_count = }')
+    ##### import the data into MySQL #####
 
-
-
-##### import the data into MySQL #####
-
-try:
-    # Establish database connection
     conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-
-    # pre row count
-    cursor.execute("SELECT COUNT(*) FROM wordle_revamp_clicks")
-    wordle_mysql_row_pre_count = cursor.fetchone()[0]
-    conn.commit()
-    print_and_append(f'{wordle_mysql_row_pre_count = }')
-    
-    # Prepare insert query
-    insert_query = "INSERT INTO wordle_revamp_clicks (click_time, data_dict) VALUES (%s, %s)"
-    insert_data = [(datetime.strptime(entry['datetime'], "%Y-%m-%d %H:%M:%S"), json.dumps(entry['data'])) for entry in parsed_data_list]
-    cursor.executemany(insert_query, insert_data)
-    conn.commit()
-    print_and_append(f"Inserted {len(insert_data)} rows into MySQL.")
-
-    # post row count
-    cursor.execute("SELECT COUNT(*) FROM wordle_revamp_clicks")
-    wordle_mysql_row_post_count = cursor.fetchone()[0]
-    conn.commit()
-    print_and_append(f'{wordle_mysql_row_post_count = }')
-
-except mysql.connector.Error as err:
-    print_and_append(f"MySQL Error: {err}")
-finally:
-    if conn.is_connected():
-        cursor.close()
-        conn.close()
-        print_and_append("MySQL connection is closed.")
-
-
-
-##### Delete the data from Redis #####
-
-if wordle_mysql_row_pre_count + wordle_redis_insert_count == wordle_mysql_row_post_count:
     try:
-        r.delete(stream_name)
-        print_and_append(f"Cleared the Redis stream: {stream_name}")
-    except redis.RedisError as err:
-        print_and_append(f"Redis Error: {err}")
-else:
-    print_and_append('redis data not deleted. row counts do not align')
+        cursor = conn.cursor()
 
+        # The entries an earlier run already stored. Only this script adds to
+        # the table, so they can only be its newest rows. Counted rather than
+        # looked up: two entries can be alike (a double tap).
+        cursor.execute(f"SELECT click_time, data_dict FROM {table} ORDER BY id DESC LIMIT %s", (len(rows),))
+        stored = Counter((click_time, as_value(data)) for click_time, data in cursor.fetchall())
+        new_rows = []
+        for click_time, data in rows:
+            key = (click_time, as_value(data))
+            if stored[key]:
+                stored[key] -= 1
+            else:
+                new_rows.append((click_time, data))
 
-
-##### prep email #####
-
-print_and_append("wordle data from Redis are inserted into MySQL. Redis data are deleted")
-
-gmail_message = '\n'.join(gmail_list)
-msg = MIMEText(gmail_message)
-msg['Subject'] = gmail_subject
-msg['From'] = gmail_sender_email
-msg['To'] = gmail_receiver_email
-with smtplib.SMTP('smtp.gmail.com', 587) as server:
-    server.starttls()
-    server.login(gmail_sender_email, GMAIL_PASS)
-    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-    print('email sent')
-
-
-
-
-
-######################
-##### antiwordle #####
-######################
-
-gmail_subject = 'redis_antiwordle.py'
-gmail_list = []
-
-##### pull the data from redis #####
-
-stream_name = 'antiwordle_logging'
-
-stream_entries = r.xrevrange(stream_name)
-
-
-
-##### transform the data #####
-
-parsed_data_list = []
-
-for entry in stream_entries:
-    entry_id, entry_data = entry  # Unpack the tuple
-    
-    datetime_value = entry_data['datetime']
-    json_value = entry_data['json']
-    json_parsed = json.loads(json_value)
-    
-    parsed_data_list.append({
-        'datetime': datetime_value,
-        'data': json_parsed
-    })
-
-antiwordle_redis_insert_count = len(parsed_data_list)
-print_and_append(f'{antiwordle_redis_insert_count = }')
-
-
-
-##### import the data into MySQL #####
-
-try:
-    # Establish database connection
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-
-    # pre row count
-    cursor.execute("SELECT COUNT(*) FROM antiwordle_revamp_clicks")
-    antiwordle_mysql_row_pre_count = cursor.fetchone()[0]
-    conn.commit()
-    print_and_append(f'{antiwordle_mysql_row_pre_count = }')
-    
-    # Prepare insert query
-    insert_query = "INSERT INTO antiwordle_revamp_clicks (click_time, data_dict) VALUES (%s, %s)"
-    insert_data = [(datetime.strptime(entry['datetime'], "%Y-%m-%d %H:%M:%S"), json.dumps(entry['data'])) for entry in parsed_data_list]
-    cursor.executemany(insert_query, insert_data)
-    conn.commit()
-    print_and_append(f"Inserted {len(insert_data)} rows into MySQL.")
-
-    # post row count
-    cursor.execute("SELECT COUNT(*) FROM antiwordle_revamp_clicks")
-    antiwordle_mysql_row_post_count = cursor.fetchone()[0]
-    conn.commit()
-    print_and_append(f'{antiwordle_mysql_row_post_count = }')
-
-except mysql.connector.Error as err:
-    print_and_append(f"MySQL Error: {err}")
-finally:
-    if conn.is_connected():
-        cursor.close()
+        if new_rows:
+            cursor.executemany(f"INSERT INTO {table} (click_time, data_dict) VALUES (%s, %s)", new_rows)
+            if cursor.rowcount != len(new_rows):
+                # Before the commit, so none of them is kept.
+                raise RuntimeError(f'{table} took {cursor.rowcount} of {len(new_rows)} rows')
+        conn.commit()
+    finally:
         conn.close()
-        print_and_append("MySQL connection is closed.")
+    print(f'{table}: {len(new_rows)} rows stored, {len(rows) - len(new_rows)} already there')
+
+    ##### delete the data from redis #####
+
+    # Only the entries read above: players may have added more since.
+    r.xdel(stream_name, *[entry_id for entry_id, _entry_data in entries])
+    print(f"Cleared {len(entries)} entries from the Redis stream: {stream_name}")
 
 
-
-##### Delete the data from Redis #####
-
-if antiwordle_mysql_row_pre_count + antiwordle_redis_insert_count == antiwordle_mysql_row_post_count:
+errors = []
+for stream_name, table in STREAMS:
+    # One stream's trouble doesn't cost the other its drain.
     try:
-        r.delete(stream_name)
-        print_and_append(f"Cleared the Redis stream: {stream_name}")
-    except redis.RedisError as err:
-        print_and_append(f"Redis Error: {err}")
-else:
-    print_and_append('redis data not deleted. row counts do not align')
+        drain(stream_name, table)
+    except Exception as e:
+        traceback.print_exc()
+        errors.append(f'{stream_name}: {type(e).__name__}: {e}')
+if errors:
+    raise RuntimeError('; '.join(errors))
 
 
-
-##### prep email #####
-
-print_and_append("antiwordle data from Redis are inserted into MySQL. Redis data are deleted")
-
-gmail_message = '\n'.join(gmail_list)
-msg = MIMEText(gmail_message)
-msg['Subject'] = gmail_subject
-msg['From'] = gmail_sender_email
-msg['To'] = gmail_receiver_email
-with smtplib.SMTP('smtp.gmail.com', 587) as server:
-    server.starttls()
-    server.login(gmail_sender_email, GMAIL_PASS)
-    server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
-    print('email sent')
-
-
-# TODO - handle 0 rows seen in redis better. lots of stuff can be skipped
 # TODO - intermittend redis connections issues? redis.exceptions.ConnectionError: Error 11002 connecting to ***REDIS_HOST*** getaddrinfo failed.
-# TODO - handle the possibility of inserting duplicate data into mysql

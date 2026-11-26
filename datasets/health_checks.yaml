@@ -46,6 +46,52 @@ youtube_grouped_today:
         WHERE collected_date = DATE(CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles'));
 
 
+##### nightly jobs that send no email #####
+
+# These jobs emailed after every run until 2026-11-25. A run that fails still
+# alerts, through monitoring/run_job.py. These are for a run that never
+# started, or finished without doing its work.
+#
+# Checked twice, after the night's jobs are done (the last starts at 10:00 UTC:
+# 2am PST, 3am PDT), so a breach emails twice a day rather than hourly. The
+# digest that goes out at 12:00 UTC falls inside the window, so its subject
+# counts a breach as well. redis_wordle.py's check is redis_drain, in
+# monitoring/run_checks.py.
+
+youtube_backup:
+    sev: warn
+    description: "Rows youtube_trending has that its nightly copy lacks (below 0: rows gone from the live table)"
+    compare: "=="
+    threshold: 0
+    only_between_pst: [4, 5]
+    sql: |
+        SELECT (SELECT COUNT(*) FROM youtube_trending)
+             - (SELECT COUNT(*) FROM youtube_trending_backup);
+
+youtube_revamp_backup:
+    sev: warn
+    description: "Rows youtube_trending_revamp has that its nightly copy lacks (below 0: rows gone from the live table)"
+    compare: "=="
+    threshold: 0
+    only_between_pst: [4, 5]
+    sql: |
+        SELECT (SELECT COUNT(*) FROM youtube_trending_revamp)
+             - (SELECT COUNT(*) FROM youtube_trending_revamp_backup);
+
+# Every import replaces all three tables, so their age is the import's.
+espresso_import:
+    sev: warn
+    description: "Hours since espresso_data_import.py last replaced the espresso tables"
+    compare: "<="
+    threshold: 24
+    only_between_pst: [4, 5]
+    sql: |
+        SELECT CASE WHEN COUNT(*) = 3 THEN TIMESTAMPDIFF(HOUR, MIN(create_time), NOW()) ELSE 99999 END
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name IN ('espresso_data', 'espresso_bean', 'espresso_profile');
+
+
 ##### traffic gone quiet #####
 
 # Two checks asking different questions. site_idle asks "is anyone reaching the
@@ -258,7 +304,7 @@ db_connections:
 ##### the Redis to MySQL drain #####
 
 # redis_wordle.py moves wordle and antiwordle logging out of Redis nightly and
-# deletes the stream only when the row counts reconcile. If it stops, rows stop
+# takes out of each stream only what it has stored. If it stops, rows stop
 # arriving here. Thresholds are generous on purpose: these tables also go quiet
 # when nobody happens to play, so tighten only after watching real numbers.
 
