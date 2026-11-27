@@ -31,6 +31,7 @@ pulls in Flask and its extensions, none of which the digest needs.
 """
 
 import smtplib
+import ssl
 import sys
 import time
 from datetime import datetime
@@ -398,7 +399,10 @@ def send(subject, html):
     msg['From'] = config.GMAIL_SENDER_EMAIL
     msg['To'] = config.GMAIL_RECEIVER_EMAIL
     with smtplib.SMTP('smtp.gmail.com', 587, timeout=30) as server:
-        server.starttls()
+        # A bare starttls() encrypts without checking who answered, so anyone
+        # on the network path could pose as Gmail and receive the password.
+        # The default context checks the certificate and the hostname first.
+        server.starttls(context=ssl.create_default_context())
         server.login(config.GMAIL_SENDER_EMAIL, config.GMAIL_PASS)
         server.sendmail(config.GMAIL_SENDER_EMAIL, config.GMAIL_RECEIVER_EMAIL,
                         msg.as_string())

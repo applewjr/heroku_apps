@@ -1,5 +1,8 @@
 # Test-only dependencies (not installed on Heroku).
 # Install locally with:  pip install -r requirements-dev.txt
+# The -c line holds every package requirements.txt pins at that version, so
+# installing these can never move a production package away from what Heroku runs.
+-c requirements.txt
 pytest==8.3.4
 pytest-cov==7.1.0
 # Parses the inline JS in templates/thread.html - there is no JS toolchain here,
@@ -7,3 +10,8 @@ pytest-cov==7.1.0
 # is missing. Note it only understands up to ES2017, so no ?. or ?? in code it
 # is pointed at.
 esprima==4.0.1
+
+# Installed by pytest and pytest-cov (packaging is pinned in requirements.txt).
+coverage==7.17.5
+iniconfig==2.3.1
+pluggy==1.7.0

@@ -1116,6 +1116,60 @@ def test_digest_failure_reaches_the_other_channel(capsys):
     assert alerts.PULSE_TOKEN not in out
 
 
+def test_digest_checks_gmails_certificate_before_the_password(monkeypatch):
+    # A bare starttls() encrypts without checking who answered, so anyone on
+    # the network path could pose as Gmail and be handed the password.
+    import smtplib
+    import ssl
+    calls = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None):
+            calls.append(('connect', host))
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+        def starttls(self, context=None):
+            calls.append(('starttls', context))
+        def login(self, user, password):
+            calls.append(('login', None))
+        def sendmail(self, *a):
+            calls.append(('sendmail', None))
+
+    monkeypatch.setattr(smtplib, 'SMTP', FakeSMTP)
+    daily_digest.send('subject', '<p>body</p>')
+    assert [step for step, _ in calls] == ['connect', 'starttls', 'login', 'sendmail']
+    assert calls[0][1] == 'smtp.gmail.com'
+    context = calls[1][1]
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+
+
+def test_every_email_sender_checks_gmails_certificate():
+    # Source, not behavior: the MTG script logs in to Bluesky as soon as it is
+    # imported. Walks the whole repo so a new sender can't skip the check.
+    import os
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    skip = {'env', 'venv', '.venv', '.git', 'tests', '__pycache__', 'node_modules'}
+    senders = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip and not d.startswith('_archived')]
+        for name in filenames:
+            if not name.endswith('.py'):
+                continue
+            path = os.path.join(dirpath, name)
+            with open(path, encoding='utf-8') as f:
+                code = [line.split('#')[0] for line in f]
+            calls = [line.strip() for line in code if 'starttls(' in line]
+            if calls:
+                senders.append(os.path.relpath(path, root).replace(os.sep, '/'))
+                for call in calls:
+                    assert re.search(r'starttls\(context=ssl\.create_default_context\(\)\)', call), (path, call)
+    assert {'monitoring/daily_digest.py', 'scheduled_tasks_mtg/mtg_prices_bsky.py'} <= set(senders)
+
+
 class _FakeCheckCursor:
     def __init__(self, value):
         self.value = value
