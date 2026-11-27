@@ -27,7 +27,7 @@ alerting path cannot suppress.
 Imports stay lean for the same reason run_checks' do: this runs on a metered
 one-off dyno. `data.py` is avoided in particular - importing it loads four CSV
 and JSON datasets plus pandas - and so is `extensions`, because importing it
-builds a connection pool and pings Redis through a five-attempt retry loop.
+pulls in Flask and its extensions, none of which the digest needs.
 """
 
 import smtplib

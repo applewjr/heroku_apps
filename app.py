@@ -9,7 +9,7 @@ Routes live in the routes/ package:
     routes/dashboards.py - youtube trending, etl status, mtg prices
     routes/misc.py       - front page, games, feedback, SEO files, redirects
 
-Shared services (db, cache, limiter, auth, redis) live in extensions.py,
+Shared services (db, cache, limiter, auth) live in extensions.py,
 env/secret loading in config.py, and startup dataset loads in data.py.
 """
 

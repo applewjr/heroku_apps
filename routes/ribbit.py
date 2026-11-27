@@ -449,15 +449,78 @@ def store_approval(day, letters, links, orientation):
         conn.commit()
 
 
-def remove_approval(letters):
-    """Take back every approval of these letters, any day; players' boards
-    stay. Returns how many rows went."""
+def remove_approval(letters, day):
+    """Take back the approval of these letters for one day. Players' boards
+    stay, and so do the same board's approvals on other days: Ribbit serves
+    old boards again (see REPEAT_LAG_DAYS), and the earlier approval is what
+    the repeat card offers. Returns how many rows went."""
     with db_cursor() as (conn, cursor):
-        cursor.execute("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s",
-                       (letters, APPROVAL))
+        cursor.execute("DELETE FROM ribbit_boards WHERE letters = %s AND source = %s AND played_on = %s",
+                       (letters, APPROVAL, day))
         removed = cursor.rowcount
         conn.commit()
     return removed
+
+
+##### the Yahoo repeat #####
+
+# Yahoo's Ribbit serves old boards again. From 11-18 on, one of each day's two
+# approved boards was exactly one James approved 25 days before (9 of 9 days,
+# checked 2026-11-26); nothing repeated before 11-18. The approvals don't say
+# which site a board came from, so which of the two earlier boards comes back
+# isn't known. The Shared boards tab offers both, one tap each, and nothing
+# is served on its own (James, 2026-11-26: card now, auto later).
+REPEAT_LAG_DAYS = 25
+# The card shows only while the pattern holds: a repeat approved on at least
+# one of the last this-many days, so it goes by itself if Yahoo stops.
+REPEAT_RECORD_DAYS = 7
+
+
+def approvals_between(first, last):
+    """Every approval dated between these days, for the repeat card."""
+    return _fetch(f"SELECT {_COLUMNS} FROM ribbit_boards "
+                  "WHERE source = %s AND played_on BETWEEN %s AND %s",
+                  (APPROVAL, first, last))
+
+
+def approved_by_day(approvals):
+    """{day: {letters: approval row}}."""
+    by_day = {}
+    for row in approvals:
+        by_day.setdefault(row[PLAYED_ON], {})[row[LETTERS]] = row
+    return by_day
+
+
+def repeated_on(by_day, day):
+    """The letters approved on `day` that were also approved
+    REPEAT_LAG_DAYS before it."""
+    return set(by_day.get(day, {})) & set(by_day.get(day - timedelta(days=REPEAT_LAG_DAYS), {}))
+
+
+def repeat_record(by_day, today):
+    """On how many of the REPEAT_RECORD_DAYS days before today a board
+    approved REPEAT_LAG_DAYS earlier was approved again."""
+    return sum(1 for n in range(1, REPEAT_RECORD_DAYS + 1)
+               if repeated_on(by_day, today - timedelta(days=n)))
+
+
+def repeat_candidates(by_day, day):
+    """The boards approved REPEAT_LAG_DAYS before `day`, oldest approval
+    first, each as {'letters' (canonical), 'grid' (in the view it was
+    approved in)}. Empty once one of them is approved for `day`: only one
+    comes back each day."""
+    if repeated_on(by_day, day):
+        return []
+    earlier = by_day.get(day - timedelta(days=REPEAT_LAG_DAYS), {})
+    rows = sorted(earlier.values(), key=lambda row: row[UPDATED])
+    return [{'letters': row[LETTERS], 'grid': _grid_rows(row[LETTERS], row[ORIENTATION])}
+            for row in rows]
+
+
+def _grid_rows(letters, t):
+    """A canonical board's letters as four upper-case rows, seen from view t."""
+    view_letters, _links = _apply(INVERSES[t], letters, ())
+    return [view_letters[r * N:(r + 1) * N].upper() for r in range(N)]
 
 
 def _played_on(data):
@@ -684,9 +747,11 @@ def _back(**message):
     return redirect(crowd.admin_return_url(ADMIN, request.form, **message))
 
 
-def _admin_days():
+def _admin_days(by_day):
     """(days, error): each recent day's boards for the Shared boards tab,
-    each with its consensus and a 4x4 grid in the view it's served in."""
+    each with its consensus and a 4x4 grid in the view it's served in.
+    by_day is the recent approvals (approved_by_day): a board approved
+    REPEAT_LAG_DAYS before its day gets 'repeat_of', that earlier day."""
     today = _pacific_today()
     first, last = today - timedelta(days=ADMIN_DAYS_BACK), today + timedelta(days=1)
     try:
@@ -698,14 +763,39 @@ def _admin_days():
     day = last
     while day >= first:
         _boards, groups = todays_boards(rows, day)
+        earlier = day - timedelta(days=REPEAT_LAG_DAYS)
         for g in groups:
-            letters, _links = _apply(INVERSES[g['orientation']], g['letters'], ())
-            g['grid'] = [letters[r * N:(r + 1) * N].upper() for r in range(N)]
+            g['grid'] = _grid_rows(g['letters'], g['orientation'])
             g['latest_stamp'] = g['latest_at'].strftime(_STAMP) if g['latest_at'] else ''
+            g['repeat_of'] = earlier if g['letters'] in by_day.get(earlier, {}) else None
         if groups:
             days.append({'day': day, 'groups': groups})
         day -= timedelta(days=1)
     return days, None
+
+
+def _admin_repeats():
+    """(by_day, record, cards) for the Yahoo repeat card: the recent
+    approvals (approved_by_day), how many of the last REPEAT_RECORD_DAYS
+    days a board came back, and the card for today and tomorrow (each
+    {'day', 'from', 'boards'}), none while nothing came back lately. Quietly
+    empty if the approvals can't be read: the boards half says why."""
+    today = _pacific_today()
+    first = today - timedelta(days=REPEAT_RECORD_DAYS + REPEAT_LAG_DAYS)
+    try:
+        by_day = approved_by_day(approvals_between(first, today + timedelta(days=1)))
+    except Exception as e:
+        print(f"Error loading ribbit approvals for the repeat card: {e}")
+        return {}, 0, []
+    record = repeat_record(by_day, today)
+    cards = []
+    if record:
+        for day in (today, today + timedelta(days=1)):
+            boards = repeat_candidates(by_day, day)
+            if boards:
+                cards.append({'day': day, 'from': day - timedelta(days=REPEAT_LAG_DAYS),
+                              'boards': boards})
+    return by_day, record, cards
 
 
 def editor_board(letters):
@@ -750,12 +840,15 @@ def ribbit_admin():
         print(f"Error loading ribbit admin word lists: {e}")
         view = RIBBIT_CROWD.empty_view(ADMIN, args['tab'] if args['tab'] in ADMIN_TABS else 'boards')
         crowd_error = f'{type(e).__name__}: {e}'
-    days, load_error = _admin_days()
+    by_day, repeat_record_days, repeat_cards = _admin_repeats()
+    days, load_error = _admin_days(by_day)
     return render_template('ribbit_admin.html', **view,
                            crowd_error=crowd_error, days=days, load_error=load_error,
                            shared_live=SHARED_BOARDS_LIVE, pacific_today=_pacific_today(),
                            serve_identical=SERVE_IDENTICAL, serve_majority=SERVE_MAJORITY,
-                           todays_boards_max=TODAYS_BOARDS_MAX)
+                           todays_boards_max=TODAYS_BOARDS_MAX,
+                           repeat_cards=repeat_cards, repeat_record=repeat_record_days,
+                           repeat_record_window=REPEAT_RECORD_DAYS, repeat_lag=REPEAT_LAG_DAYS)
 
 
 @bp.route(ADMIN + '/board', methods=['GET', 'POST'])
@@ -883,21 +976,47 @@ def ribbit_approve_typed_board():
     return _back(success=f"Approved your board for {day:%m-%d}: its links are served now")
 
 
+@bp.route(ADMIN + '/approve_repeat', methods=['POST'])
+@auth.login_required
+def ribbit_approve_repeat():
+    """Serve, for `played_on`, a board James approved REPEAT_LAG_DAYS
+    before it: one of the Yahoo repeat card's boards, one tap (James asked,
+    2026-11-26). Copies that approval's links and view, so it's served
+    exactly as he approved it then."""
+    letters = request.form.get('letters', '')
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
+        return _back(error='Not a board')
+    earlier = day - timedelta(days=REPEAT_LAG_DAYS)
+    try:
+        rows = [row for row in rows_with_letters(letters)
+                if row[SOURCE] == APPROVAL and row[PLAYED_ON] == earlier]
+        if not rows:
+            return _back(error=f'That board was not approved on {earlier:%m-%d}')
+        store_approval(day, letters, _parse_links(rows[0][LINKS]), rows[0][ORIENTATION])
+    except Exception as e:
+        print(f"Error approving a repeated ribbit board: {e}")
+        return _back(error='Database error')
+    return _back(success=f"Approved the {earlier:%m-%d} board for {day:%m-%d}: its links are served now")
+
+
 @bp.route(ADMIN + '/unapprove_board', methods=['POST'])
 @auth.login_required
 def ribbit_unapprove_board():
-    """Undo an approval, every day's of these letters: the players' boards
-    decide again, and none of them is touched."""
+    """Undo one day's approval of these letters: the players' boards decide
+    again, and none of them is touched. The board's approvals on other days
+    stay (see remove_approval)."""
     letters = request.form.get('letters', '')
-    if not _is_letters(letters):
+    day = parse_iso_day(request.form.get('played_on', ''))
+    if not _is_letters(letters) or day is None:
         return _back(error='Not a board')
     try:
-        removed = remove_approval(letters)
+        removed = remove_approval(letters, day)
     except Exception as e:
         print(f"Error undoing ribbit approval: {e}")
         return _back(error='Database error')
     if not removed:
-        return _back(error='That board was not approved')
+        return _back(error=f'That board was not approved for {day:%m-%d}')
     return _back(success="Approval undone: the players' boards decide again")
 
 

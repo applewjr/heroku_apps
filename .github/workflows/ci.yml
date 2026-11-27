@@ -10,22 +10,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # The app pings Redis when it is imported, so give it a real one to talk to.
-    services:
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
       # secret_pass.py does not exist in CI; config.py falls back to these.
-      REDIS_HOST: localhost
-      REDIS_PORT: "6379"
       SESSION_KEY: ci-test-session-key
 
     steps:

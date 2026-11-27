@@ -1,4 +1,4 @@
-"""Hourly health checks against JawsDB, Redis and the live site.
+"""Hourly health checks against JawsDB and the live site.
 
 Run by Heroku Scheduler:
 
@@ -10,9 +10,9 @@ says "something is wrong", while the JJ_PULSE inactivity alert says "nothing
 is reporting at all". An outage must not be able to suppress the second.
 
 Imports are deliberately lean, and `extensions` in particular is avoided:
-importing it builds a connection pool and pings Redis through a five-attempt
-retry loop. This runs about 720 times a month on a metered one-off dyno, so
-pandas alone would add seconds of billed import time to every single run.
+importing it pulls in Flask and its extensions, none of which a check needs.
+This runs about 720 times a month on a metered one-off dyno, so pandas alone
+would add seconds of billed import time to every single run.
 """
 
 import operator
@@ -23,7 +23,6 @@ from datetime import datetime
 
 import mysql.connector
 import pytz
-import redis
 import requests
 import yaml
 
@@ -42,19 +41,6 @@ COMPARATORS = {
     '==': operator.eq,
     '!=': operator.ne,
 }
-
-# Streams drained nightly by redis_wordle.py. A backlog well past a day's
-# traffic means the drain is no longer clearing them.
-REDIS_STREAMS = ('wordle_logging', 'antiwordle_logging')
-REDIS_BACKLOG_MAX = int(os.environ.get('REDIS_BACKLOG_MAX', '20000'))
-
-# The drain runs at 10:00 UTC and empties each stream, so an entry this old
-# means it did not run or did not clear the stream. Long before the backlog
-# says so: at some 60 entries a day that would take most of a year. Looked at
-# only in these PST hours, as datasets/health_checks.yaml's nightly checks are,
-# so a breach emails twice a day rather than hourly.
-REDIS_OLDEST_MAX_HOURS = 12
-REDIS_OLDEST_HOURS_PST = [4, 5]
 
 WEB_TIMEOUT_SECONDS = 15
 
@@ -82,7 +68,7 @@ def _pad(name):
     """Name padded to the column, always with at least one trailing space.
 
     ljust on its own runs the name straight into the detail when the name is
-    longer than the column, which `redis_backlog:antiwordle_logging` is.
+    longer than the column.
     """
     return name.ljust(NAME_WIDTH - 1) + " "
 
@@ -283,63 +269,6 @@ def run_sql_checks(results, checks, hour_pst):
         conn.close()
 
 
-def check_redis(results, hour_pst):
-    """Redis carries wordle and antiwordle logging; silence there is silent loss."""
-    started = time.monotonic()
-    try:
-        client = redis.Redis(
-            host=config.REDIS_HOST, port=config.REDIS_PORT, password=config.REDIS_PASS,
-            decode_responses=True, socket_timeout=5, socket_connect_timeout=5,
-        )
-        client.ping()
-    except Exception as e:
-        results.fail('redis_up', sev='crit', exc=type(e).__name__, msg=e)
-        return
-    results.ok('redis_up', ms=int((time.monotonic() - started) * 1000))
-
-    for stream in REDIS_STREAMS:
-        try:
-            length = client.xlen(stream)
-        except Exception as e:
-            results.fail('redis_backlog', stream=stream, exc=type(e).__name__, msg=e)
-            continue
-        if length > REDIS_BACKLOG_MAX:
-            results.fail('redis_backlog', stream=stream, actual=length,
-                         threshold=REDIS_BACKLOG_MAX,
-                         note='redis_wordle.py may have stopped draining')
-        else:
-            # The backlog length matters even when it passes: it is the only
-            # view of whether the nightly drain is keeping up or slowly losing.
-            results.ok('redis_backlog:' + stream, actual=length,
-                       compare='<=', threshold=REDIS_BACKLOG_MAX)
-
-    if not in_active_window({'only_between_pst': REDIS_OLDEST_HOURS_PST}, hour_pst):
-        results.skip('redis_drain', 'outside PST window {}'.format(REDIS_OLDEST_HOURS_PST))
-        return
-    for stream in REDIS_STREAMS:
-        try:
-            hours = _oldest_entry_hours(client, stream)
-        except Exception as e:
-            results.fail('redis_drain', stream=stream, exc=type(e).__name__, msg=e)
-            continue
-        fields = {'actual': hours, 'compare': '<=', 'threshold': REDIS_OLDEST_MAX_HOURS}
-        if hours > REDIS_OLDEST_MAX_HOURS:
-            results.fail('redis_drain', stream=stream, **fields,
-                         note='redis_wordle.py did not run, or left this stream uncleared')
-        else:
-            results.ok('redis_drain:' + stream, **fields)
-
-
-def _oldest_entry_hours(client, stream):
-    """Whole hours since a stream's oldest entry was added, 0 if it is empty.
-    An entry's id starts with the time Redis added it, in milliseconds."""
-    entries = client.xrange(stream, count=1)
-    if not entries:
-        return 0
-    added_ms = int(entries[0][0].split('-')[0])
-    return int((time.time() * 1000 - added_ms) // 3_600_000)
-
-
 def _fetch(url):
     """One probe request. Returns (response, elapsed_ms)."""
     started = time.monotonic()
@@ -454,8 +383,6 @@ def main():
             # from the runner never having started.
             results.fail('checks_db', sev='crit', exc=type(e).__name__, msg=e,
                          note='could not run SQL checks')
-
-    check_redis(results, hour_pst)
 
     try:
         probes = load_web_checks()

@@ -38,7 +38,7 @@ A personal tool for dialing in espresso. I log each shot in a Google Form, and a
 
 The site is also its own data source.
 
-- **Visit logging:** page views go onto an in-memory queue, and a background thread writes them to MySQL in batches, so a slow database never slows a page down. Wordle and Antiwordle solver requests go to Redis streams, and a scheduled job loads them into MySQL.
+- **Visit logging:** page views go onto an in-memory queue, and a background thread writes them to MySQL in batches, so a slow database never slows a page down.
 - **Dashboards:** SQL views in [mysql_views/dashboard/](mysql_views/dashboard/) feed a password-protected ops dashboard whose panels are defined in one YAML file. A digest email twice a day carries the health checks, page timings, storage and what players sent.
 - **Monitoring:** hourly health checks, also defined in YAML, cover data freshness, database health, and page responses. A problem prints an alert line that Papertrail turns into a notification, and a heartbeat line raises an alert if the checks themselves stop running. Scheduled jobs run through a wrapper that turns a failure into an alert. Details are in [monitoring/README.md](monitoring/README.md).
 
@@ -70,7 +70,7 @@ These are the hobby part of the hobby.
 ## Tech stack
 
 - **Web:** Python, Flask, Jinja, gunicorn, plain HTML, CSS, and JavaScript
-- **Data:** MySQL (JawsDB), Redis Cloud, pandas, NumPy
+- **Data:** MySQL (JawsDB), pandas, NumPy
 - **Modeling:** scikit-learn, SciPy, matplotlib
 - **MTG pipeline:** AWS (EventBridge, Step Functions, Lambda, S3, Athena, Iceberg, CloudFront, SNS), Snowflake, Streamlit
 - **APIs:** YouTube Data API, Google Sheets, Scryfall, Bluesky
@@ -85,7 +85,7 @@ These are the hobby part of the hobby.
 | `functions/` | Solver and analysis logic |
 | `crowd.py` | Shared crowd word-voting logic |
 | `templates/` | Jinja pages |
-| `scheduled_tasks_*/` | Scheduled jobs: MTG Bluesky posts, YouTube loads, espresso import, Redis to MySQL |
+| `scheduled_tasks_*/` | Scheduled jobs: MTG Bluesky posts, YouTube loads, espresso import |
 | `monitoring/` | Health checks, alerts, job wrapper, daily digest |
 | `mysql_tables/`, `mysql_views/` | Table changes and dashboard views |
 | `datasets/` | Word lists, phrase, Chainle and Circuits data, dashboard and health check YAML |

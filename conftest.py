@@ -231,7 +231,7 @@ def no_ice_builds(monkeypatch):
 
 @pytest.fixture(scope="session")
 def flask_app():
-    # Importing app.py wires the blueprints, SSLify, ProxyFix, and pings Redis.
+    # Importing app.py wires the blueprints, SSLify and ProxyFix.
     from app import app
     from extensions import limiter
 
@@ -241,11 +241,7 @@ def flask_app():
 
 
 @pytest.fixture
-def client(flask_app, monkeypatch):
-    # Keep tests hermetic: never write to the real Redis logging stream.
-    import routes.wordgames as wordgames
-    monkeypatch.setattr(wordgames, "add_data_to_stream", lambda *a, **k: None)
-
+def client(flask_app):
     c = flask_app.test_client()
     # Heroku's router sets X-Forwarded-Proto; mimic it so Flask-SSLify doesn't
     # 301-redirect every test request to https.

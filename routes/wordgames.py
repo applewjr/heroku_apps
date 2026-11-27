@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, render_template, request
 
 from data import df, word_pop, words
-from extensions import INTERACTIVE_LIMITS, add_data_to_stream, limiter, log_page_visit, log_solve
+from extensions import INTERACTIVE_LIMITS, limiter, log_page_visit, log_solve
 from functions import all_words, wordle
 from helpers import ValidationError, json_object, make_schema_data, parse_int
 from routes import chainle
@@ -18,12 +18,6 @@ from routes.smush import get_smush_words
 bp = Blueprint('wordgames', __name__)
 
 NO_WORDS_END = f'Options remaining: 0/{len(df)} (0.0%)'
-
-
-def abbreviate_keys(data):
-    key_map = {'letter': 'l', 'position': 'p', 'color': 'c', 'row': 'r'}
-    abbreviated_data = [{key_map[key]: value for key, value in d.items()} for d in data]
-    return abbreviated_data
 
 
 @bp.route("/wordle", methods=["POST", "GET"])
@@ -44,12 +38,6 @@ def run_wordle_revamp():
                 show_alt_picks, alt_out1, alt_out2, alt_out3, alt_out4, alt_out5 = wordle.wordle_solver_split_revamp(df, wordle_data_dict)
             first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
             complete_rows = 'Complete Rows: ' + str(complete_rows)
-
-            try:
-                wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
-                add_data_to_stream('wordle_logging', wordle_data_dict_abbr)
-            except Exception:
-                print('wordle_logging_failed')
 
             log_solve('wordle_revamp.html', body)
             return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \
@@ -101,12 +89,6 @@ def run_antiwordle_revamp():
             final_out1, final_out2, final_out3, final_out4, final_out5, final_out_end, first_incomplete_row, complete_rows = wordle.antiwordle_solver_split_revamp(df, wordle_data_dict)
             first_incomplete_row = 'First Incomplete Row: ' + str(first_incomplete_row)
             complete_rows = 'Complete Rows: ' + str(complete_rows)
-
-            try:
-                wordle_data_dict_abbr = abbreviate_keys(wordle_data_dict)
-                add_data_to_stream('antiwordle_logging', wordle_data_dict_abbr)
-            except Exception:
-                print('antiwordle_logging_failed')
 
             log_solve('antiwordle_revamp.html', body)
             return jsonify(final_out1=final_out1, final_out2=final_out2, final_out3=final_out3, final_out4=final_out4, final_out5=final_out5, final_out_end=final_out_end, \

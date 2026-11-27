@@ -55,8 +55,7 @@ youtube_grouped_today:
 # Checked twice, after the night's jobs are done (the last starts at 10:00 UTC:
 # 2am PST, 3am PDT), so a breach emails twice a day rather than hourly. The
 # digest that goes out at 12:00 UTC falls inside the window, so its subject
-# counts a breach as well. redis_wordle.py's check is redis_drain, in
-# monitoring/run_checks.py.
+# counts a breach as well.
 
 youtube_backup:
     sev: warn
@@ -299,35 +298,3 @@ db_connections:
     compare: "<="
     threshold: 13
     sql: SELECT COUNT(*) FROM information_schema.processlist;
-
-
-##### the Redis to MySQL drain #####
-
-# redis_wordle.py moves wordle and antiwordle logging out of Redis nightly and
-# takes out of each stream only what it has stored. If it stops, rows stop
-# arriving here. Thresholds are generous on purpose: these tables also go quiet
-# when nobody happens to play, so tighten only after watching real numbers.
-
-# diasbled for now. they aren't don't have a usage pattern that makes them useful
-
-# wordle_drain_fresh:
-#     sev: warn
-#     description: "Hours since redis_wordle.py last landed a wordle row"
-#     compare: "<="
-#     threshold: 48
-#     sql: |
-#         SELECT COALESCE(
-#                  TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
-#                  99999)
-#         FROM wordle_revamp_clicks;
-
-# antiwordle_drain_fresh:
-#     sev: warn
-#     description: "Hours since redis_wordle.py last landed an antiwordle row"
-#     compare: "<="
-#     threshold: 72
-#     sql: |
-#         SELECT COALESCE(
-#                  TIMESTAMPDIFF(HOUR, MAX(click_time), CONVERT_TZ(NOW(), 'UTC', 'America/Los_Angeles')),
-#                  99999)
-#         FROM antiwordle_revamp_clicks;
