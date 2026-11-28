@@ -64,6 +64,7 @@ These are the hobby part of the hobby.
 | [Typeshift](https://www.jamesapplewhite.com/typeshift) | Every word that fits the columns, and the fewest words that use every letter, found with a set-cover search, with a hint for each letter left first |
 | [4x3](https://www.jamesapplewhite.com/4x3) | Scores all 945 ways to pick the hub and pair the other eight words, from Numberbatch word vectors, WordNet and Wikipedia word pairs, with hints first and how sure it is of each group; tunes itself on the answers entered by hand |
 | [4x6](https://www.jamesapplewhite.com/4x6) | Sorts the board in the fewest possible moves, found exactly with an A* search, with hints first and what each choice does to the score |
+| [Firsts](https://www.jamesapplewhite.com/firsts) | Traces every word that fits each clue's length on the hex board from its green tiles, ranks them by the clue with WordNet definitions and Numberbatch word vectors, and narrows the last clues to the tiles left, with hints first |
 | [Wordiply](https://www.jamesapplewhite.com/wordiply) | The longest words containing a given starter |
 | [Last Letter Helper](https://www.jamesapplewhite.com/fixer) | Words that contain specific letters |
 
@@ -95,8 +96,9 @@ These are the hobby part of the hobby.
 
 ## Licensing
 
-The code is MIT licensed ([LICENSE](LICENSE)). Three sets of data files in `datasets/` are not, and carry their sources' licences instead:
+The code is MIT licensed ([LICENSE](LICENSE)). Four sets of data files in `datasets/` are not, and carry their sources' licences instead:
 
 - The Guess The Phrase files (`phrase_*`): CC BY-SA 4.0, CC BY 4.0, and the WordNet 3.0 licence, listed in [datasets/PHRASE_BANK.md](datasets/PHRASE_BANK.md).
 - The Chainle solver's `chainle_data.npz`: CC BY-SA 4.0 and the WordNet 3.0 licence, listed in [datasets/CHAINLE_DATA.md](datasets/CHAINLE_DATA.md).
 - The Circuits solver's `circuits_data.npz`: CC BY-SA 4.0 and the WordNet 3.0 licence, listed in [datasets/CIRCUITS_DATA.md](datasets/CIRCUITS_DATA.md).
+- The Firsts solver's `firsts_data.npz`: CC BY-SA 4.0 and the WordNet 3.0 licence, listed in [datasets/FIRSTS_DATA.md](datasets/FIRSTS_DATA.md).

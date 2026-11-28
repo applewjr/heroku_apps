@@ -482,9 +482,9 @@ Ten checks come from `datasets/health_checks.yaml`: `youtube_trending_today`,
 `espresso_import`, `blossom_idle`, `site_idle`, `blossom_errors_today`,
 `db_size_mb`, `db_connections`.
 
-Eleven are web probes from `datasets/health_web.yaml`, reported as `web:<name>`:
+Twelve are web probes from `datasets/health_web.yaml`, reported as `web:<name>`:
 `home`, `blossom`, `smush`, `guess_the_phrase`, `chainle`, `circuits`, `typeshift`,
-`four_by_three`, `four_by_six`, `wordle`, `youtube_trending`. Each asserts three
+`four_by_three`, `four_by_six`, `firsts`, `wordle`, `youtube_trending`. Each asserts three
 things - 200, the body contains an expected substring, and the response
 arrived inside `max_ms`:
 
@@ -1205,7 +1205,7 @@ page can mean a confusing page.
   a form post and a new page, sends a `first_solve=1` field that only its GET
   render has. Side requests (votes, board logging, today's board) and
   `/ribbit_admin/board`, `/circuits_admin/board`, `/typeshift_admin/board`,
-  `/4x3_admin/board` and `/4x6_admin/board` never log a use.
+  `/4x3_admin/board`, `/4x6_admin/board` and `/firsts_admin/board` never log a use.
   Quordle's own Sequence-mode request on load doesn't either.
 - **Readers.** The solver views name their pages, and the error views and
   checks match `error`, so none of them counts a `(solve)` row. `site_idle`

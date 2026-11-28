@@ -93,6 +93,14 @@ four_by_six:
     expect: 'id="fbs-ok"'
     sev: warn
 
+# Firsts' page. Its word data loads on the first solve, not for the page, so
+# this checks the page renders.
+firsts:
+    path: "/firsts"
+    max_ms: 3000
+    expect: 'id="fst-ok"'
+    sev: warn
+
 wordle:
     path: "/wordle"
     max_ms: 3000

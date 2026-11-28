@@ -47,6 +47,9 @@ SOLVES = {
                                              "SUPER", "SPIDER"]}),
     # A made-up board, already sorted: it needs no moves.
     "/4x6": ("four_by_six.html", {"board": "YYYYOOOOKKKKPPPPBBBBGGGG"}),
+    # A made-up board: one green tile and one clue.
+    "/firsts": ("firsts.html", {"tiles": list("CATSDOGEMUPIGRATBEE"), "green": [True] + [False] * 18,
+                                "clues": [["A pet", "3"]] + [["", ""]] * 9}),
     "/guess_the_phrase": ("guess_the_phrase.html", {"board": BOARD, "tried": "", "category": "song"}),
     "/wordiply": ("wordiply.html", {"search_string": "ab"}),
     "/wordle": ("wordle_revamp.html", {"wordle_data": []}),
@@ -79,6 +82,7 @@ def no_db(monkeypatch):
     import routes.chainle
     import routes.circuits
     import routes.dashboards
+    import routes.firsts
     import routes.four_by_six
     import routes.four_by_three
     import routes.misc
@@ -91,7 +95,7 @@ def no_db(monkeypatch):
         raise RuntimeError("no database in tests")
 
     for module in (crowd, extensions, routes.blossom, routes.chainle, routes.circuits, routes.dashboards,
-                   routes.four_by_six, routes.four_by_three, routes.misc, routes.ribbit, routes.smush, routes.smush_ice,
+                   routes.firsts, routes.four_by_six, routes.four_by_three, routes.misc, routes.ribbit, routes.smush, routes.smush_ice,
                    routes.typeshift):
         monkeypatch.setattr(module, "db_cursor", down)
 
@@ -249,6 +253,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
     import routes.blossom as blossom
     import routes.chainle as chainle
     import routes.circuits as circuits
+    import routes.firsts as firsts
     import routes.four_by_six as four_by_six
     import routes.four_by_three as four_by_three
     import routes.guess_the_phrase as gtp
@@ -266,6 +271,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
                           (typeshift, ("handle_action",)),
                           (four_by_three, ("handle_action",)),
                           (four_by_six, ("handle_action",)),
+                          (firsts, ("handle_action",)),
                           (gtp, ("handle_vote",)),
                           (blossom, ("_toggle_invalid", "_suggest_missing", "_log_board",
                                      "_todays_board_reply"))):
@@ -279,6 +285,7 @@ def test_side_requests_never_log_a_use(client, monkeypatch):
         "/typeshift": ("todays_boards", "log_board", "reject", "restore", "suggest_missing"),
         "/4x3": ("todays_boards", "log_board", "marks"),
         "/4x6": ("todays_boards", "log_board"),
+        "/firsts": ("todays_boards", "log_board", "marks"),
         "/guess_the_phrase": ("suggest_missing",),
         "/blossom": ("toggle_invalid", "suggest_missing", "log_board", "todays_board", "toggle_word"),
     }
@@ -294,7 +301,7 @@ def test_admin_copies_never_log(client, monkeypatch, tiny, no_db):
     monkeypatch.setattr(ribbit, "handle_action", lambda data, serve_dark=False: jsonify(boards=[]))
     auth = _admin_headers(monkeypatch)
     for path in ("/ribbit_admin/board", "/circuits_admin/board", "/typeshift_admin/board",
-                 "/4x3_admin/board", "/4x6_admin/board"):
+                 "/4x3_admin/board", "/4x6_admin/board", "/firsts_admin/board"):
         assert client.get(path, headers=auth).status_code == 200, path
     board = {"action": "shared_board", "played_on": "2026-10-27", "first_solve": True}
     assert client.post("/ribbit_admin/board", json=board, headers=auth).status_code == 200
@@ -306,6 +313,8 @@ def test_admin_copies_never_log(client, monkeypatch, tiny, no_db):
     assert client.post("/4x3_admin/board", json=four_by_three, headers=auth).status_code == 200
     four_by_six = dict(SOLVES["/4x6"][1], first_solve=True)
     assert client.post("/4x6_admin/board", json=four_by_six, headers=auth).status_code == 200
+    firsts = dict(SOLVES["/firsts"][1], first_solve=True)
+    assert client.post("/firsts_admin/board", json=firsts, headers=auth).status_code == 200
     assert _visits() == []
 
 
@@ -321,7 +330,7 @@ def _page_list(view):
 def test_the_use_views_count_every_solver_and_its_uses():
     # A misspelled '(solve)' name would read zero forever without an error.
     pages = _page_list("vw_prod_word_solver_page_visits.sql")
-    assert len(pages) == 13
+    assert len(pages) == 14
     expected = pages | {f"{page} (solve)" for page in pages}
     assert _page_list("vw_prod_traffic_today.sql") == expected
     assert _page_list("vw_prod_solver_use_7d.sql") == expected

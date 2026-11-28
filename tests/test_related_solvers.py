@@ -28,13 +28,14 @@ PAGES = {
     "/typeshift": "Play Typeshift",
     "/4x3": "Play 4x3",
     "/4x6": "Play 4x6",
+    "/firsts": "Play Firsts",
     "/wordle": "Play Wordle",
     "/antiwordle": "Play Antiwordle",
     "/quordle": "Play Quordle",
 }
 # Cards for the busier daily solvers, a line of plain links for the rest
 # (Wordiply and Guess The Phrase moved there 2026-11-22).
-CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3", "/4x6")
+CARDS = ("/smush", "/blossom", "/chainle", "/ribbit", "/circuits", "/typeshift", "/4x3", "/4x6", "/firsts")
 PLAIN = ("/wordiply", "/wordle", "/antiwordle", "/quordle", "/guess_the_phrase")
 # Sister games, shown first under a heading of their own (James, 2026-11-24).
 FAMILIES = {"Hank Green": ("/smush", "/4x3", "/4x6"),

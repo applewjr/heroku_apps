@@ -38,7 +38,7 @@ pin_malloc_thresholds()
 
 from extensions import (NOT_FOUND_LIMITS, cache, keep_admin_out_of_frames, limiter, log_page_visit,
                         show_ads)
-from routes import (blossom, chainle, circuits, dashboards, espresso, four_by_six, four_by_three,
+from routes import (blossom, chainle, circuits, dashboards, espresso, firsts, four_by_six, four_by_three,
                     guess_the_phrase, misc, ribbit, smush, typeshift, wordgames, wordiply)
 
 app = Flask(__name__)
@@ -85,6 +85,7 @@ app.register_blueprint(circuits.bp)
 app.register_blueprint(typeshift.bp)
 app.register_blueprint(four_by_three.bp)
 app.register_blueprint(four_by_six.bp)
+app.register_blueprint(firsts.bp)
 app.register_blueprint(wordiply.bp)
 app.register_blueprint(espresso.bp)
 app.register_blueprint(dashboards.bp)

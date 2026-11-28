@@ -414,9 +414,10 @@ def is_new(path):
 # Pages tagged Beta: next to the page's own heading, and in the menu, the home
 # page's card and the solver links, where NEW would go (a Beta page never
 # wears NEW too). No date: the tag stays until James says to take it off
-# (2026-11-19; /typeshift and /4x3 too, 2026-11-20; /4x6, 2026-11-23), then
+# (2026-11-19; /typeshift and /4x3 too, 2026-11-20; /4x6, 2026-11-23; /firsts,
+# 2026-11-27), then
 # the entry goes and the next deploy drops it everywhere.
-BETA_PAGES = frozenset({'/circuits', '/typeshift', '/4x3', '/4x6'})
+BETA_PAGES = frozenset({'/circuits', '/typeshift', '/4x3', '/4x6', '/firsts'})
 
 
 def is_beta(path):

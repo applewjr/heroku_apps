@@ -144,6 +144,25 @@ def no_four_by_six_db(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_firsts_db(monkeypatch):
+    """Keep /firsts' today's boards and answers off the database, for every
+    test, as no_four_by_six_db does for /4x6: every cursor in routes/firsts.py
+    fails here, and its memos start empty. tests/test_firsts_boards.py puts
+    a table of its own in place of these.
+    """
+    import routes.firsts as firsts_route
+
+    def down():
+        raise RuntimeError("no database in tests")
+
+    monkeypatch.setattr(firsts_route, "db_cursor", down)
+    monkeypatch.setattr(firsts_route, "_boards_cache", {})
+    monkeypatch.setattr(firsts_route, "_answers_cache", {})
+    monkeypatch.setattr(firsts_route, "_past_cache", {'value': None, 'expires': 0.0})
+    firsts_route._solve_memo.clear()
+
+
+@pytest.fixture(autouse=True)
 def no_chainle_best_db(monkeypatch):
     """Keep /chainle's confirmed words off the database, for every test.
 

@@ -31,12 +31,13 @@ SELECT
     SUM(page_name = 'typeshift.html') AS typeshift,
     SUM(page_name = 'four_by_three.html') AS four_by_three,
     SUM(page_name = 'four_by_six.html') AS four_by_six,
+    SUM(page_name = 'firsts.html') AS firsts,
     COUNT(*) AS total
 FROM app_visits
 WHERE submit_time >= DATE(pst_now()) - INTERVAL 13 DAY
     AND page_name IN ('smush.html', 'blossom.html', 'chainle.html', 'ribbit.html', 'wordle_revamp.html',
                       'guess_the_phrase.html', 'wordiply.html', 'antiwordle_revamp.html', 'quordle.html',
-                      'circuits.html', 'typeshift.html', 'four_by_three.html', 'four_by_six.html')
+                      'circuits.html', 'typeshift.html', 'four_by_three.html', 'four_by_six.html', 'firsts.html')
     AND referrer NOT LIKE '%127.0.0.1:5000%'
     AND referrer NOT LIKE '%apple-apps-staging%'
     -- run_checks fetches /blossom, /smush, /wordle, /guess_the_phrase,

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Firsts Admin - Boards{% endblock %}
+
+{% block content %}
+{% from '_crowd_admin.html' import styles, flash with context %}
+{{ styles() }}
+<style>
+.board-open { display: inline-block; padding: 4px 6px; border: 1px solid #cdd8d7; border-radius: 6px; color: #02484d; text-decoration: none; }
+.board-open:hover { border-color: #02484d; background-color: #eef4f4; }
+.board-letters { font-family: monospace; font-size: 12px; letter-spacing: 1px; }
+.board-open-label { display: block; margin-top: 3px; font-size: 11px; text-decoration: underline; }
+.status-served { color: #218838; font-weight: bold; }
+.status-waiting { color: #666; }
+.flagged { color: #b02a37; font-weight: bold; }
+.when { white-space: nowrap; font-size: 12px; }
+.answers { margin: 0; padding-left: 18px; font-size: 12px; }
+.answers li { margin: 0 0 2px; }
+.answers .checked { color: #02484d; font-weight: bold; }
+.answers .players { color: #555; }
+.answers .top { color: #888; }
+.approve-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 4px; }
+.approve-entry .btn { margin: 0; padding: 6px 12px; font-size: 13px; }
+.approve-entry input { width: 64px; font-size: 14px; padding: 4px 6px; }
+</style>
+
+<div class="admin-container">
+    <div class="admin-top">
+        <h1>Firsts Admin - Boards</h1>
+        <nav class="top-nav">
+            <a href="/jj_admin" class="btn btn-secondary">Back to JJ Admin</a>
+            <a href="/firsts" target="_blank" rel="noopener" class="btn btn-primary">Back to Firsts Solver</a>
+            <a href="https://firsts.online/" target="_blank" rel="noopener" class="btn btn-success">Play Firsts</a>
+        </nav>
+    </div>
+
+    {{ flash() }}
+
+    <div class="stats">
+        <strong>Today:</strong> No. {{ today_label }} |
+        <strong>Today's boards:</strong> {{ 'live on /firsts' if boards_live else 'logging only; served on /firsts_admin/board' }}
+    </div>
+
+    <details class="admin-help"><summary>How boards and answers are served</summary>
+        <p class="crowd-note">Firsts numbers its puzzles (No. N is 2026-11-25 + N days), and the game decides which one is today, so boards are kept by puzzle. Future puzzles open early in the game, so you can enter and approve days ahead: an approval for a future number is served from its day.</p>
+        <p class="crowd-note">A starting board a player enters is logged once they've looked at its results for a few seconds. It's served once {{ serve_networks }} players enter the same tiles, greens and lengths for that puzzle; players on one network count as one. A board loaded from today's boards counts only once it's changed. Your approval comes first, then the players' boards, most players first, at most {{ todays_boards_max }}. Older puzzles are offered only once you approve them.</p>
+        <p class="crowd-note">Answers: open a board, tap &#10003; on each word Firsts takes (or type it), then Approve. Your answers are served as checked straight away. A word {{ confirm_networks }} players say worked, more than say it was refused, is served as players found; one as many say was refused leaves that clue's list. A date in red has players agreeing on a board other than yours: the game may have changed the puzzle.</p>
+    </details>
+
+    {% if load_error %}
+    <div class="alert alert-error">
+        Couldn't read the boards ({{ load_error }}). Has mysql_tables/firsts_boards.sql been run?
+    </div>
+    {% endif %}
+
+    <form class="approve-entry" method="GET" action="/firsts_admin/board">
+        <strong>Enter a board:</strong>
+        <label>No. <input type="text" name="n" value="{{ today_n }}" inputmode="numeric"></label>
+        <button type="submit" class="btn btn-success">Open the editor</button>
+        <span class="crowd-note">or open one below.</span>
+    </form>
+
+    {% for d in days %}
+    <h3>No. {{ d.label }}, {{ d.day.strftime('%a %Y-%m-%d') }}{% if d.today %} (today){% endif %}
+        {% if d.flagged %}<span class="flagged">: players agree on a different board</span>{% endif %}</h3>
+    <div class="table-wrap">
+    <table class="words-table">
+        <thead>
+            <tr>
+                <th>Board</th>
+                <th>Your approval</th>
+                <th>Players</th>
+                <th>Status</th>
+                <th>Answers (yours; players' marks; the solver's first pick)</th>
+                <th>Last update</th>
+                <th>Remove</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in d.groups %}
+            <tr>
+                <td><a class="board-open" href="/firsts_admin/board?key={{ g.key | urlencode }}&amp;n={{ d.n }}"
+                       title="Open this board in the editor to check it, add answers or approve it">
+                    <strong>{{ g.details.title or 'Untitled' }}</strong><br>
+                    <span class="board-letters">{{ g.key.split(':')[0] }}</span>
+                    <span class="board-open-label">Open in editor</span></a></td>
+                <td>
+                    {% if g.approved %}
+                    <span class="status-served">Approved</span>
+                    <form method="POST" action="/firsts_admin/unapprove_board" class="remove-form"
+                          onsubmit="return confirm('Undo your approval of this board? It comes off every date you approved it for.')">
+                        <input type="hidden" name="key" value="{{ g.key }}">
+                        <button type="submit" class="btn btn-secondary">Undo</button>
+                    </form>
+                    {% else %}
+                    <span class="status-waiting">open it to approve</span>
+                    {% endif %}
+                </td>
+                <td>{{ g.players }}</td>
+                <td class="{{ 'status-served' if g.served else 'status-waiting' }}">{{ 'Served' if g.served else g.why }}</td>
+                <td>
+                    <ol class="answers">
+                    {% for i in range(clue_count) %}
+                        <li>
+                        {% if g.checked.get(i) %}<span class="checked">{{ g.checked[i] }}</span>
+                        {% elif g.tallies.get(i) %}<span class="players">{% for w, r, m in g.tallies[i][:2] %}{{ w }} {{ r }}&#10003;{% if m %} {{ m }}&#10007;{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+                        {% else %}<span class="status-waiting">-</span>{% endif %}
+                        {% if g.top and g.top[i] %}<span class="top"> ({{ g.top[i] }})</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                    </ol>
+                </td>
+                <td class="when">{{ g.last_update.strftime('%m-%d %H:%M') }}</td>
+                <td>
+                    <form method="POST" action="/firsts_admin/remove_board" class="remove-form"
+                          onsubmit="return confirm('Delete every entry of this board on {{ d.day.strftime('%Y-%m-%d') }}, approvals too?')">
+                        <input type="hidden" name="key" value="{{ g.key }}">
+                        <input type="hidden" name="played_on" value="{{ d.day.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn btn-danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    {% if not load_error %}<p>No boards logged in the last few days, and none ahead.</p>{% endif %}
+    {% endfor %}
+</div>
+
+{% endblock %}
