@@ -3,6 +3,7 @@ from atproto import Client, client_utils
 from datetime import datetime, date
 import os
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 import httpx
 
@@ -95,7 +96,9 @@ def send_email(gmail_sender_email, gmail_receiver_email, gmail_subject, gmail_me
     msg['From'] = gmail_sender_email
     msg['To'] = gmail_receiver_email
     with smtplib.SMTP('smtp.gmail.com', 587) as server:
-        server.starttls()
+        # Check Gmail's certificate and hostname before sending the password;
+        # a bare starttls() encrypts without checking who answered.
+        server.starttls(context=ssl.create_default_context())
         server.login(gmail_sender_email, GMAIL_PASS)
         server.sendmail(gmail_sender_email, gmail_receiver_email, msg.as_string())
         print('Email sent')
