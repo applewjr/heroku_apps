@@ -10,7 +10,7 @@ boards and clues are made up, never a real puzzle's.
 
 import json
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -429,7 +429,20 @@ def test_the_board_entry_page_opens_a_board_and_never_logs(client, boards, monke
     assert boards.rows == before
 
 
-ADMIN_POSTS = ('/firsts_admin/board', '/firsts_admin/approve_typed_board', '/firsts_admin/unapprove_board',
+def test_the_board_entry_page_takes_numbers_weeks_ahead(client, boards, monkeypatch):
+    """James enters future puzzles: the No. box takes up to AHEAD_DAYS on,
+    ?n= opens that number; players' No. box stops at today's."""
+    import routes.firsts as rt
+    auth = _admin_headers(monkeypatch)
+    html = client.get(f'/firsts_admin/board?n={TODAY_N + 2}', headers=auth).get_data(as_text=True)
+    assert f'let n = {TODAY_N + 2};' in html and f'const LAST_N = {TODAY_N + rt.AHEAD_DAYS};' in html
+    html = client.get(f'/firsts_admin/board?n={TODAY_N + rt.AHEAD_DAYS + 1}', headers=auth).get_data(as_text=True)
+    assert f'let n = {TODAY_N};' in html
+    html = client.get('/firsts').get_data(as_text=True)
+    assert 'let n = TODAY_N;' in html and f'const LAST_N = {TODAY_N};' in html
+
+
+ADMIN_POSTS =('/firsts_admin/board', '/firsts_admin/approve_typed_board', '/firsts_admin/unapprove_board',
                '/firsts_admin/remove_board')
 
 
@@ -520,3 +533,16 @@ def test_the_game_day_and_puzzle_numbers():
     import routes.firsts as rt
     assert rt.number_of(date(2026, 11, 26)) == 1 and rt.day_of(30) == date(2026, 12, 25)
     assert rt.label_of(2) == '002' and rt.label_of(-2) == '-02' and rt.label_of(0) == '000'
+
+
+@pytest.mark.parametrize('utc, n', [((2026, 11, 28, 13, 29), 2), ((2026, 11, 28, 13, 31), 3),
+                                    ((2026, 11, 29, 5, 0), 3), ((2026, 11, 29, 13, 30), 4)])
+def test_the_game_day_turns_over_at_the_sites_time(monkeypatch, utc, n):
+    import routes.firsts as rt
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(*utc, tzinfo=timezone.utc).astimezone(tz)
+    monkeypatch.setattr(rt, 'datetime', Clock)
+    assert rt.number_of(rt._game_today()) == n

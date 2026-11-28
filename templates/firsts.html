@@ -150,20 +150,22 @@
 .fst-face small { font-size: 11px; font-weight: 700; margin-top: 2px; text-transform: uppercase; }
 .fst-tile.empty .fst-face { background-color: #f9fbfb; color: #9ca3af; }
 .fst-tile.empty::before { background-color: #9cc3c1; }
-.fst-tile.start .fst-face { background-color: #ffd700; }
-.fst-tile.start::before { background-color: #b98f00; }
+/* Green tiles are green, as in the game; gold is kept for what's lit up
+   (the tile being typed, a Hints step, a word's path). */
+.fst-tile.start .fst-face { background-color: #5cbf6e; }
+.fst-tile.start::before { background-color: #2e8540; }
 .fst-tile.picture .fst-face { color: #02484d; font-size: 15px; font-style: italic; }
 .fst-tile.gone::before { background-color: #d1d5db; }
 .fst-tile.gone .fst-face { background-color: #f3f4f6; color: #c0c4ca; }
 .fst-tile.cursor::before { background-color: #ffd700; }
 .fst-tile.cursor .fst-face { inset: 5px; }
-.fst-tile.on-path::before { background-color: #ffd700; }
-.fst-tile.on-path .fst-face { inset: 5px; background-color: #02484d; color: #fff; }
+.fst-tile.on-path::before { background-color: #b98f00; }
+.fst-tile.on-path .fst-face { inset: 5px; background-color: #ffd700; color: #02484d; }
 .fst-tile:focus-visible { outline: none; }
 .fst-tile:focus-visible::before { background-color: #ffd700; }
 .fst-step-badge {
     position: absolute; top: 12%; right: 22%; z-index: 2; min-width: 18px; height: 18px; padding: 0 3px;
-    border-radius: 9px; background-color: #ffd700; color: #02484d; font-size: 11px; font-weight: 800;
+    border-radius: 9px; background-color: #02484d; color: #fff; font-size: 11px; font-weight: 800;
     display: flex; align-items: center; justify-content: center; pointer-events: none;
 }
 .fst-path { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
@@ -339,7 +341,7 @@
 <br>
 <h1 class="fst-h1">{% if approve %}Approve your game's board{% else %}Firsts Answers &amp; Hints{% if is_beta('/firsts') %} <span class="jj-beta-tag">Beta</span>{% endif %}{% endif %}</h1>
 {% if approve %}
-<p class="fst-dev-note">Enter the board, then play it: tap &#10003; on each word Firsts takes, or type it in, and Approve. The board is served for the puzzle number you pick, with your answers shown as checked; approve again to add more. Nothing here counts as a player. <a href="/firsts_admin">Back to Firsts admin</a></p>
+<p class="fst-dev-note">Set the No. above the board (up to {{ ahead_n - today_n }} days ahead: a future puzzle is served from its day), enter the board, then play it: tap &#10003; on each word Firsts takes, or type it in, and Approve. Your answers are shown as checked; approve again to add more. Each No. keeps its own draft here. Nothing here counts as a player. <a href="/firsts_admin">Back to Firsts admin</a></p>
 {% if load_error %}<p class="fst-dev-note fst-load-error" role="alert">{{ load_error }}.</p>{% endif %}
 {% endif %}
 <p class="fst-sub" id="fst-ok">Help with Firsts, the daily hex crossword from Bleppo Games: hints clue by clue, or the answers, traced on the tiles.</p>
@@ -445,7 +447,8 @@ function fstShowOffer(boards, label) {
     <p class="fst-approve-title">Approve</p>
     <p class="fst-approve-help" id="fst-approve-help">Tap &#10003; on each word Firsts takes (Answers below), or type it under its clue. Approve saves the board and those answers; approve again after more.</p>
     <form method="POST" action="/firsts_admin/approve_typed_board" class="fst-approve-form" id="fst-approve-form">
-        <label>No. <input type="text" name="n" id="fst-approve-n" value="{{ approve_n }}" inputmode="numeric" required style="width: 64px; font-size: 16px; padding: 6px 8px;"></label>
+        {# The puzzle number is the board's own No. box, put in on submit. #}
+        <input type="hidden" name="n" id="fst-approve-n" value="{{ approve_n }}">
         <input type="hidden" name="board" id="fst-approve-board">
         <input type="hidden" name="answers" id="fst-approve-answers">
         <button type="submit" class="fst-btn primary" id="fst-approve-btn" disabled>Approve</button>
@@ -540,9 +543,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const POST_URL = {{ post_url | tojson }};
     const BOARDS_ON = {{ 'true' if boards_on else 'false' }};
     const APPROVE = {{ 'true' if approve else 'false' }};
-    {# James's board entry keeps a board of its own, so it never touches his
-       game on the public page, and it never logs a board or a mark. #}
+    {# James's board entry keeps boards of its own, one draft per puzzle
+       number so he can work days ahead; it never touches his game on the
+       public page, and it never logs a board or a mark. #}
     const STORAGE_KEY = {{ ('firstsApproveState_v1' if approve else 'firstsState_v1') | tojson }};
+    const storeKey = num => (APPROVE ? STORAGE_KEY + ':' + num : STORAGE_KEY);
+    // The highest number the No. box takes: today's for players (a later
+    // puzzle's board can't be logged yet), weeks ahead for James.
+    const LAST_N = {{ ahead_n if approve else today_n }};
     const LOG_BOARDS = !APPROVE;
     const MODE_KEY = 'firstsMode_v1';
     // A board the player has looked at this long, untouched, counts as used
@@ -560,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let green = Array(N).fill(false), gone = Array(N).fill(false);
     let clues = Array.from({length: CLUES}, () => ({text: '', spec: ''}));
     let title = '', names = {}, readings = {};
-    let n = TODAY_N;                     // the puzzle number
+    let n = {{ approve_n if approve else 'TODAY_N' }};   // the puzzle number
     let archive = false;                 // an older puzzle, kept past its day
     let cursor = 0, editing = true, markMode = false, cluesOpen = true;
     let yours = {}, solved = [], marks = {}, refusedHere = {};
@@ -694,7 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const svg = boardEl.querySelector('.fst-path');
         svg.innerHTML = path.length > 1
             ? '<polyline points="' + path.map(i => centre(CELLS[i]).map(v => (v * 100).toFixed(2)).join(',')).join(' ')
-              + '" fill="none" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>'
+              + '" fill="none" stroke="#02484d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>'
             : '';
         editBtn.textContent = editing ? 'Done' : 'Edit letters';
         editBtn.classList.toggle('on', editing);
@@ -841,12 +849,29 @@ document.addEventListener('DOMContentLoaded', () => {
     titleEl.addEventListener('input', () => { title = titleEl.value.slice(0, 80); changed(false, true); });
     numEl.addEventListener('change', () => {
         const v = Number(numEl.value);
-        if (Number.isInteger(v) && v >= FIRST_N && v <= TODAY_N) {
+        if (Number.isInteger(v) && v >= FIRST_N && v <= LAST_N && v !== n) {
+            if (APPROVE && !tiles.some(Boolean)) {
+                // Nothing typed yet: open that puzzle, its draft or its boards.
+                location.assign(location.pathname + '?n=' + v);
+                return;
+            }
+            if (APPROVE) {
+                // The board typed so far moves to the new number.
+                let there = false;
+                try { there = !!localStorage.getItem(storeKey(v)); } catch (_) {}
+                if (there && !confirm('No. ' + labelOf(v) + ' has a draft already. Put this board in its place?')) {
+                    numEl.value = labelOf(n);
+                    return;
+                }
+                try { localStorage.removeItem(storeKey(n)); } catch (_) {}
+                try { history.replaceState(null, '', location.pathname + '?n=' + v); } catch (_) {}
+            }
             n = v;
             archive = v < TODAY_N;
         }
         numEl.value = labelOf(n);
         persist();
+        renderApprove();
     });
 
     function renderTip(msg, warn) {
@@ -888,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPictures();
         renderClues();
         renderTip();
+        renderApprove();
         persist();
         scheduleSolve(typing ? SOLVE_AFTER_MS : 0);
     }
@@ -1150,7 +1176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let sharedSeq = 0;
     function fetchShared(asked) {
         if (!BOARDS_ON) return;
-        const seq = ++sharedSeq, want = asked === undefined ? TODAY_N : asked;
+        const seq = ++sharedSeq, want = asked !== undefined ? asked : APPROVE ? n : TODAY_N;
         postJSON({action: 'todays_boards', n: want})
             .then(data => {
                 if (seq !== sharedSeq) return;
@@ -1296,6 +1322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const k = keyNow() || startKey;
         const count = Object.keys(yours).length;
         approveBtn.disabled = !k;
+        approveBtn.textContent = 'Approve No. ' + labelOf(n);
         approveStatus.textContent = !k ? 'Approve needs the whole starting board: every tile, the greens, and all 10 lengths.'
             : count + ' of ' + CLUES + ' answers checked.';
     }
@@ -1309,6 +1336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             b.green = [...g].map(c => c === '1');
         }
         delete b.key; delete b.yours; delete b.solved; delete b.synced;
+        document.getElementById('fst-approve-n').value = String(n);
         document.getElementById('fst-approve-board').value = JSON.stringify(b);
         const words = {};
         Object.entries(yours).forEach(([i, w]) => { words[i] = lettersOf(w); });
@@ -1317,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function preloaded() {
         if (!PRELOAD) return false;
         loadBoard({key: PRELOAD.key, details: PRELOAD.details, readings: PRELOAD.readings, answers: PRELOAD.answers},
-                  Number(document.getElementById('fst-approve-n').value) || TODAY_N, 'typed');
+                  n, 'typed');
         return true;
     }
     {% else %}
@@ -1328,16 +1356,17 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ---------- saving ---------- */
     function persist() {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({tiles, green, gone, clues, title, names, readings, n, archive,
+            localStorage.setItem(storeKey(n), JSON.stringify({tiles, green, gone, clues, title, names, readings, n, archive,
                 yours, solved, marks, refusedHere, reveal, startKey, boardSource, loggedSig, marksSig, cluesOpen, savedAt: Date.now()}));
         } catch (_) {}
     }
 
     // A save from an earlier puzzle (today's moved on) starts fresh, unless
-    // it's an older puzzle the player picked. James's draft never runs out.
+    // it's an older puzzle the player picked. James's drafts (one per
+    // number, so this one is No. n's) never run out.
     function restore() {
         let s = null;
-        try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+        try { s = JSON.parse(localStorage.getItem(storeKey(n))); } catch (_) {}
         if (!s || !Array.isArray(s.tiles) || s.tiles.length !== N) return false;
         if (!APPROVE && !s.archive && s.n !== TODAY_N) {
             try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
@@ -1356,7 +1385,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(([k, v]) => typeof v === 'string').map(([k, v]) => [k, v.slice(0, max)]));
         title = typeof s.title === 'string' ? s.title.slice(0, 80) : '';
         names = strMap(s.names, 40); readings = strMap(s.readings, 8); yours = strMap(s.yours, 20);
-        n = Number.isInteger(s.n) && s.n >= FIRST_N && s.n <= TODAY_N + 60 ? s.n : TODAY_N;
+        if (!APPROVE) n = Number.isInteger(s.n) && s.n >= FIRST_N && s.n <= LAST_N ? s.n : TODAY_N;
         archive = !!s.archive;
         solved = Array.isArray(s.solved) ? s.solved.filter(i => Number.isInteger(i) && i >= 0 && i < CLUES) : [];
         marks = s.marks && typeof s.marks === 'object' ? s.marks : {};
@@ -1377,14 +1406,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ask && tiles.some(Boolean) && !confirm('Clear the whole board and start over?')) return;
         tiles = Array(N).fill(''); green = Array(N).fill(false); gone = Array(N).fill(false);
         clues = Array.from({length: CLUES}, () => ({text: '', spec: ''}));
-        title = ''; names = {}; readings = {}; n = TODAY_N; archive = false;
+        try { localStorage.removeItem(storeKey(n)); } catch (_) {}
+        title = ''; names = {}; readings = {}; if (!APPROVE) n = TODAY_N; archive = false;
         yours = {}; solved = []; marks = {}; refusedHere = {}; reveal = {}; more = {}; focus = null;
         startKey = ''; boardSource = 'typed'; loggedSig = ''; marksSig = '';
         cursor = 0; editing = true; markMode = false; cluesOpen = true;
         last = null; lastSig = '';
         titleEl.value = '';
         numEl.value = labelOf(n);
-        try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
         changed(true);
         fetchShared();
     }

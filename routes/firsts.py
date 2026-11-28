@@ -10,7 +10,7 @@ Nothing is fetched at runtime: the solver never contacts the game.
 The game's day. Firsts numbers its puzzles: No. N is 2026-11-25 + N days.
 The site decides which number is today, the same on every device (No. 002
 on devices set to Los Angeles, London, Tokyo and Kiritimati at 00:13 UTC on
-2026-11-28), so the day is the game's and kept here (GAME_TZ), as on
+2026-11-28), so the day is the game's and kept here (ROLLOVER_UTC), as on
 /circuits. Past puzzles stay playable in the game and future ones open
 early; the page offers today's, and the past ones James approved.
 
@@ -36,9 +36,8 @@ import threading
 import time
 from collections import Counter, OrderedDict, defaultdict
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
-import pytz
 from flask import Blueprint, jsonify, redirect, render_template, request
 
 import crowd
@@ -59,9 +58,12 @@ PATH = '/firsts'
 
 ##### the game's day #####
 
-# The calendar the site's "today" follows: the number turns over at
-# midnight here.
-GAME_TZ = pytz.timezone('America/New_York')
+# When the site's "today" turns over, as a time of day in UTC. No. 002 became
+# No. 003 between 13:23 and 13:33 UTC on 2026-11-28 (5:30 AM Pacific, 1:30 PM
+# London; checked every 10 minutes from 00:13 UTC). That is midnight in no
+# time zone, so it is likely a daily publish: one sighting, recheck if
+# players' boards land on the wrong day.
+ROLLOVER_UTC = timedelta(hours=13, minutes=30)
 # No. N is LAUNCH + N days (No. 001 came out on 2026-11-26).
 LAUNCH = date(2026, 11, 25)
 # The game's own intro puzzles are No. -02 to 000.
@@ -71,8 +73,9 @@ AHEAD_DAYS = 60
 
 
 def _game_now():
-    """Now in the game's calendar (tests set this)."""
-    return datetime.now(GAME_TZ)
+    """Now in the game's calendar: UTC set back by the turnover time, so its
+    date is the site's today."""
+    return datetime.now(timezone.utc) - ROLLOVER_UTC
 
 
 def _game_today():
@@ -137,7 +140,7 @@ def page_context():
     never touches the database."""
     today = number_of(_game_today())
     return {'cells': fz.hex_cells(), 'clue_count': fz.CLUES, 'today_n': today, 'today_label': label_of(today),
-            'first_n': FIRST_NUMBER, 'max_letters': fz.MAX_LETTERS, 'max_pictures': fz.MAX_PICTURES}
+            'first_n': FIRST_NUMBER, 'ahead_n': today + AHEAD_DAYS, 'max_letters': fz.MAX_LETTERS, 'max_pictures': fz.MAX_PICTURES}
 
 
 ##### the page's requests #####
