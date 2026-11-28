@@ -437,9 +437,10 @@ def test_the_board_entry_page_takes_numbers_weeks_ahead(client, boards, monkeypa
     html = client.get(f'/firsts_admin/board?n={TODAY_N + 2}', headers=auth).get_data(as_text=True)
     assert f'let n = {TODAY_N + 2};' in html and f'const LAST_N = {TODAY_N + rt.AHEAD_DAYS};' in html
     html = client.get(f'/firsts_admin/board?n={TODAY_N + rt.AHEAD_DAYS + 1}', headers=auth).get_data(as_text=True)
-    assert f'let n = {TODAY_N};' in html
+    assert f'let n = {TODAY_N};' in html and 'id="fst-paste-text"' in html
     html = client.get('/firsts').get_data(as_text=True)
     assert 'let n = TODAY_N;' in html and f'const LAST_N = {TODAY_N};' in html
+    assert 'id="fst-paste-text"' not in html and "'fst-paste-text'" not in html, "players don't get the paste box"
 
 
 ADMIN_POSTS =('/firsts_admin/board', '/firsts_admin/approve_typed_board', '/firsts_admin/unapprove_board',
